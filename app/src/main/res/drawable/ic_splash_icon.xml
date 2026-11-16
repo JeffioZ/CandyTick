@@ -1,36 +1,27 @@
 <?xml version="1.0" encoding="utf-8"?>
-<!-- 开屏专用图标：几何与桌面图标完全一致（透明底薄荷环，深绿底上两态一致） -->
+<!-- 开屏图标：扁平化（与桌面图标同几何同风格） -->
 <vector xmlns:android="http://schemas.android.com/apk/res/android"
-    xmlns:aapt="http://schemas.android.com/aapt"
     android:width="108dp"
     android:height="108dp"
     android:viewportWidth="108"
     android:viewportHeight="108">
 
+    <!-- 外涟漪 -->
     <path
-        android:pathData="M54,54 m-26,0 a26,26 0 1,1 52,0 a26,26 0 1,1 -52,0"
+        android:pathData="M54,54 m-28,0 a28,28 0 1,1 56,0 a28,28 0 1,1 -56,0"
         android:fillColor="#00000000"
-        android:strokeColor="#B34ADE9E"
-        android:strokeWidth="4.5" />
+        android:strokeColor="#804ADE9E"
+        android:strokeWidth="5" />
 
+    <!-- 内涟漪（强） -->
     <path
-        android:pathData="M54,54 m-18.5,0 a18.5,18.5 0 1,1 37,0 a18.5,18.5 0 1,1 -37,0"
+        android:pathData="M54,54 m-20,0 a20,20 0 1,1 40,0 a20,20 0 1,1 -40,0"
         android:fillColor="#00000000"
-        android:strokeColor="#F54ADE9E"
-        android:strokeWidth="6.5" />
+        android:strokeColor="#4ADE9E"
+        android:strokeWidth="7" />
 
-    <path android:pathData="M54,54 m-9.5,0 a9.5,9.5 0 1,1 19,0 a9.5,9.5 0 1,1 -19,0">
-        <aapt:attr name="android:fillColor">
-            <gradient
-                android:type="radial"
-                android:centerX="51.6"
-                android:centerY="49.8"
-                android:gradientRadius="11">
-                <item android:offset="0" android:color="#FFD6FBEF" />
-                <item android:offset="0.4" android:color="#FF6FE6B2" />
-                <item android:offset="0.75" android:color="#FF2FB683" />
-                <item android:offset="1" android:color="#FF22A173" />
-            </gradient>
-        </aapt:attr>
-    </path>
+    <!-- 糖珠（实色） -->
+    <path
+        android:pathData="M54,54 m-11,0 a11,11 0 1,1 22,0 a11,11 0 1,1 -22,0"
+        android:fillColor="#4ADE9E" />
 </vector>

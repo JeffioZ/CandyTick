@@ -1,58 +1,27 @@
 <?xml version="1.0" encoding="utf-8"?>
-<!-- 回声前景 · 深夜绿砖：桌面小尺寸优化（外环加重加亮、糖珠放大、环境光增强） -->
+<!-- 回声前景 · 深夜绿砖：扁平化（去辉光/渐变/反光，参考米家健康简洁风） -->
 <vector xmlns:android="http://schemas.android.com/apk/res/android"
-    xmlns:aapt="http://schemas.android.com/aapt"
     android:width="108dp"
     android:height="108dp"
     android:viewportWidth="108"
     android:viewportHeight="108">
 
-    <!-- 环境光（桌面小尺寸时给暗底一点体量感） -->
-    <path android:pathData="M54,54 m-22,0 a22,22 0 1,1 44,0 a22,22 0 1,1 -44,0">
-        <aapt:attr name="android:fillColor">
-            <gradient
-                android:type="radial"
-                android:centerX="54"
-                android:centerY="54"
-                android:gradientRadius="22">
-                <item android:offset="0" android:color="#244ADE9E" />
-                <item android:offset="1" android:color="#004ADE9E" />
-            </gradient>
-        </aapt:attr>
-    </path>
-
-    <!-- 外涟漪：r28 + stroke 5 = 外缘 30.5dp（安全区 33dp，92% 填充率） -->
+    <!-- 外涟漪 -->
     <path
         android:pathData="M54,54 m-28,0 a28,28 0 1,1 56,0 a28,28 0 1,1 -56,0"
         android:fillColor="#00000000"
-        android:strokeColor="#CC4ADE9E"
+        android:strokeColor="#804ADE9E"
         android:strokeWidth="5" />
 
     <!-- 内涟漪（强） -->
     <path
         android:pathData="M54,54 m-20,0 a20,20 0 1,1 40,0 a20,20 0 1,1 -40,0"
         android:fillColor="#00000000"
-        android:strokeColor="#F54ADE9E"
+        android:strokeColor="#4ADE9E"
         android:strokeWidth="7" />
 
-    <!-- 荧光糖珠（放大一档，小尺寸辨识） -->
-    <path android:pathData="M54,54 m-11,0 a11,11 0 1,1 22,0 a11,11 0 1,1 -22,0">
-        <aapt:attr name="android:fillColor">
-            <gradient
-                android:type="radial"
-                android:centerX="51.2"
-                android:centerY="49.6"
-                android:gradientRadius="12.5">
-                <item android:offset="0" android:color="#FFD6FBEF" />
-                <item android:offset="0.35" android:color="#FF7FEAB8" />
-                <item android:offset="0.7" android:color="#FF33BC8A" />
-                <item android:offset="1" android:color="#FF25A97B" />
-            </gradient>
-        </aapt:attr>
-    </path>
-
-    <!-- 底部微反光 -->
+    <!-- 糖珠（实色，无渐变） -->
     <path
-        android:pathData="M48.5,61.5 a5.5,2.6 0 1,0 11,0 a5.5,2.6 0 1,0 -11,0"
-        android:fillColor="#4F7CE8BC" />
+        android:pathData="M54,54 m-11,0 a11,11 0 1,1 22,0 a11,11 0 1,1 -22,0"
+        android:fillColor="#4ADE9E" />
 </vector>

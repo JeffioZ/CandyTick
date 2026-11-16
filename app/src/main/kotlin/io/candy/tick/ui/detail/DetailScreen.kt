@@ -199,8 +199,6 @@ fun DetailScreen(repoId: Long, onBack: () -> Unit) {
                             }
                         },
                         onLinkSuggestion = { state.linkSuggestion?.first?.let(vm::setLinkedApp) },
-                        onInstallDownloaded = { repo?.let(vm::installDownloaded) },
-                        onDeleteDownloaded = vm::deleteDownloaded,
                     )
                 }
                 state.banner?.let { error ->
@@ -236,6 +234,8 @@ fun DetailScreen(repoId: Long, onBack: () -> Unit) {
                         onDownload = vm::downloadAsset,
                         onRetry = vm::retryDownload,
                         onInstall = vm::installFile,
+                        onInstallDownloaded = { repo?.let(vm::installDownloaded) },
+                        onDeleteDownloaded = vm::deleteDownloaded,
                     )
                     if (state.releasesEnd && state.releases.isNotEmpty()) {
                         item {
@@ -332,8 +332,6 @@ private fun HeaderCard(
     onChangeLinked: () -> Unit,
     onUnlink: () -> Unit,
     onLinkSuggestion: () -> Unit,
-    onInstallDownloaded: () -> Unit,
-    onDeleteDownloaded: () -> Unit,
 ) {
     val repo = state.repo ?: return
     val snapshot = state.snapshot
@@ -507,23 +505,6 @@ private fun HeaderCard(
                 TextButton(text = stringResource(R.string.detail_link_app), onClick = onChangeLinked)
             }
 
-            // 下载保留：重装 / 删除（可重新下载，非破坏性 → 不加确认弹窗）
-            repo.downloadedApk?.let { record ->
-                Row(verticalAlignment = Alignment.CenterVertically) {
-                    TextButton(
-                        text = stringResource(R.string.detail_reinstall, record.fileName),
-                        onClick = onInstallDownloaded,
-                    )
-                    Spacer(Modifier.width(8.dp))
-                    IconButton(onClick = onDeleteDownloaded, modifier = Modifier.size(32.dp)) {
-                        Icon(
-                            imageVector = MiuixIcons.Delete,
-                            contentDescription = stringResource(R.string.detail_delete_download),
-                            tint = scheme.onBackgroundVariant,
-                        )
-                    }
-                }
-            }
 
         }
     }

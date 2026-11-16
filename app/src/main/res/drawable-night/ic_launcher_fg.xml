@@ -1,39 +1,27 @@
 <?xml version="1.0" encoding="utf-8"?>
-<!-- 回声前景 · 奶油砖版：外缘 28dp（安全区 33dp 留 5dp 呼吸），与开屏几何一致 -->
+<!-- 回声前景 · 奶油砖：扁平化（参考米家健康简洁风） -->
 <vector xmlns:android="http://schemas.android.com/apk/res/android"
-    xmlns:aapt="http://schemas.android.com/aapt"
     android:width="108dp"
     android:height="108dp"
     android:viewportWidth="108"
     android:viewportHeight="108">
 
+    <!-- 外涟漪 -->
     <path
-        android:pathData="M54,54 m-26,0 a26,26 0 1,1 52,0 a26,26 0 1,1 -52,0"
+        android:pathData="M54,54 m-28,0 a28,28 0 1,1 56,0 a28,28 0 1,1 -56,0"
         android:fillColor="#00000000"
-        android:strokeColor="#9E12825C"
-        android:strokeWidth="4.5" />
+        android:strokeColor="#8012825C"
+        android:strokeWidth="5" />
 
+    <!-- 内涟漪（强） -->
     <path
-        android:pathData="M54,54 m-18.5,0 a18.5,18.5 0 1,1 37,0 a18.5,18.5 0 1,1 -37,0"
+        android:pathData="M54,54 m-20,0 a20,20 0 1,1 40,0 a20,20 0 1,1 -40,0"
         android:fillColor="#00000000"
-        android:strokeColor="#F212825C"
-        android:strokeWidth="6.5" />
+        android:strokeColor="#12825C"
+        android:strokeWidth="7" />
 
-    <path android:pathData="M54,54 m-9.5,0 a9.5,9.5 0 1,1 19,0 a9.5,9.5 0 1,1 -19,0">
-        <aapt:attr name="android:fillColor">
-            <gradient
-                android:type="radial"
-                android:centerX="51.6"
-                android:centerY="49.8"
-                android:gradientRadius="11">
-                <item android:offset="0" android:color="#FFA9F2D3" />
-                <item android:offset="0.5" android:color="#FF2BA97B" />
-                <item android:offset="1" android:color="#FF107A56" />
-            </gradient>
-        </aapt:attr>
-    </path>
-
+    <!-- 糖珠（实色） -->
     <path
-        android:pathData="M49.5,59.8 a4.5,2.2 0 1,0 9,0 a4.5,2.2 0 1,0 -9,0"
-        android:fillColor="#73BDF2DA" />
+        android:pathData="M54,54 m-11,0 a11,11 0 1,1 22,0 a11,11 0 1,1 -22,0"
+        android:fillColor="#12825C" />
 </vector>

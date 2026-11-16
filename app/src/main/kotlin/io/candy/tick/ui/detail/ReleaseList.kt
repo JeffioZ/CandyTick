@@ -37,6 +37,7 @@ import top.yukonga.miuix.kmp.basic.Text
 import top.yukonga.miuix.kmp.basic.TextButton
 import top.yukonga.miuix.kmp.icon.MiuixIcons
 import top.yukonga.miuix.kmp.icon.basic.Check
+import top.yukonga.miuix.kmp.icon.extended.Delete
 import top.yukonga.miuix.kmp.theme.MiuixTheme
 
 /** Release 历史 + APK 资产（多 APK 自动推荐 + 手选；下载 → 安装） */
@@ -47,6 +48,8 @@ fun LazyListScope.releaseList(
     onDownload: (ReleaseRecord, ApkAsset) -> Unit,
     onRetry: (ReleaseRecord, ApkAsset) -> Unit,
     onInstall: (java.io.File) -> Unit,
+    onInstallDownloaded: () -> Unit,
+    onDeleteDownloaded: () -> Unit,
 ) {
     items(count = state.releases.size, key = { state.releases[it].tagName }) { index ->
         val release = state.releases[index]
@@ -57,6 +60,8 @@ fun LazyListScope.releaseList(
             onDownload = onDownload,
             onRetry = onRetry,
             onInstall = onInstall,
+            onInstallDownloaded = onInstallDownloaded,
+            onDeleteDownloaded = onDeleteDownloaded,
         )
     }
     item(key = "releases-footer") {
@@ -96,6 +101,8 @@ private fun ReleaseCard(
     onDownload: (ReleaseRecord, ApkAsset) -> Unit,
     onRetry: (ReleaseRecord, ApkAsset) -> Unit,
     onInstall: (java.io.File) -> Unit,
+    onInstallDownloaded: () -> Unit,
+    onDeleteDownloaded: () -> Unit,
 ) {
     val scheme = MiuixTheme.colorScheme
     val candidates = remember(release) { ApkPicker.apkCandidates(release.apkAssets) }
@@ -177,7 +184,29 @@ private fun ReleaseCard(
                     null -> Unit
                 }
 
-                if (selected != null && state.download !is DetailViewModel.DownloadState.Active) {
+                val isDownloadedVersion = state.repo?.downloadedApk?.version == release.tagName
+                if (isDownloadedVersion) {
+                    // 已下载：安装 + 删除（归属此 Release，替代原头部行）
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.spacedBy(8.dp),
+                    ) {
+                        Box(modifier = Modifier.weight(1f)) {
+                            PrimaryButton(
+                                text = stringResource(R.string.install_apk),
+                                onClick = onInstallDownloaded,
+                                modifier = Modifier.fillMaxWidth(),
+                            )
+                        }
+                        top.yukonga.miuix.kmp.basic.IconButton(onClick = onDeleteDownloaded) {
+                            top.yukonga.miuix.kmp.basic.Icon(
+                                imageVector = top.yukonga.miuix.kmp.icon.MiuixIcons.Delete,
+                                contentDescription = stringResource(R.string.detail_delete_download),
+                                tint = scheme.onErrorContainer,
+                            )
+                        }
+                    }
+                } else if (selected != null && state.download !is DetailViewModel.DownloadState.Active) {
                     PrimaryButton(
                         text = stringResource(R.string.download_apk),
                         onClick = { onDownload(release, selected) },
