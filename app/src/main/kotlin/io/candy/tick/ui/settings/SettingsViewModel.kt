@@ -120,6 +120,12 @@ class SettingsViewModel(
         }
     }
 
+    // ---- 备份 ----
+
+    fun exportSubscriptions(): String = repository.exportState()
+
+    suspend fun importSubscriptions(text: String): Int = repository.importState(text)
+
     // ---- 自身更新 ----
 
     fun checkUpdate() {

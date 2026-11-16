@@ -48,11 +48,12 @@ class ListViewModel(
         val items: List<RepoListItem> = emptyList(),
         val refreshing: Boolean = false,
         val sortMode: SortMode = SortMode.LAST_PUSH,
+        val query: String = "",
         val banner: SourceError? = null,
         val expanded: Set<Long> = emptySet(),
         val cards: Map<Long, CardExtras> = emptyMap(),
     ) {
-        val isEmpty: Boolean get() = items.isEmpty() && !refreshing
+        val isEmpty: Boolean get() = items.isEmpty() && !refreshing && query.isBlank()
     }
 
     sealed interface Event {
@@ -63,14 +64,15 @@ class ListViewModel(
     val events: Flow<Event> = _events.receiveAsFlow()
 
     private val sortMode = MutableStateFlow(SortMode.LAST_PUSH)
+    private val query = MutableStateFlow("")
     private val refreshing = MutableStateFlow(false)
     private val banner = MutableStateFlow<SourceError?>(null)
     private val repoErrors = MutableStateFlow<Map<Long, SourceError>>(emptyMap())
     private val expanded = MutableStateFlow<Set<Long>>(emptySet())
     private val cards = MutableStateFlow<Map<Long, CardExtras>>(emptyMap())
 
-    private val part1 = combine(repository.state, sortMode, refreshing, banner) { s, sort, refr, ban ->
-        Part1(s.repos, s.snapshots, sort, refr, ban)
+    private val part1 = combine(repository.state, sortMode, refreshing, banner, query) { s, sort, refr, ban, q ->
+        Part1(s.repos, s.snapshots, sort, refr, ban, q)
     }
     private val part2 = combine(repoErrors, expanded, cards) { errs, exp, crds ->
         Part2(errs, exp, crds)
@@ -78,9 +80,10 @@ class ListViewModel(
 
     val state: StateFlow<UiState> = combine(part1, part2) { p1, p2 ->
         UiState(
-            items = buildItems(p1.repos, p1.snapshots, p2.errors, p1.sort),
+            items = buildItems(p1.repos, p1.snapshots, p2.errors, p1.sort, p1.query),
             refreshing = p1.refreshing,
             sortMode = p1.sort,
+            query = p1.query,
             banner = p1.banner,
             expanded = p2.expanded,
             cards = p2.cards,
@@ -93,6 +96,7 @@ class ListViewModel(
         val sort: SortMode,
         val refreshing: Boolean,
         val banner: SourceError?,
+        val query: String,
     )
 
     private data class Part2(
@@ -106,8 +110,16 @@ class ListViewModel(
         snapshots: Map<Long, RepoSnapshot>,
         errors: Map<Long, SourceError>,
         sort: SortMode,
-    ): List<RepoListItem> = repos.map { RepoListItem(it, snapshots[it.id], errors[it.id]) }
-        .sortedWith(
+        query: String,
+    ): List<RepoListItem> {
+        val q = query.trim().lowercase()
+        val source = if (q.isBlank()) repos else repos.filter { tracked ->
+            tracked.repo.lowercase().contains(q) ||
+                tracked.owner.lowercase().contains(q) ||
+                tracked.noteName?.lowercase()?.contains(q) == true
+        }
+        return source.map { RepoListItem(it, snapshots[it.id], errors[it.id]) }
+            .sortedWith(
             when (sort) {
                 SortMode.LAST_PUSH -> compareByDescending<RepoListItem> { it.snapshot?.pushedAt?.toEpochMilli() ?: Long.MIN_VALUE }
                 SortMode.STATUS -> compareBy { it.status }
@@ -117,6 +129,7 @@ class ListViewModel(
                     .thenByDescending { it.snapshot?.pushedAt?.toEpochMilli() ?: Long.MIN_VALUE }
             },
         )
+    }
 
     /** 关联本机应用 + latestReleaseTag 严格更新（宁可不比） */
     private fun RepoListItem.hasUpdate(context: Context): Boolean {
@@ -148,6 +161,10 @@ class ListViewModel(
 
     fun setSort(mode: SortMode) {
         sortMode.value = mode
+    }
+
+    fun setQuery(text: String) {
+        query.value = text
     }
 
     fun toggleExpand(id: Long) {

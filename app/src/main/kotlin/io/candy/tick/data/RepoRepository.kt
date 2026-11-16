@@ -108,6 +108,11 @@ class RepoRepository(
     suspend fun addPreview(owner: String, repo: String): RepoInfoResult =
         provider(PROVIDER_GITHUB).repoInfo(owner, repo)
 
+    /** 备份：导出 / 合并导入（按 id 去重） */
+    fun exportState(): String = store.exportJson()
+
+    suspend fun importState(text: String): Int = store.importJson(text)
+
     // ---- 刷新（旧数据永不丢；单仓库失败不拖垮列表） ----
 
     /** 刷新单仓库快照；返回 null = 成功（含 304），非空 = 该仓库的错误 */

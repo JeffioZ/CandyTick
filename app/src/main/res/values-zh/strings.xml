@@ -152,6 +152,15 @@
 
     <!-- 设置页 -->
     <string name="settings_appearance">外观</string>
+    <string name="action_search">搜索</string>
+    <string name="search_hint">搜索仓库</string>
+    <string name="settings_backup_group">备份</string>
+    <string name="settings_export">导出订阅</string>
+    <string name="settings_export_summary">以 JSON 复制到剪贴板，并弹出分享</string>
+    <string name="settings_import">导入订阅</string>
+    <string name="settings_import_summary">从 JSON 文件合并导入，不覆盖现有数据</string>
+    <string name="import_result">已导入 %1$d 个仓库</string>
+    <string name="import_failed">导入失败 · 不是有效的备份文件</string>
     <string name="settings_theme_mode">主题</string>
     <string name="settings_sync">同步</string>
     <string name="settings_sync_frequency">同步频率</string>
@@ -165,8 +174,6 @@
     <string name="settings_token_network_error">网络错误</string>
     <string name="settings_token_rejected">Token 已被 GitHub 拒绝（401）· 当前按匿名模式请求</string>
     <string name="settings_notifications">新版本通知</string>
-    <string name="settings_notif_permission_banner">通知权限未授予</string>
-    <string name="settings_notif_grant">去开启</string>
 
     <!-- 权限 -->
     <string name="settings_permission_group">权限</string>
@@ -183,8 +190,6 @@
     <string name="settings_self_update_check">自动检查更新</string>
     <string name="settings_self_update_download">自动下载（仅 Wi-Fi）</string>
     <string name="settings_up_to_date">已是最新版本</string>
-    <string name="settings_new_version">新版本 %1$s</string>
-    <string name="settings_new_version_incomparable">发现新发布 %1$s · 无法比较版本</string>
     <string name="settings_download_update">下载并安装</string>
     <string name="settings_install_update">安装已下载的更新</string>
     <string name="settings_update_failed">检查失败 · 稍后再试</string>

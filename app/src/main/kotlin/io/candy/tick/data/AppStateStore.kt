@@ -46,6 +46,33 @@ class AppStateStore(context: Context) {
         }
     }
 
+    /** 导出当前状态为 JSON（订阅 + 快照 + 设置） */
+    fun exportJson(): String = json.encodeToString(_state.value)
+
+    /**
+     * 从备份 JSON 合并导入（按仓库 id 去重，不覆盖现有数据与设置）。
+     * @return 新增订阅数；-1 = 文件解析失败
+     */
+    suspend fun importJson(text: String): Int {
+        val imported = runCatching { json.decodeFromString<AppState>(text) }.getOrNull() ?: return -1
+        var added = 0
+        update { s ->
+            val existing = s.repos.mapTo(HashSet()) { it.id }
+            val newRepos = imported.repos.filter { it.id !in existing }
+            added = newRepos.size
+            if (newRepos.isEmpty()) {
+                s
+            } else {
+                val newIds = newRepos.mapTo(HashSet()) { it.id }
+                s.copy(
+                    repos = s.repos + newRepos,
+                    snapshots = s.snapshots + imported.snapshots.filterKeys { it in newIds },
+                )
+            }
+        }
+        return added
+    }
+
     private fun loadOrReset(): AppState = runCatching {
         file.takeIf { it.exists() }?.readText()?.let { json.decodeFromString<AppState>(it) }
     }.getOrElse {

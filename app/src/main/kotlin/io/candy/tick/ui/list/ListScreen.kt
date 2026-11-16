@@ -45,7 +45,7 @@ import top.yukonga.miuix.kmp.basic.Text
 import top.yukonga.miuix.kmp.basic.rememberPullToRefreshState
 import top.yukonga.miuix.kmp.basic.rememberTopAppBarState
 import top.yukonga.miuix.kmp.icon.MiuixIcons
-import top.yukonga.miuix.kmp.icon.basic.ArrowUpDown
+import top.yukonga.miuix.kmp.icon.basic.Search
 import top.yukonga.miuix.kmp.theme.MiuixTheme
 
 @Composable
@@ -62,6 +62,7 @@ fun ListScreen(
     val scrollBehavior = MiuixScrollBehavior(rememberTopAppBarState())
     val pullState = rememberPullToRefreshState()
     var showSortSheet by remember { mutableStateOf(false) }
+    var showSearch by remember { mutableStateOf(false) }
     val removedMsg = stringResource(R.string.removed)
     val undoLabel = stringResource(R.string.undo)
 
@@ -94,6 +95,13 @@ fun ListScreen(
                             text = sortLabel(state.sortMode),
                             onClick = { showSortSheet = true },
                         )
+                        IconButton(onClick = { showSearch = !showSearch }) {
+                            Icon(
+                                imageVector = MiuixIcons.Basic.Search,
+                                contentDescription = stringResource(R.string.action_search),
+                                tint = scheme.onBackground,
+                            )
+                        }
                         IconButton(onClick = onOpenSettings) {
                             Icon(
                                 imageVector = CandyIcons.Settings,
@@ -128,6 +136,16 @@ fun ListScreen(
                 modifier = Modifier.padding(padding),
             ) {
                 Column(modifier = Modifier.fillMaxSize()) {
+                    if (showSearch) {
+                        top.yukonga.miuix.kmp.basic.TextField(
+                            value = state.query,
+                            onValueChange = vm::setQuery,
+                            label = stringResource(R.string.search_hint),
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .padding(horizontal = 16.dp, vertical = 6.dp),
+                        )
+                    }
                     state.banner?.let { error ->
                         ErrorBanner(error = error, onRetry = vm::refresh)
                     }

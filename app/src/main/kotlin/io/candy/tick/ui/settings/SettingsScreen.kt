@@ -33,6 +33,7 @@ import androidx.lifecycle.LifecycleEventObserver
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.lifecycle.compose.LocalLifecycleOwner
 import androidx.lifecycle.viewmodel.compose.viewModel
+import kotlinx.coroutines.launch
 import io.candy.tick.CandyTickApp
 import io.candy.tick.R
 import io.candy.tick.data.Notifications
@@ -68,6 +69,8 @@ fun SettingsScreen(onBack: () -> Unit) {
     val state by vm.state.collectAsStateWithLifecycle()
     val scheme = MiuixTheme.colorScheme
     val context = LocalContext.current
+    val scope = androidx.compose.runtime.rememberCoroutineScope()
+    val clipboard = androidx.compose.ui.platform.LocalClipboardManager.current
     var showFrequencySheet by remember { mutableStateOf(false) }
 
     // 权限状态：进入页面 / 从系统设置返回（ON_RESUME）时刷新
@@ -89,6 +92,29 @@ fun SettingsScreen(onBack: () -> Unit) {
     val permissionLauncher = rememberLauncherForActivityResult(
         ActivityResultContracts.RequestPermission(),
     ) { notifGranted = Notifications.canNotify(app) }
+
+    val importLauncher = rememberLauncherForActivityResult(
+        ActivityResultContracts.OpenDocument(),
+    ) { uri ->
+        if (uri != null) {
+            val text = runCatching {
+                context.contentResolver.openInputStream(uri)?.bufferedReader()?.use { it.readText() }
+            }.getOrNull()
+            if (text.isNullOrBlank()) {
+                android.widget.Toast.makeText(app, app.getString(R.string.import_failed), android.widget.Toast.LENGTH_SHORT).show()
+            } else {
+                scope.launch {
+                    val added = vm.importSubscriptions(text)
+                    val msg = if (added >= 0) {
+                        app.getString(R.string.import_result, added)
+                    } else {
+                        app.getString(R.string.import_failed)
+                    }
+                    android.widget.Toast.makeText(app, msg, android.widget.Toast.LENGTH_SHORT).show()
+                }
+            }
+        }
+    }
 
     fun openUrl(url: String) {
         runCatching {
@@ -298,6 +324,32 @@ fun SettingsScreen(onBack: () -> Unit) {
                     summary = stringResource(R.string.settings_silent_hint),
                 )
                 SelfUpdateActions(state = state, vm = vm)
+            }
+
+            // ── 备份 ──
+            SettingsGroup(title = stringResource(R.string.settings_backup_group)) {
+                SettingRow(
+                    title = stringResource(R.string.settings_export),
+                    summary = stringResource(R.string.settings_export_summary),
+                    onClick = {
+                        val text = vm.exportSubscriptions()
+                        clipboard.setText(androidx.compose.ui.text.AnnotatedString(text))
+                        runCatching {
+                            context.startActivity(
+                                Intent(Intent.ACTION_SEND)
+                                    .setType("text/plain")
+                                    .putExtra(Intent.EXTRA_TEXT, text)
+                                    .addFlags(Intent.FLAG_ACTIVITY_NEW_TASK),
+                            )
+                        }
+                    },
+                )
+                RowDivider()
+                SettingRow(
+                    title = stringResource(R.string.settings_import),
+                    summary = stringResource(R.string.settings_import_summary),
+                    onClick = { importLauncher.launch(arrayOf("application/json")) },
+                )
             }
 
             // ── 关于 ──

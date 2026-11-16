@@ -162,6 +162,15 @@
 
     <!-- 设置页 -->
     <string name="settings_appearance">Appearance</string>
+    <string name="action_search">Search</string>
+    <string name="search_hint">Search repositories</string>
+    <string name="settings_backup_group">Backup</string>
+    <string name="settings_export">Export subscriptions</string>
+    <string name="settings_export_summary">Copy to clipboard and share as JSON</string>
+    <string name="settings_import">Import subscriptions</string>
+    <string name="settings_import_summary">Merge from a JSON file; existing data is kept</string>
+    <string name="import_result">Imported %1$d repositories</string>
+    <string name="import_failed">Import failed · not a valid backup file</string>
     <string name="settings_theme_mode">Theme</string>
     <string name="settings_sync">Sync</string>
     <string name="settings_sync_frequency">Frequency</string>
@@ -175,8 +184,6 @@
     <string name="settings_token_network_error">Network error</string>
     <string name="settings_token_rejected">Token was rejected by GitHub (401) · requests are running anonymously</string>
     <string name="settings_notifications">New version notifications</string>
-    <string name="settings_notif_permission_banner">Notification permission not granted</string>
-    <string name="settings_notif_grant">Allow</string>
 
     <!-- 权限 -->
     <string name="settings_permission_group">Permissions</string>
@@ -193,8 +200,6 @@
     <string name="settings_self_update_check">Auto check for updates</string>
     <string name="settings_self_update_download">Auto download (Wi-Fi only)</string>
     <string name="settings_up_to_date">Up to date</string>
-    <string name="settings_new_version">New version %1$s</string>
-    <string name="settings_new_version_incomparable">New release %1$s · cannot compare versions</string>
     <string name="settings_download_update">Download &amp; install</string>
     <string name="settings_install_update">Install downloaded update</string>
     <string name="settings_update_failed">Update check failed · try later</string>
