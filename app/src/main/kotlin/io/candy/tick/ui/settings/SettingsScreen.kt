@@ -36,12 +36,17 @@ import androidx.lifecycle.viewmodel.compose.viewModel
 import kotlinx.coroutines.launch
 import io.candy.tick.CandyTickApp
 import io.candy.tick.R
+import io.candy.tick.data.model.ThemeMode
+import androidx.appcompat.app.AppCompatDelegate
+import androidx.core.os.LocaleListCompat
 import io.candy.tick.data.Notifications
 import io.candy.tick.data.SelfUpdater
 import io.candy.tick.data.model.SyncFrequency
 import io.candy.tick.ui.common.CandyIcons
 import io.candy.tick.ui.common.PrimaryButton
 import io.candy.tick.ui.theme.ChipAmber
+import io.candy.tick.ui.theme.ChipBlue
+import io.candy.tick.ui.theme.ChipOrange
 import io.candy.tick.ui.theme.ChipGreen
 import io.candy.tick.ui.theme.ChipMint
 import io.candy.tick.ui.theme.ChipPeriwinkle
@@ -60,6 +65,8 @@ import top.yukonga.miuix.kmp.icon.extended.File
 import top.yukonga.miuix.kmp.icon.extended.Import
 import top.yukonga.miuix.kmp.icon.extended.Info
 import top.yukonga.miuix.kmp.icon.extended.Link
+import top.yukonga.miuix.kmp.icon.extended.Lock
+import top.yukonga.miuix.kmp.icon.extended.WorldClock
 import top.yukonga.miuix.kmp.icon.extended.Messages
 import top.yukonga.miuix.kmp.icon.extended.Refresh
 import top.yukonga.miuix.kmp.icon.extended.Share
@@ -98,6 +105,9 @@ fun SettingsScreen(onBack: () -> Unit) {
     val scope = androidx.compose.runtime.rememberCoroutineScope()
     val clipboard = androidx.compose.ui.platform.LocalClipboardManager.current
     var showFrequencySheet by remember { mutableStateOf(false) }
+    var showThemeSheet by remember { mutableStateOf(false) }
+    var showLanguageSheet by remember { mutableStateOf(false) }
+    var showTokenDialog by remember { mutableStateOf(false) }
     var tokenVisible by rememberSaveable { mutableStateOf(false) }
 
     // 权限状态：进入页面 / 从系统设置返回（ON_RESUME）时刷新
@@ -189,21 +199,21 @@ fun SettingsScreen(onBack: () -> Unit) {
         ) {
             // ── 外观 ──
             SettingsGroup(title = stringResource(R.string.settings_appearance)) {
-                Column(modifier = Modifier.padding(horizontal = 16.dp)) {
-                    Text(
-                        text = stringResource(R.string.settings_theme_mode),
-                        style = MiuixTheme.textStyles.body1,
-                        color = scheme.onBackground,
-                        modifier = Modifier.padding(top = 14.dp),
-                    )
-                    ThemeModeSegmented(
-                        selected = state.settings.themeMode,
-                        onSelect = vm::setThemeMode,
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .padding(top = 10.dp, bottom = 16.dp),
-                    )
-                }
+                SettingRow(
+                    title = stringResource(R.string.settings_language),
+                    value = languageLabel(),
+                    icon = MiuixIcons.WorldClock,
+                    iconTint = ChipBlue,
+                    onClick = { showLanguageSheet = true },
+                )
+                RowDivider()
+                SettingRow(
+                    title = stringResource(R.string.settings_theme_mode),
+                    value = themeModeLabel(state.settings.themeMode),
+                    icon = MiuixIcons.Theme,
+                    iconTint = ChipPeriwinkle,
+                    onClick = { showThemeSheet = true },
+                )
             }
 
             // ── 同步 ──
@@ -230,6 +240,19 @@ fun SettingsScreen(onBack: () -> Unit) {
                     icon = MiuixIcons.Alarm,
                     iconTint = ChipAmber,
                     onChange = vm::setChargingOnly,
+                )
+                RowDivider()
+                SettingRow(
+                    title = stringResource(R.string.settings_token_row),
+                    summary = stringResource(R.string.settings_token_hint_short),
+                    value = if (state.tokenInput.isNotBlank()) {
+                        stringResource(R.string.token_set)
+                    } else {
+                        stringResource(R.string.token_unset)
+                    },
+                    icon = MiuixIcons.Lock,
+                    iconTint = ChipOrange,
+                    onClick = { showTokenDialog = true },
                 )
             }
 
@@ -274,84 +297,6 @@ fun SettingsScreen(onBack: () -> Unit) {
                         }
                     },
                 )
-            }
-
-            // ── GitHub Token ──
-            SettingsGroup(title = stringResource(R.string.settings_token)) {
-                Text(
-                    text = stringResource(R.string.settings_token_hint),
-                    style = MiuixTheme.textStyles.footnote1,
-                    color = scheme.onBackgroundVariant,
-                    modifier = Modifier.padding(start = 16.dp, top = 12.dp, end = 16.dp),
-                )
-                // 密码式掩码 + 眼睛切换（参考 LibChecker 交互）
-                Row(
-                    modifier = Modifier.padding(horizontal = 16.dp, vertical = 8.dp),
-                    verticalAlignment = Alignment.CenterVertically,
-                ) {
-                    TextField(
-                        value = state.tokenInput,
-                        onValueChange = vm::onTokenInput,
-                        modifier = Modifier.weight(1f),
-                        visualTransformation = if (tokenVisible) {
-                            androidx.compose.ui.text.input.VisualTransformation.None
-                        } else {
-                            androidx.compose.ui.text.input.PasswordVisualTransformation()
-                        },
-                        keyboardOptions = androidx.compose.foundation.text.KeyboardOptions(
-                            keyboardType = androidx.compose.ui.text.input.KeyboardType.Password,
-                        ),
-                    )
-                    IconButton(onClick = { tokenVisible = !tokenVisible }) {
-                        Icon(
-                            imageVector = if (tokenVisible) CandyIcons.VisibilityOff else CandyIcons.Visibility,
-                            contentDescription = stringResource(R.string.token_visibility_toggle),
-                            tint = scheme.onBackgroundVariant,
-                        )
-                    }
-                }
-                if (state.tokenRejected) {
-                    Text(
-                        text = stringResource(R.string.settings_token_rejected),
-                        style = MiuixTheme.textStyles.footnote1,
-                        color = scheme.onErrorContainer,
-                        modifier = Modifier.padding(start = 16.dp, end = 16.dp, bottom = 4.dp),
-                    )
-                }
-                Row(
-                    modifier = Modifier.padding(start = 16.dp, end = 16.dp, bottom = 14.dp),
-                    verticalAlignment = Alignment.CenterVertically,
-                    horizontalArrangement = Arrangement.spacedBy(12.dp),
-                ) {
-                    PrimaryButton(
-                        text = stringResource(R.string.settings_token_test),
-                        onClick = vm::saveAndTestToken,
-                        enabled = state.tokenInput.isNotBlank(), // 空 Token 禁用（薄荷底 vs 灰底，状态一眼可辨）
-                    )
-                    when (state.tokenTest) {
-                        SettingsViewModel.TokenTest.TESTING -> Text(
-                            stringResource(R.string.loading),
-                            style = MiuixTheme.textStyles.footnote1,
-                            color = scheme.onBackgroundVariant,
-                        )
-                        SettingsViewModel.TokenTest.VALID -> Text(
-                            stringResource(R.string.settings_token_valid),
-                            style = MiuixTheme.textStyles.footnote1,
-                            color = scheme.primaryVariant,
-                        )
-                        SettingsViewModel.TokenTest.INVALID -> Text(
-                            stringResource(R.string.settings_token_invalid),
-                            style = MiuixTheme.textStyles.footnote1,
-                            color = scheme.onErrorContainer,
-                        )
-                        SettingsViewModel.TokenTest.NETWORK -> Text(
-                            stringResource(R.string.settings_token_network_error),
-                            style = MiuixTheme.textStyles.footnote1,
-                            color = scheme.onErrorContainer,
-                        )
-                        null -> Unit
-                    }
-                }
             }
 
             // ── 关于 · 版本 ──
@@ -456,7 +401,155 @@ fun SettingsScreen(onBack: () -> Unit) {
             FrequencyRow(SyncFrequency.DAILY, state.settings.syncFrequency, vm::setSyncFrequency) { showFrequencySheet = false }
         }
     }
+
+    WindowBottomSheet(
+        show = showThemeSheet,
+        title = stringResource(R.string.settings_theme_mode),
+        onDismissRequest = { showThemeSheet = false },
+    ) {
+        Column {
+            OptionRow(stringResource(R.string.theme_mode_system), state.settings.themeMode == ThemeMode.SYSTEM) {
+                vm.setThemeMode(ThemeMode.SYSTEM); showThemeSheet = false
+            }
+            OptionRow(stringResource(R.string.theme_mode_light), state.settings.themeMode == ThemeMode.LIGHT) {
+                vm.setThemeMode(ThemeMode.LIGHT); showThemeSheet = false
+            }
+            OptionRow(stringResource(R.string.theme_mode_dark), state.settings.themeMode == ThemeMode.DARK) {
+                vm.setThemeMode(ThemeMode.DARK); showThemeSheet = false
+            }
+        }
+    }
+
+    WindowBottomSheet(
+        show = showLanguageSheet,
+        title = stringResource(R.string.settings_language),
+        onDismissRequest = { showLanguageSheet = false },
+    ) {
+        Column {
+            OptionRow(stringResource(R.string.lang_system), languageTag().isEmpty()) {
+                applyLanguage(""); showLanguageSheet = false
+            }
+            OptionRow(stringResource(R.string.lang_chinese), languageTag() == "zh") {
+                applyLanguage("zh"); showLanguageSheet = false
+            }
+            OptionRow(stringResource(R.string.lang_english), languageTag() == "en") {
+                applyLanguage("en"); showLanguageSheet = false
+            }
+        }
+    }
+
+    if (showTokenDialog) {
+        top.yukonga.miuix.kmp.window.WindowDialog(
+            show = true,
+            title = stringResource(R.string.settings_token_row),
+            onDismissRequest = { showTokenDialog = false },
+        ) {
+            Column(
+                modifier = Modifier.padding(horizontal = 20.dp, vertical = 12.dp),
+                verticalArrangement = Arrangement.spacedBy(10.dp),
+            ) {
+                Text(
+                    text = stringResource(R.string.settings_token_hint),
+                    style = MiuixTheme.textStyles.footnote1,
+                    color = scheme.onBackgroundVariant,
+                )
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    TextField(
+                        value = state.tokenInput,
+                        onValueChange = vm::onTokenInput,
+                        modifier = Modifier.weight(1f),
+                        visualTransformation = if (tokenVisible) {
+                            androidx.compose.ui.text.input.VisualTransformation.None
+                        } else {
+                            androidx.compose.ui.text.input.PasswordVisualTransformation()
+                        },
+                        keyboardOptions = androidx.compose.foundation.text.KeyboardOptions(
+                            keyboardType = androidx.compose.ui.text.input.KeyboardType.Password,
+                        ),
+                    )
+                    IconButton(onClick = { tokenVisible = !tokenVisible }) {
+                        Icon(
+                            imageVector = if (tokenVisible) CandyIcons.VisibilityOff else CandyIcons.Visibility,
+                            contentDescription = stringResource(R.string.token_visibility_toggle),
+                            tint = scheme.onBackgroundVariant,
+                        )
+                    }
+                }
+                if (state.tokenRejected) {
+                    Text(
+                        text = stringResource(R.string.settings_token_rejected),
+                        style = MiuixTheme.textStyles.footnote1,
+                        color = scheme.onErrorContainer,
+                    )
+                }
+                Row(
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.spacedBy(12.dp),
+                ) {
+                    PrimaryButton(
+                        text = stringResource(R.string.settings_token_test),
+                        onClick = vm::saveAndTestToken,
+                        enabled = state.tokenInput.isNotBlank(),
+                    )
+                    when (state.tokenTest) {
+                        SettingsViewModel.TokenTest.TESTING -> Text(
+                            stringResource(R.string.loading),
+                            style = MiuixTheme.textStyles.footnote1,
+                            color = scheme.onBackgroundVariant,
+                        )
+                        SettingsViewModel.TokenTest.VALID -> Text(
+                            stringResource(R.string.settings_token_valid),
+                            style = MiuixTheme.textStyles.footnote1,
+                            color = scheme.primaryVariant,
+                        )
+                        SettingsViewModel.TokenTest.INVALID -> Text(
+                            stringResource(R.string.settings_token_invalid),
+                            style = MiuixTheme.textStyles.footnote1,
+                            color = scheme.onErrorContainer,
+                        )
+                        SettingsViewModel.TokenTest.NETWORK -> Text(
+                            stringResource(R.string.settings_token_network_error),
+                            style = MiuixTheme.textStyles.footnote1,
+                            color = scheme.onErrorContainer,
+                        )
+                        null -> Unit
+                    }
+                }
+            }
+        }
+    }
 }
+
+
+private fun languageTag(): String {
+    val locales = AppCompatDelegate.getApplicationLocales()
+    return locales.toLanguageTags().substringBefore('-')
+}
+
+@Composable
+private fun languageLabel(): String = when (languageTag()) {
+    "zh" -> stringResource(R.string.lang_chinese)
+    "en" -> stringResource(R.string.lang_english)
+    else -> stringResource(R.string.lang_system)
+}
+
+private fun applyLanguage(tag: String) {
+    val locales = if (tag.isEmpty()) {
+        LocaleListCompat.getEmptyLocaleList()
+    } else {
+        LocaleListCompat.forLanguageTags(tag)
+    }
+    AppCompatDelegate.setApplicationLocales(locales)
+}
+
+@Composable
+private fun themeModeLabel(mode: ThemeMode): String = stringResource(
+    when (mode) {
+        ThemeMode.SYSTEM -> R.string.theme_mode_system
+        ThemeMode.LIGHT -> R.string.theme_mode_light
+        ThemeMode.DARK -> R.string.theme_mode_dark
+    },
+)
 
 @Composable
 private fun checkStateValue(update: SelfUpdater.State): String = when (update) {

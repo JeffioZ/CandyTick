@@ -175,6 +175,37 @@ internal fun frequencyLabel(frequency: SyncFrequency): String = stringResource(
 )
 
 @Composable
+internal fun OptionRow(label: String, selected: Boolean, onClick: () -> Unit) {
+    Row(
+        modifier = Modifier
+            .fillMaxWidth()
+            .clickable(
+                interactionSource = remember { MutableInteractionSource() },
+                indication = null,
+                onClick = onClick,
+            )
+            .padding(horizontal = 16.dp, vertical = 14.dp),
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
+        Box(modifier = Modifier.size(20.dp), contentAlignment = Alignment.Center) {
+            if (selected) {
+                Icon(
+                    imageVector = MiuixIcons.Basic.Check,
+                    contentDescription = null,
+                    tint = MiuixTheme.colorScheme.primaryVariant,
+                )
+            }
+        }
+        Spacer(Modifier.width(10.dp))
+        Text(
+            text = label,
+            style = MiuixTheme.textStyles.body1,
+            color = if (selected) MiuixTheme.colorScheme.primaryVariant else MiuixTheme.colorScheme.onBackground,
+        )
+    }
+}
+
+@Composable
 internal fun FrequencyRow(
     option: SyncFrequency,
     current: SyncFrequency,
