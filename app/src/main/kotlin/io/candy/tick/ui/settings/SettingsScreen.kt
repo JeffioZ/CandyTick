@@ -155,6 +155,27 @@ fun SettingsScreen(onBack: () -> Unit) {
         }
     }
 
+    val crashLogFile = remember {
+        val dir = app.getExternalFilesDir(null) ?: app.filesDir
+        java.io.File(dir, "crash.log")
+    }
+    fun crashLogExists() = crashLogFile.exists() && crashLogFile.length() > 0
+    fun shareCrashLog() {
+        if (!crashLogExists()) {
+            android.widget.Toast.makeText(app, app.getString(R.string.crash_log_empty), android.widget.Toast.LENGTH_SHORT).show()
+            return
+        }
+        val content = runCatching { crashLogFile.readText() }.getOrDefault("")
+        runCatching {
+            context.startActivity(
+                Intent(Intent.ACTION_SEND)
+                    .setType("text/plain")
+                    .putExtra(Intent.EXTRA_TEXT, content)
+                    .addFlags(Intent.FLAG_ACTIVITY_NEW_TASK),
+            )
+        }
+    }
+
     fun openUrl(url: String) {
         runCatching {
             context.startActivity(
@@ -390,6 +411,15 @@ fun SettingsScreen(onBack: () -> Unit) {
                     title = stringResource(R.string.settings_license),
                     value = "GPL-3.0",
                     onClick = { openUrl(LICENSE_URL) },
+                )
+                RowDivider()
+                SettingRow(
+                    icon = MiuixIcons.Info,
+                    iconTint = ChipOrange,
+                    title = stringResource(R.string.settings_crash_log),
+                    summary = stringResource(R.string.settings_crash_log_summary),
+                    value = if (crashLogExists()) "✓" else "",
+                    onClick = { shareCrashLog() },
                 )
             }
 

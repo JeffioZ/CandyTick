@@ -216,6 +216,9 @@
     <string name="settings_about_group">关于</string>
     <string name="settings_github_repo">GitHub 仓库</string>
     <string name="settings_license">开源许可</string>
+    <string name="settings_crash_log">崩溃日志</string>
+    <string name="settings_crash_log_summary">闪退时点按分享给我</string>
+    <string name="crash_log_empty">无崩溃记录</string>
 
     <!-- 同步频率 -->
     <string name="frequency_on_open">每次打开应用</string>

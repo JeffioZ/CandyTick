@@ -226,6 +226,9 @@
     <string name="settings_about_group">About</string>
     <string name="settings_github_repo">GitHub repository</string>
     <string name="settings_license">License</string>
+    <string name="settings_crash_log">Crash log</string>
+    <string name="settings_crash_log_summary">Tap to share if the app crashed</string>
+    <string name="crash_log_empty">No crash recorded</string>
 
     <!-- 同步频率 -->
     <string name="frequency_on_open">On app open</string>

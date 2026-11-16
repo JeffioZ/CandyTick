@@ -12,11 +12,12 @@ class CandyTickApp : Application() {
 
     override fun onCreate() {
         super.onCreate()
-        // 全局崩溃日志：写入 files/crash.log（可用文件管理器或设置页读取）
+        // 全局崩溃日志：写入外部私有目录（Android/data/io.candy.tick/files/crash.log）
+        val crashDir = getExternalFilesDir(null) ?: filesDir
         val defaultHandler = Thread.getDefaultUncaughtExceptionHandler()
         Thread.setDefaultUncaughtExceptionHandler { thread, throwable ->
             runCatching {
-                java.io.File(filesDir, "crash.log").writeText(
+                java.io.File(crashDir, "crash.log").writeText(
                     buildString {
                         appendLine("Time: ${java.time.Instant.now()}")
                         appendLine("Thread: ${thread.name}")
