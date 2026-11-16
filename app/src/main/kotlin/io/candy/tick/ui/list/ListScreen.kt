@@ -121,6 +121,12 @@ fun ListScreen(
                 onRefresh = vm::refresh,
                 pullToRefreshState = pullState,
                 topAppBarScrollBehavior = scrollBehavior,
+                refreshTexts = listOf(
+                    stringResource(R.string.refresh_pull_down),
+                    stringResource(R.string.refresh_release),
+                    stringResource(R.string.refresh_refreshing),
+                    stringResource(R.string.refresh_done),
+                ),
                 modifier = Modifier.padding(padding),
             ) {
                 Column(modifier = Modifier.fillMaxSize()) {
