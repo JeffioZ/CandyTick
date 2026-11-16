@@ -177,6 +177,7 @@
     <string name="settings_sync_wifi_only">Wi-Fi only</string>
     <string name="settings_sync_charging_only">Charging only</string>
     <string name="settings_token">GitHub token (optional)</string>
+    <string name="token_visibility_toggle">Show or hide token</string>
     <string name="settings_token_hint">Classic PAT with no scopes, or fine-grained read-only public repos</string>
     <string name="settings_token_test">Test connection</string>
     <string name="settings_token_valid">✓ Token valid</string>

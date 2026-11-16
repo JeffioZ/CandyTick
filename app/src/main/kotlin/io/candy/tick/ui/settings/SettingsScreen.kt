@@ -72,6 +72,7 @@ fun SettingsScreen(onBack: () -> Unit) {
     val scope = androidx.compose.runtime.rememberCoroutineScope()
     val clipboard = androidx.compose.ui.platform.LocalClipboardManager.current
     var showFrequencySheet by remember { mutableStateOf(false) }
+    var tokenVisible by rememberSaveable { mutableStateOf(false) }
 
     // 权限状态：进入页面 / 从系统设置返回（ON_RESUME）时刷新
     var installPermGranted by remember { mutableStateOf(app.container.installManager.canRequestInstalls()) }
@@ -245,13 +246,32 @@ fun SettingsScreen(onBack: () -> Unit) {
                     color = scheme.onBackgroundVariant,
                     modifier = Modifier.padding(start = 16.dp, top = 12.dp, end = 16.dp),
                 )
-                TextField(
-                    value = state.tokenInput,
-                    onValueChange = vm::onTokenInput,
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .padding(horizontal = 16.dp, vertical = 8.dp),
-                )
+                // 密码式掩码 + 眼睛切换（参考 LibChecker 交互）
+                Row(
+                    modifier = Modifier.padding(horizontal = 16.dp, vertical = 8.dp),
+                    verticalAlignment = Alignment.CenterVertically,
+                ) {
+                    TextField(
+                        value = state.tokenInput,
+                        onValueChange = vm::onTokenInput,
+                        modifier = Modifier.weight(1f),
+                        visualTransformation = if (tokenVisible) {
+                            androidx.compose.ui.text.input.VisualTransformation.None
+                        } else {
+                            androidx.compose.ui.text.input.PasswordVisualTransformation()
+                        },
+                        keyboardOptions = androidx.compose.foundation.text.KeyboardOptions(
+                            keyboardType = androidx.compose.ui.text.input.KeyboardType.Password,
+                        ),
+                    )
+                    IconButton(onClick = { tokenVisible = !tokenVisible }) {
+                        Icon(
+                            imageVector = if (tokenVisible) CandyIcons.VisibilityOff else CandyIcons.Visibility,
+                            contentDescription = stringResource(R.string.token_visibility_toggle),
+                            tint = scheme.onBackgroundVariant,
+                        )
+                    }
+                }
                 if (state.tokenRejected) {
                     Text(
                         text = stringResource(R.string.settings_token_rejected),

@@ -46,8 +46,11 @@ class AppStateStore(context: Context) {
         }
     }
 
-    /** 导出当前状态为 JSON（订阅 + 快照 + 设置） */
-    fun exportJson(): String = json.encodeToString(_state.value)
+    /** 导出为 JSON（仅订阅与快照；设置重置为默认——绝不把 Token 带进分享内容） */
+    fun exportJson(): String {
+        val sanitized = _state.value.copy(settings = io.candy.tick.data.model.Settings())
+        return json.encodeToString(sanitized)
+    }
 
     /**
      * 从备份 JSON 合并导入（按仓库 id 去重，不覆盖现有数据与设置）。

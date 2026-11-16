@@ -167,6 +167,7 @@
     <string name="settings_sync_wifi_only">仅 Wi-Fi</string>
     <string name="settings_sync_charging_only">仅充电</string>
     <string name="settings_token">GitHub Token（可选）</string>
+    <string name="token_visibility_toggle">显示或隐藏 Token</string>
     <string name="settings_token_hint">classic PAT 不勾任何 scope；fine-grained 选 Public repos 只读</string>
     <string name="settings_token_test">测试连接</string>
     <string name="settings_token_valid">✓ Token 有效</string>
