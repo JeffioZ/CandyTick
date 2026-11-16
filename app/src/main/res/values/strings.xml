@@ -161,7 +161,7 @@
     <string name="settings_notif_permission_banner">Notification permission not granted</string>
     <string name="settings_notif_grant">Allow</string>
     <string name="settings_self_update">About · Version</string>
-    <string name="settings_current_version">Current version %1$s</string>
+    <string name="settings_current_version_title">Current version</string>
     <string name="settings_check_update">Check for updates</string>
     <string name="settings_self_update_check">Auto check for updates</string>
     <string name="settings_self_update_download">Auto download (Wi-Fi only)</string>
@@ -172,6 +172,11 @@
     <string name="settings_install_update">Install downloaded update</string>
     <string name="settings_update_failed">Update check failed · try later</string>
     <string name="settings_silent_hint">On Android 12+ updates install silently when CandyTick is the install source</string>
+
+    <!-- 关于 -->
+    <string name="settings_about_group">About</string>
+    <string name="settings_github_repo">GitHub repository</string>
+    <string name="settings_license">License</string>
 
     <!-- 同步频率 -->
     <string name="frequency_6h">Every 6 hours</string>

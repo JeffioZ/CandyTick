@@ -151,7 +151,7 @@
     <string name="settings_notif_permission_banner">通知权限未授予</string>
     <string name="settings_notif_grant">去开启</string>
     <string name="settings_self_update">关于 · 版本</string>
-    <string name="settings_current_version">当前版本 %1$s</string>
+    <string name="settings_current_version_title">当前版本</string>
     <string name="settings_check_update">检查更新</string>
     <string name="settings_self_update_check">自动检查更新</string>
     <string name="settings_self_update_download">自动下载（仅 Wi-Fi）</string>
@@ -162,6 +162,11 @@
     <string name="settings_install_update">安装已下载的更新</string>
     <string name="settings_update_failed">检查失败 · 稍后再试</string>
     <string name="settings_silent_hint">Android 12+ 且本应用为安装来源时，更新将自动静默安装</string>
+
+    <!-- 关于 -->
+    <string name="settings_about_group">关于</string>
+    <string name="settings_github_repo">GitHub 仓库</string>
+    <string name="settings_license">开源许可</string>
 
     <!-- 同步频率 -->
     <string name="frequency_6h">每 6 小时</string>

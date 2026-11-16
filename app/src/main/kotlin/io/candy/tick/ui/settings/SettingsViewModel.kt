@@ -35,7 +35,8 @@ class SettingsViewModel(
         val localVersion: String = "0",
     )
 
-    private val tokenInput = MutableStateFlow("")
+    // 回填已保存的 Token：重进设置页能看到现值，而非空白
+    private val tokenInput = MutableStateFlow(repository.state.value.settings.githubToken ?: "")
     private val tokenTest = MutableStateFlow<TokenTest?>(null)
 
     val state: StateFlow<UiState> = combine(
