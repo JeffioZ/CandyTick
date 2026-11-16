@@ -186,7 +186,6 @@ fun ListScreen(
                                     expanded = item.repo.id in state.expanded,
                                     onToggle = { vm.toggleExpand(item.repo.id) },
                                     onClick = { onOpenDetail(item.repo.id) },
-                                    onRemove = { vm.remove(item) },
                                 )
                             }
                         }
@@ -200,7 +199,7 @@ fun ListScreen(
         Box(
             modifier = Modifier
                 .fillMaxSize()
-                .padding(bottom = 24.dp),
+                .padding(bottom = 88.dp),
             contentAlignment = Alignment.BottomCenter,
         ) {
             SnackbarHost(state = snackbar)

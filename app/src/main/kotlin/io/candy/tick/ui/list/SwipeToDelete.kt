@@ -45,14 +45,14 @@ fun SwipeToDelete(
                 .matchParentSize()
                 .clip(CircleShape)
                 .background(scheme.errorContainer),
-            contentAlignment = Alignment.CenterEnd,
+            contentAlignment = Alignment.CenterStart,
         ) {
             Icon(
                 imageVector = top.yukonga.miuix.kmp.icon.MiuixIcons.Delete,
                 contentDescription = null,
                 tint = scheme.onErrorContainer,
                 modifier = Modifier
-                    .padding(end = 24.dp)
+                    .padding(start = 24.dp)
                     .size(22.dp),
             )
         }
@@ -65,13 +65,13 @@ fun SwipeToDelete(
                         onHorizontalDrag = { change, dragAmount ->
                             change.consume()
                             scope.launch {
-                                offsetX.snapTo((offsetX.value + dragAmount).coerceIn(-size.width * 1.2f, size.width * 1.2f))
+                                offsetX.snapTo((offsetX.value + dragAmount).coerceIn(0f, size.width * 1.2f))
                             }
                         },
                         onDragEnd = {
                             val threshold = size.width * 0.42f
                             scope.launch {
-                                if (offsetX.value > threshold || offsetX.value < -threshold) {
+                                if (offsetX.value > threshold) {
                                     onDelete()
                                     offsetX.snapTo(0f) // 条目即被列表移除，复位供撤销回归
                                 } else {

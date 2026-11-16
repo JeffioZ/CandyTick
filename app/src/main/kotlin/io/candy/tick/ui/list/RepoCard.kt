@@ -40,11 +40,9 @@ import io.candy.tick.ui.theme.MonoTokenStyle
 import io.candy.tick.util.VersionCompare
 import kotlin.math.abs
 import top.yukonga.miuix.kmp.basic.Card
-import top.yukonga.miuix.kmp.basic.IconButton
 import top.yukonga.miuix.kmp.basic.Icon
 import top.yukonga.miuix.kmp.basic.Text
 import top.yukonga.miuix.kmp.icon.MiuixIcons
-import top.yukonga.miuix.kmp.icon.extended.Delete
 import top.yukonga.miuix.kmp.icon.extended.ExpandMore
 import top.yukonga.miuix.kmp.theme.MiuixTheme
 import androidx.compose.foundation.layout.IntrinsicSize
@@ -58,7 +56,6 @@ fun RepoCard(
     expanded: Boolean,
     onToggle: () -> Unit,
     onClick: () -> Unit,
-    onRemove: () -> Unit,
     modifier: Modifier = Modifier,
 ) {
     val scheme = MiuixTheme.colorScheme
@@ -112,15 +109,6 @@ fun RepoCard(
                         )
                     }
                     Spacer(Modifier.weight(1f))
-                    if (expanded) {
-                        IconButton(onClick = onRemove, modifier = Modifier.size(28.dp)) {
-                            Icon(
-                                imageVector = MiuixIcons.Delete,
-                                contentDescription = stringResource(R.string.remove_repo),
-                                tint = scheme.onBackgroundVariant,
-                            )
-                        }
-                    }
                     Icon(
                         imageVector = MiuixIcons.ExpandMore,
                         contentDescription = null,

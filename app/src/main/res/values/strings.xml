@@ -142,6 +142,8 @@
     <string name="detail_reinstall">Reinstall downloaded %1$s</string>
     <string name="detail_delete_download">Delete downloaded APK</string>
     <string name="detail_download_deleted">Downloaded APK deleted</string>
+    <string name="detail_unlinked">Unlinked</string>
+    <string name="toast_copied">Copied to clipboard</string>
     <string name="load_failed">Load failed</string>
     <string name="load_failed_retry">Load failed · retry</string>
     <string name="list_end">— the end —</string>

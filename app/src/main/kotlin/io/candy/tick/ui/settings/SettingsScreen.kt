@@ -349,6 +349,11 @@ fun SettingsScreen(onBack: () -> Unit) {
                     onClick = {
                         val text = vm.exportSubscriptions()
                         clipboard.setText(androidx.compose.ui.text.AnnotatedString(text))
+                        android.widget.Toast.makeText(
+                            app,
+                            app.getString(R.string.toast_copied),
+                            android.widget.Toast.LENGTH_SHORT,
+                        ).show()
                         runCatching {
                             context.startActivity(
                                 Intent(Intent.ACTION_SEND)

@@ -43,6 +43,7 @@ import io.candy.tick.ui.theme.MonoTokenStyle
 import io.candy.tick.data.InstallManager
 import io.candy.tick.data.model.statusAt
 import top.yukonga.miuix.kmp.basic.Button
+import kotlinx.coroutines.launch
 import top.yukonga.miuix.kmp.basic.Card
 import top.yukonga.miuix.kmp.basic.Icon
 import top.yukonga.miuix.kmp.basic.IconButton
@@ -83,6 +84,7 @@ fun DetailScreen(repoId: Long, onBack: () -> Unit) {
     var showAppPicker by remember { mutableStateOf(false) }
     var showRemoveDialog by remember { mutableStateOf(false) }
     val context = LocalContext.current
+    val scope = androidx.compose.runtime.rememberCoroutineScope()
     val snackbar = remember { SnackbarHostState() }
     val doneMsg = stringResource(R.string.install_done)
     val failedMsg = stringResource(R.string.install_failed_format)
@@ -90,6 +92,7 @@ fun DetailScreen(repoId: Long, onBack: () -> Unit) {
     val autoLinkedFmt = stringResource(R.string.detail_auto_linked)
     val needPermMsg = stringResource(R.string.detail_need_install_permission)
     val downloadDeletedMsg = stringResource(R.string.detail_download_deleted)
+    val unlinkedMsg = stringResource(R.string.detail_unlinked)
 
     LaunchedEffect(Unit) {
         vm.events.collect { event ->
@@ -185,7 +188,12 @@ fun DetailScreen(repoId: Long, onBack: () -> Unit) {
                     HeaderCard(
                         state = state,
                         onChangeLinked = { showAppPicker = true },
-                        onUnlink = { vm.setLinkedApp(null) },
+                        onUnlink = {
+                            scope.launch {
+                                vm.setLinkedApp(null)
+                                snackbar.showSnackbar(unlinkedMsg)
+                            }
+                        },
                         onLinkSuggestion = { state.linkSuggestion?.first?.let(vm::setLinkedApp) },
                         onInstallDownloaded = { repo?.let(vm::installDownloaded) },
                         onDeleteDownloaded = vm::deleteDownloaded,
