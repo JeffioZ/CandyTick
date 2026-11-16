@@ -1,16 +1,16 @@
 <?xml version="1.0" encoding="utf-8"?>
-<!-- mono（icon-echo-mono）：通知 / Android 13 主题图标的单色 alpha 变体（同步加大内容占比） -->
+<!-- mono（icon-echo-mono）：单色 alpha 变体，几何与彩色前景对齐（同收在安全区内） -->
 <vector xmlns:android="http://schemas.android.com/apk/res/android"
     android:width="108dp"
     android:height="108dp"
     android:viewportWidth="108"
     android:viewportHeight="108">
     <path
-        android:pathData="M54,54 m-22.5,0 a22.5,22.5 0 1,1 45,0 a22.5,22.5 0 1,1 -45,0"
+        android:pathData="M54,54 m-20.5,0 a20.5,20.5 0 1,1 41,0 a20.5,20.5 0 1,1 -41,0"
         android:fillColor="#00000000"
         android:strokeColor="#FFFFFFFF"
-        android:strokeWidth="9" />
+        android:strokeWidth="8.5" />
     <path
-        android:pathData="M54,54 m-12,0 a12,12 0 1,1 24,0 a12,12 0 1,1 -24,0"
+        android:pathData="M54,54 m-11,0 a11,11 0 1,1 22,0 a11,11 0 1,1 -22,0"
         android:fillColor="#FFFFFFFF" />
 </vector>
