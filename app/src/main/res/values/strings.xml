@@ -171,6 +171,16 @@
     <string name="settings_notifications">New version notifications</string>
     <string name="settings_notif_permission_banner">Notification permission not granted</string>
     <string name="settings_notif_grant">Allow</string>
+
+    <!-- 权限 -->
+    <string name="settings_permission_group">Permissions</string>
+    <string name="settings_perm_install_unknown">Install unknown apps</string>
+    <string name="settings_perm_install_summary">Needed to install APKs and app updates</string>
+    <string name="settings_perm_notifications">Notification permission</string>
+    <string name="perm_granted">Granted</string>
+    <string name="perm_not_granted">Not granted</string>
+    <string name="perm_not_required">Not required</string>
+    <string name="detail_need_install_permission">Grant "install unknown apps" in system settings, then retry</string>
     <string name="settings_self_update">About · Version</string>
     <string name="settings_current_version_title">Current version</string>
     <string name="settings_check_update">Check for updates</string>

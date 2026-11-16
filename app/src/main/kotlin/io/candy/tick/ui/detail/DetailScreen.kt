@@ -74,6 +74,7 @@ fun DetailScreen(repoId: Long, onBack: () -> Unit) {
     val failedMsg = stringResource(R.string.install_failed_format)
     val mismatchMsg = stringResource(R.string.install_signature_mismatch)
     val autoLinkedFmt = stringResource(R.string.detail_auto_linked)
+    val needPermMsg = stringResource(R.string.detail_need_install_permission)
 
     LaunchedEffect(Unit) {
         vm.events.collect { event ->
@@ -88,6 +89,8 @@ fun DetailScreen(repoId: Long, onBack: () -> Unit) {
                         },
                     )
                     InstallManager.InstallResult.PendingUserAction -> Unit // 系统确认界面已接管
+                    InstallManager.InstallResult.NeedsInstallPermission ->
+                        snackbar.showSnackbar(needPermMsg)
                 }
                 is DetailViewModel.Event.AutoLinked -> snackbar.showSnackbar(autoLinkedFmt.format(event.packageName))
             }

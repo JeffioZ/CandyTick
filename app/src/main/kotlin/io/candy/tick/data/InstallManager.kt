@@ -21,6 +21,7 @@ class InstallManager(private val context: Context) {
     sealed interface InstallResult {
         data object Success : InstallResult
         data object PendingUserAction : InstallResult // 系统确认界面已拉起
+        data object NeedsInstallPermission : InstallResult // 未授予「安装未知应用」，已带去系统设置
         data class Failed(val message: String?, val signatureMismatch: Boolean) : InstallResult
     }
 
@@ -63,8 +64,30 @@ class InstallManager(private val context: Context) {
         )
     }
 
+    /** 是否已授予「安装未知应用」 */
+    fun canRequestInstalls(): Boolean = runCatching {
+        context.packageManager.canRequestPackageInstalls()
+    }.getOrDefault(false)
+
+    /** 打开本应用的「安装未知应用」系统授权页 */
+    fun openInstallPermissionSettings() {
+        runCatching {
+            val intent = Intent(
+                android.provider.Settings.ACTION_MANAGE_UNKNOWN_APP_SOURCES,
+                android.net.Uri.parse("package:${context.packageName}"),
+            ).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+            context.startActivity(intent)
+        }
+    }
+
     /** 提交安装会话（29+；系统确认 / 静默由安装来源与系统决定） */
     fun installApk(file: File) {
+        if (!canRequestInstalls()) {
+            // 未授权直接提交会 SecurityException：带去授权页 + 提示回来重试
+            openInstallPermissionSettings()
+            _results.tryEmit(InstallResult.NeedsInstallPermission)
+            return
+        }
         val installer = context.packageManager.packageInstaller
         val params = PackageInstaller.SessionParams(PackageInstaller.SessionParams.MODE_FULL_INSTALL)
         val sessionId = installer.createSession(params)

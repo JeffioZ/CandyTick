@@ -17,16 +17,21 @@ import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.dp
+import androidx.lifecycle.Lifecycle
+import androidx.lifecycle.LifecycleEventObserver
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import androidx.lifecycle.compose.LocalLifecycleOwner
 import androidx.lifecycle.viewmodel.compose.viewModel
 import io.candy.tick.CandyTickApp
 import io.candy.tick.R
@@ -66,9 +71,25 @@ fun SettingsScreen(onBack: () -> Unit) {
     val context = LocalContext.current
     var showFrequencySheet by remember { mutableStateOf(false) }
 
+    // 权限状态：进入页面 / 从系统设置返回（ON_RESUME）时刷新
+    var installPermGranted by remember { mutableStateOf(app.container.installManager.canRequestInstalls()) }
+    var notifGranted by remember { mutableStateOf(Notifications.canNotify(app)) }
+    var askedNotifOnce by rememberSaveable { mutableStateOf(false) }
+    val lifecycleOwner = LocalLifecycleOwner.current
+    DisposableEffect(lifecycleOwner) {
+        val observer = LifecycleEventObserver { _, event ->
+            if (event == Lifecycle.Event.ON_RESUME) {
+                installPermGranted = app.container.installManager.canRequestInstalls()
+                notifGranted = Notifications.canNotify(app)
+            }
+        }
+        lifecycleOwner.lifecycle.addObserver(observer)
+        onDispose { lifecycleOwner.lifecycle.removeObserver(observer) }
+    }
+
     val permissionLauncher = rememberLauncherForActivityResult(
         ActivityResultContracts.RequestPermission(),
-    ) { /* 结果以行内提醒呈现，不弹窗追问 */ }
+    ) { notifGranted = Notifications.canNotify(app) }
 
     fun openUrl(url: String) {
         runCatching {
@@ -77,6 +98,18 @@ fun SettingsScreen(onBack: () -> Unit) {
             )
         }
     }
+
+    fun openNotificationSettings() {
+        runCatching {
+            context.startActivity(
+                Intent(android.provider.Settings.ACTION_APP_NOTIFICATION_SETTINGS)
+                    .putExtra(android.provider.Settings.EXTRA_APP_PACKAGE, context.packageName)
+                    .addFlags(Intent.FLAG_ACTIVITY_NEW_TASK),
+            )
+        }
+    }
+
+    /** 1=已授权 0=未授权 2=无需授予（见文件级 permText） */
 
     Scaffold(
         topBar = {
@@ -149,22 +182,34 @@ fun SettingsScreen(onBack: () -> Unit) {
                     checked = state.settings.notificationsEnabled,
                     onChange = vm::setNotifications,
                 )
-                if (state.settings.notificationsEnabled && !Notifications.canNotify(app)) {
-                    RowDivider()
-                    SettingRow(
-                        title = stringResource(R.string.settings_notif_permission_banner),
-                        trailing = {
-                            TextButton(
-                                text = stringResource(R.string.settings_notif_grant),
-                                onClick = {
-                                    if (Build.VERSION.SDK_INT >= 33) {
-                                        permissionLauncher.launch(Manifest.permission.POST_NOTIFICATIONS)
-                                    }
-                                },
-                            )
-                        },
-                    )
-                }
+            }
+
+            // ── 权限 ──
+            SettingsGroup(title = stringResource(R.string.settings_permission_group)) {
+                SettingRow(
+                    title = stringResource(R.string.settings_perm_install_unknown),
+                    summary = stringResource(R.string.settings_perm_install_summary),
+                    value = permText(if (installPermGranted) 1 else 0),
+                    onClick = { app.container.installManager.openInstallPermissionSettings() },
+                )
+                RowDivider()
+                SettingRow(
+                    title = stringResource(R.string.settings_perm_notifications),
+                    value = when {
+                        Build.VERSION.SDK_INT < 33 -> permText(2)
+                        notifGranted -> permText(1)
+                        else -> permText(0)
+                    },
+                    onClick = {
+                        if (Build.VERSION.SDK_INT >= 33 && !askedNotifOnce) {
+                            askedNotifOnce = true
+                            permissionLauncher.launch(Manifest.permission.POST_NOTIFICATIONS)
+                        } else {
+                            // 二次点击 / 永久拒绝兜底：直达应用通知设置
+                            openNotificationSettings()
+                        }
+                    },
+                )
             }
 
             // ── GitHub Token ──
@@ -296,6 +341,16 @@ private fun checkStateValue(update: SelfUpdater.State): String = when (update) {
     is SelfUpdater.State.Failed -> stringResource(R.string.settings_update_failed)
     else -> ""
 }
+
+/** 权限状态文案：1=已授权 0=未授权 2=无需授予 */
+@Composable
+private fun permText(status: Int): String = stringResource(
+    when (status) {
+        1 -> R.string.perm_granted
+        2 -> R.string.perm_not_required
+        else -> R.string.perm_not_granted
+    },
+)
 
 /** 自身更新的可操作块：新版本（说明 + 下载）/ 下载进度 / 已下载（安装） */
 @Composable
