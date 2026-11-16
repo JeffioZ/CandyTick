@@ -33,6 +33,7 @@ import io.candy.tick.CandyTickApp
 import io.candy.tick.R
 import io.candy.tick.ui.common.AppPickerSheet
 import io.candy.tick.ui.common.CandyIcons
+import io.candy.tick.ui.common.PrimaryButton
 import io.candy.tick.ui.common.sourceErrorText
 import kotlinx.coroutines.flow.collect
 import top.yukonga.miuix.kmp.basic.Button
@@ -233,13 +234,12 @@ private fun PreviewCard(
                     color = scheme.onErrorContainer,
                 )
             } else {
-                Button(onClick = onConfirm, modifier = Modifier.fillMaxWidth(), enabled = !state.adding) {
-                    Text(
-                        text = if (state.adding) stringResource(R.string.loading) else stringResource(R.string.add_confirm),
-                        color = scheme.onPrimary,
-                        style = MiuixTheme.textStyles.button,
-                    )
-                }
+                PrimaryButton(
+                    text = if (state.adding) stringResource(R.string.loading) else stringResource(R.string.add_confirm),
+                    onClick = onConfirm,
+                    modifier = Modifier.fillMaxWidth(),
+                    enabled = !state.adding,
+                )
             }
         }
     }

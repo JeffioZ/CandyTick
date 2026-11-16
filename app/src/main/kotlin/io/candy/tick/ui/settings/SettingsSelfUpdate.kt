@@ -7,7 +7,7 @@ import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.dp
 import io.candy.tick.R
 import io.candy.tick.data.SelfUpdater
-import top.yukonga.miuix.kmp.basic.Button
+import io.candy.tick.ui.common.PrimaryButton
 import top.yukonga.miuix.kmp.basic.LinearProgressIndicator
 import top.yukonga.miuix.kmp.basic.Text
 import top.yukonga.miuix.kmp.theme.MiuixTheme
@@ -18,17 +18,14 @@ internal fun SelfUpdateSection(state: SettingsViewModel.UiState, vm: SettingsVie
     val scheme = MiuixTheme.colorScheme
     when (val update = state.selfUpdate) {
         SelfUpdater.State.Idle, SelfUpdater.State.Checking -> {
-            Button(onClick = vm::checkUpdate) {
-                Text(
-                    text = if (update == SelfUpdater.State.Checking) {
-                        stringResource(R.string.loading)
-                    } else {
-                        stringResource(R.string.settings_check_update)
-                    },
-                    color = scheme.onPrimary,
-                    style = MiuixTheme.textStyles.button,
-                )
-            }
+            PrimaryButton(
+                text = if (update == SelfUpdater.State.Checking) {
+                    stringResource(R.string.loading)
+                } else {
+                    stringResource(R.string.settings_check_update)
+                },
+                onClick = vm::checkUpdate,
+            )
         }
         SelfUpdater.State.UpToDate -> Text(
             text = stringResource(R.string.settings_up_to_date),
@@ -52,17 +49,12 @@ internal fun SelfUpdateSection(state: SettingsViewModel.UiState, vm: SettingsVie
                     color = scheme.onBackgroundVariant,
                 )
             }
-            Button(
+            PrimaryButton(
+                text = stringResource(R.string.settings_download_update),
                 onClick = vm::downloadUpdate,
-                enabled = update.asset != null,
                 modifier = Modifier.fillMaxWidth(),
-            ) {
-                Text(
-                    text = stringResource(R.string.settings_download_update),
-                    color = scheme.onPrimary,
-                    style = MiuixTheme.textStyles.button,
-                )
-            }
+                enabled = update.asset != null,
+            )
         }
         is SelfUpdater.State.Downloading -> {
             LinearProgressIndicator(progress = update.progress, modifier = Modifier.fillMaxWidth())
@@ -73,13 +65,11 @@ internal fun SelfUpdateSection(state: SettingsViewModel.UiState, vm: SettingsVie
             )
         }
         is SelfUpdater.State.Downloaded -> {
-            Button(onClick = { vm.installUpdate(update.file) }, modifier = Modifier.fillMaxWidth()) {
-                Text(
-                    text = stringResource(R.string.settings_install_update),
-                    color = scheme.onPrimary,
-                    style = MiuixTheme.textStyles.button,
-                )
-            }
+            PrimaryButton(
+                text = stringResource(R.string.settings_install_update),
+                onClick = { vm.installUpdate(update.file) },
+                modifier = Modifier.fillMaxWidth(),
+            )
         }
         is SelfUpdater.State.Failed -> Text(
             text = stringResource(R.string.settings_update_failed),

@@ -38,6 +38,7 @@ import io.candy.tick.data.Notifications
 import io.candy.tick.data.model.SyncFrequency
 import io.candy.tick.data.model.ThemeMode
 import io.candy.tick.ui.common.CandyIcons
+import io.candy.tick.ui.common.PrimaryButton
 import io.candy.tick.ui.theme.MonoTokenStyle
 import top.yukonga.miuix.kmp.basic.Button
 import top.yukonga.miuix.kmp.basic.Card
@@ -171,13 +172,10 @@ fun SettingsScreen(onBack: () -> Unit) {
                         modifier = Modifier.fillMaxWidth(),
                     )
                     Row(verticalAlignment = Alignment.CenterVertically) {
-                        Button(onClick = vm::saveAndTestToken) {
-                            Text(
-                                text = stringResource(R.string.settings_token_test),
-                                color = scheme.onPrimary,
-                                style = MiuixTheme.textStyles.button,
-                            )
-                        }
+                        PrimaryButton(
+                            text = stringResource(R.string.settings_token_test),
+                            onClick = vm::saveAndTestToken,
+                        )
                         Spacer(Modifier.width(12.dp))
                         when (state.tokenTest) {
                             SettingsViewModel.TokenTest.TESTING -> Text(

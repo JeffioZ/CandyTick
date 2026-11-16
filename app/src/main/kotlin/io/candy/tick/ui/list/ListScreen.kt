@@ -28,6 +28,7 @@ import io.candy.tick.CandyTickApp
 import io.candy.tick.R
 import io.candy.tick.data.SourceError
 import io.candy.tick.ui.common.CandyIcons
+import io.candy.tick.ui.common.SecondaryButton
 import io.candy.tick.ui.common.sourceErrorText
 import top.yukonga.miuix.kmp.basic.Button
 import top.yukonga.miuix.kmp.basic.Card
@@ -204,13 +205,10 @@ private fun ErrorBanner(error: SourceError, onRetry: () -> Unit) {
                     color = scheme.onBackgroundVariant,
                 )
             }
-            Button(onClick = onRetry) {
-                Text(
-                    text = stringResource(R.string.retry),
-                    color = scheme.onError,
-                    style = MiuixTheme.textStyles.button,
-                )
-            }
+            SecondaryButton(
+                text = stringResource(R.string.retry),
+                onClick = onRetry,
+            )
         }
     }
 }

@@ -27,6 +27,7 @@ import androidx.compose.ui.unit.dp
 import io.candy.tick.R
 import io.candy.tick.data.model.ApkAsset
 import io.candy.tick.data.model.ReleaseRecord
+import io.candy.tick.ui.common.PrimaryButton
 import io.candy.tick.ui.common.RelTimeText
 import io.candy.tick.ui.theme.MonoTokenStyle
 import io.candy.tick.util.ApkPicker
@@ -158,13 +159,11 @@ private fun ReleaseCard(
                     }
                     is DetailViewModel.DownloadState.Done -> {
                         if (download.assetName == selected?.name) {
-                            Button(onClick = { onInstall(download.file) }, modifier = Modifier.fillMaxWidth()) {
-                                Text(
-                                    text = stringResource(R.string.install_apk),
-                                    color = scheme.onPrimary,
-                                    style = MiuixTheme.textStyles.button,
-                                )
-                            }
+                            PrimaryButton(
+                                text = stringResource(R.string.install_apk),
+                                onClick = { onInstall(download.file) },
+                                modifier = Modifier.fillMaxWidth(),
+                            )
                         }
                     }
                     is DetailViewModel.DownloadState.Failed -> {
@@ -179,16 +178,11 @@ private fun ReleaseCard(
                 }
 
                 if (selected != null && state.download !is DetailViewModel.DownloadState.Active) {
-                    Button(
+                    PrimaryButton(
+                        text = stringResource(R.string.download_apk),
                         onClick = { onDownload(release, selected) },
                         modifier = Modifier.fillMaxWidth(),
-                    ) {
-                        Text(
-                            text = stringResource(R.string.download_apk),
-                            color = scheme.onPrimary,
-                            style = MiuixTheme.textStyles.button,
-                        )
-                    }
+                    )
                 }
             }
         }

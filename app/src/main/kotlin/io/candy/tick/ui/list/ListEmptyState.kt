@@ -29,10 +29,10 @@ import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.dp
 import io.candy.tick.R
+import io.candy.tick.ui.common.PrimaryButton
 import io.candy.tick.ui.theme.DarkPrimary
 import io.candy.tick.ui.theme.LightPrimary
 import io.candy.tick.ui.theme.LocalDarkTheme
-import top.yukonga.miuix.kmp.basic.Button
 import top.yukonga.miuix.kmp.basic.Text
 import top.yukonga.miuix.kmp.theme.MiuixTheme
 
@@ -63,13 +63,10 @@ internal fun EmptyState(onAdd: () -> Unit, modifier: Modifier = Modifier) {
             color = scheme.onBackgroundVariant,
         )
         Spacer(Modifier.height(20.dp))
-        Button(onClick = onAdd) {
-            Text(
-                text = stringResource(R.string.empty_cta),
-                color = scheme.onPrimary,
-                style = MiuixTheme.textStyles.button,
-            )
-        }
+        PrimaryButton(
+            text = stringResource(R.string.empty_cta),
+            onClick = onAdd,
+        )
     }
 }
 
