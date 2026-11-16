@@ -84,6 +84,7 @@ fun DetailScreen(repoId: Long, onBack: () -> Unit) {
     val mismatchMsg = stringResource(R.string.install_signature_mismatch)
     val autoLinkedFmt = stringResource(R.string.detail_auto_linked)
     val needPermMsg = stringResource(R.string.detail_need_install_permission)
+    val downloadDeletedMsg = stringResource(R.string.detail_download_deleted)
 
     LaunchedEffect(Unit) {
         vm.events.collect { event ->
@@ -102,6 +103,7 @@ fun DetailScreen(repoId: Long, onBack: () -> Unit) {
                         snackbar.showSnackbar(needPermMsg)
                 }
                 is DetailViewModel.Event.AutoLinked -> snackbar.showSnackbar(autoLinkedFmt.format(event.packageName))
+                DetailViewModel.Event.DownloadDeleted -> snackbar.showSnackbar(downloadDeletedMsg)
             }
         }
     }
@@ -181,6 +183,7 @@ fun DetailScreen(repoId: Long, onBack: () -> Unit) {
                         onUnlink = { vm.setLinkedApp(null) },
                         onLinkSuggestion = { state.linkSuggestion?.first?.let(vm::setLinkedApp) },
                         onInstallDownloaded = { repo?.let(vm::installDownloaded) },
+                        onDeleteDownloaded = vm::deleteDownloaded,
                     )
                 }
                 state.banner?.let { error ->
@@ -320,6 +323,7 @@ private fun HeaderCard(
     onUnlink: () -> Unit,
     onLinkSuggestion: () -> Unit,
     onInstallDownloaded: () -> Unit,
+    onDeleteDownloaded: () -> Unit,
 ) {
     val repo = state.repo ?: return
     val snapshot = state.snapshot
@@ -455,12 +459,22 @@ private fun HeaderCard(
                 TextButton(text = stringResource(R.string.detail_link_app), onClick = onChangeLinked)
             }
 
-            // 下载保留：直接重装
+            // 下载保留：重装 / 删除（可重新下载，非破坏性 → 不加确认弹窗）
             repo.downloadedApk?.let { record ->
-                TextButton(
-                    text = stringResource(R.string.detail_reinstall, record.fileName),
-                    onClick = onInstallDownloaded,
-                )
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    TextButton(
+                        text = stringResource(R.string.detail_reinstall, record.fileName),
+                        onClick = onInstallDownloaded,
+                    )
+                    Spacer(Modifier.width(8.dp))
+                    IconButton(onClick = onDeleteDownloaded, modifier = Modifier.size(32.dp)) {
+                        Icon(
+                            imageVector = CandyIcons.Delete,
+                            contentDescription = stringResource(R.string.detail_delete_download),
+                            tint = scheme.onBackgroundVariant,
+                        )
+                    }
+                }
             }
 
         }

@@ -136,7 +136,8 @@ private fun ReleaseCard(
                 candidates.forEach { asset ->
                     AssetRow(
                         asset = asset,
-                        recommended = isAuto && selected?.name == asset.name,
+                        // 仅多候选时才标「推荐」（唯一候选没有选择问题，不啰嗦）
+                        recommended = isAuto && candidates.size > 1 && selected?.name == asset.name,
                         selected = selected?.name == asset.name,
                         onSelect = { onSelectAsset(release.tagName, asset) },
                     )

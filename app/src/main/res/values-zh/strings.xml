@@ -130,6 +130,8 @@
     <string name="detail_linked_app">已关联：%1$s</string>
     <string name="detail_unlink">解除关联</string>
     <string name="detail_reinstall">重装已下载的 %1$s</string>
+    <string name="detail_delete_download">删除下载的 APK</string>
+    <string name="detail_download_deleted">已删除下载的 APK</string>
     <string name="load_failed">加载失败</string>
     <string name="load_failed_retry">加载失败 · 重试</string>
     <string name="list_end">— 已到底 —</string>

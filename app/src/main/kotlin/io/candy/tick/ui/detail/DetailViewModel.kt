@@ -62,6 +62,7 @@ class DetailViewModel(
     sealed interface Event {
         data class InstallResultEvent(val result: InstallManager.InstallResult) : Event
         data class AutoLinked(val packageName: String) : Event
+        data object DownloadDeleted : Event
     }
 
     /** 详情页浏览页签：提交 / 版本（一次只看一类，长列表不再互相挤压） */
@@ -266,6 +267,15 @@ class DetailViewModel(
         if (!file.exists()) return false
         installManager.installApk(file)
         return true
+    }
+
+    /** 删除已下载的 APK（文件 + 记录；可随时重新下载） */
+    fun deleteDownloaded() {
+        viewModelScope.launch {
+            apkDir.listFiles()?.forEach { it.delete() }
+            repository.setDownloadedApk(repoId, null)
+            _events.send(Event.DownloadDeleted)
+        }
     }
 
     fun setLinkedApp(packageName: String?) {
