@@ -240,10 +240,10 @@ fun SettingsScreen(onBack: () -> Unit) {
                     verticalAlignment = Alignment.CenterVertically,
                     horizontalArrangement = Arrangement.spacedBy(12.dp),
                 ) {
-                    SecondaryButton(
+                    PrimaryButton(
                         text = stringResource(R.string.settings_token_test),
                         onClick = vm::saveAndTestToken,
-                        enabled = state.tokenInput.isNotBlank(), // 空 Token 禁用
+                        enabled = state.tokenInput.isNotBlank(), // 空 Token 禁用（薄荷底 vs 灰底，状态一眼可辨）
                     )
                     when (state.tokenTest) {
                         SettingsViewModel.TokenTest.TESTING -> Text(
