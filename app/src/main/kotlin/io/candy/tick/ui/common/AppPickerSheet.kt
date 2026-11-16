@@ -1,4 +1,4 @@
-package io.candy.tick.ui.add
+package io.candy.tick.ui.common
 
 import android.content.Intent
 import android.content.pm.ApplicationInfo

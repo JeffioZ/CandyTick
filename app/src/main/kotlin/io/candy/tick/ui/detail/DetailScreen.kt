@@ -1,53 +1,293 @@
 package io.candy.tick.ui.detail
 
-import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
+import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.stringResource
+import androidx.compose.ui.unit.dp
+import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import androidx.lifecycle.viewmodel.compose.viewModel
+import io.candy.tick.CandyTickApp
 import io.candy.tick.R
+import io.candy.tick.ui.common.AppPickerSheet
 import io.candy.tick.ui.common.CandyIcons
+import io.candy.tick.ui.common.RelTimeText
+import io.candy.tick.ui.common.RepoIconBlock
+import io.candy.tick.ui.common.StatusBadge
+import io.candy.tick.ui.common.sourceErrorText
+import io.candy.tick.ui.theme.MonoTokenStyle
+import io.candy.tick.data.model.statusAt
+import java.io.File
+import top.yukonga.miuix.kmp.basic.Card
 import top.yukonga.miuix.kmp.basic.Icon
 import top.yukonga.miuix.kmp.basic.IconButton
+import top.yukonga.miuix.kmp.basic.MiuixScrollBehavior
+import top.yukonga.miuix.kmp.basic.PullToRefresh
 import top.yukonga.miuix.kmp.basic.Scaffold
 import top.yukonga.miuix.kmp.basic.SmallTopAppBar
 import top.yukonga.miuix.kmp.basic.Text
+import top.yukonga.miuix.kmp.basic.TextButton
+import top.yukonga.miuix.kmp.basic.rememberPullToRefreshState
+import top.yukonga.miuix.kmp.basic.rememberTopAppBarState
 import top.yukonga.miuix.kmp.theme.MiuixTheme
 
-/** 详情页（施工第 6 步实现完整流程，当前占位） */
 @Composable
-fun DetailScreen(
-    repoId: Long,
-    onBack: () -> Unit,
-) {
+fun DetailScreen(repoId: Long, onBack: () -> Unit) {
+    val app = LocalContext.current.applicationContext as CandyTickApp
+    val vm: DetailViewModel = viewModel(key = "detail-$repoId") {
+        DetailViewModel(
+            repoId = repoId,
+            repository = app.container.repoRepository,
+            githubApi = app.container.githubApi,
+            installManager = app.container.installManager,
+            context = app,
+        )
+    }
+    val state by vm.state.collectAsStateWithLifecycle()
+    val scheme = MiuixTheme.colorScheme
+    val pullState = rememberPullToRefreshState()
+    val scrollBehavior = MiuixScrollBehavior(rememberTopAppBarState())
+    var showAppPicker by remember { mutableStateOf(false) }
+    val context = LocalContext.current
+
+    LaunchedEffect(Unit) {
+        vm.events.collect { event ->
+            when (event) {
+                is DetailViewModel.Event.InstallResultEvent -> Unit // 结果就地呈现（ReleaseList 内提示）
+            }
+        }
+    }
+
+    val repo = state.repo
     Scaffold(
         topBar = {
             SmallTopAppBar(
-                title = stringResource(R.string.detail_title),
+                title = repo?.let { it.noteName ?: it.repo } ?: stringResource(R.string.detail_title),
                 navigationIcon = {
                     IconButton(onClick = onBack) {
                         Icon(
                             imageVector = CandyIcons.Back,
                             contentDescription = null,
-                            tint = MiuixTheme.colorScheme.onBackground,
+                            tint = scheme.onBackground,
                         )
                     }
                 },
+                scrollBehavior = scrollBehavior,
             )
         },
     ) { padding ->
-        Box(
-            modifier = Modifier.fillMaxSize().padding(padding),
-            contentAlignment = Alignment.Center,
+        PullToRefresh(
+            isRefreshing = state.refreshing,
+            onRefresh = vm::refresh,
+            pullToRefreshState = pullState,
+            topAppBarScrollBehavior = scrollBehavior,
+            modifier = Modifier.padding(padding),
         ) {
-            Text(
-                text = stringResource(R.string.coming_next_step),
-                style = MiuixTheme.textStyles.body2,
-                color = MiuixTheme.colorScheme.onBackgroundVariant,
-            )
+            LazyColumn(
+                modifier = Modifier.fillMaxSize(),
+                contentPadding = PaddingValues(start = 16.dp, end = 16.dp, top = 4.dp, bottom = 48.dp),
+                verticalArrangement = Arrangement.spacedBy(10.dp),
+            ) {
+                item {
+                    HeaderCard(
+                        state = state,
+                        onChangeLinked = { showAppPicker = true },
+                        onUnlink = { vm.setLinkedApp(null) },
+                        onInstallDownloaded = { repo?.let(vm::installDownloaded) },
+                    )
+                }
+                state.banner?.let { error ->
+                    item {
+                        Card(modifier = Modifier.fillMaxWidth()) {
+                            Text(
+                                text = sourceErrorText(error),
+                                style = MiuixTheme.textStyles.footnote1,
+                                color = scheme.onErrorContainer,
+                                modifier = Modifier.padding(14.dp),
+                            )
+                        }
+                    }
+                }
+                item {
+                    SectionTitle(text = stringResource(R.string.detail_commits))
+                }
+                commitList(state = state, onLoadMore = vm::loadCommits)
+                item {
+                    SectionTitle(text = stringResource(R.string.detail_releases))
+                }
+                releaseList(
+                    state = state,
+                    onLoadMore = vm::loadReleases,
+                    onSelectAsset = vm::selectAsset,
+                    onDownload = vm::downloadAsset,
+                    onRetry = vm::retryDownload,
+                    onInstall = vm::installFile,
+                )
+                if (state.releasesEnd && state.releases.isNotEmpty()) {
+                    item {
+                        FooterText(text = stringResource(R.string.list_end))
+                    }
+                }
+            }
+        }
+    }
+
+    if (showAppPicker) {
+        AppPickerSheet(
+            show = true,
+            onPick = { pkg, _ ->
+                vm.setLinkedApp(pkg)
+                showAppPicker = false
+            },
+            onDismiss = { showAppPicker = false },
+        )
+    }
+}
+
+@Composable
+private fun SectionTitle(text: String) {
+    Text(
+        text = text,
+        style = MiuixTheme.textStyles.subtitle,
+        color = MiuixTheme.colorScheme.onBackground,
+        modifier = Modifier.padding(top = 8.dp),
+    )
+}
+
+@Composable
+private fun FooterText(text: String) {
+    Text(
+        text = text,
+        style = MiuixTheme.textStyles.footnote2,
+        color = MiuixTheme.colorScheme.onBackgroundVariant,
+        modifier = Modifier.padding(vertical = 8.dp),
+    )
+}
+
+@Composable
+private fun HeaderCard(
+    state: DetailViewModel.UiState,
+    onChangeLinked: () -> Unit,
+    onUnlink: () -> Unit,
+    onInstallDownloaded: () -> Unit,
+) {
+    val repo = state.repo ?: return
+    val snapshot = state.snapshot
+    val scheme = MiuixTheme.colorScheme
+    val context = LocalContext.current
+    Card(modifier = Modifier.fillMaxWidth()) {
+        Column(modifier = Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                RepoIconBlock(repo = repo, size = 56.dp, corner = 14.dp)
+                Spacer(Modifier.width(12.dp))
+                Column(modifier = Modifier.weight(1f)) {
+                    Text(
+                        text = repo.noteName ?: repo.repo,
+                        style = MiuixTheme.textStyles.title4,
+                        color = scheme.onBackground,
+                    )
+                    Text(
+                        text = "${repo.owner}/${repo.repo}",
+                        style = MonoTokenStyle,
+                        color = scheme.onBackgroundVariant,
+                    )
+                }
+                StatusBadge(status = snapshot?.statusAt() ?: io.candy.tick.data.model.RepoStatus.UNKNOWN)
+            }
+
+            snapshot?.description?.takeIf { it.isNotBlank() }?.let {
+                Text(
+                    text = it,
+                    style = MiuixTheme.textStyles.body2,
+                    color = scheme.onBackgroundVariant,
+                )
+            }
+
+            Row(horizontalArrangement = Arrangement.spacedBy(16.dp)) {
+                Text(
+                    text = stringResource(R.string.detail_stars, snapshot?.stars ?: 0),
+                    style = MiuixTheme.textStyles.footnote1,
+                    color = scheme.onBackgroundVariant,
+                )
+                Text(
+                    text = stringResource(R.string.detail_forks, snapshot?.forks ?: 0),
+                    style = MiuixTheme.textStyles.footnote1,
+                    color = scheme.onBackgroundVariant,
+                )
+                Text(
+                    text = stringResource(R.string.detail_issues, snapshot?.openIssues ?: 0),
+                    style = MiuixTheme.textStyles.footnote1,
+                    color = scheme.onBackgroundVariant,
+                )
+                snapshot?.license?.let {
+                    Text(
+                        text = it,
+                        style = MiuixTheme.textStyles.footnote1,
+                        color = scheme.onBackgroundVariant,
+                    )
+                }
+            }
+
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                Text(
+                    text = stringResource(R.string.detail_last_push),
+                    style = MiuixTheme.textStyles.footnote1,
+                    color = scheme.onBackgroundVariant,
+                )
+                RelTimeText(
+                    date = snapshot?.pushedAt,
+                    color = scheme.onBackgroundVariant,
+                    style = MiuixTheme.textStyles.footnote1,
+                )
+            }
+
+            // 关联本机应用（可修改 / 解除）
+            val linkedLabel = repo.linkedPackage?.let { pkg ->
+                runCatching {
+                    context.packageManager.getApplicationLabel(
+                        context.packageManager.getApplicationInfo(pkg, 0),
+                    ).toString()
+                }.getOrNull() ?: pkg
+            }
+            if (linkedLabel != null) {
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    Text(
+                        text = stringResource(R.string.detail_linked_app, linkedLabel),
+                        style = MiuixTheme.textStyles.footnote1,
+                        color = scheme.onBackgroundVariant,
+                        modifier = Modifier.weight(1f),
+                    )
+                    TextButton(text = stringResource(R.string.detail_unlink), onClick = onUnlink)
+                }
+            } else {
+                TextButton(text = stringResource(R.string.detail_link_app), onClick = onChangeLinked)
+            }
+
+            // 下载保留：直接重装
+            if (repo.downloadedApk != null) {
+                TextButton(
+                    text = stringResource(R.string.detail_reinstall, repo.downloadedApk!!.fileName),
+                    onClick = onInstallDownloaded,
+                )
+            }
         }
     }
 }

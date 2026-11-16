@@ -31,6 +31,7 @@ import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.lifecycle.viewmodel.compose.viewModel
 import io.candy.tick.CandyTickApp
 import io.candy.tick.R
+import io.candy.tick.ui.common.AppPickerSheet
 import io.candy.tick.ui.common.CandyIcons
 import io.candy.tick.ui.common.sourceErrorText
 import kotlinx.coroutines.flow.collect

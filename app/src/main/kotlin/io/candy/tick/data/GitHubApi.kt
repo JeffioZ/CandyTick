@@ -4,6 +4,7 @@ import io.candy.tick.data.model.ApkAsset
 import io.candy.tick.data.model.CommitRecord
 import io.candy.tick.data.model.ReleaseRecord
 import io.candy.tick.data.model.parseInstant
+import java.io.File
 import java.io.IOException
 import java.io.InterruptedIOException
 import java.net.SocketTimeoutException
@@ -117,6 +118,34 @@ class GitHubApi(private val tokenProvider: () -> String?) {
             }
         }
     }
+
+    /** APK 下载：流式写文件 + 进度回调（下载保留语义由调用方管理文件生命周期） */
+    suspend fun download(url: String, dest: File, onProgress: (Float) -> Unit = {}): File =
+        withContext(Dispatchers.IO) {
+            dest.parentFile?.mkdirs()
+            val request = Request.Builder().url(url).apply {
+                tokenProvider()?.takeIf { it.isNotBlank() }?.let { header("Authorization", "Bearer $it") }
+            }.build()
+            execute(request).use { response ->
+                checkHttp(response)
+                val body = response.body
+                val total = body.contentLength()
+                body.byteStream().use { input ->
+                    dest.outputStream().use { output ->
+                        val buffer = ByteArray(64 * 1024)
+                        var read = 0L
+                        while (true) {
+                            val n = input.read(buffer)
+                            if (n < 0) break
+                            output.write(buffer, 0, n)
+                            read += n
+                            if (total > 0) onProgress((read.toDouble() / total).toFloat().coerceIn(0f, 1f))
+                        }
+                    }
+                }
+            }
+            dest
+        }
 
     // ---- 内部：请求 / 错误映射 ----
 

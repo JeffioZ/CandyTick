@@ -89,4 +89,27 @@
     <string name="add_linked_app_named">Linked: %1$s · change</string>
     <string name="add_duplicate">Already in your list</string>
     <string name="add_confirm">Add repository</string>
+
+    <!-- 详情页 -->
+    <string name="detail_commits">Commits</string>
+    <string name="detail_releases">Releases</string>
+    <string name="detail_no_commits">No commits</string>
+    <string name="detail_no_releases">No releases published</string>
+    <string name="detail_no_apk">No APK in this release</string>
+    <string name="detail_stars">★ %1$d</string>
+    <string name="detail_forks">⑂ %1$d</string>
+    <string name="detail_issues">◎ %1$d</string>
+    <string name="detail_last_push">pushed\u0020</string>
+    <string name="detail_link_app">Link installed app</string>
+    <string name="detail_linked_app">Linked: %1$s</string>
+    <string name="detail_unlink">Unlink</string>
+    <string name="detail_reinstall">Reinstall downloaded %1$s</string>
+    <string name="load_failed">Load failed</string>
+    <string name="load_failed_retry">Load failed · retry</string>
+    <string name="list_end">— end —</string>
+    <string name="asset_recommended">Pick</string>
+    <string name="download_apk">Download APK</string>
+    <string name="download_retry">Download failed · retry (file kept)</string>
+    <string name="download_progress_percent">%1$d%%</string>
+    <string name="install_apk">Install</string>
 </resources>

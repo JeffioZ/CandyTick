@@ -84,4 +84,27 @@
     <string name="add_linked_app_named">已关联：%1$s · 更改</string>
     <string name="add_duplicate">已在列表中</string>
     <string name="add_confirm">添加仓库</string>
+
+    <!-- 详情页 -->
+    <string name="detail_commits">提交历史</string>
+    <string name="detail_releases">Release 发布</string>
+    <string name="detail_no_commits">暂无提交</string>
+    <string name="detail_no_releases">该仓库未发布过 Release</string>
+    <string name="detail_no_apk">此 Release 无 APK</string>
+    <string name="detail_stars">★ %1$d</string>
+    <string name="detail_forks">⑂ %1$d</string>
+    <string name="detail_issues">◎ %1$d</string>
+    <string name="detail_last_push">\u0020</string>
+    <string name="detail_link_app">关联本机应用</string>
+    <string name="detail_linked_app">已关联：%1$s</string>
+    <string name="detail_unlink">解除关联</string>
+    <string name="detail_reinstall">重装已下载的 %1$s</string>
+    <string name="load_failed">加载失败</string>
+    <string name="load_failed_retry">加载失败 · 重试</string>
+    <string name="list_end">— 已到底 —</string>
+    <string name="asset_recommended">推荐</string>
+    <string name="download_apk">下载 APK</string>
+    <string name="download_retry">下载失败 · 重试（文件已保留）</string>
+    <string name="download_progress_percent">%1$d%%</string>
+    <string name="install_apk">安装</string>
 </resources>

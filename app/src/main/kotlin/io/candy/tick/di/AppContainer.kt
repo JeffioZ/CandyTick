@@ -4,6 +4,7 @@ import android.content.Context
 import io.candy.tick.data.AppStateStore
 import io.candy.tick.data.GitHubApi
 import io.candy.tick.data.GitHubProvider
+import io.candy.tick.data.InstallManager
 import io.candy.tick.data.PROVIDER_GITHUB
 import io.candy.tick.data.RepoRepository
 
@@ -15,6 +16,8 @@ class AppContainer(context: Context) {
     val githubApi: GitHubApi by lazy {
         GitHubApi(tokenProvider = { appStateStore.state.value.settings.githubToken })
     }
+
+    val installManager: InstallManager by lazy { InstallManager(context) }
 
     val repoRepository: RepoRepository by lazy {
         RepoRepository(
