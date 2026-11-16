@@ -6,11 +6,10 @@
     </style>
 
     <!-- 系统 SplashScreen（12+ 原生；29~31 兼容层）：
-         图标走自适应图标（系统按平台规则裁剪/垫底，澎湃强制浅底时也能正确呈现），
-         深绿底仅在系统尊重该属性时生效 -->
+         专用透明底图标（无日夜变体），深绿底上两态一致沉浸 -->
     <style name="Theme.CandyTick.Splash" parent="Theme.SplashScreen">
         <item name="windowSplashScreenBackground">@color/candy_splash_bg</item>
-        <item name="windowSplashScreenAnimatedIcon">@mipmap/ic_launcher</item>
+        <item name="windowSplashScreenAnimatedIcon">@drawable/ic_splash_icon</item>
         <item name="postSplashScreenTheme">@style/Theme.CandyTick</item>
         <item name="android:windowBackground">@color/candy_splash_bg</item>
     </style>
