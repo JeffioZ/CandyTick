@@ -1,3 +1,5 @@
+简体中文 | [English](README.en.md)
+
 <div align="center">
 
 # CandyTick
@@ -8,7 +10,7 @@
 ![Platform](https://img.shields.io/badge/Android-3DDC84?logo=android&logoColor=white)
 ![API](https://img.shields.io/badge/API-29%2B-9E9E9E)
 
-订阅 GitHub 仓库，一眼看出哪些还在活跃维护、哪些已经弃坑；顺带发现新版本、下载安装。
+订阅 GitHub 仓库，跟踪维护状态；有新版本时可以下载安装。
 
 [→ 从 Releases 下载](https://github.com/JeffioZ/CandyTick/releases)
 
@@ -22,14 +24,15 @@
 
 ## 功能
 
-- 维护状态徽章：活跃 / 一般 / 低活跃 / 疑似弃坑 / 已归档
-- 展开卡片看最近提交；详情页浏览完整提交与 Release 历史
-- 关联本机应用后比较版本（宁可不比，绝不误报）
-- 多 APK 按设备 ABI 自动推荐；下载保留，安装失败不删
-- 后台同步 + 新版本通知；可约束仅 Wi-Fi / 仅充电
-- 深浅双主题（HyperOS 风格），跟随系统 / 浅色 / 深色三档
-- 匿名可用，可选 GitHub Token 提升限额；ETag 条件请求省配额
-- 应用自身更新：自动检查 / 仅 Wi-Fi 自动下载 / Android 12+ 静默安装
+- 维护状态：按默认分支最近提交时间分为 活跃 / 一般 / 低活跃 / 疑似弃坑，归档仓库单独标记
+- 提交历史与 Release 历史，详情页分页浏览
+- 关联本机应用后比对版本；仅支持标准版本号（x.y.z / x.y / 纯数字），无法比较时如实提示，不做猜测
+- 多 APK 按设备 ABI 推荐，可手动改选；下载的 APK 会保留，安装失败无需重新下载
+- 后台定时同步，新版本通知；同步可限制仅 Wi-Fi、仅充电
+- 深浅色主题，跟随系统或手动指定
+- 匿名即可使用；可选 GitHub Token 提升接口限额（60 次/小时 → 5000 次/小时）
+- 列表搜索、排序、滑动删除；订阅支持导出与合并导入
+- 应用自身更新：手动检查、自动检查、仅 Wi-Fi 自动下载、Android 12+ 且本应用为安装来源时静默安装
 
 ## 构建
 
@@ -45,4 +48,4 @@ Kotlin · Compose + [Miuix](https://github.com/compose-miuix-ui/miuix) · Naviga
 
 ## 许可
 
-[GPL-3.0](LICENSE) · 版本比较与 ABI 选择思路致谢 [Obtainium](https://github.com/ImranR98/Obtainium)
+[GPL-3.0](LICENSE) · 版本比较与 APK 选择的思路参考了 [Obtainium](https://github.com/ImranR98/Obtainium)
