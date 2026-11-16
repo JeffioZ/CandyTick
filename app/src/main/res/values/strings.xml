@@ -169,7 +169,7 @@
     <string name="settings_appearance">Appearance</string>
     <string name="action_search">Search</string>
     <string name="search_hint">Search repositories</string>
-    <string name="settings_backup_group">Backup</string>
+    <string name="settings_backup_group">Data</string>
     <string name="settings_export">Export subscriptions</string>
     <string name="settings_export_summary">Copy to clipboard and share as JSON</string>
     <string name="settings_import">Import subscriptions</string>

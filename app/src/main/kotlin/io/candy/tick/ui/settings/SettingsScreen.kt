@@ -337,8 +337,8 @@ fun SettingsScreen(onBack: () -> Unit) {
                 SelfUpdateActions(state = state, vm = vm)
             }
 
-            // ── 关于 ──（含数据备份）
-            SettingsGroup(title = stringResource(R.string.settings_about_group)) {
+            // ── 数据 ──
+            SettingsGroup(title = stringResource(R.string.settings_backup_group)) {
                 SettingRow(
                     icon = MiuixIcons.Share,
                     iconTint = ChipAmber,
@@ -370,7 +370,10 @@ fun SettingsScreen(onBack: () -> Unit) {
                     summary = stringResource(R.string.settings_import_summary),
                     onClick = { importLauncher.launch(arrayOf("application/json")) },
                 )
-                RowDivider()
+            }
+
+            // ── 关于 ──
+            SettingsGroup(title = stringResource(R.string.settings_about_group)) {
                 SettingRow(
                     icon = MiuixIcons.Link,
                     iconTint = ChipPeriwinkle,

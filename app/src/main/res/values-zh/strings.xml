@@ -159,7 +159,7 @@
     <string name="settings_appearance">外观</string>
     <string name="action_search">搜索</string>
     <string name="search_hint">搜索仓库</string>
-    <string name="settings_backup_group">备份</string>
+    <string name="settings_backup_group">数据</string>
     <string name="settings_export">导出订阅</string>
     <string name="settings_export_summary">以 JSON 复制到剪贴板，并弹出分享</string>
     <string name="settings_import">导入订阅</string>
