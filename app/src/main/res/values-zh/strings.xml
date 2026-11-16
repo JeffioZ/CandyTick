@@ -211,6 +211,7 @@
     <string name="settings_license">开源许可</string>
 
     <!-- 同步频率 -->
+    <string name="frequency_on_open">每次打开应用</string>
     <string name="frequency_6h">每 6 小时</string>
     <string name="frequency_12h">每 12 小时</string>
     <string name="frequency_daily">每天</string>

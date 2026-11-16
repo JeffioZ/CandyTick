@@ -221,6 +221,7 @@
     <string name="settings_license">License</string>
 
     <!-- 同步频率 -->
+    <string name="frequency_on_open">On app open</string>
     <string name="frequency_6h">Every 6 hours</string>
     <string name="frequency_12h">Every 12 hours</string>
     <string name="frequency_daily">Daily</string>

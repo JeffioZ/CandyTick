@@ -168,6 +168,7 @@ internal fun SwitchRow(
 @Composable
 internal fun frequencyLabel(frequency: SyncFrequency): String = stringResource(
     when (frequency) {
+        SyncFrequency.ON_OPEN -> R.string.frequency_on_open
         SyncFrequency.EVERY_6_HOURS -> R.string.frequency_6h
         SyncFrequency.EVERY_12_HOURS -> R.string.frequency_12h
         SyncFrequency.DAILY -> R.string.frequency_daily

@@ -17,9 +17,10 @@ import kotlinx.serialization.encoding.Encoder
 @Serializable
 enum class ThemeMode { SYSTEM, LIGHT, DARK }
 
-/** 同步频率（默认每日；约束项见 Settings） */
+/** 同步频率（默认「每次打开应用」；hours 仅用于周期模式排程） */
 @Serializable
 enum class SyncFrequency(val hours: Int) {
+    ON_OPEN(0),
     EVERY_6_HOURS(6),
     EVERY_12_HOURS(12),
     DAILY(24),
@@ -84,7 +85,7 @@ data class ApkAsset(
 @Serializable
 data class Settings(
     val themeMode: ThemeMode = ThemeMode.SYSTEM,
-    val syncFrequency: SyncFrequency = SyncFrequency.DAILY,
+    val syncFrequency: SyncFrequency = SyncFrequency.ON_OPEN,
     val wifiOnly: Boolean = false,
     val chargingOnly: Boolean = false,
     val githubToken: String? = null,
