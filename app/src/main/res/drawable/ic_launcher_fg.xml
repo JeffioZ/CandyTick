@@ -1,27 +1,27 @@
 <?xml version="1.0" encoding="utf-8"?>
-<!-- 回声前景 · 深夜绿砖：扁平化（去辉光/渐变/反光，参考米家健康简洁风） -->
+<!-- 回声前景 · 深夜绿砖：呼吸感优化（73% 安全区填充）+ 色阶调优（Mint300/400） -->
 <vector xmlns:android="http://schemas.android.com/apk/res/android"
     android:width="108dp"
     android:height="108dp"
     android:viewportWidth="108"
     android:viewportHeight="108">
 
-    <!-- 外涟漪 -->
+    <!-- 外涟漪：Mint300 柔和 -->
     <path
-        android:pathData="M54,54 m-28,0 a28,28 0 1,1 56,0 a28,28 0 1,1 -56,0"
+        android:pathData="M54,54 m-22,0 a22,22 0 1,1 44,0 a22,22 0 1,1 -44,0"
         android:fillColor="#00000000"
-        android:strokeColor="#804ADE9E"
-        android:strokeWidth="5" />
+        android:strokeColor="#668BDEBB"
+        android:strokeWidth="4.5" />
 
-    <!-- 内涟漪（强） -->
+    <!-- 内涟漪：Mint400 -->
     <path
-        android:pathData="M54,54 m-20,0 a20,20 0 1,1 40,0 a20,20 0 1,1 -40,0"
+        android:pathData="M54,54 m-16,0 a16,16 0 1,1 32,0 a16,16 0 1,1 -32,0"
         android:fillColor="#00000000"
-        android:strokeColor="#4ADE9E"
-        android:strokeWidth="7" />
+        android:strokeColor="#55CFA0"
+        android:strokeWidth="6.5" />
 
-    <!-- 糖珠（实色，无渐变） -->
+    <!-- 糖珠：Mint400 实色 -->
     <path
-        android:pathData="M54,54 m-11,0 a11,11 0 1,1 22,0 a11,11 0 1,1 -22,0"
-        android:fillColor="#4ADE9E" />
+        android:pathData="M54,54 m-9,0 a9,9 0 1,1 18,0 a9,9 0 1,1 -18,0"
+        android:fillColor="#55CFA0" />
 </vector>
