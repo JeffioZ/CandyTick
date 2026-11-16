@@ -54,11 +54,11 @@ import top.yukonga.miuix.kmp.basic.IconButton
 import top.yukonga.miuix.kmp.basic.MiuixScrollBehavior
 import top.yukonga.miuix.kmp.basic.PullToRefresh
 import top.yukonga.miuix.kmp.basic.Scaffold
+import top.yukonga.miuix.kmp.basic.SmallTopAppBar
 import top.yukonga.miuix.kmp.basic.SnackbarHost
 import top.yukonga.miuix.kmp.basic.SnackbarHostState
 import top.yukonga.miuix.kmp.basic.SnackbarResult
 import top.yukonga.miuix.kmp.basic.Text
-import top.yukonga.miuix.kmp.basic.TopAppBar
 import top.yukonga.miuix.kmp.basic.rememberPullToRefreshState
 import top.yukonga.miuix.kmp.basic.rememberTopAppBarState
 import top.yukonga.miuix.kmp.icon.MiuixIcons
@@ -103,9 +103,8 @@ fun ListScreen(
     Box(modifier = Modifier.fillMaxSize()) {
         Scaffold(
             topBar = {
-                TopAppBar(
+                SmallTopAppBar(
                     title = stringResource(R.string.app_name),
-                    largeTitle = stringResource(R.string.app_name),
                     color = androidx.compose.ui.graphics.Color.Transparent,
                     scrollBehavior = scrollBehavior,
                     actions = {
