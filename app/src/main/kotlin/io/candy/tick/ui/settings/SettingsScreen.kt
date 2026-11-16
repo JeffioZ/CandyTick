@@ -258,8 +258,8 @@ fun SettingsScreen(onBack: () -> Unit) {
                 )
             }
 
-            // ── 通知 ──
-            SettingsGroup(title = stringResource(R.string.settings_notifications)) {
+            // ── 通知与权限 ──
+            SettingsGroup(title = stringResource(R.string.settings_permission_group)) {
                 SwitchRow(
                     title = stringResource(R.string.settings_notifications),
                     checked = state.settings.notificationsEnabled,
@@ -267,10 +267,7 @@ fun SettingsScreen(onBack: () -> Unit) {
                     iconTint = ChipPink,
                     onChange = vm::setNotifications,
                 )
-            }
-
-            // ── 权限 ──
-            SettingsGroup(title = stringResource(R.string.settings_permission_group)) {
+                RowDivider()
                 SettingRow(
                     icon = MiuixIcons.Unlock,
                     iconTint = ChipGreen,
@@ -339,8 +336,8 @@ fun SettingsScreen(onBack: () -> Unit) {
                 SelfUpdateActions(state = state, vm = vm)
             }
 
-            // ── 备份 ──
-            SettingsGroup(title = stringResource(R.string.settings_backup_group)) {
+            // ── 关于 ──（含数据备份）
+            SettingsGroup(title = stringResource(R.string.settings_about_group)) {
                 SettingRow(
                     icon = MiuixIcons.Share,
                     iconTint = ChipAmber,
@@ -372,10 +369,7 @@ fun SettingsScreen(onBack: () -> Unit) {
                     summary = stringResource(R.string.settings_import_summary),
                     onClick = { importLauncher.launch(arrayOf("application/json")) },
                 )
-            }
-
-            // ── 关于 ──
-            SettingsGroup(title = stringResource(R.string.settings_about_group)) {
+                RowDivider()
                 SettingRow(
                     icon = MiuixIcons.Link,
                     iconTint = ChipPeriwinkle,
