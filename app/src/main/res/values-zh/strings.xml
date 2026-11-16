@@ -12,23 +12,22 @@
     <string name="undo">撤销</string>
     <string name="removed">已移除</string>
     <string name="loading">加载中…</string>
-    <string name="coming_next_step">下一施工步实现</string>
 
     <!-- 首页 -->
     <string name="add_repo">添加仓库</string>
     <string name="settings_title">设置</string>
     <string name="sort_title">排序</string>
     <string name="sort_last_push">最后提交时间</string>
-    <string name="sort_status">生命状态</string>
+    <string name="sort_status">维护状态</string>
     <string name="sort_name">名称</string>
     <string name="sort_updatable">可更新优先</string>
     <string name="remove_repo">移除</string>
     <string name="empty_title">还在维护吗？</string>
-    <string name="empty_subtitle">添加一个仓库，看看它是否还在走动</string>
+    <string name="empty_subtitle">订阅一个仓库，看看它是否还活着</string>
     <string name="empty_cta">添加第一个仓库</string>
-    <string name="banner_old_data_kept">旧数据已保留</string>
-    <string name="card_last_push_prefix">\u0020</string>
-    <string name="card_details_failed">详情暂不可用</string>
+    <string name="banner_old_data_kept">显示的是缓存数据</string>
+    <string name="card_last_push">%1$s有提交</string>
+    <string name="card_details_failed">详情加载失败</string>
 
     <!-- 状态五色 + 失效 -->
     <string name="status_active">活跃</string>
@@ -46,15 +45,16 @@
     <string name="version_update_available">有新版本：%1$s</string>
 
     <!-- 四类失败 -->
-    <string name="err_network">网络不可达</string>
+    <string name="err_network">网络不可用</string>
     <string name="err_timeout">超时（15 秒）</string>
-    <string name="err_not_found">不存在或已私有</string>
-    <string name="err_rate_limited">已限流 · %1$s 后恢复</string>
+    <string name="err_not_found">仓库不存在，或已设为私有</string>
+    <string name="err_rate_limited">已限流 · %1$s后恢复</string>
     <string name="err_rate_limited_plain">已被限流，稍后再试或添加 Token</string>
     <string name="err_http">HTTP 错误 %1$d</string>
 
-    <!-- 相对时间 -->
+    <!-- 相对时间（过去 → …前；未来 → …后） -->
     <string name="rel_now">刚刚</string>
+    <string name="rel_until_soon">马上</string>
     <plurals name="rel_minutes">
         <item quantity="other">%d 分钟前</item>
     </plurals>
@@ -70,8 +70,23 @@
     <plurals name="rel_years">
         <item quantity="other">%d 年前</item>
     </plurals>
+    <plurals name="rel_minutes_until">
+        <item quantity="other">%d 分钟后</item>
+    </plurals>
+    <plurals name="rel_hours_until">
+        <item quantity="other">%d 小时后</item>
+    </plurals>
+    <plurals name="rel_days_until">
+        <item quantity="other">%d 天后</item>
+    </plurals>
+    <plurals name="rel_months_until">
+        <item quantity="other">%d 个月后</item>
+    </plurals>
+    <plurals name="rel_years_until">
+        <item quantity="other">%d 年后</item>
+    </plurals>
 
-    <!-- 详情页（占位，第 6 步补全） -->
+    <!-- 详情页 -->
     <string name="detail_title">仓库</string>
 
     <!-- 添加页 -->
@@ -88,14 +103,14 @@
 
     <!-- 详情页 -->
     <string name="detail_commits">提交历史</string>
-    <string name="detail_releases">Release 发布</string>
+    <string name="detail_releases">版本发布</string>
     <string name="detail_no_commits">暂无提交</string>
-    <string name="detail_no_releases">该仓库未发布过 Release</string>
-    <string name="detail_no_apk">此 Release 无 APK</string>
+    <string name="detail_no_releases">该仓库还没有发布过版本</string>
+    <string name="detail_no_apk">此版本没有 APK</string>
     <string name="detail_stars">★ %1$d</string>
-    <string name="detail_forks">⑂ %1$d</string>
-    <string name="detail_issues">◎ %1$d</string>
-    <string name="detail_last_push">\u0020</string>
+    <string name="detail_forks">Fork %1$d</string>
+    <string name="detail_issues">Issue %1$d</string>
+    <string name="detail_last_push">最后提交 %1$s</string>
     <string name="detail_link_app">关联本机应用</string>
     <string name="detail_linked_app">已关联：%1$s</string>
     <string name="detail_unlink">解除关联</string>
@@ -111,7 +126,7 @@
 
     <!-- 通知 -->
     <string name="notif_channel_release">新版本</string>
-    <string name="notif_channel_update">应用更新</string>
+    <string name="notif_channel_update">CandyTick 更新</string>
     <string name="notif_new_release">新版本 %1$s 可用</string>
     <string name="notif_update_ready_title">CandyTick 更新</string>
     <string name="notif_update_ready">新版本 %1$s 已下载 · 点击安装</string>
@@ -131,7 +146,7 @@
     <string name="settings_token_network_error">网络错误</string>
     <string name="settings_notifications">新版本通知</string>
     <string name="settings_notif_permission_banner">通知权限未授予</string>
-    <string name="settings_notif_grant">去授予</string>
+    <string name="settings_notif_grant">去开启</string>
     <string name="settings_self_update">关于 · 版本</string>
     <string name="settings_current_version">当前版本 %1$s</string>
     <string name="settings_check_update">检查更新</string>
@@ -139,11 +154,11 @@
     <string name="settings_self_update_download">自动下载（仅 Wi-Fi）</string>
     <string name="settings_up_to_date">已是最新版本</string>
     <string name="settings_new_version">新版本 %1$s</string>
-    <string name="settings_new_version_incomparable">新发布 %1$s · 无法比较版本</string>
+    <string name="settings_new_version_incomparable">发现新发布 %1$s · 无法比较版本</string>
     <string name="settings_download_update">下载并安装</string>
     <string name="settings_install_update">安装已下载的更新</string>
     <string name="settings_update_failed">检查失败 · 稍后再试</string>
-    <string name="settings_silent_hint">Android 12+ 且本应用为安装来源时静默安装</string>
+    <string name="settings_silent_hint">Android 12+ 且本应用为安装来源时，更新将自动静默安装</string>
 
     <!-- 同步频率 -->
     <string name="frequency_6h">每 6 小时</string>

@@ -21,7 +21,8 @@ fun RelTimeText(
     color: Color = Color.Unspecified,
     style: TextStyle? = null,
 ) {
-    val text = relTimeString(date ?: return)
+    if (date == null) return
+    val text = relTimeString(date)
     if (style != null) {
         Text(text = text, modifier = modifier, color = color, style = style)
     } else {
@@ -29,6 +30,7 @@ fun RelTimeText(
     }
 }
 
+/** 过去时间 → 「3 天前 / 3 days ago」 */
 @Composable
 fun relTimeString(date: Instant): String {
     val now = remember(date) { Instant.now() }
@@ -40,5 +42,20 @@ fun relTimeString(date: Instant): String {
         span.unit == RelUnit.DAY -> pluralStringResource(R.plurals.rel_days, span.value.toInt(), span.value)
         span.unit == RelUnit.MONTH -> pluralStringResource(R.plurals.rel_months, span.value.toInt(), span.value)
         else -> pluralStringResource(R.plurals.rel_years, span.value.toInt(), span.value)
+    }
+}
+
+/** 未来时间 → 「5 分钟后 / in 5 mins」（限流恢复时间等） */
+@Composable
+fun relTimeUntilString(target: Instant): String {
+    val now = remember(target) { Instant.now() }
+    val span = remember(target, now) { RelTime.spanOf(now, target) }
+    return when {
+        span.isNow -> stringResource(R.string.rel_until_soon)
+        span.unit == RelUnit.MINUTE -> pluralStringResource(R.plurals.rel_minutes_until, span.value.toInt(), span.value)
+        span.unit == RelUnit.HOUR -> pluralStringResource(R.plurals.rel_hours_until, span.value.toInt(), span.value)
+        span.unit == RelUnit.DAY -> pluralStringResource(R.plurals.rel_days_until, span.value.toInt(), span.value)
+        span.unit == RelUnit.MONTH -> pluralStringResource(R.plurals.rel_months_until, span.value.toInt(), span.value)
+        else -> pluralStringResource(R.plurals.rel_years_until, span.value.toInt(), span.value)
     }
 }

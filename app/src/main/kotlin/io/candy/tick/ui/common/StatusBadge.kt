@@ -127,7 +127,7 @@ fun sourceErrorText(error: SourceError): String = when (error) {
     is SourceError.Timeout -> stringResource(R.string.err_timeout)
     is SourceError.NotFound -> stringResource(R.string.err_not_found)
     is SourceError.RateLimited -> error.retryAt?.let {
-        stringResource(R.string.err_rate_limited, relTimeString(it))
+        stringResource(R.string.err_rate_limited, relTimeUntilString(it))
     } ?: stringResource(R.string.err_rate_limited_plain)
     is SourceError.Http -> stringResource(R.string.err_http, error.code)
 }

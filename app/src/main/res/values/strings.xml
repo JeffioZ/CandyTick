@@ -12,28 +12,27 @@
     <string name="undo">Undo</string>
     <string name="removed">Removed</string>
     <string name="loading">Loading…</string>
-    <string name="coming_next_step">Coming in the next build step</string>
 
     <!-- 首页 -->
     <string name="add_repo">Add repository</string>
     <string name="settings_title">Settings</string>
     <string name="sort_title">Sort by</string>
     <string name="sort_last_push">Last commit time</string>
-    <string name="sort_status">Vital status</string>
+    <string name="sort_status">Maintenance status</string>
     <string name="sort_name">Name</string>
     <string name="sort_updatable">Updatable first</string>
     <string name="remove_repo">Remove</string>
     <string name="empty_title">still ticking?</string>
     <string name="empty_subtitle">Track a repository and see if it is still alive</string>
     <string name="empty_cta">Add your first repository</string>
-    <string name="banner_old_data_kept">Cached data is kept</string>
-    <string name="card_last_push_prefix">pushed\u0020</string>
-    <string name="card_details_failed">Details unavailable — open for more</string>
+    <string name="banner_old_data_kept">Showing saved data</string>
+    <string name="card_last_push">pushed %1$s</string>
+    <string name="card_details_failed">Couldn\'t load details</string>
 
     <!-- 状态五色 + 失效 -->
     <string name="status_active">Active</string>
-    <string name="status_moderate">Moderate</string>
-    <string name="status_low">Low</string>
+    <string name="status_moderate">Fair</string>
+    <string name="status_low">Low activity</string>
     <string name="status_abandoned">Likely abandoned</string>
     <string name="status_archived">Archived</string>
     <string name="status_unknown">Unknown</string>
@@ -41,20 +40,21 @@
 
     <!-- 版本行 -->
     <string name="version_latest_only">latest %1$s</string>
-    <string name="version_incomparable">release %1$s · version not comparable</string>
+    <string name="version_incomparable">release %1$s · cannot compare versions</string>
     <string name="version_line">%1$s · installed %2$s</string>
     <string name="version_update_available">update available: %1$s</string>
 
     <!-- 四类失败 -->
-    <string name="err_network">Network unreachable</string>
+    <string name="err_network">Network unavailable</string>
     <string name="err_timeout">Timed out (15s)</string>
-    <string name="err_not_found">Not found or private</string>
-    <string name="err_rate_limited">Rate limited · resets in %1$s</string>
+    <string name="err_not_found">Repository not found or made private</string>
+    <string name="err_rate_limited">Rate limited · recovers in %1$s</string>
     <string name="err_rate_limited_plain">Rate limited, try later or add a token</string>
     <string name="err_http">HTTP error %1$d</string>
 
-    <!-- 相对时间 -->
+    <!-- 相对时间（过去 → … ago；未来 → in …） -->
     <string name="rel_now">just now</string>
+    <string name="rel_until_soon">any moment now</string>
     <plurals name="rel_minutes">
         <item quantity="one">%d min ago</item>
         <item quantity="other">%d mins ago</item>
@@ -75,8 +75,28 @@
         <item quantity="one">%d year ago</item>
         <item quantity="other">%d years ago</item>
     </plurals>
+    <plurals name="rel_minutes_until">
+        <item quantity="one">in %d min</item>
+        <item quantity="other">in %d mins</item>
+    </plurals>
+    <plurals name="rel_hours_until">
+        <item quantity="one">in %d hour</item>
+        <item quantity="other">in %d hours</item>
+    </plurals>
+    <plurals name="rel_days_until">
+        <item quantity="one">in %d day</item>
+        <item quantity="other">in %d days</item>
+    </plurals>
+    <plurals name="rel_months_until">
+        <item quantity="one">in %d month</item>
+        <item quantity="other">in %d months</item>
+    </plurals>
+    <plurals name="rel_years_until">
+        <item quantity="one">in %d year</item>
+        <item quantity="other">in %d years</item>
+    </plurals>
 
-    <!-- 详情页（占位，第 6 步补全） -->
+    <!-- 详情页 -->
     <string name="detail_title">Repository</string>
 
     <!-- 添加页 -->
@@ -98,17 +118,17 @@
     <string name="detail_no_releases">No releases published</string>
     <string name="detail_no_apk">No APK in this release</string>
     <string name="detail_stars">★ %1$d</string>
-    <string name="detail_forks">⑂ %1$d</string>
-    <string name="detail_issues">◎ %1$d</string>
-    <string name="detail_last_push">pushed\u0020</string>
+    <string name="detail_forks">Fork %1$d</string>
+    <string name="detail_issues">Issue %1$d</string>
+    <string name="detail_last_push">Last push %1$s</string>
     <string name="detail_link_app">Link installed app</string>
     <string name="detail_linked_app">Linked: %1$s</string>
     <string name="detail_unlink">Unlink</string>
     <string name="detail_reinstall">Reinstall downloaded %1$s</string>
     <string name="load_failed">Load failed</string>
     <string name="load_failed_retry">Load failed · retry</string>
-    <string name="list_end">— end —</string>
-    <string name="asset_recommended">Pick</string>
+    <string name="list_end">— the end —</string>
+    <string name="asset_recommended">Recommended</string>
     <string name="download_apk">Download APK</string>
     <string name="download_retry">Download failed · retry (file kept)</string>
     <string name="download_progress_percent">%1$d%%</string>
@@ -116,7 +136,7 @@
 
     <!-- 通知 -->
     <string name="notif_channel_release">New versions</string>
-    <string name="notif_channel_update">App updates</string>
+    <string name="notif_channel_update">CandyTick updates</string>
     <string name="notif_new_release">New version %1$s available</string>
     <string name="notif_update_ready_title">CandyTick update</string>
     <string name="notif_update_ready">Version %1$s downloaded · tap to install</string>
@@ -131,12 +151,12 @@
     <string name="settings_token">GitHub token (optional)</string>
     <string name="settings_token_hint">Classic PAT with no scopes, or fine-grained read-only public repos</string>
     <string name="settings_token_test">Test connection</string>
-    <string name="settings_token_valid">Token valid</string>
-    <string name="settings_token_invalid">401 · token invalid</string>
+    <string name="settings_token_valid">✓ Token valid</string>
+    <string name="settings_token_invalid">✗ 401 · Token invalid</string>
     <string name="settings_token_network_error">Network error</string>
     <string name="settings_notifications">New version notifications</string>
     <string name="settings_notif_permission_banner">Notification permission not granted</string>
-    <string name="settings_notif_grant">Grant</string>
+    <string name="settings_notif_grant">Allow</string>
     <string name="settings_self_update">About · Version</string>
     <string name="settings_current_version">Current version %1$s</string>
     <string name="settings_check_update">Check for updates</string>
@@ -144,7 +164,7 @@
     <string name="settings_self_update_download">Auto download (Wi-Fi only)</string>
     <string name="settings_up_to_date">Up to date</string>
     <string name="settings_new_version">New version %1$s</string>
-    <string name="settings_new_version_incomparable">New release %1$s · version not comparable</string>
+    <string name="settings_new_version_incomparable">New release %1$s · cannot compare versions</string>
     <string name="settings_download_update">Download &amp; install</string>
     <string name="settings_install_update">Install downloaded update</string>
     <string name="settings_update_failed">Update check failed · try later</string>

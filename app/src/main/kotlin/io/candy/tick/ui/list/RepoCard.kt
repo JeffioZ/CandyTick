@@ -34,8 +34,8 @@ import io.candy.tick.R
 import io.candy.tick.data.model.TrackedRepo
 import io.candy.tick.ui.common.CandyIcons
 import io.candy.tick.ui.common.InaccessibleBadge
-import io.candy.tick.ui.common.RelTimeText
 import io.candy.tick.ui.common.StatusBadge
+import io.candy.tick.ui.common.relTimeString
 import io.candy.tick.ui.common.toImageBitmap
 import io.candy.tick.ui.theme.AvatarPalette
 import io.candy.tick.ui.theme.MonoTokenStyle
@@ -103,16 +103,13 @@ fun RepoCard(
 
                 Spacer(Modifier.height(8.dp))
                 Row(verticalAlignment = Alignment.CenterVertically) {
-                    Text(
-                        text = stringResource(R.string.card_last_push_prefix),
-                        style = MiuixTheme.textStyles.footnote1,
-                        color = scheme.onBackgroundVariant,
-                    )
-                    RelTimeText(
-                        date = item.snapshot?.pushedAt,
-                        color = scheme.onBackgroundVariant,
-                        style = MiuixTheme.textStyles.footnote1,
-                    )
+                    item.snapshot?.pushedAt?.let { pushed ->
+                        Text(
+                            text = stringResource(R.string.card_last_push, relTimeString(pushed)),
+                            style = MiuixTheme.textStyles.footnote1,
+                            color = scheme.onBackgroundVariant,
+                        )
+                    }
                     if (expanded) {
                         Spacer(Modifier.weight(1f))
                         IconButton(onClick = onRemove, modifier = Modifier.size(28.dp)) {

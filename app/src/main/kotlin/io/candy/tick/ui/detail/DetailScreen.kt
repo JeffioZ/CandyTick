@@ -32,6 +32,7 @@ import io.candy.tick.ui.common.CandyIcons
 import io.candy.tick.ui.common.RelTimeText
 import io.candy.tick.ui.common.RepoIconBlock
 import io.candy.tick.ui.common.StatusBadge
+import io.candy.tick.ui.common.relTimeString
 import io.candy.tick.ui.common.sourceErrorText
 import io.candy.tick.ui.theme.MonoTokenStyle
 import io.candy.tick.data.model.statusAt
@@ -246,16 +247,11 @@ private fun HeaderCard(
                 }
             }
 
-            Row(verticalAlignment = Alignment.CenterVertically) {
+            snapshot?.pushedAt?.let { pushed ->
                 Text(
-                    text = stringResource(R.string.detail_last_push),
+                    text = stringResource(R.string.detail_last_push, relTimeString(pushed)),
                     style = MiuixTheme.textStyles.footnote1,
                     color = scheme.onBackgroundVariant,
-                )
-                RelTimeText(
-                    date = snapshot?.pushedAt,
-                    color = scheme.onBackgroundVariant,
-                    style = MiuixTheme.textStyles.footnote1,
                 )
             }
 
