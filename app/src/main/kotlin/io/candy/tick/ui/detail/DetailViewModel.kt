@@ -43,6 +43,7 @@ class DetailViewModel(
         val snapshot: RepoSnapshot? = null,
         val refreshing: Boolean = false,
         val banner: SourceError? = null,
+        val tab: DetailTab = DetailTab.COMMITS,
         val commits: List<CommitRecord> = emptyList(),
         val commitsLoading: Boolean = false,
         val commitsEnd: Boolean = false,
@@ -59,6 +60,9 @@ class DetailViewModel(
         data class InstallResultEvent(val result: InstallManager.InstallResult) : Event
     }
 
+    /** 详情页浏览页签：提交 / 版本（一次只看一类，长列表不再互相挤压） */
+    enum class DetailTab { COMMITS, RELEASES }
+
     private val _events = Channel<Event>(Channel.BUFFERED)
     val events: Flow<Event> = _events.receiveAsFlow()
 
@@ -66,6 +70,7 @@ class DetailViewModel(
     val state: StateFlow<UiState> = _state.asStateFlow()
 
     private val apkDir: File = File(context.filesDir, "apks/$repoId")
+    private val tab = MutableStateFlow(DetailTab.COMMITS)
     private var commitsPage = 1
     private var releasesPage = 1
 
@@ -78,12 +83,19 @@ class DetailViewModel(
             }
         }
         viewModelScope.launch {
+            tab.collect { t -> _state.update { it.copy(tab = t) } }
+        }
+        viewModelScope.launch {
             installManager.results.collect { result ->
                 _events.send(Event.InstallResultEvent(result))
             }
         }
         loadCommits()
         loadReleases()
+    }
+
+    fun setTab(newTab: DetailTab) {
+        tab.value = newTab
     }
 
     /** 下拉刷新：刷新快照 + 重置提交 / Release 列表（与首页同一语义） */

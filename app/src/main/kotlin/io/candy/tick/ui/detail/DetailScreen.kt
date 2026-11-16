@@ -144,24 +144,39 @@ fun DetailScreen(repoId: Long, onBack: () -> Unit) {
                         }
                     }
                 }
+                // 页签：提交历史 / 版本发布（Miuix TabRow；一次浏览一类，长列表不互相挤压）
                 item {
-                    SectionTitle(text = stringResource(R.string.detail_commits))
+                    top.yukonga.miuix.kmp.basic.TabRow(
+                        tabs = listOf(
+                            stringResource(R.string.detail_commits),
+                            stringResource(R.string.detail_releases),
+                        ),
+                        selectedTabIndex = if (state.tab == DetailViewModel.DetailTab.COMMITS) 0 else 1,
+                        onTabSelected = { index ->
+                            vm.setTab(
+                                if (index == 0) DetailViewModel.DetailTab.COMMITS else DetailViewModel.DetailTab.RELEASES,
+                            )
+                        },
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(horizontal = 16.dp, vertical = 6.dp),
+                    )
                 }
-                commitList(state = state, onLoadMore = vm::loadCommits)
-                item {
-                    SectionTitle(text = stringResource(R.string.detail_releases))
-                }
-                releaseList(
-                    state = state,
-                    onLoadMore = vm::loadReleases,
-                    onSelectAsset = vm::selectAsset,
-                    onDownload = vm::downloadAsset,
-                    onRetry = vm::retryDownload,
-                    onInstall = vm::installFile,
-                )
-                if (state.releasesEnd && state.releases.isNotEmpty()) {
-                    item {
-                        FooterText(text = stringResource(R.string.list_end))
+                if (state.tab == DetailViewModel.DetailTab.COMMITS) {
+                    commitList(state = state, onLoadMore = vm::loadCommits)
+                } else {
+                    releaseList(
+                        state = state,
+                        onLoadMore = vm::loadReleases,
+                        onSelectAsset = vm::selectAsset,
+                        onDownload = vm::downloadAsset,
+                        onRetry = vm::retryDownload,
+                        onInstall = vm::installFile,
+                    )
+                    if (state.releasesEnd && state.releases.isNotEmpty()) {
+                        item {
+                            FooterText(text = stringResource(R.string.list_end))
+                        }
                     }
                 }
             }
@@ -189,16 +204,6 @@ fun DetailScreen(repoId: Long, onBack: () -> Unit) {
             onDismiss = { showAppPicker = false },
         )
     }
-}
-
-@Composable
-private fun SectionTitle(text: String) {
-    Text(
-        text = text,
-        style = MiuixTheme.textStyles.subtitle,
-        color = MiuixTheme.colorScheme.onBackground,
-        modifier = Modifier.padding(top = 8.dp),
-    )
 }
 
 @Composable
