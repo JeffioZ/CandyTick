@@ -1,6 +1,7 @@
 package io.candy.tick.ui.list
 
 import androidx.compose.animation.animateColorAsState
+import androidx.compose.animation.animateContentSize
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
@@ -67,7 +68,9 @@ fun RepoCard(
         label = "statusBar",
     )
     Card(
-        modifier = modifier.fillMaxWidth(),
+        modifier = modifier
+            .fillMaxWidth()
+            .animateContentSize(),
         cornerRadius = 16.dp,
         onClick = onClick,
     ) {

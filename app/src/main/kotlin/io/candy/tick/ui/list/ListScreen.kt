@@ -1,7 +1,12 @@
 package io.candy.tick.ui.list
 
-import androidx.compose.foundation.Image
+import androidx.compose.animation.core.LinearEasing
+import androidx.compose.animation.core.animateFloat
+import androidx.compose.animation.core.infiniteRepeatable
+import androidx.compose.animation.core.rememberInfiniteTransition
+import androidx.compose.animation.core.tween
 import androidx.compose.foundation.background
+import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.layout.Arrangement
@@ -26,9 +31,9 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.graphics.ColorFilter
+import androidx.compose.ui.draw.clip
+import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.platform.LocalContext
-import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
@@ -154,16 +159,17 @@ fun ListScreen(
                             ),
                             verticalArrangement = Arrangement.spacedBy(10.dp),
                         ) {
-                            items(state.items, key = { it.repo.id }) { item ->
-                                RepoCard(
-                                    item = item,
-                                    extras = state.cards[item.repo.id],
-                                    expanded = item.repo.id in state.expanded,
-                                    onToggle = { vm.toggleExpand(item.repo.id) },
-                                    onClick = { onOpenDetail(item.repo.id) },
-                                    onRemove = { vm.remove(item) },
-                                )
-                            }
+                        items(state.items, key = { it.repo.id }) { item ->
+                            RepoCard(
+                                item = item,
+                                extras = state.cards[item.repo.id],
+                                expanded = item.repo.id in state.expanded,
+                                onToggle = { vm.toggleExpand(item.repo.id) },
+                                onClick = { onOpenDetail(item.repo.id) },
+                                onRemove = { vm.remove(item) },
+                                modifier = Modifier.animateItem(),
+                            )
+                        }
                         }
                     }
                 }
@@ -231,6 +237,7 @@ private fun ErrorBanner(error: SourceError, onRetry: () -> Unit) {
 private fun EmptyState(onAdd: () -> Unit, modifier: Modifier = Modifier) {
     val scheme = MiuixTheme.colorScheme
     val dark = LocalDarkTheme.current
+    val mint = if (dark) DarkPrimary else LightPrimary
     Column(
         modifier = modifier
             .fillMaxWidth()
@@ -239,12 +246,7 @@ private fun EmptyState(onAdd: () -> Unit, modifier: Modifier = Modifier) {
         horizontalAlignment = Alignment.CenterHorizontally,
         verticalArrangement = Arrangement.Center,
     ) {
-        Image(
-            painter = painterResource(R.drawable.ic_launcher_foreground),
-            contentDescription = null,
-            modifier = Modifier.size(120.dp),
-            colorFilter = ColorFilter.tint(if (dark) DarkPrimary else LightPrimary),
-        )
+        EchoPing(mint = mint)
         Spacer(Modifier.height(12.dp))
         Text(
             text = stringResource(R.string.empty_title),
@@ -264,6 +266,46 @@ private fun EmptyState(onAdd: () -> Unit, modifier: Modifier = Modifier) {
                 style = MiuixTheme.textStyles.button,
             )
         }
+    }
+}
+
+/** 回声「ping」：糖珠 + 两圈涟漪扩散（仅空态非滚动路径，尊重系统动画时长缩放） */
+@Composable
+private fun EchoPing(mint: androidx.compose.ui.graphics.Color) {
+    val context = LocalContext.current
+    val animationsOn = remember {
+        android.provider.Settings.Global.getFloat(
+            context.contentResolver,
+            android.provider.Settings.Global.ANIMATOR_DURATION_SCALE,
+            1f,
+        ) != 0f
+    }
+    val progress by if (animationsOn) {
+        rememberInfiniteTransition(label = "echoPing").animateFloat(
+            initialValue = 0f,
+            targetValue = 1f,
+            animationSpec = infiniteRepeatable(tween(durationMillis = 2400, easing = LinearEasing)),
+            label = "echoPingProgress",
+        )
+    } else {
+        remember { mutableStateOf(0.55f) }
+    }
+    Box(modifier = Modifier.size(140.dp), contentAlignment = Alignment.Center) {
+        listOf(0f, 0.5f).forEach { offset ->
+            val p = (progress + offset) % 1f
+            Box(
+                modifier = Modifier
+                    .size((36 + 92 * p).dp)
+                    .graphicsLayer { alpha = (1f - p) * 0.4f }
+                    .border(width = 2.dp, color = mint, shape = CircleShape),
+            )
+        }
+        Box(
+            modifier = Modifier
+                .size(26.dp)
+                .clip(CircleShape)
+                .background(mint),
+        )
     }
 }
 
