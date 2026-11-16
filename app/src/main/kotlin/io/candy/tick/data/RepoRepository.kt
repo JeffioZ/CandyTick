@@ -93,6 +93,14 @@ class RepoRepository(
         s.copy(repos = s.repos.map { if (it.id == id) it.copy(noteName = noteName) else it })
     }
 
+    /** 添加页搜索辅助 */
+    suspend fun search(query: String): List<RepoInfo> =
+        provider(PROVIDER_GITHUB).search(query)
+
+    /** 添加页信息预览（不落库） */
+    suspend fun addPreview(owner: String, repo: String): RepoInfoResult =
+        provider(PROVIDER_GITHUB).repoInfo(owner, repo)
+
     // ---- 刷新（旧数据永不丢；单仓库失败不拖垮列表） ----
 
     /** 刷新单仓库快照；返回 null = 成功（含 304），非空 = 该仓库的错误 */

@@ -18,6 +18,9 @@ interface SourceProvider {
     suspend fun commits(owner: String, repo: String, page: Int = 1): List<CommitRecord>
 
     suspend fun releases(owner: String, repo: String, page: Int = 1): List<ReleaseRecord>
+
+    /** 搜索（添加页辅助；无对应能力的源返回空） */
+    suspend fun search(query: String): List<RepoInfo> = emptyList()
 }
 
 /** 拉取到的仓库信息（改名跟随后的最终 owner/repo 在此） */
@@ -79,4 +82,6 @@ class GitHubProvider(private val api: GitHubApi) : SourceProvider {
 
     override suspend fun releases(owner: String, repo: String, page: Int) =
         api.releases(owner, repo, page)
+
+    override suspend fun search(query: String) = api.search(query)
 }

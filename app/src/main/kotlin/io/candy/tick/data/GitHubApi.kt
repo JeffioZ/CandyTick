@@ -101,6 +101,23 @@ class GitHubApi(private val tokenProvider: () -> String?) {
             }
         }
 
+    /** 搜索辅助（添加页；Search API） */
+    suspend fun search(query: String): List<RepoInfo> = withContext(Dispatchers.IO) {
+        val url = BASE_URL.toHttpUrl().newBuilder()
+            .addPathSegment("search")
+            .addPathSegment("repositories")
+            .addQueryParameter("q", query.trim())
+            .addQueryParameter("per_page", "20")
+            .build()
+        val response = execute(request(url, etag = null))
+        response.use {
+            checkHttp(it)
+            json.decodeFromString<GhSearch>(it.body.string()).items.map { gh ->
+                gh.toInfo(gh.owner.login, gh.name, etag = null)
+            }
+        }
+    }
+
     // ---- 内部：请求 / 错误映射 ----
 
     private fun request(url: HttpUrl, etag: String?): Request {
@@ -212,4 +229,10 @@ private data class GhAsset(
     val name: String = "",
     val browser_download_url: String = "",
     val size: Long = 0,
+)
+
+@Serializable
+private data class GhSearch(
+    val total_count: Int = 0,
+    val items: List<GhRepo> = emptyList(),
 )

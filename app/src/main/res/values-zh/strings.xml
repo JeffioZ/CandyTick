@@ -72,4 +72,16 @@
 
     <!-- 详情页（占位，第 6 步补全） -->
     <string name="detail_title">仓库</string>
+
+    <!-- 添加页 -->
+    <string name="add_input_hint">粘贴 GitHub 链接或搜索</string>
+    <string name="add_parse_error">无法识别的 GitHub 链接</string>
+    <string name="add_search_failed">搜索失败 · 重试</string>
+    <string name="add_search_empty">无匹配，试试粘贴完整链接</string>
+    <string name="add_stars">★ %1$d</string>
+    <string name="add_license">许可证：%1$s</string>
+    <string name="add_link_app_optional">关联本机应用（可选）</string>
+    <string name="add_linked_app_named">已关联：%1$s · 更改</string>
+    <string name="add_duplicate">已在列表中</string>
+    <string name="add_confirm">添加仓库</string>
 </resources>

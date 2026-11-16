@@ -77,4 +77,16 @@
 
     <!-- 详情页（占位，第 6 步补全） -->
     <string name="detail_title">Repository</string>
+
+    <!-- 添加页 -->
+    <string name="add_input_hint">Paste a GitHub link or search</string>
+    <string name="add_parse_error">Unrecognized GitHub link</string>
+    <string name="add_search_failed">Search failed · retry</string>
+    <string name="add_search_empty">No match — try pasting the full link</string>
+    <string name="add_stars">★ %1$d</string>
+    <string name="add_license">License: %1$s</string>
+    <string name="add_link_app_optional">Link installed app (optional)</string>
+    <string name="add_linked_app_named">Linked: %1$s · change</string>
+    <string name="add_duplicate">Already in your list</string>
+    <string name="add_confirm">Add repository</string>
 </resources>
