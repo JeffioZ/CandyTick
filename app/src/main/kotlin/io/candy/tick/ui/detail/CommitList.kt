@@ -29,7 +29,7 @@ fun LazyListScope.commitList(
     items(count = state.commits.size, key = { state.commits[it].sha }) { index ->
         val commit = state.commits[index]
         Card(modifier = Modifier.fillMaxWidth()) {
-            Column(modifier = Modifier.padding(horizontal = 14.dp, vertical = 10.dp)) {
+            Column(modifier = Modifier.padding(horizontal = 16.dp, vertical = 12.dp)) {
                 Row(verticalAlignment = Alignment.CenterVertically) {
                     Text(
                         text = commit.sha.take(7),
@@ -51,7 +51,7 @@ fun LazyListScope.commitList(
                 }
                 Text(
                     text = commit.message.lineSequence().firstOrNull().orEmpty(),
-                    style = MiuixTheme.textStyles.body2,
+                    style = MiuixTheme.textStyles.body1,
                     color = MiuixTheme.colorScheme.onBackground,
                 )
             }

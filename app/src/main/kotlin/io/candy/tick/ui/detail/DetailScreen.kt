@@ -208,7 +208,7 @@ fun DetailScreen(repoId: Long, onBack: () -> Unit) {
                                 text = sourceErrorText(error),
                                 style = MiuixTheme.textStyles.footnote1,
                                 color = scheme.onErrorContainer,
-                                modifier = Modifier.padding(14.dp),
+                                modifier = Modifier.padding(16.dp),
                             )
                         }
                     }

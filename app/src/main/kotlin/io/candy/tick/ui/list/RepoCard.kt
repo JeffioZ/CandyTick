@@ -67,19 +67,19 @@ fun RepoCard(
         onClick = onClick,
     ) {
         Row(modifier = Modifier.height(IntrinsicSize.Min)) {
-            Column(modifier = Modifier.padding(start = 14.dp, end = 14.dp, top = 10.dp, bottom = 10.dp)) {
+            Column(modifier = Modifier.padding(horizontal = 16.dp, vertical = 12.dp)) {
                 Row(verticalAlignment = Alignment.CenterVertically) {
                     RepoIcon(repo = item.repo)
                     Spacer(Modifier.width(12.dp))
                     Column(modifier = Modifier.weight(1f)) {
                         Text(
                             text = item.repo.noteName ?: item.repo.repo,
-                            style = MiuixTheme.textStyles.subtitle,
+                            style = MiuixTheme.textStyles.title4,
                             color = scheme.onBackground,
                         )
                         Text(
                             text = "${item.repo.owner}/${item.repo.repo}",
-                            style = MiuixTheme.textStyles.footnote1,
+                            style = MiuixTheme.textStyles.body2,
                             color = scheme.onBackgroundVariant,
                         )
                     }
@@ -104,7 +104,7 @@ fun RepoCard(
                     item.snapshot?.pushedAt?.let { pushed ->
                         Text(
                             text = stringResource(R.string.card_last_push, relTimeString(pushed)),
-                            style = MiuixTheme.textStyles.footnote1,
+                            style = MiuixTheme.textStyles.footnote2,
                             color = scheme.onBackgroundVariant,
                         )
                     }

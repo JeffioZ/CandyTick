@@ -157,7 +157,7 @@ fun AddScreen(
                 ) {
                     items(state.results, key = { it.githubId }) { info ->
                         Card(modifier = Modifier.fillMaxWidth(), onClick = { vm.pickResult(info) }) {
-                            Column(modifier = Modifier.padding(horizontal = 14.dp, vertical = 10.dp)) {
+                            Column(modifier = Modifier.padding(horizontal = 16.dp, vertical = 12.dp)) {
                                 Text(
                                     text = "${info.owner}/${info.repo}",
                                     style = MiuixTheme.textStyles.subtitle,
