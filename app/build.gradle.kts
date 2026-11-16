@@ -53,6 +53,7 @@ dependencies {
     debugImplementation(libs.compose.ui.tooling)
 
     implementation(libs.miuix.ui)
+    implementation(libs.miuix.icons)
 
     implementation(libs.androidx.navigation3.runtime)
     implementation(libs.androidx.navigation3.ui)
@@ -61,8 +62,6 @@ dependencies {
     implementation(libs.okhttp)
     implementation(libs.kotlinx.serialization.json)
 
-    implementation(libs.coil.compose)
-    implementation(libs.coil.network.okhttp)
 
     implementation(libs.androidx.work.runtime.ktx)
 }
