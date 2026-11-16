@@ -88,7 +88,18 @@ class ListViewModel(
             expanded = p2.expanded,
             cards = p2.cards,
         )
-    }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), UiState())
+    }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), initialUiState())
+
+    /**
+     * 冷启动首帧状态：Store 在构造时已同步加载 JSON，直接算出真实列表，
+     * 避免 stateIn 占位空值导致「空态闪一帧再出列表」。
+     */
+    private fun initialUiState(): UiState {
+        val loaded = repository.state.value
+        return UiState(
+            items = buildItems(loaded.repos, loaded.snapshots, emptyMap(), SortMode.LAST_PUSH, ""),
+        )
+    }
 
     private data class Part1(
         val repos: List<TrackedRepo>,
