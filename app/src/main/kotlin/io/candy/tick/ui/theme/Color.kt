@@ -104,3 +104,15 @@ val StatusModerateDark = StatusColors(Color(0xFFFACC15), Color(0xFF33291A), Colo
 val StatusLowDark = StatusColors(Color(0xFFFB923C), Color(0xFF32231A), Color(0xFFFB923C))
 val StatusAbandonedDark = StatusColors(Color(0xFFF87171), Color(0xFF35201F), Color(0xFFF87171))
 val StatusArchivedDark = StatusColors(Color(0xFFB0B0B0), Color(0xFF232825), Color(0xFFA7B3AD))
+
+// —— 首字母头像 8 色环（135° 双色渐变，owner hash 取色）——
+val AvatarPalette = listOf(
+    Color(0xFFF59E0B) to Color(0xFFD97706),
+    Color(0xFFEF4444) to Color(0xFFB91C1C),
+    Color(0xFF8B5CF6) to Color(0xFF6D28D9),
+    Color(0xFF0EA5E9) to Color(0xFF0369A1),
+    Color(0xFF10B981) to Color(0xFF047857),
+    Color(0xFFF97316) to Color(0xFFC2410C),
+    Color(0xFFEC4899) to Color(0xFFBE185D),
+    Color(0xFF64748B) to Color(0xFF334155),
+)

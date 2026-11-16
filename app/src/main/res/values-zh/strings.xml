@@ -7,11 +7,69 @@
     <string name="theme_mode_light">浅色</string>
     <string name="theme_mode_dark">深色</string>
 
-    <!-- 主题预览页（临时，第 4 步移除） -->
-    <string name="preview_tagline">还在维护吗？</string>
-    <string name="preview_palette">主题预览</string>
-    <string name="preview_mono_sample">v0.1.0 · 1a2b3c4</string>
-    <string name="preview_badge_active">活跃</string>
-    <string name="preview_switch">通知</string>
-    <string name="preview_button">主要按钮</string>
+    <!-- 通用 -->
+    <string name="retry">重试</string>
+    <string name="undo">撤销</string>
+    <string name="removed">已移除</string>
+    <string name="loading">加载中…</string>
+    <string name="coming_next_step">下一施工步实现</string>
+
+    <!-- 首页 -->
+    <string name="add_repo">添加仓库</string>
+    <string name="settings_title">设置</string>
+    <string name="sort_title">排序</string>
+    <string name="sort_last_push">最后提交时间</string>
+    <string name="sort_status">生命状态</string>
+    <string name="sort_name">名称</string>
+    <string name="remove_repo">移除</string>
+    <string name="empty_title">还在维护吗？</string>
+    <string name="empty_subtitle">添加一个仓库，看看它是否还在走动</string>
+    <string name="empty_cta">添加第一个仓库</string>
+    <string name="banner_old_data_kept">旧数据已保留</string>
+    <string name="card_last_push_prefix">\u0020</string>
+    <string name="card_details_failed">详情暂不可用</string>
+
+    <!-- 状态五色 + 失效 -->
+    <string name="status_active">活跃</string>
+    <string name="status_moderate">一般</string>
+    <string name="status_low">低活跃</string>
+    <string name="status_abandoned">疑似弃坑</string>
+    <string name="status_archived">已归档</string>
+    <string name="status_unknown">未知</string>
+    <string name="repo_inaccessible">不可访问</string>
+
+    <!-- 版本行 -->
+    <string name="version_latest_only">最新 %1$s</string>
+    <string name="version_incomparable">发布 %1$s · 无法比较版本</string>
+    <string name="version_line">%1$s · 本机 %2$s</string>
+    <string name="version_update_available">有新版本：%1$s</string>
+
+    <!-- 四类失败 -->
+    <string name="err_network">网络不可达</string>
+    <string name="err_timeout">超时（15 秒）</string>
+    <string name="err_not_found">不存在或已私有</string>
+    <string name="err_rate_limited">已限流 · %1$s 后恢复</string>
+    <string name="err_rate_limited_plain">已被限流，稍后再试或添加 Token</string>
+    <string name="err_http">HTTP 错误 %1$d</string>
+
+    <!-- 相对时间 -->
+    <string name="rel_now">刚刚</string>
+    <plurals name="rel_minutes">
+        <item quantity="other">%d 分钟前</item>
+    </plurals>
+    <plurals name="rel_hours">
+        <item quantity="other">%d 小时前</item>
+    </plurals>
+    <plurals name="rel_days">
+        <item quantity="other">%d 天前</item>
+    </plurals>
+    <plurals name="rel_months">
+        <item quantity="other">%d 个月前</item>
+    </plurals>
+    <plurals name="rel_years">
+        <item quantity="other">%d 年前</item>
+    </plurals>
+
+    <!-- 详情页（占位，第 6 步补全） -->
+    <string name="detail_title">仓库</string>
 </resources>

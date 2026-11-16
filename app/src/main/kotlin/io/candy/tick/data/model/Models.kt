@@ -100,6 +100,22 @@ data class AppState(
     val settings: Settings = Settings(),
 )
 
+/** 生命体征（判定规则：默认分支最新提交距今天数 + archived） */
+enum class RepoStatus { ACTIVE, MODERATE, LOW, ABANDONED, ARCHIVED, UNKNOWN }
+
+fun RepoSnapshot.statusAt(now: Instant = Instant.now()): RepoStatus = when {
+    archived -> RepoStatus.ARCHIVED
+    pushedAt == null -> RepoStatus.UNKNOWN
+    else -> java.time.Duration.between(pushedAt, now).toDays().let { days ->
+        when {
+            days <= 30 -> RepoStatus.ACTIVE
+            days <= 180 -> RepoStatus.MODERATE
+            days <= 365 -> RepoStatus.LOW
+            else -> RepoStatus.ABANDONED
+        }
+    }
+}
+
 /** ISO-8601 文本 ↔ Instant（原生 java.time，不引库） */
 object InstantSerializer : KSerializer<Instant> {
     override val descriptor: SerialDescriptor =
