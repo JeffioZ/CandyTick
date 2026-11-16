@@ -1,0 +1,17 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="app_name">CandyTick</string>
+
+    <!-- 主题三档 -->
+    <string name="theme_mode_system">System</string>
+    <string name="theme_mode_light">Light</string>
+    <string name="theme_mode_dark">Dark</string>
+
+    <!-- 主题预览页（临时，第 4 步移除） -->
+    <string name="preview_tagline">still ticking?</string>
+    <string name="preview_palette">Theme preview</string>
+    <string name="preview_mono_sample">v0.1.0 · 1a2b3c4</string>
+    <string name="preview_badge_active">Active</string>
+    <string name="preview_switch">Notifications</string>
+    <string name="preview_button">Primary button</string>
+</resources>

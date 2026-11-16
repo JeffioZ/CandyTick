@@ -1,0 +1,7 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!-- 实际观感由 Compose MiuixTheme 接管；XML 主题只负责窗口底与去标题栏 -->
+    <style name="Theme.CandyTick" parent="android:Theme.Material.Light.NoActionBar">
+        <item name="android:windowBackground">@color/candy_background_light</item>
+    </style>
+</resources>
