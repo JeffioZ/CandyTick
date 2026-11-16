@@ -1,5 +1,9 @@
 package io.candy.tick.ui.detail
 
+import androidx.compose.foundation.Image
+import androidx.compose.foundation.background
+import androidx.compose.foundation.clickable
+import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -20,6 +24,7 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clip
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.dp
@@ -33,6 +38,7 @@ import io.candy.tick.ui.common.RelTimeText
 import io.candy.tick.ui.common.RepoIconBlock
 import io.candy.tick.ui.common.StatusBadge
 import io.candy.tick.ui.common.relTimeString
+import io.candy.tick.ui.common.toImageBitmap
 import io.candy.tick.ui.common.sourceErrorText
 import io.candy.tick.ui.theme.MonoTokenStyle
 import io.candy.tick.data.InstallManager
@@ -137,6 +143,14 @@ fun DetailScreen(repoId: Long, onBack: () -> Unit) {
                                 tint = scheme.onBackground,
                             )
                         }
+                        // 移除订阅（destructive → 确认对话框；底部文字按钮已移除）
+                        IconButton(onClick = { showRemoveDialog = true }) {
+                            Icon(
+                                imageVector = CandyIcons.Delete,
+                                contentDescription = stringResource(R.string.detail_remove_repo),
+                                tint = scheme.onBackground,
+                            )
+                        }
                     },
                     scrollBehavior = scrollBehavior,
                 )
@@ -167,7 +181,6 @@ fun DetailScreen(repoId: Long, onBack: () -> Unit) {
                         onUnlink = { vm.setLinkedApp(null) },
                         onLinkSuggestion = { state.linkSuggestion?.first?.let(vm::setLinkedApp) },
                         onInstallDownloaded = { repo?.let(vm::installDownloaded) },
-                        onRemoveRequest = { showRemoveDialog = true },
                     )
                 }
                 state.banner?.let { error ->
@@ -307,7 +320,6 @@ private fun HeaderCard(
     onUnlink: () -> Unit,
     onLinkSuggestion: () -> Unit,
     onInstallDownloaded: () -> Unit,
-    onRemoveRequest: () -> Unit,
 ) {
     val repo = state.repo ?: return
     val snapshot = state.snapshot
@@ -393,17 +405,49 @@ private fun HeaderCard(
                     TextButton(text = stringResource(R.string.detail_unlink), onClick = onUnlink)
                 }
             } else if (state.linkSuggestion != null) {
-                // 智能建议：仓库名与已装应用标签唯一匹配 → 一键关联
-                Row(verticalAlignment = Alignment.CenterVertically) {
+                // 关联建议：整行点按即关联（胶囊提示条 + 本机应用小图标）
+                val suggested = state.linkSuggestion!!
+                val appIcon = remember(suggested.first) {
+                    runCatching {
+                        context.packageManager.getApplicationIcon(suggested.first).toImageBitmap()
+                    }.getOrNull()
+                }
+                Row(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .clip(RoundedCornerShape(12.dp))
+                        .background(scheme.secondaryContainer)
+                        .clickable(
+                            interactionSource = remember { androidx.compose.foundation.interaction.MutableInteractionSource() },
+                            indication = null,
+                        ) { onLinkSuggestion() }
+                        .padding(horizontal = 12.dp, vertical = 10.dp),
+                    verticalAlignment = Alignment.CenterVertically,
+                ) {
+                    if (appIcon != null) {
+                        androidx.compose.foundation.Image(
+                            bitmap = appIcon,
+                            contentDescription = null,
+                            modifier = Modifier
+                                .size(26.dp)
+                                .clip(RoundedCornerShape(7.dp)),
+                        )
+                    }
+                    Spacer(Modifier.width(10.dp))
                     Text(
-                        text = stringResource(R.string.detail_auto_link_hint, state.linkSuggestion!!.second),
+                        text = stringResource(R.string.detail_auto_link_hint, suggested.second),
                         style = MiuixTheme.textStyles.footnote1,
-                        color = scheme.onBackgroundVariant,
+                        color = scheme.onBackground,
+                        maxLines = 1,
+                        overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis,
                         modifier = Modifier.weight(1f),
                     )
-                    TextButton(
-                        text = stringResource(R.string.detail_link_suggest_action),
-                        onClick = onLinkSuggestion,
+                    Spacer(Modifier.width(8.dp))
+                    Icon(
+                        imageVector = CandyIcons.Add,
+                        contentDescription = null,
+                        tint = scheme.primaryVariant,
+                        modifier = Modifier.size(18.dp),
                     )
                 }
                 TextButton(text = stringResource(R.string.detail_link_app_other), onClick = onChangeLinked)
@@ -419,11 +463,6 @@ private fun HeaderCard(
                 )
             }
 
-            // 移除订阅（破坏性操作 → 确认对话框）
-            TextButton(
-                text = stringResource(R.string.detail_remove_repo),
-                onClick = onRemoveRequest,
-            )
         }
     }
 }

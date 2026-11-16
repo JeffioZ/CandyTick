@@ -135,8 +135,7 @@
     <string name="detail_last_push">Last push %1$s</string>
     <string name="detail_link_app">Link installed app</string>
     <string name="detail_link_app_other">Choose another app</string>
-    <string name="detail_auto_link_hint">Detected installed app "%1$s" — looks like this repo</string>
-    <string name="detail_link_suggest_action">Link</string>
+    <string name="detail_auto_link_hint">Installed "%1$s" · tap to link</string>
     <string name="detail_auto_linked">Auto-linked: %1$s</string>
     <string name="detail_linked_app">Linked: %1$s</string>
     <string name="detail_unlink">Unlink</string>

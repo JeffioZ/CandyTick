@@ -45,6 +45,7 @@ import top.yukonga.miuix.kmp.basic.Text
 import top.yukonga.miuix.kmp.basic.rememberPullToRefreshState
 import top.yukonga.miuix.kmp.basic.rememberTopAppBarState
 import top.yukonga.miuix.kmp.icon.MiuixIcons
+import top.yukonga.miuix.kmp.icon.basic.ArrowUpDown
 import top.yukonga.miuix.kmp.icon.basic.Search
 import top.yukonga.miuix.kmp.theme.MiuixTheme
 
@@ -90,11 +91,13 @@ fun ListScreen(
                     color = Color.Transparent,
                     scrollBehavior = scrollBehavior,
                     actions = {
-                        // 当前排序名直接可见（安卓规范：状态外显 + 点击更改）
-                        top.yukonga.miuix.kmp.basic.TextButton(
-                            text = sortLabel(state.sortMode),
-                            onClick = { showSortSheet = true },
-                        )
+                        IconButton(onClick = { showSortSheet = true }) {
+                            Icon(
+                                imageVector = MiuixIcons.Basic.ArrowUpDown,
+                                contentDescription = stringResource(R.string.sort_title),
+                                tint = scheme.onBackground,
+                            )
+                        }
                         IconButton(onClick = { showSearch = !showSearch }) {
                             Icon(
                                 imageVector = MiuixIcons.Basic.Search,
@@ -204,16 +207,6 @@ fun ListScreen(
         onDismiss = { showSortSheet = false },
     )
 }
-
-@Composable
-private fun sortLabel(mode: SortMode): String = stringResource(
-    when (mode) {
-        SortMode.LAST_PUSH -> R.string.sort_last_push
-        SortMode.STATUS -> R.string.sort_status
-        SortMode.NAME -> R.string.sort_name
-        SortMode.UPDATABLE -> R.string.sort_updatable
-    },
-)
 
 /** 刷新失败横幅：旧数据保留 + 重试（限流显示恢复时间） */
 @Composable
