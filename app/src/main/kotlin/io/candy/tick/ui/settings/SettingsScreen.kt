@@ -40,7 +40,6 @@ import io.candy.tick.data.SelfUpdater
 import io.candy.tick.data.model.SyncFrequency
 import io.candy.tick.ui.common.CandyIcons
 import io.candy.tick.ui.common.PrimaryButton
-import io.candy.tick.ui.common.SecondaryButton
 import top.yukonga.miuix.kmp.basic.Icon
 import top.yukonga.miuix.kmp.basic.IconButton
 import top.yukonga.miuix.kmp.basic.LinearProgressIndicator
