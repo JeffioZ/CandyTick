@@ -1,6 +1,7 @@
 package io.candy.tick.ui.theme
 
 import android.app.Activity
+import android.os.Build
 import androidx.compose.foundation.isSystemInDarkTheme
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.CompositionLocalProvider
@@ -162,6 +163,10 @@ private fun SystemBars(dark: Boolean) {
         val window = (view.context as? Activity)?.window
         if (window != null) {
             WindowCompat.setDecorFitsSystemWindows(window, false)
+            // 29+：关掉系统给三键导航栏强加的灰色对比纱罩（深色下会围出一圈灰）
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
+                window.isNavigationBarContrastEnforced = false
+            }
             val controller = WindowCompat.getInsetsController(window, view)
             controller.isAppearanceLightStatusBars = !dark
             controller.isAppearanceLightNavigationBars = !dark

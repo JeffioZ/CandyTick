@@ -106,6 +106,7 @@ fun ListScreen(
                 TopAppBar(
                     title = stringResource(R.string.app_name),
                     largeTitle = stringResource(R.string.app_name),
+                    color = androidx.compose.ui.graphics.Color.Transparent,
                     scrollBehavior = scrollBehavior,
                     actions = {
                         IconButton(onClick = { showSortSheet = true }) {

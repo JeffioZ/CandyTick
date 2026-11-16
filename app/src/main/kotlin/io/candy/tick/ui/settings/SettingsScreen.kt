@@ -78,6 +78,7 @@ fun SettingsScreen(onBack: () -> Unit) {
     Scaffold(
         topBar = {
             SmallTopAppBar(
+                color = androidx.compose.ui.graphics.Color.Transparent,
                 title = stringResource(R.string.settings_title),
                 navigationIcon = {
                     IconButton(onClick = onBack) {

@@ -66,6 +66,7 @@ fun AddScreen(
     Scaffold(
         topBar = {
             SmallTopAppBar(
+                color = androidx.compose.ui.graphics.Color.Transparent,
                 title = stringResource(R.string.add_repo),
                 navigationIcon = {
                     IconButton(onClick = onClose) {

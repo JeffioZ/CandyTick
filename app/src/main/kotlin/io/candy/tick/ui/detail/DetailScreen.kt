@@ -81,6 +81,7 @@ fun DetailScreen(repoId: Long, onBack: () -> Unit) {
     Scaffold(
         topBar = {
             SmallTopAppBar(
+                color = androidx.compose.ui.graphics.Color.Transparent,
                 title = repo?.let { it.noteName ?: it.repo } ?: stringResource(R.string.detail_title),
                 navigationIcon = {
                     IconButton(onClick = onBack) {
