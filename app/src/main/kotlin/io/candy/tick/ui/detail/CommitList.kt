@@ -26,7 +26,7 @@ fun LazyListScope.commitList(
     state: DetailViewModel.UiState,
     onLoadMore: () -> Unit,
 ) {
-    items(count = state.commits.size, key = { state.commits[it].sha }) { index ->
+    items(count = state.commits.size, key = { state.commits[it].sha + it }) { index ->
         val commit = state.commits[index]
         Card(modifier = Modifier.fillMaxWidth()) {
             Column(modifier = Modifier.padding(horizontal = 16.dp, vertical = 12.dp)) {

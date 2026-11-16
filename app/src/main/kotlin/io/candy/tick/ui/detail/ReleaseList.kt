@@ -51,7 +51,7 @@ fun LazyListScope.releaseList(
     onInstallDownloaded: () -> Unit,
     onDeleteDownloaded: () -> Unit,
 ) {
-    items(count = state.releases.size, key = { state.releases[it].tagName }) { index ->
+    items(count = state.releases.size, key = { state.releases[it].tagName + it }) { index ->
         val release = state.releases[index]
         ReleaseCard(
             release = release,

@@ -214,9 +214,9 @@ fun DetailScreen(repoId: Long, onBack: () -> Unit) {
                         }
                     }
                 }
-                // 页签：提交历史 / 版本发布（Miuix TabRowWithContour：轮廓分组 + 滑动指示器）
+                // 页签：提交历史 / 版本发布
                 item {
-                    top.yukonga.miuix.kmp.basic.TabRowWithContour(
+                    top.yukonga.miuix.kmp.basic.TabRow(
                         tabs = listOf(
                             stringResource(R.string.detail_commits),
                             stringResource(R.string.detail_releases),
