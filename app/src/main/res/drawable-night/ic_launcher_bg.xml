@@ -1,8 +1,22 @@
 <?xml version="1.0" encoding="utf-8"?>
-<!-- 奶油砖（icon-echo-light 底）：暖奶油渐变 #F8F5EC → #EDEBDD -->
-<shape xmlns:android="http://schemas.android.com/apk/res/android">
-    <gradient
-        android:angle="45"
-        android:startColor="#F8F5EC"
-        android:endColor="#EDEBDD" />
-</shape>
+<!-- 奶油砖底（icon-echo-light）：矢量渐变 -->
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:aapt="http://schemas.android.com/aapt"
+    android:width="108dp"
+    android:height="108dp"
+    android:viewportWidth="108"
+    android:viewportHeight="108">
+    <path android:pathData="M0,0 h108 v108 h-108 Z">
+        <aapt:attr name="android:fillColor">
+            <gradient
+                android:type="linear"
+                android:startX="0"
+                android:startY="0"
+                android:endX="108"
+                android:endY="108">
+                <item android:offset="0" android:color="#FFF8F5EC" />
+                <item android:offset="1" android:color="#FFEDEBDD" />
+            </gradient>
+        </aapt:attr>
+    </path>
+</vector>

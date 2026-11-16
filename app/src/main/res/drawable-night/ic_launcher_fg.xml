@@ -1,5 +1,5 @@
 <?xml version="1.0" encoding="utf-8"?>
-<!-- 回声前景 · 奶油砖版：大尺寸收紧（内容占比 64%、环加重） -->
+<!-- 回声前景 · 奶油砖版：环加重，内容占比 64% -->
 <vector xmlns:android="http://schemas.android.com/apk/res/android"
     xmlns:aapt="http://schemas.android.com/aapt"
     android:width="108dp"
@@ -10,7 +10,7 @@
     <path
         android:pathData="M54,54 m-32,0 a32,32 0 1,1 64,0 a32,32 0 1,1 -64,0"
         android:fillColor="#00000000"
-        android:strokeColor="#8C12825C"
+        android:strokeColor="#9E12825C"
         android:strokeWidth="5.5" />
 
     <path
@@ -26,7 +26,7 @@
                 android:centerX="51.1"
                 android:centerY="49.7"
                 android:gradientRadius="13.5">
-                <item android:offset="0" android:color="#FF8FE9C0" />
+                <item android:offset="0" android:color="#FFA9F2D3" />
                 <item android:offset="0.5" android:color="#FF2BA97B" />
                 <item android:offset="1" android:color="#FF107A56" />
             </gradient>

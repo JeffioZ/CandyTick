@@ -1,8 +1,22 @@
 <?xml version="1.0" encoding="utf-8"?>
-<!-- 深夜绿砖（icon-echo-dark 底）：135° 渐变 #1D3F2F → #102B1F -->
-<shape xmlns:android="http://schemas.android.com/apk/res/android">
-    <gradient
-        android:angle="45"
-        android:startColor="#1D3F2F"
-        android:endColor="#102B1F" />
-</shape>
+<!-- 深夜绿砖底（icon-echo-dark）：改用矢量渐变（OEM 光栅化对 shape 渐变适配最差） -->
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:aapt="http://schemas.android.com/aapt"
+    android:width="108dp"
+    android:height="108dp"
+    android:viewportWidth="108"
+    android:viewportHeight="108">
+    <path android:pathData="M0,0 h108 v108 h-108 Z">
+        <aapt:attr name="android:fillColor">
+            <gradient
+                android:type="linear"
+                android:startX="0"
+                android:startY="0"
+                android:endX="108"
+                android:endY="108">
+                <item android:offset="0" android:color="#FF1D3F2F" />
+                <item android:offset="1" android:color="#FF102B1F" />
+            </gradient>
+        </aapt:attr>
+    </path>
+</vector>
