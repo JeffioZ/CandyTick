@@ -97,6 +97,7 @@ class AddViewModel(private val repository: RepoRepository) : ViewModel() {
     }
 
     private fun fetchPreview(owner: String, repo: String) {
+        val key = "$owner/$repo"
         viewModelScope.launch {
             _state.update { it.copy(preview = PreviewState.Loading, duplicate = false, results = emptyList()) }
             try {
@@ -104,17 +105,28 @@ class AddViewModel(private val repository: RepoRepository) : ViewModel() {
                     is RepoInfoResult.NotModified -> Unit // 预览无 etag，不会走到
                     is RepoInfoResult.Fetched -> {
                         val dup = repository.state.value.repos.any { it.id == result.info.githubId }
-                        _state.update { it.copy(preview = PreviewState.Loaded(result.info), duplicate = dup) }
+                        // 页面已被重置（fetchingKey 变更）则丢弃过期结果
+                        if (fetchingKey == key) {
+                            _state.update { it.copy(preview = PreviewState.Loaded(result.info), duplicate = dup) }
+                        }
                     }
                 }
             } catch (e: SourceException) {
-                _state.update { it.copy(preview = PreviewState.Failed(e.error)) }
+                if (fetchingKey == key) {
+                    _state.update { it.copy(preview = PreviewState.Failed(e.error)) }
+                }
             }
         }
     }
 
     fun setLinkedApp(packageName: String?, label: String?) {
         _state.update { it.copy(linkedPackage = packageName, linkedLabel = label) }
+    }
+
+    /** 每次进入添加页调用：清空上一次的输入 / 预览 / 卡死标志 */
+    fun reset() {
+        fetchingKey = null
+        _state.value = UiState()
     }
 
     fun confirmAdd() {
@@ -127,6 +139,7 @@ class AddViewModel(private val repository: RepoRepository) : ViewModel() {
                     _state.value.linkedPackage?.let { pkg ->
                         repository.setLinkedPackage(result.repo.id, pkg)
                     }
+                    _state.update { it.copy(adding = false) } // 成功也要复位（导航后 VM 仍存活）
                     _events.send(Event.Added(result.repo.id))
                 }
                 is RepoRepository.AddResult.Duplicate -> {

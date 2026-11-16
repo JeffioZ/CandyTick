@@ -55,6 +55,9 @@ fun AddScreen(
     val state by vm.state.collectAsStateWithLifecycle()
     var showAppPicker by remember { mutableStateOf(false) }
 
+    // 每次进入添加页都从干净状态开始（VM 为 Activity 域单例）
+    LaunchedEffect(Unit) { vm.reset() }
+
     LaunchedEffect(Unit) {
         vm.events.collect { event ->
             when (event) {
