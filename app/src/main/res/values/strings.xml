@@ -186,7 +186,8 @@
     <string name="lang_system">System default</string>
     <string name="lang_chinese">简体中文</string>
     <string name="lang_english">English</string>
-    <string name="token_visibility_toggle">Show or hide token</string>
+    <string name="token_show">Show</string>
+    <string name="token_hide">Hide</string>
     <string name="settings_token_hint">Classic PAT with no scopes, or fine-grained read-only public repos</string>
     <string name="settings_token_test">Test connection</string>
     <string name="settings_token_valid">✓ Token valid</string>

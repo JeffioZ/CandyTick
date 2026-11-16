@@ -176,7 +176,8 @@
     <string name="lang_system">跟随系统</string>
     <string name="lang_chinese">简体中文</string>
     <string name="lang_english">English</string>
-    <string name="token_visibility_toggle">显示或隐藏 Token</string>
+    <string name="token_show">显示明文</string>
+    <string name="token_hide">隐藏明文</string>
     <string name="settings_token_hint">classic PAT 不勾任何 scope；fine-grained 选 Public repos 只读</string>
     <string name="settings_token_test">测试连接</string>
     <string name="settings_token_valid">✓ Token 有效</string>

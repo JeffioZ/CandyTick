@@ -456,28 +456,19 @@ fun SettingsScreen(onBack: () -> Unit) {
                     style = MiuixTheme.textStyles.footnote1,
                     color = scheme.onBackgroundVariant,
                 )
-                Row(verticalAlignment = Alignment.CenterVertically) {
-                    TextField(
-                        value = state.tokenInput,
-                        onValueChange = vm::onTokenInput,
-                        modifier = Modifier.weight(1f),
-                        visualTransformation = if (tokenVisible) {
-                            androidx.compose.ui.text.input.VisualTransformation.None
-                        } else {
-                            androidx.compose.ui.text.input.PasswordVisualTransformation()
-                        },
-                        keyboardOptions = androidx.compose.foundation.text.KeyboardOptions(
-                            keyboardType = androidx.compose.ui.text.input.KeyboardType.Password,
-                        ),
-                    )
-                    IconButton(onClick = { tokenVisible = !tokenVisible }) {
-                        Icon(
-                            imageVector = if (tokenVisible) MiuixIcons.Hide else MiuixIcons.Show,
-                            contentDescription = stringResource(R.string.token_visibility_toggle),
-                            tint = scheme.onBackgroundVariant,
-                        )
-                    }
-                }
+                TextField(
+                    value = state.tokenInput,
+                    onValueChange = vm::onTokenInput,
+                    modifier = Modifier.fillMaxWidth(),
+                    visualTransformation = if (tokenVisible) {
+                        androidx.compose.ui.text.input.VisualTransformation.None
+                    } else {
+                        androidx.compose.ui.text.input.PasswordVisualTransformation()
+                    },
+                    keyboardOptions = androidx.compose.foundation.text.KeyboardOptions(
+                        keyboardType = androidx.compose.ui.text.input.KeyboardType.Password,
+                    ),
+                )
                 if (state.tokenRejected) {
                     Text(
                         text = stringResource(R.string.settings_token_rejected),
@@ -486,37 +477,44 @@ fun SettingsScreen(onBack: () -> Unit) {
                     )
                 }
                 Row(
+                    modifier = Modifier.fillMaxWidth(),
                     verticalAlignment = Alignment.CenterVertically,
-                    horizontalArrangement = Arrangement.spacedBy(12.dp),
+                    horizontalArrangement = Arrangement.SpaceBetween,
                 ) {
+                    top.yukonga.miuix.kmp.basic.TextButton(
+                        text = stringResource(
+                            if (tokenVisible) R.string.token_hide else R.string.token_show,
+                        ),
+                        onClick = { tokenVisible = !tokenVisible },
+                    )
                     PrimaryButton(
                         text = stringResource(R.string.settings_token_test),
                         onClick = vm::saveAndTestToken,
                         enabled = state.tokenInput.isNotBlank(),
                     )
-                    when (state.tokenTest) {
-                        SettingsViewModel.TokenTest.TESTING -> Text(
-                            stringResource(R.string.loading),
-                            style = MiuixTheme.textStyles.footnote1,
-                            color = scheme.onBackgroundVariant,
-                        )
-                        SettingsViewModel.TokenTest.VALID -> Text(
-                            stringResource(R.string.settings_token_valid),
-                            style = MiuixTheme.textStyles.footnote1,
-                            color = scheme.primaryVariant,
-                        )
-                        SettingsViewModel.TokenTest.INVALID -> Text(
-                            stringResource(R.string.settings_token_invalid),
-                            style = MiuixTheme.textStyles.footnote1,
-                            color = scheme.onErrorContainer,
-                        )
-                        SettingsViewModel.TokenTest.NETWORK -> Text(
-                            stringResource(R.string.settings_token_network_error),
-                            style = MiuixTheme.textStyles.footnote1,
-                            color = scheme.onErrorContainer,
-                        )
-                        null -> Unit
-                    }
+                }
+                when (state.tokenTest) {
+                    SettingsViewModel.TokenTest.TESTING -> Text(
+                        stringResource(R.string.loading),
+                        style = MiuixTheme.textStyles.footnote1,
+                        color = scheme.onBackgroundVariant,
+                    )
+                    SettingsViewModel.TokenTest.VALID -> Text(
+                        stringResource(R.string.settings_token_valid),
+                        style = MiuixTheme.textStyles.footnote1,
+                        color = scheme.primaryVariant,
+                    )
+                    SettingsViewModel.TokenTest.INVALID -> Text(
+                        stringResource(R.string.settings_token_invalid),
+                        style = MiuixTheme.textStyles.footnote1,
+                        color = scheme.onErrorContainer,
+                    )
+                    SettingsViewModel.TokenTest.NETWORK -> Text(
+                        stringResource(R.string.settings_token_network_error),
+                        style = MiuixTheme.textStyles.footnote1,
+                        color = scheme.onErrorContainer,
+                    )
+                    null -> Unit
                 }
             }
         }
