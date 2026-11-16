@@ -128,6 +128,7 @@
     <string name="detail_auto_link_hint">已装「%1$s」 · 点击关联</string>
     <string name="detail_auto_linked">已自动关联：%1$s</string>
     <string name="detail_linked_app">已关联：%1$s</string>
+    <string name="detail_link_change">更改关联应用</string>
     <string name="detail_unlink">解除关联</string>
     <string name="detail_reinstall">重装已下载的 %1$s</string>
     <string name="detail_delete_download">删除下载的 APK</string>

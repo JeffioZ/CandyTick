@@ -138,6 +138,7 @@
     <string name="detail_auto_link_hint">Installed "%1$s" · tap to link</string>
     <string name="detail_auto_linked">Auto-linked: %1$s</string>
     <string name="detail_linked_app">Linked: %1$s</string>
+    <string name="detail_link_change">Change linked app</string>
     <string name="detail_unlink">Unlink</string>
     <string name="detail_reinstall">Reinstall downloaded %1$s</string>
     <string name="detail_delete_download">Delete downloaded APK</string>

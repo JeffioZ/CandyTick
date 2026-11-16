@@ -24,6 +24,8 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.foundation.layout.offset
+import androidx.compose.foundation.layout.height
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.stringResource
@@ -63,6 +65,8 @@ import top.yukonga.miuix.kmp.icon.extended.Back
 import top.yukonga.miuix.kmp.icon.extended.Link
 import top.yukonga.miuix.kmp.icon.extended.Delete
 import top.yukonga.miuix.kmp.icon.extended.Add
+import top.yukonga.miuix.kmp.icon.extended.Create
+import top.yukonga.miuix.kmp.icon.extended.Blocklist
 import top.yukonga.miuix.kmp.icon.extended.More
 
 @Composable
@@ -211,22 +215,15 @@ fun DetailScreen(repoId: Long, onBack: () -> Unit) {
                         }
                     }
                 }
-                // 页签：提交历史 / 版本发布（Miuix TabRow；一次浏览一类，长列表不互相挤压）
+                // 页签：提交历史 / 版本发布（分段控件，与全局选择器同体系）
                 item {
-                    top.yukonga.miuix.kmp.basic.TabRow(
+                    DetailTabBar(
                         tabs = listOf(
-                            stringResource(R.string.detail_commits),
-                            stringResource(R.string.detail_releases),
+                            stringResource(R.string.detail_commits) to DetailViewModel.DetailTab.COMMITS,
+                            stringResource(R.string.detail_releases) to DetailViewModel.DetailTab.RELEASES,
                         ),
-                        selectedTabIndex = if (state.tab == DetailViewModel.DetailTab.COMMITS) 0 else 1,
-                        onTabSelected = { index ->
-                            vm.setTab(
-                                if (index == 0) DetailViewModel.DetailTab.COMMITS else DetailViewModel.DetailTab.RELEASES,
-                            )
-                        },
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .padding(horizontal = 16.dp, vertical = 6.dp),
+                        selected = state.tab,
+                        onSelect = vm::setTab,
                     )
                 }
                 if (state.tab == DetailViewModel.DetailTab.COMMITS) {
@@ -413,13 +410,43 @@ private fun HeaderCard(
             }
             if (linkedLabel != null) {
                 Row(verticalAlignment = Alignment.CenterVertically) {
+                    val appBitmap = remember(repo.linkedPackage) {
+                        repo.linkedPackage?.let { pkg ->
+                            runCatching { context.packageManager.getApplicationIcon(pkg).toImageBitmap() }.getOrNull()
+                        }
+                    }
+                    appBitmap?.let {
+                        androidx.compose.foundation.Image(
+                            bitmap = it,
+                            contentDescription = null,
+                            modifier = Modifier
+                                .size(22.dp)
+                                .clip(RoundedCornerShape(6.dp)),
+                        )
+                        Spacer(Modifier.width(8.dp))
+                    }
                     Text(
                         text = stringResource(R.string.detail_linked_app, linkedLabel),
                         style = MiuixTheme.textStyles.footnote1,
                         color = scheme.onBackgroundVariant,
                         modifier = Modifier.weight(1f),
                     )
-                    TextButton(text = stringResource(R.string.detail_unlink), onClick = onUnlink)
+                    IconButton(onClick = onChangeLinked, modifier = Modifier.size(30.dp)) {
+                        Icon(
+                            imageVector = MiuixIcons.Create,
+                            contentDescription = stringResource(R.string.detail_link_change),
+                            tint = scheme.onBackgroundVariant,
+                            modifier = Modifier.size(16.dp),
+                        )
+                    }
+                    IconButton(onClick = onUnlink, modifier = Modifier.size(30.dp)) {
+                        Icon(
+                            imageVector = MiuixIcons.Blocklist,
+                            contentDescription = stringResource(R.string.detail_unlink),
+                            tint = scheme.onBackgroundVariant,
+                            modifier = Modifier.size(16.dp),
+                        )
+                    }
                 }
             } else if (state.linkSuggestion != null) {
                 // 关联建议：整行点按即关联（胶囊提示条 + 本机应用小图标）
@@ -498,6 +525,63 @@ private fun HeaderCard(
                 }
             }
 
+        }
+    }
+}
+
+/** 详情页分段页签：胶囊轨道 + 滑动选中浮层（250ms），与全局选择器同观感 */
+@Composable
+private fun DetailTabBar(
+    tabs: List<Pair<String, DetailViewModel.DetailTab>>,
+    selected: DetailViewModel.DetailTab,
+    onSelect: (DetailViewModel.DetailTab) -> Unit,
+) {
+    val scheme = MiuixTheme.colorScheme
+    val shape = androidx.compose.foundation.shape.RoundedCornerShape(50)
+    Box(
+        modifier = Modifier
+            .fillMaxWidth()
+            .padding(horizontal = 16.dp, vertical = 8.dp)
+            .clip(shape)
+            .background(scheme.secondaryVariant)
+            .padding(3.dp),
+    ) {
+        androidx.compose.foundation.layout.BoxWithConstraints {
+            val segWidth = maxWidth / tabs.size
+            val index = tabs.indexOfFirst { it.second == selected }.coerceAtLeast(0)
+            val offset by androidx.compose.animation.core.animateDpAsState(
+                targetValue = segWidth * index,
+                animationSpec = androidx.compose.animation.core.tween(durationMillis = 250),
+                label = "detailTabOffset",
+            )
+            Box(
+                modifier = Modifier
+                    .offset(x = offset)
+                    .width(segWidth)
+                    .height(34.dp)
+                    .clip(shape)
+                    .background(scheme.surface),
+            )
+            Row(modifier = Modifier.fillMaxWidth()) {
+                tabs.forEach { (label, tab) ->
+                    Box(
+                        modifier = Modifier
+                            .weight(1f)
+                            .height(34.dp)
+                            .clickable(
+                                interactionSource = remember { androidx.compose.foundation.interaction.MutableInteractionSource() },
+                                indication = null,
+                            ) { onSelect(tab) },
+                        contentAlignment = Alignment.Center,
+                    ) {
+                        Text(
+                            text = label,
+                            color = if (tab == selected) scheme.onSurface else scheme.onSurfaceContainerVariant,
+                            style = MiuixTheme.textStyles.body2,
+                        )
+                    }
+                }
+            }
         }
     }
 }
