@@ -7,6 +7,7 @@ import android.os.Build
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
@@ -455,19 +456,34 @@ fun SettingsScreen(onBack: () -> Unit) {
                     style = MiuixTheme.textStyles.footnote1,
                     color = scheme.onBackgroundVariant,
                 )
-                TextField(
-                    value = state.tokenInput,
-                    onValueChange = vm::onTokenInput,
-                    modifier = Modifier.fillMaxWidth(),
-                    visualTransformation = if (tokenVisible) {
-                        androidx.compose.ui.text.input.VisualTransformation.None
-                    } else {
-                        androidx.compose.ui.text.input.PasswordVisualTransformation()
-                    },
-                    keyboardOptions = androidx.compose.foundation.text.KeyboardOptions(
-                        keyboardType = androidx.compose.ui.text.input.KeyboardType.Password,
-                    ),
-                )
+                // 输入框 + 眼睛图标叠加（标准密码字段模式）
+                Box(modifier = Modifier.fillMaxWidth()) {
+                    TextField(
+                        value = state.tokenInput,
+                        onValueChange = vm::onTokenInput,
+                        modifier = Modifier.fillMaxWidth(),
+                        visualTransformation = if (tokenVisible) {
+                            androidx.compose.ui.text.input.VisualTransformation.None
+                        } else {
+                            androidx.compose.ui.text.input.PasswordVisualTransformation()
+                        },
+                        keyboardOptions = androidx.compose.foundation.text.KeyboardOptions(
+                            keyboardType = androidx.compose.ui.text.input.KeyboardType.Password,
+                        ),
+                    )
+                    IconButton(
+                        onClick = { tokenVisible = !tokenVisible },
+                        modifier = Modifier.align(Alignment.CenterEnd),
+                    ) {
+                        Icon(
+                            imageVector = if (tokenVisible) MiuixIcons.Hide else MiuixIcons.Show,
+                            contentDescription = stringResource(
+                                if (tokenVisible) R.string.token_hide else R.string.token_show,
+                            ),
+                            tint = scheme.onBackgroundVariant,
+                        )
+                    }
+                }
                 if (state.tokenRejected) {
                     Text(
                         text = stringResource(R.string.settings_token_rejected),
@@ -478,14 +494,8 @@ fun SettingsScreen(onBack: () -> Unit) {
                 Row(
                     modifier = Modifier.fillMaxWidth(),
                     verticalAlignment = Alignment.CenterVertically,
-                    horizontalArrangement = Arrangement.SpaceBetween,
+                    horizontalArrangement = Arrangement.spacedBy(12.dp),
                 ) {
-                    top.yukonga.miuix.kmp.basic.TextButton(
-                        text = stringResource(
-                            if (tokenVisible) R.string.token_hide else R.string.token_show,
-                        ),
-                        onClick = { tokenVisible = !tokenVisible },
-                    )
                     PrimaryButton(
                         text = stringResource(R.string.settings_token_test),
                         onClick = vm::saveAndTestToken,
