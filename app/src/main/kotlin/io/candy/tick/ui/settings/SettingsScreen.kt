@@ -476,7 +476,9 @@ fun SettingsScreen(onBack: () -> Unit) {
                     )
                     IconButton(
                         onClick = { tokenVisible = !tokenVisible },
-                        modifier = Modifier.align(Alignment.CenterEnd),
+                        modifier = Modifier
+                            .align(Alignment.CenterEnd)
+                            .padding(end = 8.dp),
                     ) {
                         Icon(
                             imageVector = if (tokenVisible) MiuixIcons.Hide else MiuixIcons.Show,
@@ -484,6 +486,7 @@ fun SettingsScreen(onBack: () -> Unit) {
                                 if (tokenVisible) R.string.token_hide else R.string.token_show,
                             ),
                             tint = scheme.onBackgroundVariant,
+                            modifier = Modifier.size(20.dp),
                         )
                     }
                 }
