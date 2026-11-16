@@ -24,8 +24,8 @@ class RepoRepository(
     private fun provider(name: String): SourceProvider =
         providers[name] ?: providers.getValue(PROVIDER_GITHUB)
 
-    private fun tracked(id: Long): TrackedRepo =
-        requireNotNull(store.state.value.repos.find { it.id == id }) { "repo $id not tracked" }
+    private fun trackedOrNull(id: Long): TrackedRepo? =
+        store.state.value.repos.find { it.id == id }
 
     // ---- 设置 ----
 
@@ -117,7 +117,7 @@ class RepoRepository(
 
     /** 刷新单仓库快照；返回 null = 成功（含 304），非空 = 该仓库的错误 */
     suspend fun refreshRepo(id: Long): SourceError? {
-        val tracked = tracked(id)
+        val tracked = trackedOrNull(id) ?: return null
         val etag = store.state.value.snapshots[id]?.etag
         return try {
             when (val result = provider(tracked.provider).repoInfo(tracked.owner, tracked.repo, etag)) {
@@ -161,12 +161,12 @@ class RepoRepository(
     // ---- 详情页数据（分页透传，SourceException 由调用方接） ----
 
     suspend fun commits(repoId: Long, page: Int): List<CommitRecord> {
-        val t = tracked(repoId)
+        val t = trackedOrNull(repoId) ?: return emptyList()
         return provider(t.provider).commits(t.owner, t.repo, page)
     }
 
     suspend fun releases(repoId: Long, page: Int): List<ReleaseRecord> {
-        val t = tracked(repoId)
+        val t = trackedOrNull(repoId) ?: return emptyList()
         return provider(t.provider).releases(t.owner, t.repo, page)
     }
 }

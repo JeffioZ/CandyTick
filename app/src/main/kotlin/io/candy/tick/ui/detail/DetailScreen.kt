@@ -480,11 +480,11 @@ private fun HeaderCard(
                 }
             } else if (state.linkSuggestion != null) {
                 // 关联建议：整行点按即关联（胶囊提示条 + 本机应用小图标）
-                val suggested = state.linkSuggestion!!
-                val appIcon = remember(suggested.first) {
-                    runCatching {
-                        context.packageManager.getApplicationIcon(suggested.first).toImageBitmap()
-                    }.getOrNull()
+                val suggested = state.linkSuggestion
+                val appIcon = remember(suggested?.first) {
+                    suggested?.first?.let { pkg ->
+                        runCatching { context.packageManager.getApplicationIcon(pkg).toImageBitmap() }.getOrNull()
+                    }
                 }
                 Row(
                     modifier = Modifier

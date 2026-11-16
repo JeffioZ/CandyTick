@@ -12,6 +12,26 @@ class CandyTickApp : Application() {
 
     override fun onCreate() {
         super.onCreate()
+        // 全局崩溃日志：写入 files/crash.log（可用文件管理器或设置页读取）
+        val defaultHandler = Thread.getDefaultUncaughtExceptionHandler()
+        Thread.setDefaultUncaughtExceptionHandler { thread, throwable ->
+            runCatching {
+                java.io.File(filesDir, "crash.log").writeText(
+                    buildString {
+                        appendLine("Time: ${java.time.Instant.now()}")
+                        appendLine("Thread: ${thread.name}")
+                        appendLine("Exception: ${throwable.javaClass.name}")
+                        appendLine("Message: ${throwable.message}")
+                        appendLine("Stack:")
+                        throwable.stackTrace.take(30).forEach { appendLine("  at $it") }
+                        appendLine()
+                        appendLine("=== Full stack ===")
+                        appendLine(throwable.stackTraceToString())
+                    }
+                )
+            }
+            defaultHandler?.uncaughtException(thread, throwable)
+        }
         container = AppContainer(this)
         // 默认调度（设置变更时 UPDATE 重排）
         runCatching {
