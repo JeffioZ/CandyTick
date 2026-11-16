@@ -149,4 +149,9 @@
     <string name="settings_install_update">Install downloaded update</string>
     <string name="settings_update_failed">Update check failed · try later</string>
     <string name="settings_silent_hint">On Android 12+ updates install silently when CandyTick is the install source</string>
+
+    <!-- 同步频率 -->
+    <string name="frequency_6h">Every 6 hours</string>
+    <string name="frequency_12h">Every 12 hours</string>
+    <string name="frequency_daily">Daily</string>
 </resources>

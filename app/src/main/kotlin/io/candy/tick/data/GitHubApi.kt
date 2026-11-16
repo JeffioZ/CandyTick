@@ -147,6 +147,23 @@ class GitHubApi(private val tokenProvider: () -> String?) {
             dest
         }
 
+    /** Token 测试连接：200 ✓ / 401 ✗ / 网络类异常上抛 */
+    suspend fun validateToken(token: String): Boolean = withContext(Dispatchers.IO) {
+        val url = BASE_URL.toHttpUrl().newBuilder().addPathSegment("user").build()
+        val request = Request.Builder()
+            .url(url)
+            .header("Authorization", "Bearer ${token.trim()}")
+            .header("Accept", "application/vnd.github+json")
+            .build()
+        execute(request).use {
+            when (it.code) {
+                200 -> true
+                401 -> false
+                else -> throw SourceException(SourceError.Http(it.code))
+            }
+        }
+    }
+
     // ---- 内部：请求 / 错误映射 ----
 
     private fun request(url: HttpUrl, etag: String?): Request {

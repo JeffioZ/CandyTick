@@ -144,4 +144,9 @@
     <string name="settings_install_update">安装已下载的更新</string>
     <string name="settings_update_failed">检查失败 · 稍后再试</string>
     <string name="settings_silent_hint">Android 12+ 且本应用为安装来源时静默安装</string>
+
+    <!-- 同步频率 -->
+    <string name="frequency_6h">每 6 小时</string>
+    <string name="frequency_12h">每 12 小时</string>
+    <string name="frequency_daily">每天</string>
 </resources>
