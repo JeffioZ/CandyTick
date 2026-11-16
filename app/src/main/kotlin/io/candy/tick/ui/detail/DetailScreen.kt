@@ -214,23 +214,46 @@ fun DetailScreen(repoId: Long, onBack: () -> Unit) {
                         }
                     }
                 }
-                // 页签：提交历史 / 版本发布
+                // 页签：提交历史 / 版本发布（最简实现，排除库组件问题）
                 item {
-                    top.yukonga.miuix.kmp.basic.TabRow(
-                        tabs = listOf(
-                            stringResource(R.string.detail_commits),
-                            stringResource(R.string.detail_releases),
-                        ),
-                        selectedTabIndex = if (state.tab == DetailViewModel.DetailTab.COMMITS) 0 else 1,
-                        onTabSelected = { index ->
-                            vm.setTab(
-                                if (index == 0) DetailViewModel.DetailTab.COMMITS else DetailViewModel.DetailTab.RELEASES,
-                            )
-                        },
+                    val tabItems = listOf(
+                        stringResource(R.string.detail_commits) to DetailViewModel.DetailTab.COMMITS,
+                        stringResource(R.string.detail_releases) to DetailViewModel.DetailTab.RELEASES,
+                    )
+                    Row(
                         modifier = Modifier
                             .fillMaxWidth()
-                            .padding(horizontal = 16.dp, vertical = 6.dp),
-                    )
+                            .padding(horizontal = 16.dp, vertical = 8.dp),
+                        horizontalArrangement = Arrangement.spacedBy(8.dp),
+                    ) {
+                        tabItems.forEach { (label, tab) ->
+                            val isSelected = state.tab == tab
+                            Box(
+                                modifier = Modifier
+                                    .weight(1f)
+                                    .height(36.dp)
+                                    .clip(androidx.compose.foundation.shape.RoundedCornerShape(18.dp))
+                                    .background(
+                                        if (isSelected) scheme.primaryContainer
+                                        else scheme.secondaryVariant,
+                                    )
+                                    .clickable(
+                                        interactionSource = remember { androidx.compose.foundation.interaction.MutableInteractionSource() },
+                                    ) { vm.setTab(tab) },
+                                contentAlignment = Alignment.Center,
+                            ) {
+                                Text(
+                                    text = label,
+                                    color = if (isSelected) {
+                                        scheme.onPrimaryContainer
+                                    } else {
+                                        scheme.onSurfaceContainerVariant
+                                    },
+                                    style = MiuixTheme.textStyles.body2,
+                                )
+                            }
+                        }
+                    }
                 }
                 if (state.tab == DetailViewModel.DetailTab.COMMITS) {
                     commitList(state = state, onLoadMore = vm::loadCommits)
