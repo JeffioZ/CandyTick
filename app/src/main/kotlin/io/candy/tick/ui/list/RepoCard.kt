@@ -54,6 +54,7 @@ fun RepoCard(
     item: ListViewModel.RepoListItem,
     extras: ListViewModel.CardExtras?,
     expanded: Boolean,
+    isChanged: Boolean = false,
     onToggle: () -> Unit,
     onClick: () -> Unit,
     modifier: Modifier = Modifier,
@@ -101,10 +102,20 @@ fun RepoCard(
                     verticalAlignment = Alignment.CenterVertically,
                 ) {
                     item.snapshot?.pushedAt?.let { pushed ->
+                        if (isChanged) {
+                            // 低调「有更新」标记：6dp 薄荷圆点，静态无动画
+                            Box(
+                                modifier = Modifier
+                                    .size(6.dp)
+                                    .clip(androidx.compose.foundation.shape.CircleShape)
+                                    .background(scheme.primaryVariant),
+                            )
+                            Spacer(Modifier.width(5.dp))
+                        }
                         Text(
                             text = stringResource(R.string.card_last_push, relTimeString(pushed)),
                             style = MiuixTheme.textStyles.footnote2,
-                            color = scheme.onBackgroundVariant,
+                            color = if (isChanged) scheme.primaryVariant else scheme.onBackgroundVariant,
                         )
                     }
                     Spacer(Modifier.weight(1f))

@@ -189,8 +189,12 @@ fun ListScreen(
                                     item = item,
                                     extras = state.cards[item.repo.id],
                                     expanded = item.repo.id in state.expanded,
+                                    isChanged = item.repo.id in state.changedIds,
                                     onToggle = { vm.toggleExpand(item.repo.id) },
-                                    onClick = { onOpenDetail(item.repo.id) },
+                                    onClick = {
+                                        vm.clearChanged(item.repo.id)
+                                        onOpenDetail(item.repo.id)
+                                    },
                                 )
                             }
                         }

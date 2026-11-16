@@ -51,6 +51,7 @@ class ListViewModel(
         val query: String = "",
         val banner: SourceError? = null,
         val expanded: Set<Long> = emptySet(),
+        val changedIds: Set<Long> = emptySet(), // 有新活动的仓库（刷新后对比）
         val cards: Map<Long, CardExtras> = emptyMap(),
     ) {
         val isEmpty: Boolean get() = items.isEmpty() && !refreshing && query.isBlank()
@@ -69,13 +70,14 @@ class ListViewModel(
     private val banner = MutableStateFlow<SourceError?>(null)
     private val repoErrors = MutableStateFlow<Map<Long, SourceError>>(emptyMap())
     private val expanded = MutableStateFlow<Set<Long>>(emptySet())
+    private val changedRepos = MutableStateFlow<Set<Long>>(emptySet())
     private val cards = MutableStateFlow<Map<Long, CardExtras>>(emptyMap())
 
     private val part1 = combine(repository.state, sortMode, refreshing, banner, query) { s, sort, refr, ban, q ->
         Part1(s.repos, s.snapshots, sort, refr, ban, q)
     }
-    private val part2 = combine(repoErrors, expanded, cards) { errs, exp, crds ->
-        Part2(errs, exp, crds)
+    private val part2 = combine(repoErrors, expanded, cards, changedRepos) { errs, exp, crds, chg ->
+        Part2(errs, exp, crds, chg)
     }
 
     val state: StateFlow<UiState> = combine(part1, part2) { p1, p2 ->
@@ -86,6 +88,7 @@ class ListViewModel(
             query = p1.query,
             banner = p1.banner,
             expanded = p2.expanded,
+            changedIds = p2.changed,
             cards = p2.cards,
         )
     }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), initialUiState())
@@ -114,6 +117,7 @@ class ListViewModel(
         val errors: Map<Long, SourceError>,
         val expanded: Set<Long>,
         val cards: Map<Long, CardExtras>,
+        val changed: Set<Long>,
     )
 
     private fun buildItems(
@@ -160,8 +164,20 @@ class ListViewModel(
         viewModelScope.launch {
             refreshing.value = true
             banner.value = null
+            // 刷新前快照：记录每个仓库的 pushedAt 和 latestReleaseTag
+            val before = repository.state.value.snapshots.mapValues {
+                Triple(it.value.pushedAt, it.value.lastSyncAt, it.value.latestReleaseTag)
+            }
             val errors = repository.refreshAll()
             repoErrors.value = errors
+            // 刷新后对比：pushedAt 或 latestReleaseTag 有变化 → 标记
+            val after = repository.state.value.snapshots
+            val changed = after.filterKeys { id ->
+                val old = before[id] ?: return@filterKeys false
+                val newSnap = after[id] ?: return@filterKeys false
+                newSnap.pushedAt != old.first || newSnap.latestReleaseTag != old.third
+            }.keys
+            changedRepos.value = changed
             val total = state.value.items.size
             banner.value = if (errors.isNotEmpty() && errors.size >= total) {
                 errors.values.firstOrNull()
@@ -170,6 +186,11 @@ class ListViewModel(
             }
             refreshing.value = false
         }
+    }
+
+    /** 用户点击该仓库（进入详情）后清除「有更新」标记 */
+    fun clearChanged(id: Long) {
+        changedRepos.value = changedRepos.value - id
     }
 
     fun setSort(mode: SortMode) {
