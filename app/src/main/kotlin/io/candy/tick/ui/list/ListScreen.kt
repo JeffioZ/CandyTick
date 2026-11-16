@@ -69,7 +69,7 @@ fun ListScreen(
     onOpenSettings: () -> Unit,
 ) {
     val app = LocalContext.current.applicationContext as CandyTickApp
-    val vm: ListViewModel = viewModel { ListViewModel(app.container.repoRepository) }
+    val vm: ListViewModel = viewModel { ListViewModel(app.container.repoRepository, app) }
     val state by vm.state.collectAsStateWithLifecycle()
     val scheme = MiuixTheme.colorScheme
     val snackbar = remember { SnackbarHostState() }
@@ -294,6 +294,11 @@ private fun SortSheet(
                 label = stringResource(R.string.sort_name),
                 selected = current == SortMode.NAME,
                 onClick = { onSelect(SortMode.NAME) },
+            )
+            SortRow(
+                label = stringResource(R.string.sort_updatable),
+                selected = current == SortMode.UPDATABLE,
+                onClick = { onSelect(SortMode.UPDATABLE) },
             )
         }
     }

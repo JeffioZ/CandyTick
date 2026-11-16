@@ -1,5 +1,6 @@
 package io.candy.tick.ui.list
 
+import android.content.Context
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import io.candy.tick.data.RepoRepository
@@ -10,6 +11,7 @@ import io.candy.tick.data.model.RepoStatus
 import io.candy.tick.data.model.ReleaseRecord
 import io.candy.tick.data.model.TrackedRepo
 import io.candy.tick.data.model.statusAt
+import io.candy.tick.util.VersionCompare
 import java.time.Instant
 import kotlinx.coroutines.channels.Channel
 import kotlinx.coroutines.flow.Flow
@@ -21,9 +23,12 @@ import kotlinx.coroutines.flow.receiveAsFlow
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.launch
 
-enum class SortMode { LAST_PUSH, STATUS, NAME }
+enum class SortMode { LAST_PUSH, STATUS, NAME, UPDATABLE }
 
-class ListViewModel(private val repository: RepoRepository) : ViewModel() {
+class ListViewModel(
+    private val repository: RepoRepository,
+    private val context: Context,
+) : ViewModel() {
 
     data class RepoListItem(
         val repo: TrackedRepo,
@@ -107,8 +112,21 @@ class ListViewModel(private val repository: RepoRepository) : ViewModel() {
                 SortMode.LAST_PUSH -> compareByDescending<RepoListItem> { it.snapshot?.pushedAt?.toEpochMilli() ?: Long.MIN_VALUE }
                 SortMode.STATUS -> compareBy { it.status }
                 SortMode.NAME -> compareBy { it.repo.repo.lowercase() }
+                // 「可更新」优先：仅版本可比且严格更新（宁可不比）
+                SortMode.UPDATABLE -> compareByDescending<RepoListItem> { it.hasUpdate(context) }
+                    .thenByDescending { it.snapshot?.pushedAt?.toEpochMilli() ?: Long.MIN_VALUE }
             },
         )
+
+    /** 关联本机应用 + latestReleaseTag 严格更新（宁可不比） */
+    private fun RepoListItem.hasUpdate(context: Context): Boolean {
+        val tag = snapshot?.latestReleaseTag ?: return false
+        val pkg = repo.linkedPackage ?: return false
+        val local = runCatching {
+            context.packageManager.getPackageInfo(pkg, 0).versionName
+        }.getOrNull() ?: return false
+        return VersionCompare.compare(tag, local)?.let { it > 0 } == true
+    }
 
     /** 下拉刷新：单仓库失败只做角标，全部失败才出横幅（旧数据保留） */
     fun refresh() {

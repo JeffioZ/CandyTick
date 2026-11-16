@@ -98,6 +98,12 @@ class RepoRepository(
         s.copy(repos = s.repos.map { if (it.id == id) it.copy(downloadedApk = apk) else it })
     }
 
+    /** 后台同步记录最新 release tag（新版本通知与「可更新」排序的依据） */
+    suspend fun setLatestReleaseTag(id: Long, tag: String?) = store.update { s ->
+        val old = s.snapshots[id] ?: return@update s
+        s.copy(snapshots = s.snapshots + (id to old.copy(latestReleaseTag = tag)))
+    }
+
     /** 添加页搜索辅助 */
     suspend fun search(query: String): List<RepoInfo> =
         provider(PROVIDER_GITHUB).search(query)

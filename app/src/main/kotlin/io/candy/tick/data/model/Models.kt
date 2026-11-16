@@ -41,7 +41,7 @@ data class TrackedRepo(
 @Serializable
 data class DownloadedApk(val fileName: String, val version: String)
 
-/** 仓库快照（ETag 随快照存储，条件请求 304 不计配额） */
+/** 仓库快照（ETag 随快照存储，条件请求 304 不计配额；latestReleaseTag 供新版本通知与「可更新」排序） */
 @Serializable
 data class RepoSnapshot(
     val stars: Int,
@@ -55,6 +55,7 @@ data class RepoSnapshot(
     val htmlUrl: String,
     val lastSyncAt: Instant,
     val etag: String?,
+    val latestReleaseTag: String? = null,
 )
 
 @Serializable

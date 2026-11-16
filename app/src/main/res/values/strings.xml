@@ -21,6 +21,7 @@
     <string name="sort_last_push">Last commit time</string>
     <string name="sort_status">Vital status</string>
     <string name="sort_name">Name</string>
+    <string name="sort_updatable">Updatable first</string>
     <string name="remove_repo">Remove</string>
     <string name="empty_title">still ticking?</string>
     <string name="empty_subtitle">Track a repository and see if it is still alive</string>
@@ -112,4 +113,40 @@
     <string name="download_retry">Download failed · retry (file kept)</string>
     <string name="download_progress_percent">%1$d%%</string>
     <string name="install_apk">Install</string>
+
+    <!-- 通知 -->
+    <string name="notif_channel_release">New versions</string>
+    <string name="notif_channel_update">App updates</string>
+    <string name="notif_new_release">New version %1$s available</string>
+    <string name="notif_update_ready_title">CandyTick update</string>
+    <string name="notif_update_ready">Version %1$s downloaded · tap to install</string>
+
+    <!-- 设置页 -->
+    <string name="settings_appearance">Appearance</string>
+    <string name="settings_theme_mode">Theme</string>
+    <string name="settings_sync">Sync</string>
+    <string name="settings_sync_frequency">Frequency</string>
+    <string name="settings_sync_wifi_only">Wi-Fi only</string>
+    <string name="settings_sync_charging_only">Charging only</string>
+    <string name="settings_token">GitHub token (optional)</string>
+    <string name="settings_token_hint">Classic PAT with no scopes, or fine-grained read-only public repos</string>
+    <string name="settings_token_test">Test connection</string>
+    <string name="settings_token_valid">Token valid</string>
+    <string name="settings_token_invalid">401 · token invalid</string>
+    <string name="settings_token_network_error">Network error</string>
+    <string name="settings_notifications">New version notifications</string>
+    <string name="settings_notif_permission_banner">Notification permission not granted</string>
+    <string name="settings_notif_grant">Grant</string>
+    <string name="settings_self_update">About · Version</string>
+    <string name="settings_current_version">Current version %1$s</string>
+    <string name="settings_check_update">Check for updates</string>
+    <string name="settings_self_update_check">Auto check for updates</string>
+    <string name="settings_self_update_download">Auto download (Wi-Fi only)</string>
+    <string name="settings_up_to_date">Up to date</string>
+    <string name="settings_new_version">New version %1$s</string>
+    <string name="settings_new_version_incomparable">New release %1$s · version not comparable</string>
+    <string name="settings_download_update">Download &amp; install</string>
+    <string name="settings_install_update">Install downloaded update</string>
+    <string name="settings_update_failed">Update check failed · try later</string>
+    <string name="settings_silent_hint">On Android 12+ updates install silently when CandyTick is the install source</string>
 </resources>

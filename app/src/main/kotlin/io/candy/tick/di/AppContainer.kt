@@ -5,8 +5,11 @@ import io.candy.tick.data.AppStateStore
 import io.candy.tick.data.GitHubApi
 import io.candy.tick.data.GitHubProvider
 import io.candy.tick.data.InstallManager
+import io.candy.tick.data.Notifications
 import io.candy.tick.data.PROVIDER_GITHUB
 import io.candy.tick.data.RepoRepository
+import io.candy.tick.data.SelfUpdater
+import io.candy.tick.worker.SyncScheduler
 
 /** 手动 DI（design.md：页面少，框架是负资产） */
 class AppContainer(context: Context) {
@@ -18,6 +21,16 @@ class AppContainer(context: Context) {
     }
 
     val installManager: InstallManager by lazy { InstallManager(context) }
+
+    val selfUpdater: SelfUpdater by lazy {
+        SelfUpdater(context = context, githubApi = githubApi, installManager = installManager)
+    }
+
+    val syncScheduler: SyncScheduler by lazy { SyncScheduler(context) }
+
+    init {
+        Notifications.ensureChannels(context)
+    }
 
     val repoRepository: RepoRepository by lazy {
         RepoRepository(
