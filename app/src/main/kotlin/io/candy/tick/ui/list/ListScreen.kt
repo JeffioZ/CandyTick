@@ -30,7 +30,6 @@ import io.candy.tick.data.SourceError
 import io.candy.tick.ui.common.SecondaryButton
 import io.candy.tick.ui.common.sourceErrorText
 import top.yukonga.miuix.kmp.basic.Card
-import top.yukonga.miuix.kmp.basic.FloatingActionButton
 import top.yukonga.miuix.kmp.basic.Icon
 import top.yukonga.miuix.kmp.basic.IconButton
 import top.yukonga.miuix.kmp.basic.MiuixScrollBehavior
@@ -92,20 +91,20 @@ fun ListScreen(
                     color = Color.Transparent,
                     scrollBehavior = scrollBehavior,
                     actions = {
-                        IconButton(onClick = { showSortSheet = true }) {
-                            Icon(
-                                imageVector = MiuixIcons.Basic.ArrowUpDown,
-                                contentDescription = stringResource(R.string.sort_title),
-                                tint = scheme.onBackground,
-                            )
-                        }
                         IconButton(onClick = {
-                            if (showSearch) vm.setQuery("") // 关闭搜索即取消过滤
+                            if (showSearch) vm.setQuery("")
                             showSearch = !showSearch
                         }) {
                             Icon(
                                 imageVector = MiuixIcons.Basic.Search,
                                 contentDescription = stringResource(R.string.action_search),
+                                tint = scheme.onBackground,
+                            )
+                        }
+                        IconButton(onClick = { showSortSheet = true }) {
+                            Icon(
+                                imageVector = MiuixIcons.Basic.ArrowUpDown,
+                                contentDescription = stringResource(R.string.sort_title),
                                 tint = scheme.onBackground,
                             )
                         }
@@ -116,17 +115,16 @@ fun ListScreen(
                                 tint = scheme.onBackground,
                             )
                         }
+                        // 主操作：添加仓库（顶栏最右，替代 FAB）
+                        IconButton(onClick = onAdd) {
+                            Icon(
+                                imageVector = MiuixIcons.Add,
+                                contentDescription = stringResource(R.string.add_repo),
+                                tint = scheme.primaryVariant,
+                            )
+                        }
                     },
                 )
-            },
-            floatingActionButton = {
-                FloatingActionButton(onClick = onAdd) {
-                    Icon(
-                        imageVector = MiuixIcons.Add,
-                        contentDescription = stringResource(R.string.add_repo),
-                        tint = scheme.onPrimary,
-                    )
-                }
             },
         ) { padding ->
             PullToRefresh(
@@ -171,7 +169,7 @@ fun ListScreen(
                                 start = 16.dp,
                                 end = 16.dp,
                                 top = 4.dp,
-                                bottom = 96.dp,
+                                bottom = 32.dp,
                             ),
                             verticalArrangement = Arrangement.spacedBy(8.dp),
                         ) {
@@ -199,7 +197,7 @@ fun ListScreen(
         Box(
             modifier = Modifier
                 .fillMaxSize()
-                .padding(bottom = 88.dp),
+                .padding(bottom = 24.dp),
             contentAlignment = Alignment.BottomCenter,
         ) {
             SnackbarHost(state = snackbar)
