@@ -34,7 +34,13 @@ class InstallManager(private val context: Context) {
             when (status) {
                 PackageInstaller.STATUS_SUCCESS -> _results.tryEmit(InstallResult.Success)
                 PackageInstaller.STATUS_PENDING_USER_ACTION -> {
-                    val confirm = intent.getParcelableExtra(Intent.EXTRA_INTENT, Intent::class.java)
+                    // API 33+ 用类型安全版，29-32 用 deprecated 版（不加会 NoSuchMethodError）
+                    val confirm = if (android.os.Build.VERSION.SDK_INT >= 33) {
+                        intent.getParcelableExtra(Intent.EXTRA_INTENT, Intent::class.java)
+                    } else {
+                        @Suppress("DEPRECATION")
+                        intent.getParcelableExtra(Intent.EXTRA_INTENT)
+                    }
                     runCatching {
                         confirm?.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
                         confirm?.let { ctx.startActivity(it) }
