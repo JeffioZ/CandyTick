@@ -37,6 +37,7 @@ import io.candy.tick.ui.common.sourceErrorText
 import io.candy.tick.ui.theme.MonoTokenStyle
 import io.candy.tick.data.InstallManager
 import io.candy.tick.data.model.statusAt
+import top.yukonga.miuix.kmp.basic.Button
 import top.yukonga.miuix.kmp.basic.Card
 import top.yukonga.miuix.kmp.basic.Icon
 import top.yukonga.miuix.kmp.basic.IconButton
@@ -69,6 +70,8 @@ fun DetailScreen(repoId: Long, onBack: () -> Unit) {
     val pullState = rememberPullToRefreshState()
     val scrollBehavior = MiuixScrollBehavior(rememberTopAppBarState())
     var showAppPicker by remember { mutableStateOf(false) }
+    var showRemoveDialog by remember { mutableStateOf(false) }
+    val context = LocalContext.current
     val snackbar = remember { SnackbarHostState() }
     val doneMsg = stringResource(R.string.install_done)
     val failedMsg = stringResource(R.string.install_failed_format)
@@ -101,20 +104,42 @@ fun DetailScreen(repoId: Long, onBack: () -> Unit) {
     Box(modifier = Modifier.fillMaxSize()) {
         Scaffold(
         topBar = {
-            SmallTopAppBar(
-                color = androidx.compose.ui.graphics.Color.Transparent,
-                title = repo?.let { it.noteName ?: it.repo } ?: stringResource(R.string.detail_title),
-                navigationIcon = {
-                    IconButton(onClick = onBack) {
-                        Icon(
-                            imageVector = CandyIcons.Back,
-                            contentDescription = null,
-                            tint = scheme.onBackground,
-                        )
-                    }
-                },
-                scrollBehavior = scrollBehavior,
-            )
+                SmallTopAppBar(
+                    color = androidx.compose.ui.graphics.Color.Transparent,
+                    title = repo?.let { it.noteName ?: it.repo } ?: stringResource(R.string.detail_title),
+                    navigationIcon = {
+                        IconButton(onClick = onBack) {
+                            Icon(
+                                imageVector = CandyIcons.Back,
+                                contentDescription = null,
+                                tint = scheme.onBackground,
+                            )
+                        }
+                    },
+                    actions = {
+                        // 浏览器打开仓库（安卓规范：顶栏动作图标）
+                        IconButton(
+                            onClick = {
+                                val url = state.snapshot?.htmlUrl ?: repo?.let {
+                                    "https://github.com/${it.owner}/${it.repo}"
+                                } ?: return@IconButton
+                                runCatching {
+                                    context.startActivity(
+                                        android.content.Intent(android.content.Intent.ACTION_VIEW, android.net.Uri.parse(url))
+                                            .addFlags(android.content.Intent.FLAG_ACTIVITY_NEW_TASK),
+                                    )
+                                }
+                            },
+                        ) {
+                            Icon(
+                                imageVector = CandyIcons.OpenInNew,
+                                contentDescription = stringResource(R.string.open_in_browser),
+                                tint = scheme.onBackground,
+                            )
+                        }
+                    },
+                    scrollBehavior = scrollBehavior,
+                )
         },
     ) { padding ->
         PullToRefresh(
@@ -142,6 +167,7 @@ fun DetailScreen(repoId: Long, onBack: () -> Unit) {
                         onUnlink = { vm.setLinkedApp(null) },
                         onLinkSuggestion = { state.linkSuggestion?.first?.let(vm::setLinkedApp) },
                         onInstallDownloaded = { repo?.let(vm::installDownloaded) },
+                        onRemoveRequest = { showRemoveDialog = true },
                     )
                 }
                 state.banner?.let { error ->
@@ -216,6 +242,52 @@ fun DetailScreen(repoId: Long, onBack: () -> Unit) {
             onDismiss = { showAppPicker = false },
         )
     }
+
+    // 移除确认（破坏性操作）
+    if (showRemoveDialog && repo != null) {
+        top.yukonga.miuix.kmp.window.WindowDialog(
+            show = true,
+            title = stringResource(R.string.remove_confirm_title),
+            onDismissRequest = { showRemoveDialog = false },
+        ) {
+            Column(
+                modifier = Modifier.padding(horizontal = 20.dp, vertical = 12.dp),
+                verticalArrangement = Arrangement.spacedBy(12.dp),
+            ) {
+                Text(
+                    text = stringResource(
+                        R.string.remove_confirm_body,
+                        repo!!.noteName ?: "${repo!!.owner}/${repo!!.repo}",
+                    ),
+                    style = MiuixTheme.textStyles.body2,
+                    color = MiuixTheme.colorScheme.onBackgroundVariant,
+                )
+                Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+                    Spacer(Modifier.weight(1f))
+                    top.yukonga.miuix.kmp.basic.TextButton(
+                        text = stringResource(R.string.action_cancel),
+                        onClick = { showRemoveDialog = false },
+                    )
+                    Button(
+                        onClick = {
+                            showRemoveDialog = false
+                            vm.removeRepo()
+                            onBack()
+                        },
+                        colors = top.yukonga.miuix.kmp.basic.ButtonDefaults.buttonColors(
+                            color = scheme.error,
+                            contentColor = scheme.onError,
+                        ),
+                    ) {
+                        Text(
+                            text = stringResource(R.string.action_remove),
+                            style = MiuixTheme.textStyles.button,
+                        )
+                    }
+                }
+            }
+        }
+    }
 }
 
 @Composable
@@ -235,6 +307,7 @@ private fun HeaderCard(
     onUnlink: () -> Unit,
     onLinkSuggestion: () -> Unit,
     onInstallDownloaded: () -> Unit,
+    onRemoveRequest: () -> Unit,
 ) {
     val repo = state.repo ?: return
     val snapshot = state.snapshot
@@ -345,6 +418,12 @@ private fun HeaderCard(
                     onClick = onInstallDownloaded,
                 )
             }
+
+            // 移除订阅（破坏性操作 → 确认对话框）
+            TextButton(
+                text = stringResource(R.string.detail_remove_repo),
+                onClick = onRemoveRequest,
+            )
         }
     }
 }

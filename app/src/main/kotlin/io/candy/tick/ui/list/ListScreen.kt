@@ -89,13 +89,11 @@ fun ListScreen(
                     color = Color.Transparent,
                     scrollBehavior = scrollBehavior,
                     actions = {
-                        IconButton(onClick = { showSortSheet = true }) {
-                            Icon(
-                                imageVector = MiuixIcons.Basic.ArrowUpDown,
-                                contentDescription = stringResource(R.string.sort_title),
-                                tint = scheme.onBackground,
-                            )
-                        }
+                        // 当前排序名直接可见（安卓规范：状态外显 + 点击更改）
+                        top.yukonga.miuix.kmp.basic.TextButton(
+                            text = sortLabel(state.sortMode),
+                            onClick = { showSortSheet = true },
+                        )
                         IconButton(onClick = onOpenSettings) {
                             Icon(
                                 imageVector = CandyIcons.Settings,
@@ -146,7 +144,11 @@ fun ListScreen(
                             ),
                             verticalArrangement = Arrangement.spacedBy(10.dp),
                         ) {
-                            items(state.items, key = { it.repo.id }) { item ->
+                        items(state.items, key = { it.repo.id }) { item ->
+                            SwipeToDelete(
+                                onDelete = { vm.remove(item) },
+                                modifier = Modifier.animateItem(),
+                            ) {
                                 RepoCard(
                                     item = item,
                                     extras = state.cards[item.repo.id],
@@ -154,9 +156,9 @@ fun ListScreen(
                                     onToggle = { vm.toggleExpand(item.repo.id) },
                                     onClick = { onOpenDetail(item.repo.id) },
                                     onRemove = { vm.remove(item) },
-                                    modifier = Modifier.animateItem(),
                                 )
                             }
+                        }
                         }
                     }
                 }
@@ -184,6 +186,16 @@ fun ListScreen(
         onDismiss = { showSortSheet = false },
     )
 }
+
+@Composable
+private fun sortLabel(mode: SortMode): String = stringResource(
+    when (mode) {
+        SortMode.LAST_PUSH -> R.string.sort_last_push
+        SortMode.STATUS -> R.string.sort_status
+        SortMode.NAME -> R.string.sort_name
+        SortMode.UPDATABLE -> R.string.sort_updatable
+    },
+)
 
 /** 刷新失败横幅：旧数据保留 + 重试（限流显示恢复时间） */
 @Composable

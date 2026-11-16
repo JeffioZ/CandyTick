@@ -272,5 +272,10 @@ class DetailViewModel(
         viewModelScope.launch { repository.setLinkedPackage(repoId, packageName) }
     }
 
+    /** 详情页删除入口（确认对话框后调用；下载的 APK 文件保留） */
+    fun removeRepo() {
+        viewModelScope.launch { repository.removeRepo(repoId) }
+    }
+
     fun dismissBanner() = _state.update { it.copy(banner = null) }
 }

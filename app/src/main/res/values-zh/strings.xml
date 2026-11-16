@@ -22,6 +22,12 @@
     <string name="sort_name">名称</string>
     <string name="sort_updatable">可更新优先</string>
     <string name="remove_repo">移除</string>
+    <string name="open_in_browser">在浏览器打开</string>
+    <string name="detail_remove_repo">移除仓库</string>
+    <string name="remove_confirm_title">移除这个仓库？</string>
+    <string name="remove_confirm_body">将停止追踪 %1$s，已下载的 APK 会保留。</string>
+    <string name="action_cancel">取消</string>
+    <string name="action_remove">移除</string>
     <string name="empty_title">还在维护吗？</string>
     <string name="empty_subtitle">订阅一个仓库，看看它是否还活着</string>
     <string name="empty_cta">添加第一个仓库</string>

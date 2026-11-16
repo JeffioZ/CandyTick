@@ -2,8 +2,11 @@ package io.candy.tick.ui.list
 
 import androidx.compose.animation.animateColorAsState
 import androidx.compose.animation.animateContentSize
+import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
+import androidx.compose.foundation.clickable
+import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -24,6 +27,7 @@ import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.draw.rotate
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
@@ -45,6 +49,8 @@ import top.yukonga.miuix.kmp.basic.Card
 import top.yukonga.miuix.kmp.basic.IconButton
 import top.yukonga.miuix.kmp.basic.Icon
 import top.yukonga.miuix.kmp.basic.Text
+import top.yukonga.miuix.kmp.icon.MiuixIcons
+import top.yukonga.miuix.kmp.icon.basic.ArrowRight
 import top.yukonga.miuix.kmp.theme.MiuixTheme
 
 /** 首页仓库卡片：4dp 色条 + 图标 + 名称 + 徽章 + 相对时间；展开显示提交与版本行 */
@@ -102,7 +108,20 @@ fun RepoCard(
                 }
 
                 Spacer(Modifier.height(8.dp))
-                Row(verticalAlignment = Alignment.CenterVertically) {
+                // 整行可点切换展开（尾部旋转箭头提供可视暗示），展开后露出删除
+                val chevronAngle by animateFloatAsState(
+                    targetValue = if (expanded) 90f else 0f,
+                    label = "cardChevron",
+                )
+                Row(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .clickable(
+                            interactionSource = remember { MutableInteractionSource() },
+                            indication = null,
+                        ) { onToggle() },
+                    verticalAlignment = Alignment.CenterVertically,
+                ) {
                     item.snapshot?.pushedAt?.let { pushed ->
                         Text(
                             text = stringResource(R.string.card_last_push, relTimeString(pushed)),
@@ -110,8 +129,8 @@ fun RepoCard(
                             color = scheme.onBackgroundVariant,
                         )
                     }
+                    Spacer(Modifier.weight(1f))
                     if (expanded) {
-                        Spacer(Modifier.weight(1f))
                         IconButton(onClick = onRemove, modifier = Modifier.size(28.dp)) {
                             Icon(
                                 imageVector = CandyIcons.Delete,
@@ -120,6 +139,14 @@ fun RepoCard(
                             )
                         }
                     }
+                    Icon(
+                        imageVector = MiuixIcons.Basic.ArrowRight,
+                        contentDescription = null,
+                        tint = scheme.onBackgroundVariant,
+                        modifier = Modifier
+                            .size(18.dp)
+                            .rotate(chevronAngle),
+                    )
                 }
 
                 if (expanded) {

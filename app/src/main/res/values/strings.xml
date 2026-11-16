@@ -22,6 +22,12 @@
     <string name="sort_name">Name</string>
     <string name="sort_updatable">Updatable first</string>
     <string name="remove_repo">Remove</string>
+    <string name="open_in_browser">Open in browser</string>
+    <string name="detail_remove_repo">Remove repository</string>
+    <string name="remove_confirm_title">Remove this repository?</string>
+    <string name="remove_confirm_body">Stop tracking %1$s. Downloaded APKs are kept.</string>
+    <string name="action_cancel">Cancel</string>
+    <string name="action_remove">Remove</string>
     <string name="empty_title">still ticking?</string>
     <string name="empty_subtitle">Track a repository and see if it is still alive</string>
     <string name="empty_cta">Add your first repository</string>

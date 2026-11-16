@@ -82,6 +82,19 @@ object CandyIcons {
         }.build()
     }
 
+    val OpenInNew: ImageVector by lazy {
+        ImageVector.Builder(name = "OpenInNew", defaultWidth = 24.dp, defaultHeight = 24.dp, viewportWidth = 24f, viewportHeight = 24f).apply {
+            path(fill = SolidColor(Color.Black)) {
+                moveTo(19f, 19f); lineTo(5f, 19f); lineTo(5f, 5f); lineTo(12f, 5f); lineTo(12f, 3f); lineTo(5f, 3f)
+                curveTo(3.9f, 3f, 3f, 3.9f, 3f, 5f); lineTo(3f, 19f)
+                curveTo(3f, 20.1f, 3.9f, 21f, 5f, 21f); lineTo(19f, 21f)
+                curveTo(20.1f, 21f, 21f, 20.1f, 21f, 19f); lineTo(21f, 12f); lineTo(19f, 12f); lineTo(19f, 19f); close()
+                moveTo(14f, 3f); lineTo(14f, 5f); lineTo(17.59f, 5f); lineTo(9.17f, 13.41f); lineTo(10.58f, 14.82f)
+                lineTo(19f, 6.41f); lineTo(19f, 10f); lineTo(21f, 10f); lineTo(21f, 3f); close()
+            }
+        }.build()
+    }
+
     val Delete: ImageVector by lazy {
         ImageVector.Builder(name = "Delete", defaultWidth = 24.dp, defaultHeight = 24.dp, viewportWidth = 24f, viewportHeight = 24f).apply {
             path(fill = SolidColor(Color.Black)) {
