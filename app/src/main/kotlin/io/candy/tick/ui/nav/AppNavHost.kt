@@ -39,7 +39,7 @@ fun AppNavHost(container: AppContainer) {
     }
     NavDisplay(
         backStack = backStack,
-        onBack = { backStack.removeAt(backStack.lastIndex) },
+        onBack = { backStack.removeLastOrNull() },
         // 系统式水平推移：新页从右滑入（30% 行程 + 淡入），旧页向左让位（25% + 淡出）
         transitionSpec = {
             (slideInHorizontally(initialOffsetX = { it / 3 }, animationSpec = navSpec()) +

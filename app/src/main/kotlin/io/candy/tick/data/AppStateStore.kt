@@ -12,6 +12,7 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
+import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.withContext
 import kotlinx.serialization.encodeToString
 import kotlinx.serialization.json.Json
@@ -32,12 +33,16 @@ class AppStateStore(context: Context) {
     private val _state = MutableStateFlow(loadOrReset())
     val state: StateFlow<AppState> = _state.asStateFlow()
 
-    /** 单一写入口：先更新内存，再异步落盘（结构相等则跳过） */
+    /** 单一写入口：CAS 原子更新内存，再异步落盘（结构相等则跳过） */
     suspend fun update(transform: (AppState) -> AppState) {
-        val next = transform(_state.value)
-        if (next != _state.value) {
-            _state.value = next
-            withContext(Dispatchers.IO) { persist(next) }
+        var changed = false
+        _state.update { current ->
+            val next = transform(current)
+            changed = next != current
+            next
+        }
+        if (changed) {
+            withContext(Dispatchers.IO) { persist(_state.value) }
         }
     }
 

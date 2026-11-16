@@ -35,7 +35,6 @@ import androidx.lifecycle.viewmodel.compose.viewModel
 import io.candy.tick.CandyTickApp
 import io.candy.tick.R
 import io.candy.tick.data.Notifications
-import io.candy.tick.data.SelfUpdater
 import io.candy.tick.data.model.SyncFrequency
 import io.candy.tick.data.model.ThemeMode
 import io.candy.tick.ui.common.CandyIcons
@@ -44,15 +43,12 @@ import top.yukonga.miuix.kmp.basic.Button
 import top.yukonga.miuix.kmp.basic.Card
 import top.yukonga.miuix.kmp.basic.Icon
 import top.yukonga.miuix.kmp.basic.IconButton
-import top.yukonga.miuix.kmp.basic.LinearProgressIndicator
 import top.yukonga.miuix.kmp.basic.Scaffold
 import top.yukonga.miuix.kmp.basic.SmallTopAppBar
 import top.yukonga.miuix.kmp.basic.Switch
 import top.yukonga.miuix.kmp.basic.Text
 import top.yukonga.miuix.kmp.basic.TextField
 import top.yukonga.miuix.kmp.basic.TextButton
-import top.yukonga.miuix.kmp.icon.MiuixIcons
-import top.yukonga.miuix.kmp.icon.basic.Check
 import top.yukonga.miuix.kmp.theme.MiuixTheme
 import top.yukonga.miuix.kmp.window.WindowBottomSheet
 
@@ -255,82 +251,6 @@ fun SettingsScreen(onBack: () -> Unit) {
 }
 
 @Composable
-private fun SelfUpdateSection(state: SettingsViewModel.UiState, vm: SettingsViewModel) {
-    val scheme = MiuixTheme.colorScheme
-    when (val update = state.selfUpdate) {
-        SelfUpdater.State.Idle, SelfUpdater.State.Checking -> {
-            Button(onClick = vm::checkUpdate) {
-                Text(
-                    text = if (update == SelfUpdater.State.Checking) {
-                        stringResource(R.string.loading)
-                    } else {
-                        stringResource(R.string.settings_check_update)
-                    },
-                    color = scheme.onPrimary,
-                    style = MiuixTheme.textStyles.button,
-                )
-            }
-        }
-        SelfUpdater.State.UpToDate -> Text(
-            text = stringResource(R.string.settings_up_to_date),
-            style = MiuixTheme.textStyles.body2,
-            color = scheme.primaryVariant,
-        )
-        is SelfUpdater.State.NewVersion -> {
-            Text(
-                text = if (update.incomparable) {
-                    stringResource(R.string.settings_new_version_incomparable, update.tag)
-                } else {
-                    stringResource(R.string.settings_new_version, update.tag)
-                },
-                style = MiuixTheme.textStyles.body2,
-                color = if (update.incomparable) scheme.onBackgroundVariant else scheme.primaryVariant,
-            )
-            update.notes?.let {
-                Text(
-                    text = it,
-                    style = MiuixTheme.textStyles.footnote1,
-                    color = scheme.onBackgroundVariant,
-                )
-            }
-            Button(
-                onClick = vm::downloadUpdate,
-                enabled = update.asset != null,
-                modifier = Modifier.fillMaxWidth(),
-            ) {
-                Text(
-                    text = stringResource(R.string.settings_download_update),
-                    color = scheme.onPrimary,
-                    style = MiuixTheme.textStyles.button,
-                )
-            }
-        }
-        is SelfUpdater.State.Downloading -> {
-            LinearProgressIndicator(progress = update.progress, modifier = Modifier.fillMaxWidth())
-            Text(
-                text = stringResource(R.string.download_progress_percent, (update.progress * 100).toInt()),
-                style = MiuixTheme.textStyles.footnote2,
-                color = scheme.onBackgroundVariant,
-            )
-        }
-        is SelfUpdater.State.Downloaded -> {
-            Button(onClick = { vm.installUpdate(update.file) }, modifier = Modifier.fillMaxWidth()) {
-                Text(
-                    text = stringResource(R.string.settings_install_update),
-                    color = scheme.onPrimary,
-                    style = MiuixTheme.textStyles.button,
-                )
-            }
-        }
-        is SelfUpdater.State.Failed -> Text(
-            text = stringResource(R.string.settings_update_failed),
-            style = MiuixTheme.textStyles.footnote1,
-            color = scheme.onErrorContainer,
-        )
-    }
-}
-
-@Composable
 private fun SectionLabel(text: String) {
     Text(
         text = text,
@@ -340,97 +260,3 @@ private fun SectionLabel(text: String) {
     )
 }
 
-@Composable
-private fun SettingRow(title: String, value: String, onClick: () -> Unit) {
-    val scheme = MiuixTheme.colorScheme
-    Row(
-        modifier = Modifier
-            .fillMaxWidth()
-            .clickable(
-                interactionSource = remember { MutableInteractionSource() },
-                indication = null,
-                onClick = onClick,
-            )
-            .padding(vertical = 12.dp),
-        verticalAlignment = Alignment.CenterVertically,
-    ) {
-        Text(
-            text = title,
-            style = MiuixTheme.textStyles.body1,
-            color = scheme.onBackground,
-            modifier = Modifier.weight(1f),
-        )
-        Text(
-            text = value,
-            style = MiuixTheme.textStyles.body2,
-            color = scheme.onBackgroundVariant,
-        )
-    }
-}
-
-@Composable
-private fun SwitchRow(title: String, checked: Boolean, onChange: (Boolean) -> Unit) {
-    Row(
-        modifier = Modifier.fillMaxWidth().padding(vertical = 6.dp),
-        verticalAlignment = Alignment.CenterVertically,
-    ) {
-        Text(
-            text = title,
-            style = MiuixTheme.textStyles.body1,
-            color = MiuixTheme.colorScheme.onBackground,
-            modifier = Modifier.weight(1f),
-        )
-        Switch(checked = checked, onCheckedChange = onChange)
-    }
-}
-
-@Composable
-private fun frequencyLabel(frequency: SyncFrequency): String = stringResource(
-    when (frequency) {
-        SyncFrequency.EVERY_6_HOURS -> R.string.frequency_6h
-        SyncFrequency.EVERY_12_HOURS -> R.string.frequency_12h
-        SyncFrequency.DAILY -> R.string.frequency_daily
-    },
-)
-
-@Composable
-private fun FrequencyRow(
-    option: SyncFrequency,
-    current: SyncFrequency,
-    onSelect: (SyncFrequency) -> Unit,
-    onDone: () -> Unit,
-) {
-    val scheme = MiuixTheme.colorScheme
-    Row(
-        modifier = Modifier
-            .fillMaxWidth()
-            .clickable(
-                interactionSource = remember { MutableInteractionSource() },
-                indication = null,
-            ) {
-                onSelect(option)
-                onDone()
-            }
-            .padding(vertical = 14.dp),
-        verticalAlignment = Alignment.CenterVertically,
-    ) {
-        androidx.compose.foundation.layout.Box(
-            modifier = Modifier.size(20.dp),
-            contentAlignment = Alignment.Center,
-        ) {
-            if (option == current) {
-                Icon(
-                    imageVector = MiuixIcons.Basic.Check,
-                    contentDescription = null,
-                    tint = scheme.primaryVariant,
-                )
-            }
-        }
-        Spacer(Modifier.width(10.dp))
-        Text(
-            text = frequencyLabel(option),
-            style = MiuixTheme.textStyles.body1,
-            color = if (option == current) scheme.primaryVariant else scheme.onBackground,
-        )
-    }
-}
