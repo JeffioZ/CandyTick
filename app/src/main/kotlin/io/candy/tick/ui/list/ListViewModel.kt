@@ -23,7 +23,7 @@ import kotlinx.coroutines.flow.receiveAsFlow
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.launch
 
-enum class SortMode { LAST_PUSH, STATUS, NAME, UPDATABLE }
+enum class SortMode { LAST_PUSH, ADDED, STATUS, NAME, UPDATABLE }
 
 class ListViewModel(
     private val repository: RepoRepository,
@@ -134,6 +134,7 @@ class ListViewModel(
             when (sort) {
                 SortMode.LAST_PUSH -> compareByDescending<RepoListItem> { it.snapshot?.pushedAt?.toEpochMilli() ?: Long.MIN_VALUE }
                 SortMode.STATUS -> compareBy { it.status }
+                SortMode.ADDED -> compareByDescending<RepoListItem> { it.repo.addedAt.toEpochMilli() }
                 SortMode.NAME -> compareBy { it.repo.repo.lowercase() }
                 // 「可更新」优先：仅版本可比且严格更新（宁可不比）
                 SortMode.UPDATABLE -> compareByDescending<RepoListItem> { it.hasUpdate(context) }

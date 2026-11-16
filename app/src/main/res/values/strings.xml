@@ -19,8 +19,9 @@
     <string name="sort_title">Sort by</string>
     <string name="sort_last_push">Recently active</string>
     <string name="sort_status">Status</string>
-    <string name="sort_name">Name</string>
+    <string name="sort_name">A-Z</string>
     <string name="sort_updatable">Has update</string>
+    <string name="sort_added">Recently added</string>
     <string name="remove_repo">Remove</string>
     <string name="open_in_browser">Open in browser</string>
     <string name="detail_remove_repo">Remove repository</string>

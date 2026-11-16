@@ -43,6 +43,11 @@ internal fun SortSheet(
                 onClick = { onSelect(SortMode.LAST_PUSH) },
             )
             SortRow(
+                label = stringResource(R.string.sort_added),
+                selected = current == SortMode.ADDED,
+                onClick = { onSelect(SortMode.ADDED) },
+            )
+            SortRow(
                 label = stringResource(R.string.sort_status),
                 selected = current == SortMode.STATUS,
                 onClick = { onSelect(SortMode.STATUS) },
