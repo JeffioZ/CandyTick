@@ -5,22 +5,20 @@
 **还在维护吗？** —— GitHub 仓库生命体征监测器
 
 [![License](https://img.shields.io/badge/License-GPL--3.0-blue)](LICENSE)
-[![Platform](https://img.shields.io/badge/Android-3DDC84?logo=android&logoColor=white)]()
-[![API](https://img.shields.io/badge/API-29%2B-9E9E9E)]()
-
-</div>
+![Platform](https://img.shields.io/badge/Android-3DDC84?logo=android&logoColor=white)
+![API](https://img.shields.io/badge/API-29%2B-9E9E9E)
 
 订阅 GitHub 仓库，一眼看出哪些还在活跃维护、哪些已经弃坑；顺带发现新版本、下载安装。
+
+[→ 从 Releases 下载](https://github.com/JeffioZ/CandyTick/releases)
+
+</div>
 
 <!-- 截图占位：补充 2~4 张后取消注释
 <p align="center">
   <img src="docs/fastlane/metadata/android/zh-CN/images/phoneScreenshots/1.png" width="270" />
 </p>
 -->
-
-## 下载
-
-[GitHub Releases](https://github.com/JeffioZ/CandyTick/releases)
 
 ## 功能
 
