@@ -32,6 +32,7 @@ class SettingsViewModel(
         val selfUpdate: SelfUpdater.State = SelfUpdater.State.Idle,
         val tokenInput: String = "",
         val tokenTest: TokenTest? = null,
+        val tokenRejected: Boolean = false,
         val localVersion: String = "0",
     )
 
@@ -50,6 +51,7 @@ class SettingsViewModel(
             selfUpdate = update,
             tokenInput = input,
             tokenTest = test,
+            tokenRejected = githubApi.tokenRejected,
             localVersion = selfUpdater.localVersionName(),
         )
     }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), UiState())
@@ -106,7 +108,12 @@ class SettingsViewModel(
         viewModelScope.launch {
             tokenTest.value = TokenTest.TESTING
             tokenTest.value = try {
-                if (githubApi.validateToken(token)) TokenTest.VALID else TokenTest.INVALID
+                if (githubApi.validateToken(token)) {
+                    githubApi.clearTokenRejected()
+                    TokenTest.VALID
+                } else {
+                    TokenTest.INVALID
+                }
             } catch (e: SourceException) {
                 TokenTest.NETWORK
             }

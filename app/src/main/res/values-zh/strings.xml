@@ -147,6 +147,7 @@
     <string name="settings_token_valid">✓ Token 有效</string>
     <string name="settings_token_invalid">✗ 401 · Token 无效</string>
     <string name="settings_token_network_error">网络错误</string>
+    <string name="settings_token_rejected">Token 已被 GitHub 拒绝（401）· 当前按匿名模式请求</string>
     <string name="settings_notifications">新版本通知</string>
     <string name="settings_notif_permission_banner">通知权限未授予</string>
     <string name="settings_notif_grant">去开启</string>

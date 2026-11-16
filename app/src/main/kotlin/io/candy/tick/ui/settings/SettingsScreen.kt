@@ -182,6 +182,14 @@ fun SettingsScreen(onBack: () -> Unit) {
                         .fillMaxWidth()
                         .padding(horizontal = 16.dp, vertical = 8.dp),
                 )
+                if (state.tokenRejected) {
+                    Text(
+                        text = stringResource(R.string.settings_token_rejected),
+                        style = MiuixTheme.textStyles.footnote1,
+                        color = scheme.onErrorContainer,
+                        modifier = Modifier.padding(start = 16.dp, end = 16.dp, bottom = 4.dp),
+                    )
+                }
                 Row(
                     modifier = Modifier.padding(start = 16.dp, end = 16.dp, bottom = 14.dp),
                     verticalAlignment = Alignment.CenterVertically,

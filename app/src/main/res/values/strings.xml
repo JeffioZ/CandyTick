@@ -157,6 +157,7 @@
     <string name="settings_token_valid">✓ Token valid</string>
     <string name="settings_token_invalid">✗ 401 · Token invalid</string>
     <string name="settings_token_network_error">Network error</string>
+    <string name="settings_token_rejected">Token was rejected by GitHub (401) · requests are running anonymously</string>
     <string name="settings_notifications">New version notifications</string>
     <string name="settings_notif_permission_banner">Notification permission not granted</string>
     <string name="settings_notif_grant">Allow</string>

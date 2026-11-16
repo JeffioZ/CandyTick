@@ -35,9 +35,19 @@ class GitHubApi(private val tokenProvider: () -> String?) {
         .callTimeout(TIMEOUT_S, TimeUnit.SECONDS) // 整体超时 15s（四类失败约定）
         .build()
 
+    /** Token 被 GitHub 拒绝（401）过：已自动降级匿名，设置页提示用户清理 */
+    @Volatile
+    var tokenRejected: Boolean = false
+        private set
+
+    /** 换新 Token 验证通过后清除降级标记 */
+    fun clearTokenRejected() {
+        tokenRejected = false
+    }
+
     suspend fun repoInfo(owner: String, repo: String, etag: String? = null): RepoInfoResult =
         withContext(Dispatchers.IO) {
-            val response = execute(request(apiUrl("repos", owner, repo), etag))
+            val response = executeAuthenticated(request(apiUrl("repos", owner, repo), etag))
             response.use {
                 checkHttp(it)
                 when (it.code) {
@@ -61,7 +71,7 @@ class GitHubApi(private val tokenProvider: () -> String?) {
                 .addQueryParameter("per_page", PER_PAGE.toString())
                 .addQueryParameter("page", page.toString())
                 .build()
-            val response = execute(request(url, etag = null))
+            val response = executeAuthenticated(request(url, etag = null))
             response.use {
                 checkHttp(it)
                 json.decodeFromString<List<GhCommit>>(it.body.string()).map { c ->
@@ -82,7 +92,7 @@ class GitHubApi(private val tokenProvider: () -> String?) {
                 .addQueryParameter("per_page", PER_PAGE.toString())
                 .addQueryParameter("page", page.toString())
                 .build()
-            val response = execute(request(url, etag = null))
+            val response = executeAuthenticated(request(url, etag = null))
             response.use {
                 checkHttp(it)
                 json.decodeFromString<List<GhRelease>>(it.body.string()).map { r ->
@@ -110,7 +120,7 @@ class GitHubApi(private val tokenProvider: () -> String?) {
             .addQueryParameter("q", query.trim())
             .addQueryParameter("per_page", "20")
             .build()
-        val response = execute(request(url, etag = null))
+        val response = executeAuthenticated(request(url, etag = null))
         response.use {
             checkHttp(it)
             json.decodeFromString<GhSearch>(it.body.string()).items.map { gh ->
@@ -126,7 +136,7 @@ class GitHubApi(private val tokenProvider: () -> String?) {
             val request = Request.Builder().url(url).apply {
                 tokenProvider()?.takeIf { it.isNotBlank() }?.let { header("Authorization", "Bearer $it") }
             }.build()
-            execute(request).use { response ->
+            executeAuthenticated(request).use { response ->
                 checkHttp(response)
                 val body = response.body
                 val total = body.contentLength()
@@ -182,6 +192,19 @@ class GitHubApi(private val tokenProvider: () -> String?) {
         throw SourceException(SourceError.Timeout, e)
     } catch (e: IOException) {
         throw SourceException(SourceError.NetworkUnreachable, e)
+    }
+
+    /**
+     * 坏 Token 自愈：带 Authorization 的请求收到 401 时，摘掉凭证匿名重发一次，
+     * 无效 Token 不阻断任何功能（validateToken 除外——它的职责就是测试凭证）。
+     */
+    private fun executeAuthenticated(request: Request): Response {
+        val response = execute(request)
+        if (response.code != 401 || request.header("Authorization") == null) return response
+        response.close()
+        tokenRejected = true
+        val anonymous = request.newBuilder().removeHeader("Authorization").build()
+        return execute(anonymous)
     }
 
     private fun checkHttp(response: Response) {
