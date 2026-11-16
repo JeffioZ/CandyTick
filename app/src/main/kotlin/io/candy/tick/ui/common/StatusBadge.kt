@@ -86,10 +86,6 @@ fun InaccessibleBadge(modifier: Modifier = Modifier) {
     )
 }
 
-/** 限流横幅里复用的恢复时间提示色 */
-@Composable
-fun badgeErrorText(): Color = MiuixTheme.colorScheme.onErrorContainer
-
 @Composable
 private fun BadgeContainer(
     container: Color,

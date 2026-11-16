@@ -36,7 +36,6 @@ import io.candy.tick.ui.common.CandyIcons
 import io.candy.tick.ui.common.PrimaryButton
 import io.candy.tick.ui.common.sourceErrorText
 import kotlinx.coroutines.flow.collect
-import top.yukonga.miuix.kmp.basic.Button
 import top.yukonga.miuix.kmp.basic.Card
 import top.yukonga.miuix.kmp.basic.Icon
 import top.yukonga.miuix.kmp.basic.IconButton
@@ -136,6 +135,14 @@ fun AddScreen(
                     text = stringResource(R.string.add_search_failed),
                     style = MiuixTheme.textStyles.footnote1,
                     color = MiuixTheme.colorScheme.onErrorContainer,
+                )
+            } else if (state.searched && !state.searching && state.results.isEmpty() &&
+                state.preview is AddViewModel.PreviewState.Idle
+            ) {
+                Text(
+                    text = stringResource(R.string.add_search_empty),
+                    style = MiuixTheme.textStyles.footnote1,
+                    color = MiuixTheme.colorScheme.onBackgroundVariant,
                 )
             }
 

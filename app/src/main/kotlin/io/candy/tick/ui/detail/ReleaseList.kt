@@ -31,7 +31,6 @@ import io.candy.tick.ui.common.PrimaryButton
 import io.candy.tick.ui.common.RelTimeText
 import io.candy.tick.ui.theme.MonoTokenStyle
 import io.candy.tick.util.ApkPicker
-import top.yukonga.miuix.kmp.basic.Button
 import top.yukonga.miuix.kmp.basic.Card
 import top.yukonga.miuix.kmp.basic.LinearProgressIndicator
 import top.yukonga.miuix.kmp.basic.Text
@@ -170,7 +169,7 @@ private fun ReleaseCard(
                         if (download.assetName == selected?.name) {
                             TextButton(
                                 text = stringResource(R.string.download_retry),
-                                onClick = { selected?.let { onRetry(release, it) } },
+                                onClick = { onRetry(release, selected) },
                             )
                         }
                     }

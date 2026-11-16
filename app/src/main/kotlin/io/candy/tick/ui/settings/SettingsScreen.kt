@@ -40,13 +40,11 @@ import io.candy.tick.data.model.ThemeMode
 import io.candy.tick.ui.common.CandyIcons
 import io.candy.tick.ui.common.PrimaryButton
 import io.candy.tick.ui.theme.MonoTokenStyle
-import top.yukonga.miuix.kmp.basic.Button
 import top.yukonga.miuix.kmp.basic.Card
 import top.yukonga.miuix.kmp.basic.Icon
 import top.yukonga.miuix.kmp.basic.IconButton
 import top.yukonga.miuix.kmp.basic.Scaffold
 import top.yukonga.miuix.kmp.basic.SmallTopAppBar
-import top.yukonga.miuix.kmp.basic.Switch
 import top.yukonga.miuix.kmp.basic.Text
 import top.yukonga.miuix.kmp.basic.TextField
 import top.yukonga.miuix.kmp.basic.TextButton

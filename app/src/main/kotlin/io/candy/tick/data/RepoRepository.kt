@@ -89,10 +89,6 @@ class RepoRepository(
         s.copy(repos = s.repos.map { if (it.id == id) it.copy(linkedPackage = packageName) else it })
     }
 
-    suspend fun setNoteName(id: Long, noteName: String?) = store.update { s ->
-        s.copy(repos = s.repos.map { if (it.id == id) it.copy(noteName = noteName) else it })
-    }
-
     /** 「下载保留」记录（安装失败不删，可直接重装） */
     suspend fun setDownloadedApk(id: Long, apk: io.candy.tick.data.model.DownloadedApk?) = store.update { s ->
         s.copy(repos = s.repos.map { if (it.id == id) it.copy(downloadedApk = apk) else it })

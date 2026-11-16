@@ -24,18 +24,4 @@ object RelTime {
             else -> RelSpan(seconds / (365L * 86_400), RelUnit.YEAR)
         }
     }
-
-    /** 供通知等非 Compose 场景使用的近似文案（跟随系统语言粗分中英） */
-    fun format(past: Instant, now: Instant, zh: Boolean): String {
-        val s = spanOf(past, now)
-        if (s.isNow) return if (zh) "刚刚" else "just now"
-        return when (s.unit) {
-            RelUnit.MINUTE -> if (zh) "${s.value} 分钟前" else "${s.value} min ago"
-            RelUnit.HOUR -> if (zh) "${s.value} 小时前" else "${s.value} h ago"
-            RelUnit.DAY -> if (zh) "${s.value} 天前" else "${s.value} d ago"
-            RelUnit.MONTH -> if (zh) "${s.value} 个月前" else "${s.value} mo ago"
-            RelUnit.YEAR -> if (zh) "${s.value} 年前" else "${s.value} y ago"
-            null -> ""
-        }
-    }
 }

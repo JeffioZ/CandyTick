@@ -32,6 +32,7 @@ class AddViewModel(private val repository: RepoRepository) : ViewModel() {
         val preview: PreviewState = PreviewState.Idle,
         val duplicate: Boolean = false,
         val searching: Boolean = false,
+        val searched: Boolean = false, // 已完成过一次搜索（区分「还没搜」与「无结果」）
         val results: List<RepoInfo> = emptyList(),
         val searchFailed: Boolean = false,
         val linkedPackage: String? = null,
@@ -52,12 +53,10 @@ class AddViewModel(private val repository: RepoRepository) : ViewModel() {
     private var fetchingKey: String? = null
 
     fun onInput(text: String) {
-        _state.update { it.copy(input = text, searchFailed = false) }
+        _state.update { it.copy(input = text, searchFailed = false, searched = false) }
         val parsed = UrlParser.parse(text)
         if (parsed == null) {
-            val looksTried = text.isNotBlank() && (
-                text.contains("github.com", true) || text.startsWith("http", true) || text.contains('/', true)
-                )
+            val looksTried = UrlParser.looksLikeUrl(text)
             _state.update {
                 it.copy(
                     parseError = looksTried,
@@ -86,7 +85,7 @@ class AddViewModel(private val repository: RepoRepository) : ViewModel() {
                 if (results == null) {
                     it.copy(searching = false, searchFailed = true)
                 } else {
-                    it.copy(searching = false, results = results)
+                    it.copy(searching = false, searched = true, results = results)
                 }
             }
         }

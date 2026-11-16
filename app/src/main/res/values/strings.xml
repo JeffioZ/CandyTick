@@ -133,6 +133,9 @@
     <string name="download_retry">Download failed · retry (file kept)</string>
     <string name="download_progress_percent">%1$d%%</string>
     <string name="install_apk">Install</string>
+    <string name="install_done">Installed</string>
+    <string name="install_failed_format">Install failed: %1$s</string>
+    <string name="install_signature_mismatch">Signature mismatch — uninstall the existing app first (common when mixing F-Droid and GitHub builds)</string>
 
     <!-- 通知 -->
     <string name="notif_channel_release">New versions</string>

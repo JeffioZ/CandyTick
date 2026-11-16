@@ -1,13 +1,13 @@
 package io.candy.tick.ui.detail
 
 import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
-import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
@@ -35,8 +35,8 @@ import io.candy.tick.ui.common.StatusBadge
 import io.candy.tick.ui.common.relTimeString
 import io.candy.tick.ui.common.sourceErrorText
 import io.candy.tick.ui.theme.MonoTokenStyle
+import io.candy.tick.data.InstallManager
 import io.candy.tick.data.model.statusAt
-import java.io.File
 import top.yukonga.miuix.kmp.basic.Card
 import top.yukonga.miuix.kmp.basic.Icon
 import top.yukonga.miuix.kmp.basic.IconButton
@@ -44,6 +44,8 @@ import top.yukonga.miuix.kmp.basic.MiuixScrollBehavior
 import top.yukonga.miuix.kmp.basic.PullToRefresh
 import top.yukonga.miuix.kmp.basic.Scaffold
 import top.yukonga.miuix.kmp.basic.SmallTopAppBar
+import top.yukonga.miuix.kmp.basic.SnackbarHost
+import top.yukonga.miuix.kmp.basic.SnackbarHostState
 import top.yukonga.miuix.kmp.basic.Text
 import top.yukonga.miuix.kmp.basic.TextButton
 import top.yukonga.miuix.kmp.basic.rememberPullToRefreshState
@@ -67,18 +69,32 @@ fun DetailScreen(repoId: Long, onBack: () -> Unit) {
     val pullState = rememberPullToRefreshState()
     val scrollBehavior = MiuixScrollBehavior(rememberTopAppBarState())
     var showAppPicker by remember { mutableStateOf(false) }
-    val context = LocalContext.current
+    val snackbar = remember { SnackbarHostState() }
+    val doneMsg = stringResource(R.string.install_done)
+    val failedMsg = stringResource(R.string.install_failed_format)
+    val mismatchMsg = stringResource(R.string.install_signature_mismatch)
 
     LaunchedEffect(Unit) {
         vm.events.collect { event ->
             when (event) {
-                is DetailViewModel.Event.InstallResultEvent -> Unit // 结果就地呈现（ReleaseList 内提示）
+                is DetailViewModel.Event.InstallResultEvent -> when (val r = event.result) {
+                    is InstallManager.InstallResult.Success -> snackbar.showSnackbar(doneMsg)
+                    is InstallManager.InstallResult.Failed -> snackbar.showSnackbar(
+                        if (r.signatureMismatch) {
+                            mismatchMsg
+                        } else {
+                            failedMsg.format(r.message ?: "")
+                        },
+                    )
+                    InstallManager.InstallResult.PendingUserAction -> Unit // 系统确认界面已接管
+                }
             }
         }
     }
 
     val repo = state.repo
-    Scaffold(
+    Box(modifier = Modifier.fillMaxSize()) {
+        Scaffold(
         topBar = {
             SmallTopAppBar(
                 color = androidx.compose.ui.graphics.Color.Transparent,
@@ -149,6 +165,17 @@ fun DetailScreen(repoId: Long, onBack: () -> Unit) {
                     }
                 }
             }
+        }
+    }
+
+        // 安装结果 / 撤销类反馈覆盖层
+        Box(
+            modifier = Modifier
+                .fillMaxSize()
+                .padding(bottom = 24.dp),
+            contentAlignment = Alignment.BottomCenter,
+        ) {
+            SnackbarHost(state = snackbar)
         }
     }
 
@@ -279,9 +306,9 @@ private fun HeaderCard(
             }
 
             // 下载保留：直接重装
-            if (repo.downloadedApk != null) {
+            repo.downloadedApk?.let { record ->
                 TextButton(
-                    text = stringResource(R.string.detail_reinstall, repo.downloadedApk!!.fileName),
+                    text = stringResource(R.string.detail_reinstall, record.fileName),
                     onClick = onInstallDownloaded,
                 )
             }

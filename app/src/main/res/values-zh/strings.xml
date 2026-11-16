@@ -123,6 +123,9 @@
     <string name="download_retry">下载失败 · 重试（文件已保留）</string>
     <string name="download_progress_percent">%1$d%%</string>
     <string name="install_apk">安装</string>
+    <string name="install_done">安装成功</string>
+    <string name="install_failed_format">安装失败：%1$s</string>
+    <string name="install_signature_mismatch">签名不一致，请先卸载原有应用再安装（常见于 F-Droid 与 GitHub 渠道混装）</string>
 
     <!-- 通知 -->
     <string name="notif_channel_release">新版本</string>
