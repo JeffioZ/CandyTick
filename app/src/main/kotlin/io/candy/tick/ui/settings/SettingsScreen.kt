@@ -41,6 +41,32 @@ import io.candy.tick.data.SelfUpdater
 import io.candy.tick.data.model.SyncFrequency
 import io.candy.tick.ui.common.CandyIcons
 import io.candy.tick.ui.common.PrimaryButton
+import io.candy.tick.ui.theme.ChipAmber
+import io.candy.tick.ui.theme.ChipGreen
+import io.candy.tick.ui.theme.ChipMint
+import io.candy.tick.ui.theme.ChipPeriwinkle
+import io.candy.tick.ui.theme.ChipPink
+import io.candy.tick.ui.theme.ChipSand
+import io.candy.tick.ui.theme.ChipSky
+import io.candy.tick.ui.theme.ChipSlate
+import io.candy.tick.ui.theme.ChipTeal
+import io.candy.tick.ui.theme.ChipViolet
+import top.yukonga.miuix.kmp.icon.MiuixIcons
+import top.yukonga.miuix.kmp.icon.extended.Alarm
+import top.yukonga.miuix.kmp.icon.extended.CloudFill
+import top.yukonga.miuix.kmp.icon.extended.Download
+import top.yukonga.miuix.kmp.icon.extended.Email
+import top.yukonga.miuix.kmp.icon.extended.File
+import top.yukonga.miuix.kmp.icon.extended.Import
+import top.yukonga.miuix.kmp.icon.extended.Info
+import top.yukonga.miuix.kmp.icon.extended.Link
+import top.yukonga.miuix.kmp.icon.extended.Messages
+import top.yukonga.miuix.kmp.icon.extended.Refresh
+import top.yukonga.miuix.kmp.icon.extended.Share
+import top.yukonga.miuix.kmp.icon.extended.Theme
+import top.yukonga.miuix.kmp.icon.extended.Timer
+import top.yukonga.miuix.kmp.icon.extended.Unlock
+import top.yukonga.miuix.kmp.icon.extended.Update
 import top.yukonga.miuix.kmp.basic.Icon
 import top.yukonga.miuix.kmp.basic.IconButton
 import top.yukonga.miuix.kmp.basic.LinearProgressIndicator
@@ -185,18 +211,24 @@ fun SettingsScreen(onBack: () -> Unit) {
                 SettingRow(
                     title = stringResource(R.string.settings_sync_frequency),
                     value = frequencyLabel(state.settings.syncFrequency),
+                    icon = MiuixIcons.Timer,
+                    iconTint = ChipTeal,
                     onClick = { showFrequencySheet = true },
                 )
                 RowDivider()
                 SwitchRow(
                     title = stringResource(R.string.settings_sync_wifi_only),
                     checked = state.settings.wifiOnly,
+                    icon = MiuixIcons.CloudFill,
+                    iconTint = ChipSky,
                     onChange = vm::setWifiOnly,
                 )
                 RowDivider()
                 SwitchRow(
                     title = stringResource(R.string.settings_sync_charging_only),
                     checked = state.settings.chargingOnly,
+                    icon = MiuixIcons.Alarm,
+                    iconTint = ChipAmber,
                     onChange = vm::setChargingOnly,
                 )
             }
@@ -206,6 +238,8 @@ fun SettingsScreen(onBack: () -> Unit) {
                 SwitchRow(
                     title = stringResource(R.string.settings_notifications),
                     checked = state.settings.notificationsEnabled,
+                    icon = MiuixIcons.Messages,
+                    iconTint = ChipPink,
                     onChange = vm::setNotifications,
                 )
             }
@@ -213,6 +247,8 @@ fun SettingsScreen(onBack: () -> Unit) {
             // ── 权限 ──
             SettingsGroup(title = stringResource(R.string.settings_permission_group)) {
                 SettingRow(
+                    icon = MiuixIcons.Unlock,
+                    iconTint = ChipGreen,
                     title = stringResource(R.string.settings_perm_install_unknown),
                     summary = stringResource(R.string.settings_perm_install_summary),
                     value = permText(if (installPermGranted) 1 else 0),
@@ -220,6 +256,8 @@ fun SettingsScreen(onBack: () -> Unit) {
                 )
                 RowDivider()
                 SettingRow(
+                    icon = MiuixIcons.Email,
+                    iconTint = ChipViolet,
                     title = stringResource(R.string.settings_perm_notifications),
                     value = when {
                         Build.VERSION.SDK_INT < 33 -> permText(2)
@@ -321,10 +359,14 @@ fun SettingsScreen(onBack: () -> Unit) {
                 SettingRow(
                     title = stringResource(R.string.settings_current_version_title),
                     value = state.localVersion,
+                    icon = MiuixIcons.Info,
+                    iconTint = ChipSlate,
                     valueMonospace = true,
                 )
                 RowDivider()
                 SettingRow(
+                    icon = MiuixIcons.Update,
+                    iconTint = ChipMint,
                     title = stringResource(R.string.settings_check_update),
                     value = checkStateValue(state.selfUpdate),
                     valueMonospace = state.selfUpdate is SelfUpdater.State.NewVersion,
@@ -334,6 +376,8 @@ fun SettingsScreen(onBack: () -> Unit) {
                 SwitchRow(
                     title = stringResource(R.string.settings_self_update_check),
                     checked = state.settings.selfUpdateCheck,
+                    icon = MiuixIcons.Refresh,
+                    iconTint = ChipTeal,
                     onChange = vm::setSelfUpdateCheck,
                 )
                 RowDivider()
@@ -342,6 +386,8 @@ fun SettingsScreen(onBack: () -> Unit) {
                     checked = state.settings.selfUpdateAutoDownload,
                     onChange = vm::setSelfUpdateDownload,
                     summary = stringResource(R.string.settings_silent_hint),
+                    icon = MiuixIcons.Download,
+                    iconTint = ChipSky,
                 )
                 SelfUpdateActions(state = state, vm = vm)
             }
@@ -349,6 +395,8 @@ fun SettingsScreen(onBack: () -> Unit) {
             // ── 备份 ──
             SettingsGroup(title = stringResource(R.string.settings_backup_group)) {
                 SettingRow(
+                    icon = MiuixIcons.Share,
+                    iconTint = ChipAmber,
                     title = stringResource(R.string.settings_export),
                     summary = stringResource(R.string.settings_export_summary),
                     onClick = {
@@ -366,6 +414,8 @@ fun SettingsScreen(onBack: () -> Unit) {
                 )
                 RowDivider()
                 SettingRow(
+                    icon = MiuixIcons.Import,
+                    iconTint = ChipSand,
                     title = stringResource(R.string.settings_import),
                     summary = stringResource(R.string.settings_import_summary),
                     onClick = { importLauncher.launch(arrayOf("application/json")) },
@@ -375,12 +425,16 @@ fun SettingsScreen(onBack: () -> Unit) {
             // ── 关于 ──
             SettingsGroup(title = stringResource(R.string.settings_about_group)) {
                 SettingRow(
+                    icon = MiuixIcons.Link,
+                    iconTint = ChipPeriwinkle,
                     title = stringResource(R.string.settings_github_repo),
                     value = "JeffioZ/CandyTick",
                     onClick = { openUrl(REPO_URL) },
                 )
                 RowDivider()
                 SettingRow(
+                    icon = MiuixIcons.File,
+                    iconTint = ChipSlate,
                     title = stringResource(R.string.settings_license),
                     value = "GPL-3.0",
                     onClick = { openUrl(LICENSE_URL) },

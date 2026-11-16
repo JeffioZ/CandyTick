@@ -105,6 +105,20 @@ val StatusLowDark = StatusColors(Color(0xFFFB923C), Color(0xFF32231A), Color(0xF
 val StatusAbandonedDark = StatusColors(Color(0xFFF87171), Color(0xFF35201F), Color(0xFFF87171))
 val StatusArchivedDark = StatusColors(Color(0xFFB0B0B0), Color(0xFF232825), Color(0xFFA7B3AD))
 
+// —— 设置行彩色芯片（LibChecker 风格：实色圆角方块 + 白色 glyph）——
+val ChipBlue = Color(0xFF5B8DEF)
+val ChipTeal = Color(0xFF38B9A6)
+val ChipSky = Color(0xFF64A9F5)
+val ChipAmber = Color(0xFFF6B352)
+val ChipPink = Color(0xFFF07FA0)
+val ChipGreen = Color(0xFF66C18C)
+val ChipViolet = Color(0xFF9B8CF4)
+val ChipMint = Color(0xFF2EB488)
+val ChipSlate = Color(0xFF7A93B5)
+val ChipOrange = Color(0xFFEF8B4E)
+val ChipSand = Color(0xFFC9A45C)
+val ChipPeriwinkle = Color(0xFF7E9Bf0)
+
 // —— 首字母头像 8 色环（135° 双色渐变，owner hash 取色）——
 val AvatarPalette = listOf(
     Color(0xFFF59E0B) to Color(0xFFD97706),

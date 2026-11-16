@@ -17,6 +17,7 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clip
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
@@ -76,6 +77,8 @@ internal fun SettingRow(
     summary: String? = null,
     value: String? = null,
     valueMonospace: Boolean = false,
+    icon: androidx.compose.ui.graphics.vector.ImageVector? = null,
+    iconTint: androidx.compose.ui.graphics.Color = androidx.compose.ui.graphics.Color.Unspecified,
     onClick: (() -> Unit)? = null,
     trailing: (@Composable () -> Unit)? = null,
 ) {
@@ -93,9 +96,27 @@ internal fun SettingRow(
                     Modifier
                 },
             )
-            .padding(horizontal = 16.dp, vertical = 14.dp),
+            .padding(horizontal = 16.dp, vertical = 12.dp),
         verticalAlignment = Alignment.CenterVertically,
     ) {
+        if (icon != null) {
+            // LibChecker 式彩色圆角芯片（实色底 + 白 glyph）
+            Box(
+                modifier = Modifier
+                    .size(30.dp)
+                    .clip(androidx.compose.foundation.shape.RoundedCornerShape(9.dp))
+                    .background(iconTint),
+                contentAlignment = Alignment.Center,
+            ) {
+                Icon(
+                    imageVector = icon,
+                    contentDescription = null,
+                    tint = androidx.compose.ui.graphics.Color.White,
+                    modifier = Modifier.size(18.dp),
+                )
+            }
+            Spacer(Modifier.width(14.dp))
+        }
         Column(modifier = Modifier.weight(1f)) {
             Text(
                 text = title,
@@ -131,10 +152,14 @@ internal fun SwitchRow(
     checked: Boolean,
     onChange: (Boolean) -> Unit,
     summary: String? = null,
+    icon: androidx.compose.ui.graphics.vector.ImageVector? = null,
+    iconTint: androidx.compose.ui.graphics.Color = androidx.compose.ui.graphics.Color.Unspecified,
 ) {
     SettingRow(
         title = title,
         summary = summary,
+        icon = icon,
+        iconTint = iconTint,
         onClick = { onChange(!checked) }, // 整行可点，Switch 自身消费自己的点击
         trailing = { Switch(checked = checked, onCheckedChange = onChange) },
     )
