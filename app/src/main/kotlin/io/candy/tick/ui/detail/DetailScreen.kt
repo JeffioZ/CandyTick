@@ -73,6 +73,7 @@ import top.yukonga.miuix.kmp.icon.extended.More
 @Composable
 fun DetailScreen(repoId: Long, onBack: () -> Unit) {
     val app = LocalContext.current.applicationContext as CandyTickApp
+    // DEBUG: 最简版，隔离闪退——注释掉 ViewModel，只渲染静态内容
     val vm: DetailViewModel = viewModel(key = "detail-$repoId") {
         DetailViewModel(
             repoId = repoId,

@@ -39,8 +39,6 @@ import kotlinx.coroutines.launch
 import io.candy.tick.CandyTickApp
 import io.candy.tick.R
 import io.candy.tick.data.model.ThemeMode
-import androidx.appcompat.app.AppCompatDelegate
-import androidx.core.os.LocaleListCompat
 import io.candy.tick.data.Notifications
 import io.candy.tick.data.SelfUpdater
 import io.candy.tick.data.model.SyncFrequency
@@ -539,10 +537,7 @@ fun SettingsScreen(onBack: () -> Unit) {
 }
 
 
-private fun languageTag(): String {
-    val locales = AppCompatDelegate.getApplicationLocales()
-    return locales.toLanguageTags().substringBefore('-')
-}
+private fun languageTag(): String = "" // TODO: 从 Settings 读取
 
 @Composable
 private fun languageLabel(): String = when (languageTag()) {
@@ -552,12 +547,8 @@ private fun languageLabel(): String = when (languageTag()) {
 }
 
 private fun applyLanguage(tag: String) {
-    val locales = if (tag.isEmpty()) {
-        LocaleListCompat.getEmptyLocaleList()
-    } else {
-        LocaleListCompat.forLanguageTags(tag)
-    }
-    AppCompatDelegate.setApplicationLocales(locales)
+    // TODO: 改用 Configuration.setLocale + activity.recreate()（不依赖 AppCompat）
+    // 暂时禁用，验证 AppCompatActivity 是否为闪退根因
 }
 
 @Composable
