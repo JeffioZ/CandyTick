@@ -87,9 +87,16 @@ fun ListScreen(
         Scaffold(
             topBar = {
                 SmallTopAppBar(
-                    title = stringResource(R.string.app_name),
+                    title = "", // 标题走 navigationIcon 槽位实现左对齐（内置 title 居中）
                     color = Color.Transparent,
                     scrollBehavior = scrollBehavior,
+                    navigationIcon = {
+                        Text(
+                            text = stringResource(R.string.app_name),
+                            style = MiuixTheme.textStyles.title4,
+                            color = scheme.onBackground,
+                        )
+                    },
                     actions = {
                         IconButton(onClick = {
                             if (showSearch) vm.setQuery("")
