@@ -15,6 +15,7 @@ import io.candy.tick.data.model.ReleaseRecord
 import io.candy.tick.data.model.TrackedRepo
 import io.candy.tick.data.model.statusAt
 import java.io.File
+import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.channels.Channel
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -22,6 +23,7 @@ import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.receiveAsFlow
 import kotlinx.coroutines.flow.update
+import kotlinx.coroutines.withContext
 import kotlinx.coroutines.launch
 
 class DetailViewModel(
@@ -44,6 +46,7 @@ class DetailViewModel(
         val refreshing: Boolean = false,
         val banner: SourceError? = null,
         val tab: DetailTab = DetailTab.COMMITS,
+        val linkSuggestion: Pair<String, String>? = null, // (包名, 应用标签)，唯一匹配时才有
         val commits: List<CommitRecord> = emptyList(),
         val commitsLoading: Boolean = false,
         val commitsEnd: Boolean = false,
@@ -58,6 +61,7 @@ class DetailViewModel(
 
     sealed interface Event {
         data class InstallResultEvent(val result: InstallManager.InstallResult) : Event
+        data class AutoLinked(val packageName: String) : Event
     }
 
     /** 详情页浏览页签：提交 / 版本（一次只看一类，长列表不再互相挤压） */
@@ -69,6 +73,7 @@ class DetailViewModel(
     private val _state = MutableStateFlow(UiState())
     val state: StateFlow<UiState> = _state.asStateFlow()
 
+    private val appContext: Context = context.applicationContext
     private val apkDir: File = File(context.filesDir, "apks/$repoId")
     private val tab = MutableStateFlow(DetailTab.COMMITS)
     private var commitsPage = 1
@@ -79,6 +84,10 @@ class DetailViewModel(
             repository.state.collect { s ->
                 _state.update {
                     it.copy(repo = s.repos.find { r -> r.id == repoId }, snapshot = s.snapshots[repoId])
+                }
+                if (_state.value.linkSuggestion == null && _state.value.repo?.linkedPackage == null) {
+                    val suggestion = computeLinkSuggestion()
+                    _state.update { if (it.linkSuggestion == null) it.copy(linkSuggestion = suggestion) else it }
                 }
             }
         }
@@ -200,11 +209,49 @@ class DetailViewModel(
                     apkDir.listFiles()?.filter { it != file }?.forEach { it.delete() }
                     _state.update { it.copy(download = DownloadState.Done(asset.name, file)) }
                     repository.setDownloadedApk(repoId, DownloadedApk(asset.name, release.tagName))
+                    // 下载到手 → 免费读包名自动关联（getPackageArchiveInfo，零依赖）
+                    autoLinkFromApk(file)
                 },
                 onFailure = {
                     _state.update { it.copy(download = DownloadState.Failed(asset.name)) } // 文件已保留，可重试
                 },
             )
+        }
+    }
+
+    /** APK 已在本机：直接解析包名，未关联时自动建立关联 */
+    private fun autoLinkFromApk(file: File) {
+        if (_state.value.repo?.linkedPackage != null) return
+        val info = runCatching {
+            appContext.packageManager.getPackageArchiveInfo(file.absolutePath, 0)
+        }.getOrNull()
+        val pkg = info?.packageName?.takeIf { it.isNotBlank() } ?: return
+        viewModelScope.launch {
+            repository.setLinkedPackage(repoId, pkg)
+            _events.send(Event.AutoLinked(pkg))
+        }
+    }
+
+    /** 未关联时的智能建议：仓库名 ↔ 已装应用标签 归一化唯一匹配（零网络） */
+    private suspend fun computeLinkSuggestion(): Pair<String, String>? = withContext(Dispatchers.Default) {
+        val name = _state.value.repo?.repo?.lowercase()?.replace(Regex("[^a-z0-9]"), "") ?: return@withContext null
+        if (name.isBlank()) return@withContext null
+        runCatching {
+            val pm = appContext.packageManager
+            val intent = android.content.Intent(android.content.Intent.ACTION_MAIN)
+                .addCategory(android.content.Intent.CATEGORY_LAUNCHER)
+            pm.queryIntentActivities(intent, 0)
+                .asSequence()
+                .filter { it.activityInfo.packageName != appContext.packageName }
+                .map { it to it.loadLabel(pm).toString() }
+                .filter { (ri, label) ->
+                    val norm = label.lowercase().replace(Regex("[^a-z0-9]"), "")
+                    norm == name || (norm.length >= 3 && (norm.contains(name) || name.contains(norm)))
+                }
+                .distinctBy { (ri, _) -> ri.activityInfo.packageName }
+                .toList()
+        }.getOrNull()?.let { matches ->
+            if (matches.size == 1) matches.first().let { (ri, label) -> ri.activityInfo.packageName to label } else null
         }
     }
 

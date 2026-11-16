@@ -118,6 +118,10 @@
     <string name="detail_issues">Issue %1$d</string>
     <string name="detail_last_push">最后提交 %1$s</string>
     <string name="detail_link_app">关联本机应用</string>
+    <string name="detail_link_app_other">选择其他应用</string>
+    <string name="detail_auto_link_hint">检测到本机已装「%1$s」，像是这个仓库的应用</string>
+    <string name="detail_link_suggest_action">关联</string>
+    <string name="detail_auto_linked">已自动关联：%1$s</string>
     <string name="detail_linked_app">已关联：%1$s</string>
     <string name="detail_unlink">解除关联</string>
     <string name="detail_reinstall">重装已下载的 %1$s</string>

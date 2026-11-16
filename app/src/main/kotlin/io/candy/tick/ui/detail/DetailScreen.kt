@@ -73,6 +73,7 @@ fun DetailScreen(repoId: Long, onBack: () -> Unit) {
     val doneMsg = stringResource(R.string.install_done)
     val failedMsg = stringResource(R.string.install_failed_format)
     val mismatchMsg = stringResource(R.string.install_signature_mismatch)
+    val autoLinkedFmt = stringResource(R.string.detail_auto_linked)
 
     LaunchedEffect(Unit) {
         vm.events.collect { event ->
@@ -88,6 +89,7 @@ fun DetailScreen(repoId: Long, onBack: () -> Unit) {
                     )
                     InstallManager.InstallResult.PendingUserAction -> Unit // 系统确认界面已接管
                 }
+                is DetailViewModel.Event.AutoLinked -> snackbar.showSnackbar(autoLinkedFmt.format(event.packageName))
             }
         }
     }
@@ -135,6 +137,7 @@ fun DetailScreen(repoId: Long, onBack: () -> Unit) {
                         state = state,
                         onChangeLinked = { showAppPicker = true },
                         onUnlink = { vm.setLinkedApp(null) },
+                        onLinkSuggestion = { state.linkSuggestion?.first?.let(vm::setLinkedApp) },
                         onInstallDownloaded = { repo?.let(vm::installDownloaded) },
                     )
                 }
@@ -227,6 +230,7 @@ private fun HeaderCard(
     state: DetailViewModel.UiState,
     onChangeLinked: () -> Unit,
     onUnlink: () -> Unit,
+    onLinkSuggestion: () -> Unit,
     onInstallDownloaded: () -> Unit,
 ) {
     val repo = state.repo ?: return
@@ -312,6 +316,21 @@ private fun HeaderCard(
                     )
                     TextButton(text = stringResource(R.string.detail_unlink), onClick = onUnlink)
                 }
+            } else if (state.linkSuggestion != null) {
+                // 智能建议：仓库名与已装应用标签唯一匹配 → 一键关联
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    Text(
+                        text = stringResource(R.string.detail_auto_link_hint, state.linkSuggestion!!.second),
+                        style = MiuixTheme.textStyles.footnote1,
+                        color = scheme.onBackgroundVariant,
+                        modifier = Modifier.weight(1f),
+                    )
+                    TextButton(
+                        text = stringResource(R.string.detail_link_suggest_action),
+                        onClick = onLinkSuggestion,
+                    )
+                }
+                TextButton(text = stringResource(R.string.detail_link_app_other), onClick = onChangeLinked)
             } else {
                 TextButton(text = stringResource(R.string.detail_link_app), onClick = onChangeLinked)
             }
