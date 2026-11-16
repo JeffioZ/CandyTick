@@ -1,13 +1,11 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
-    <!-- 实际观感由 Compose MiuixTheme 接管；XML 主题只负责窗口底与去标题栏。
-         AppCompatActivity（语言切换所需）要求 AppCompat 系父主题 -->
+    <!-- 实际观感由 Compose MiuixTheme 接管；XML 主题只负责窗口底与去标题栏 -->
     <style name="Theme.CandyTick" parent="android:Theme.Material.Light.NoActionBar">
         <item name="android:windowBackground">@color/candy_background_light</item>
     </style>
 
-    <!-- 系统 SplashScreen（12+ 原生；29~31 兼容层）：
-         专用透明底图标（无日夜变体），深绿底上两态一致沉浸 -->
+    <!-- 系统 SplashScreen：浅色 = 页面底色（无缝衔接）；深色见 values-night -->
     <style name="Theme.CandyTick.Splash" parent="Theme.SplashScreen">
         <item name="windowSplashScreenBackground">@color/candy_splash_bg</item>
         <item name="windowSplashScreenAnimatedIcon">@drawable/ic_splash_icon</item>

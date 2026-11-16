@@ -3,4 +3,12 @@
     <style name="Theme.CandyTick" parent="android:Theme.Material.NoActionBar">
         <item name="android:windowBackground">@color/candy_background_dark</item>
     </style>
+
+    <!-- 深色开屏：深夜绿砖底，薄荷环沉浸 -->
+    <style name="Theme.CandyTick.Splash" parent="Theme.SplashScreen">
+        <item name="windowSplashScreenBackground">@color/candy_splash_bg_dark</item>
+        <item name="windowSplashScreenAnimatedIcon">@drawable/ic_splash_icon</item>
+        <item name="postSplashScreenTheme">@style/Theme.CandyTick</item>
+        <item name="android:windowBackground">@color/candy_splash_bg_dark</item>
+    </style>
 </resources>
