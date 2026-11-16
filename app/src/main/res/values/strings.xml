@@ -20,6 +20,7 @@
     <string name="sort_last_push">Recently active</string>
     <string name="sort_status">Status</string>
     <string name="sort_name">A-Z</string>
+    <string name="sort_name_desc">Z-A</string>
     <string name="sort_updatable">Has update</string>
     <string name="sort_added">Recently added</string>
     <string name="remove_repo">Remove</string>
@@ -201,6 +202,7 @@
     <string name="settings_notifications">New version notifications</string>
 
     <!-- 权限 -->
+    <string name="settings_notifications_group">Notifications</string>
     <string name="settings_permission_group">Permissions</string>
     <string name="settings_perm_install_unknown">Install unknown apps</string>
     <string name="settings_perm_install_summary">Needed to install APKs and app updates</string>

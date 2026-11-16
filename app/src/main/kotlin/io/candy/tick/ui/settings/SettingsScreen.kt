@@ -11,6 +11,7 @@ import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
@@ -259,8 +260,8 @@ fun SettingsScreen(onBack: () -> Unit) {
                 )
             }
 
-            // ── 通知与权限 ──
-            SettingsGroup(title = stringResource(R.string.settings_permission_group)) {
+            // ── 通知 ──
+            SettingsGroup(title = stringResource(R.string.settings_notifications_group)) {
                 SwitchRow(
                     title = stringResource(R.string.settings_notifications),
                     checked = state.settings.notificationsEnabled,
@@ -268,7 +269,10 @@ fun SettingsScreen(onBack: () -> Unit) {
                     iconTint = ChipPink,
                     onChange = vm::setNotifications,
                 )
-                RowDivider()
+            }
+
+            // ── 权限 ──
+            SettingsGroup(title = stringResource(R.string.settings_permission_group)) {
                 SettingRow(
                     icon = MiuixIcons.Unlock,
                     iconTint = ChipGreen,
@@ -459,12 +463,15 @@ fun SettingsScreen(onBack: () -> Unit) {
                     style = MiuixTheme.textStyles.footnote1,
                     color = scheme.onBackgroundVariant,
                 )
-                // 输入框 + 眼睛图标叠加（标准密码字段模式）
-                Box(modifier = Modifier.fillMaxWidth()) {
+                // 输入框 + 眼睛按钮并排（不叠加）
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    verticalAlignment = Alignment.CenterVertically,
+                ) {
                     TextField(
                         value = state.tokenInput,
                         onValueChange = vm::onTokenInput,
-                        modifier = Modifier.fillMaxWidth(),
+                        modifier = Modifier.weight(1f),
                         visualTransformation = if (tokenVisible) {
                             androidx.compose.ui.text.input.VisualTransformation.None
                         } else {
@@ -474,19 +481,14 @@ fun SettingsScreen(onBack: () -> Unit) {
                             keyboardType = androidx.compose.ui.text.input.KeyboardType.Password,
                         ),
                     )
-                    IconButton(
-                        onClick = { tokenVisible = !tokenVisible },
-                        modifier = Modifier
-                            .align(Alignment.CenterEnd)
-                            .padding(end = 8.dp),
-                    ) {
+                    Spacer(Modifier.width(4.dp))
+                    IconButton(onClick = { tokenVisible = !tokenVisible }) {
                         Icon(
                             imageVector = if (tokenVisible) MiuixIcons.Hide else MiuixIcons.Show,
                             contentDescription = stringResource(
                                 if (tokenVisible) R.string.token_hide else R.string.token_show,
                             ),
                             tint = scheme.onBackgroundVariant,
-                            modifier = Modifier.size(20.dp),
                         )
                     }
                 }

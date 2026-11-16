@@ -20,6 +20,7 @@
     <string name="sort_last_push">最近活跃</string>
     <string name="sort_status">维护状态</string>
     <string name="sort_name">A-Z</string>
+    <string name="sort_name_desc">Z-A</string>
     <string name="sort_updatable">有更新</string>
     <string name="sort_added">新添加</string>
     <string name="remove_repo">移除</string>
@@ -191,6 +192,7 @@
     <string name="settings_notifications">新版本通知</string>
 
     <!-- 权限 -->
+    <string name="settings_notifications_group">通知</string>
     <string name="settings_permission_group">权限</string>
     <string name="settings_perm_install_unknown">安装未知应用</string>
     <string name="settings_perm_install_summary">安装 APK 与应用更新需要此权限</string>

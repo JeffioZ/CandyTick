@@ -58,6 +58,11 @@ internal fun SortSheet(
                 onClick = { onSelect(SortMode.NAME) },
             )
             SortRow(
+                label = stringResource(R.string.sort_name_desc),
+                selected = current == SortMode.NAME_DESC,
+                onClick = { onSelect(SortMode.NAME_DESC) },
+            )
+            SortRow(
                 label = stringResource(R.string.sort_updatable),
                 selected = current == SortMode.UPDATABLE,
                 onClick = { onSelect(SortMode.UPDATABLE) },
