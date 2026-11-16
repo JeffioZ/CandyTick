@@ -98,7 +98,10 @@ fun ListScreen(
                                 tint = scheme.onBackground,
                             )
                         }
-                        IconButton(onClick = { showSearch = !showSearch }) {
+                        IconButton(onClick = {
+                            if (showSearch) vm.setQuery("") // 关闭搜索即取消过滤
+                            showSearch = !showSearch
+                        }) {
                             Icon(
                                 imageVector = MiuixIcons.Basic.Search,
                                 contentDescription = stringResource(R.string.action_search),
@@ -139,7 +142,13 @@ fun ListScreen(
                 modifier = Modifier.padding(padding),
             ) {
                 Column(modifier = Modifier.fillMaxSize()) {
-                    if (showSearch) {
+                    androidx.compose.animation.AnimatedVisibility(
+                        visible = showSearch,
+                        enter = androidx.compose.animation.expandVertically() +
+                            androidx.compose.animation.fadeIn(),
+                        exit = androidx.compose.animation.shrinkVertically() +
+                            androidx.compose.animation.fadeOut(),
+                    ) {
                         top.yukonga.miuix.kmp.basic.TextField(
                             value = state.query,
                             onValueChange = vm::setQuery,
