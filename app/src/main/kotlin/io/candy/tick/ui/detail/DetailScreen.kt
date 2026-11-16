@@ -1,5 +1,6 @@
 package io.candy.tick.ui.detail
 
+import io.candy.tick.util.CountFormat
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
@@ -374,17 +375,17 @@ private fun HeaderCard(
 
             Row(horizontalArrangement = Arrangement.spacedBy(16.dp)) {
                 Text(
-                    text = stringResource(R.string.detail_stars, snapshot?.stars ?: 0),
+                    text = stringResource(R.string.detail_stars, CountFormat.format(snapshot?.stars ?: 0)),
                     style = MiuixTheme.textStyles.footnote1,
                     color = scheme.onBackgroundVariant,
                 )
                 Text(
-                    text = stringResource(R.string.detail_forks, snapshot?.forks ?: 0),
+                    text = stringResource(R.string.detail_forks, CountFormat.format(snapshot?.forks ?: 0)),
                     style = MiuixTheme.textStyles.footnote1,
                     color = scheme.onBackgroundVariant,
                 )
                 Text(
-                    text = stringResource(R.string.detail_issues, snapshot?.openIssues ?: 0),
+                    text = stringResource(R.string.detail_issues, CountFormat.format(snapshot?.openIssues ?: 0)),
                     style = MiuixTheme.textStyles.footnote1,
                     color = scheme.onBackgroundVariant,
                 )

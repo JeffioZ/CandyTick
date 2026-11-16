@@ -1,5 +1,6 @@
 package io.candy.tick.ui.add
 
+import io.candy.tick.util.CountFormat
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
@@ -172,7 +173,7 @@ fun AddScreen(
                                     )
                                 }
                                 Text(
-                                    text = stringResource(R.string.add_stars, info.stars),
+                                    text = stringResource(R.string.add_stars, CountFormat.format(info.stars)),
                                     style = MiuixTheme.textStyles.footnote2,
                                     color = MiuixTheme.colorScheme.onBackgroundVariant,
                                 )
@@ -220,7 +221,7 @@ private fun PreviewCard(
                 )
             }
             Text(
-                text = stringResource(R.string.add_stars, info.stars),
+                text = stringResource(R.string.add_stars, CountFormat.format(info.stars)),
                 style = MiuixTheme.textStyles.footnote1,
                 color = scheme.onBackgroundVariant,
             )
