@@ -42,7 +42,6 @@ import androidx.core.os.LocaleListCompat
 import io.candy.tick.data.Notifications
 import io.candy.tick.data.SelfUpdater
 import io.candy.tick.data.model.SyncFrequency
-import io.candy.tick.ui.common.CandyIcons
 import io.candy.tick.ui.common.PrimaryButton
 import io.candy.tick.ui.theme.ChipAmber
 import io.candy.tick.ui.theme.ChipBlue
@@ -57,6 +56,8 @@ import io.candy.tick.ui.theme.ChipSlate
 import io.candy.tick.ui.theme.ChipTeal
 import io.candy.tick.ui.theme.ChipViolet
 import top.yukonga.miuix.kmp.icon.MiuixIcons
+import top.yukonga.miuix.kmp.icon.extended.Hide
+import top.yukonga.miuix.kmp.icon.extended.Show
 import top.yukonga.miuix.kmp.icon.extended.Alarm
 import top.yukonga.miuix.kmp.icon.extended.CloudFill
 import top.yukonga.miuix.kmp.icon.extended.Download
@@ -84,6 +85,7 @@ import top.yukonga.miuix.kmp.basic.TextField
 import top.yukonga.miuix.kmp.basic.TextButton
 import top.yukonga.miuix.kmp.theme.MiuixTheme
 import top.yukonga.miuix.kmp.window.WindowBottomSheet
+import top.yukonga.miuix.kmp.icon.extended.Back
 
 private const val REPO_URL = "https://github.com/JeffioZ/CandyTick"
 private const val LICENSE_URL = "https://github.com/JeffioZ/CandyTick/blob/main/LICENSE"
@@ -181,7 +183,7 @@ fun SettingsScreen(onBack: () -> Unit) {
                 navigationIcon = {
                     IconButton(onClick = onBack) {
                         Icon(
-                            imageVector = CandyIcons.Back,
+                            imageVector = MiuixIcons.Back,
                             contentDescription = null,
                             tint = scheme.onBackground,
                         )
@@ -469,7 +471,7 @@ fun SettingsScreen(onBack: () -> Unit) {
                     )
                     IconButton(onClick = { tokenVisible = !tokenVisible }) {
                         Icon(
-                            imageVector = if (tokenVisible) CandyIcons.VisibilityOff else CandyIcons.Visibility,
+                            imageVector = if (tokenVisible) MiuixIcons.Hide else MiuixIcons.Show,
                             contentDescription = stringResource(R.string.token_visibility_toggle),
                             tint = scheme.onBackgroundVariant,
                         )

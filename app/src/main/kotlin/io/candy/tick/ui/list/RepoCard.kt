@@ -1,6 +1,5 @@
 package io.candy.tick.ui.list
 
-import androidx.compose.animation.animateColorAsState
 import androidx.compose.animation.animateContentSize
 import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.foundation.Image
@@ -10,18 +9,13 @@ import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
-import androidx.compose.foundation.layout.IntrinsicSize
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
-import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
-import androidx.compose.foundation.layout.width
-import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
-import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.remember
@@ -37,7 +31,6 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import io.candy.tick.R
 import io.candy.tick.data.model.TrackedRepo
-import io.candy.tick.ui.common.CandyIcons
 import io.candy.tick.ui.common.InaccessibleBadge
 import io.candy.tick.ui.common.StatusBadge
 import io.candy.tick.ui.common.relTimeString
@@ -51,8 +44,11 @@ import top.yukonga.miuix.kmp.basic.IconButton
 import top.yukonga.miuix.kmp.basic.Icon
 import top.yukonga.miuix.kmp.basic.Text
 import top.yukonga.miuix.kmp.icon.MiuixIcons
-import top.yukonga.miuix.kmp.icon.basic.ArrowRight
+import top.yukonga.miuix.kmp.icon.extended.Delete
+import top.yukonga.miuix.kmp.icon.extended.ExpandMore
 import top.yukonga.miuix.kmp.theme.MiuixTheme
+import androidx.compose.foundation.layout.IntrinsicSize
+import androidx.compose.foundation.layout.width
 
 /** 首页仓库卡片：4dp 色条 + 图标 + 名称 + 徽章 + 相对时间；展开显示提交与版本行 */
 @Composable
@@ -66,14 +62,6 @@ fun RepoCard(
     modifier: Modifier = Modifier,
 ) {
     val scheme = MiuixTheme.colorScheme
-    val barColor by animateColorAsState(
-        targetValue = if (item.error != null) {
-            scheme.onErrorContainer
-        } else {
-            barColorOf(item)
-        },
-        label = "statusBar",
-    )
     Card(
         modifier = modifier
             .fillMaxWidth()
@@ -82,15 +70,7 @@ fun RepoCard(
         onClick = onClick,
     ) {
         Row(modifier = Modifier.height(IntrinsicSize.Min)) {
-            // 左侧状态色条
-            Box(
-                modifier = Modifier
-                    .width(3.dp)
-                    .fillMaxHeight()
-                    .padding(vertical = 12.dp)
-                    .background(barColor.copy(alpha = 0.85f), CircleShape),
-            )
-            Column(modifier = Modifier.padding(start = 12.dp, end = 14.dp, top = 12.dp, bottom = 12.dp)) {
+            Column(modifier = Modifier.padding(start = 14.dp, end = 14.dp, top = 10.dp, bottom = 10.dp)) {
                 Row(verticalAlignment = Alignment.CenterVertically) {
                     RepoIcon(repo = item.repo)
                     Spacer(Modifier.width(12.dp))
@@ -109,10 +89,10 @@ fun RepoCard(
                     if (item.error != null) InaccessibleBadge() else StatusBadge(item.status)
                 }
 
-                Spacer(Modifier.height(8.dp))
+                Spacer(Modifier.height(6.dp))
                 // 整行可点切换展开（尾部旋转箭头提供可视暗示），展开后露出删除
                 val chevronAngle by animateFloatAsState(
-                    targetValue = if (expanded) 90f else 0f,
+                    targetValue = if (expanded) 180f else 0f,
                     label = "cardChevron",
                 )
                 Row(
@@ -135,14 +115,14 @@ fun RepoCard(
                     if (expanded) {
                         IconButton(onClick = onRemove, modifier = Modifier.size(28.dp)) {
                             Icon(
-                                imageVector = CandyIcons.Delete,
+                                imageVector = MiuixIcons.Delete,
                                 contentDescription = stringResource(R.string.remove_repo),
                                 tint = scheme.onBackgroundVariant,
                             )
                         }
                     }
                     Icon(
-                        imageVector = MiuixIcons.Basic.ArrowRight,
+                        imageVector = MiuixIcons.ExpandMore,
                         contentDescription = null,
                         tint = scheme.onBackgroundVariant,
                         modifier = Modifier
@@ -158,12 +138,6 @@ fun RepoCard(
             }
         }
     }
-}
-
-@Composable
-private fun barColorOf(item: ListViewModel.RepoListItem): Color {
-    val colors = io.candy.tick.ui.common.statusColorOf(item.status) ?: return MiuixTheme.colorScheme.outline
-    return colors.bar
 }
 
 @Composable

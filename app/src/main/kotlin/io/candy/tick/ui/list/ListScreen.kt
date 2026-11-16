@@ -27,7 +27,6 @@ import androidx.lifecycle.viewmodel.compose.viewModel
 import io.candy.tick.CandyTickApp
 import io.candy.tick.R
 import io.candy.tick.data.SourceError
-import io.candy.tick.ui.common.CandyIcons
 import io.candy.tick.ui.common.SecondaryButton
 import io.candy.tick.ui.common.sourceErrorText
 import top.yukonga.miuix.kmp.basic.Card
@@ -47,6 +46,8 @@ import top.yukonga.miuix.kmp.basic.rememberTopAppBarState
 import top.yukonga.miuix.kmp.icon.MiuixIcons
 import top.yukonga.miuix.kmp.icon.basic.ArrowUpDown
 import top.yukonga.miuix.kmp.icon.basic.Search
+import top.yukonga.miuix.kmp.icon.extended.Add
+import top.yukonga.miuix.kmp.icon.extended.Settings
 import top.yukonga.miuix.kmp.theme.MiuixTheme
 
 @Composable
@@ -110,7 +111,7 @@ fun ListScreen(
                         }
                         IconButton(onClick = onOpenSettings) {
                             Icon(
-                                imageVector = CandyIcons.Settings,
+                                imageVector = MiuixIcons.Settings,
                                 contentDescription = stringResource(R.string.settings_title),
                                 tint = scheme.onBackground,
                             )
@@ -121,7 +122,7 @@ fun ListScreen(
             floatingActionButton = {
                 FloatingActionButton(onClick = onAdd) {
                     Icon(
-                        imageVector = CandyIcons.Add,
+                        imageVector = MiuixIcons.Add,
                         contentDescription = stringResource(R.string.add_repo),
                         tint = scheme.onPrimary,
                     )
@@ -172,7 +173,7 @@ fun ListScreen(
                                 top = 4.dp,
                                 bottom = 96.dp,
                             ),
-                            verticalArrangement = Arrangement.spacedBy(10.dp),
+                            verticalArrangement = Arrangement.spacedBy(8.dp),
                         ) {
                         items(state.items, key = { it.repo.id }) { item ->
                             SwipeToDelete(

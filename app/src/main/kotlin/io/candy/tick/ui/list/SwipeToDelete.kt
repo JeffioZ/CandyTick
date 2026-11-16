@@ -18,11 +18,11 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.unit.IntOffset
 import androidx.compose.ui.unit.dp
-import io.candy.tick.ui.common.CandyIcons
 import kotlinx.coroutines.launch
 import kotlin.math.roundToInt
 import top.yukonga.miuix.kmp.basic.Icon
 import top.yukonga.miuix.kmp.theme.MiuixTheme
+import top.yukonga.miuix.kmp.icon.extended.Delete
 
 /**
  * 安卓规范「滑动删除」：左右滑超阈值触发 onDelete（配合上层 Snackbar 撤销），
@@ -48,7 +48,7 @@ fun SwipeToDelete(
             contentAlignment = Alignment.CenterEnd,
         ) {
             Icon(
-                imageVector = CandyIcons.Delete,
+                imageVector = top.yukonga.miuix.kmp.icon.MiuixIcons.Delete,
                 contentDescription = null,
                 tint = scheme.onErrorContainer,
                 modifier = Modifier

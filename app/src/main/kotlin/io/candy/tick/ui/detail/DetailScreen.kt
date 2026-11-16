@@ -33,7 +33,6 @@ import androidx.lifecycle.viewmodel.compose.viewModel
 import io.candy.tick.CandyTickApp
 import io.candy.tick.R
 import io.candy.tick.ui.common.AppPickerSheet
-import io.candy.tick.ui.common.CandyIcons
 import io.candy.tick.ui.common.RelTimeText
 import io.candy.tick.ui.common.RepoIconBlock
 import io.candy.tick.ui.common.StatusBadge
@@ -58,6 +57,12 @@ import top.yukonga.miuix.kmp.basic.TextButton
 import top.yukonga.miuix.kmp.basic.rememberPullToRefreshState
 import top.yukonga.miuix.kmp.basic.rememberTopAppBarState
 import top.yukonga.miuix.kmp.theme.MiuixTheme
+import top.yukonga.miuix.kmp.icon.MiuixIcons
+import top.yukonga.miuix.kmp.icon.extended.Back
+import top.yukonga.miuix.kmp.icon.extended.Link
+import top.yukonga.miuix.kmp.icon.extended.Delete
+import top.yukonga.miuix.kmp.icon.extended.Add
+import top.yukonga.miuix.kmp.icon.extended.More
 
 @Composable
 fun DetailScreen(repoId: Long, onBack: () -> Unit) {
@@ -118,7 +123,7 @@ fun DetailScreen(repoId: Long, onBack: () -> Unit) {
                     navigationIcon = {
                         IconButton(onClick = onBack) {
                             Icon(
-                                imageVector = CandyIcons.Back,
+                                imageVector = MiuixIcons.Back,
                                 contentDescription = null,
                                 tint = scheme.onBackground,
                             )
@@ -140,7 +145,7 @@ fun DetailScreen(repoId: Long, onBack: () -> Unit) {
                             },
                         ) {
                             Icon(
-                                imageVector = CandyIcons.OpenInNew,
+                                imageVector = MiuixIcons.Link,
                                 contentDescription = stringResource(R.string.open_in_browser),
                                 tint = scheme.onBackground,
                             )
@@ -148,7 +153,7 @@ fun DetailScreen(repoId: Long, onBack: () -> Unit) {
                         // 移除订阅（destructive → 确认对话框；底部文字按钮已移除）
                         IconButton(onClick = { showRemoveDialog = true }) {
                             Icon(
-                                imageVector = CandyIcons.Delete,
+                                imageVector = MiuixIcons.Delete,
                                 contentDescription = stringResource(R.string.detail_remove_repo),
                                 tint = scheme.onBackground,
                             )
@@ -446,15 +451,23 @@ private fun HeaderCard(
                         overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis,
                         modifier = Modifier.weight(1f),
                     )
-                    Spacer(Modifier.width(8.dp))
+                    Spacer(Modifier.width(6.dp))
                     Icon(
-                        imageVector = CandyIcons.Add,
+                        imageVector = MiuixIcons.Add,
                         contentDescription = null,
                         tint = scheme.primaryVariant,
                         modifier = Modifier.size(18.dp),
                     )
+                    Spacer(Modifier.width(2.dp))
+                    IconButton(onClick = onChangeLinked, modifier = Modifier.size(26.dp)) {
+                        Icon(
+                            imageVector = MiuixIcons.More,
+                            contentDescription = stringResource(R.string.detail_link_app_other),
+                            tint = scheme.onBackgroundVariant,
+                            modifier = Modifier.size(18.dp),
+                        )
+                    }
                 }
-                TextButton(text = stringResource(R.string.detail_link_app_other), onClick = onChangeLinked)
             } else {
                 TextButton(text = stringResource(R.string.detail_link_app), onClick = onChangeLinked)
             }
@@ -469,7 +482,7 @@ private fun HeaderCard(
                     Spacer(Modifier.width(8.dp))
                     IconButton(onClick = onDeleteDownloaded, modifier = Modifier.size(32.dp)) {
                         Icon(
-                            imageVector = CandyIcons.Delete,
+                            imageVector = MiuixIcons.Delete,
                             contentDescription = stringResource(R.string.detail_delete_download),
                             tint = scheme.onBackgroundVariant,
                         )

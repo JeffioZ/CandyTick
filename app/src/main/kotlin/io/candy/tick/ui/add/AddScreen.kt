@@ -32,7 +32,6 @@ import androidx.lifecycle.viewmodel.compose.viewModel
 import io.candy.tick.CandyTickApp
 import io.candy.tick.R
 import io.candy.tick.ui.common.AppPickerSheet
-import io.candy.tick.ui.common.CandyIcons
 import io.candy.tick.ui.common.PrimaryButton
 import io.candy.tick.ui.common.sourceErrorText
 import kotlinx.coroutines.flow.collect
@@ -44,6 +43,8 @@ import top.yukonga.miuix.kmp.basic.SmallTopAppBar
 import top.yukonga.miuix.kmp.basic.Text
 import top.yukonga.miuix.kmp.basic.TextField
 import top.yukonga.miuix.kmp.theme.MiuixTheme
+import top.yukonga.miuix.kmp.icon.MiuixIcons
+import top.yukonga.miuix.kmp.icon.extended.Back
 
 @Composable
 fun AddScreen(
@@ -74,7 +75,7 @@ fun AddScreen(
                 navigationIcon = {
                     IconButton(onClick = onClose) {
                         Icon(
-                            imageVector = CandyIcons.Back,
+                            imageVector = top.yukonga.miuix.kmp.icon.MiuixIcons.Back,
                             contentDescription = null,
                             tint = MiuixTheme.colorScheme.onBackground,
                         )
