@@ -97,7 +97,6 @@ fun RepoCard(
                         .fillMaxWidth()
                         .clickable(
                             interactionSource = remember { MutableInteractionSource() },
-                            indication = null,
                         ) { onToggle() },
                     verticalAlignment = Alignment.CenterVertically,
                 ) {

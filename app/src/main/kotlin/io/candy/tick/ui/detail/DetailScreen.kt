@@ -469,7 +469,6 @@ private fun HeaderCard(
                         .background(scheme.secondaryContainer)
                         .clickable(
                             interactionSource = remember { androidx.compose.foundation.interaction.MutableInteractionSource() },
-                            indication = null,
                         ) { onLinkSuggestion() }
                         .padding(horizontal = 12.dp, vertical = 10.dp),
                     verticalAlignment = Alignment.CenterVertically,
