@@ -1,11 +1,10 @@
 package io.candy.tick.ui.settings
 
 import androidx.compose.foundation.background
-import androidx.compose.foundation.clickable
-import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.ColumnScope
+import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxWidth
@@ -13,17 +12,20 @@ import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.runtime.Composable
-import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import io.candy.tick.R
 import io.candy.tick.data.model.SyncFrequency
 import io.candy.tick.ui.theme.MonoTokenStyle
+import top.yukonga.miuix.kmp.basic.BasicComponent
 import top.yukonga.miuix.kmp.basic.Card
 import top.yukonga.miuix.kmp.basic.Icon
 import top.yukonga.miuix.kmp.basic.Switch
@@ -33,8 +35,8 @@ import top.yukonga.miuix.kmp.icon.basic.Check
 import top.yukonga.miuix.kmp.theme.MiuixTheme
 
 /**
- * 设置页分组列表体系（HyperOS 设置观感）：
- * 组标题 13sp 次要色 → 16dp 圆角卡片 → 行内边距 16dp、单行高 ≈52dp → 行间 1dp 分隔线（与文字起点对齐）
+ * 设置页分组列表体系：基于 Miuix BasicComponent 构建（不自绘行布局），
+ * 只补两层薄封装：图标芯片 + 等宽 value。
  */
 
 @Composable
@@ -70,6 +72,26 @@ internal fun RowDivider() {
     )
 }
 
+/** 图标芯片（LibChecker 风格：实色圆角方块 + 白 glyph） */
+@Composable
+private fun IconChip(icon: ImageVector, tint: Color) {
+    Box(
+        modifier = Modifier
+            .size(30.dp)
+            .clip(RoundedCornerShape(9.dp))
+            .background(tint),
+        contentAlignment = Alignment.Center,
+    ) {
+        Icon(
+            imageVector = icon,
+            contentDescription = null,
+            tint = Color.White,
+            modifier = Modifier.size(18.dp),
+        )
+    }
+}
+
+/** 设置行：BasicComponent + 图标芯片 + 等宽 value 支持 */
 @Composable
 internal fun SettingRow(
     title: String,
@@ -77,73 +99,36 @@ internal fun SettingRow(
     summary: String? = null,
     value: String? = null,
     valueMonospace: Boolean = false,
-    icon: androidx.compose.ui.graphics.vector.ImageVector? = null,
-    iconTint: androidx.compose.ui.graphics.Color = androidx.compose.ui.graphics.Color.Unspecified,
+    icon: ImageVector? = null,
+    iconTint: Color = Color.Unspecified,
     onClick: (() -> Unit)? = null,
     trailing: (@Composable () -> Unit)? = null,
 ) {
-    Row(
-        modifier = modifier
-            .fillMaxWidth()
-            .then(
-                if (onClick != null) {
-                    Modifier.clickable(
-                        interactionSource = remember { MutableInteractionSource() },
-                        indication = null,
-                        onClick = onClick,
-                    )
-                } else {
-                    Modifier
-                },
-            )
-            .padding(horizontal = 16.dp, vertical = 12.dp),
-        verticalAlignment = Alignment.CenterVertically,
-    ) {
-        if (icon != null) {
-            // LibChecker 式彩色圆角芯片（实色底 + 白 glyph）
-            Box(
-                modifier = Modifier
-                    .size(30.dp)
-                    .clip(androidx.compose.foundation.shape.RoundedCornerShape(9.dp))
-                    .background(iconTint),
-                contentAlignment = Alignment.Center,
-            ) {
-                Icon(
-                    imageVector = icon,
-                    contentDescription = null,
-                    tint = androidx.compose.ui.graphics.Color.White,
-                    modifier = Modifier.size(18.dp),
-                )
-            }
-            Spacer(Modifier.width(14.dp))
-        }
-        Column(modifier = Modifier.weight(1f)) {
-            Text(
-                text = title,
-                style = MiuixTheme.textStyles.body1,
-                color = MiuixTheme.colorScheme.onBackground,
-            )
-            if (summary != null) {
-                Text(
-                    text = summary,
-                    style = MiuixTheme.textStyles.footnote1,
+    BasicComponent(
+        modifier = modifier.fillMaxWidth(),
+        title = title,
+        summary = summary,
+        startAction = icon?.let {
+            { IconChip(icon = it, tint = iconTint) }
+        },
+        endActions = {
+            Spacer(Modifier.width(12.dp))
+            when {
+                trailing != null -> trailing()
+                value != null -> Text(
+                    text = value,
+                    style = if (valueMonospace) MonoTokenStyle else MiuixTheme.textStyles.body2,
                     color = MiuixTheme.colorScheme.onBackgroundVariant,
-                    modifier = Modifier.padding(top = 2.dp),
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis,
                 )
             }
-        }
-        Spacer(Modifier.width(12.dp))
-        when {
-            trailing != null -> trailing()
-            value != null -> Text(
-                text = value,
-                style = if (valueMonospace) MonoTokenStyle else MiuixTheme.textStyles.body2,
-                color = MiuixTheme.colorScheme.onBackgroundVariant,
-                maxLines = 1,
-                overflow = TextOverflow.Ellipsis,
-            )
-        }
-    }
+        },
+        onClick = onClick,
+        insideMargin = PaddingValues(
+            start = 16.dp, end = 16.dp, top = 12.dp, bottom = 12.dp,
+        ),
+    )
 }
 
 @Composable
@@ -152,15 +137,15 @@ internal fun SwitchRow(
     checked: Boolean,
     onChange: (Boolean) -> Unit,
     summary: String? = null,
-    icon: androidx.compose.ui.graphics.vector.ImageVector? = null,
-    iconTint: androidx.compose.ui.graphics.Color = androidx.compose.ui.graphics.Color.Unspecified,
+    icon: ImageVector? = null,
+    iconTint: Color = Color.Unspecified,
 ) {
     SettingRow(
         title = title,
         summary = summary,
         icon = icon,
         iconTint = iconTint,
-        onClick = { onChange(!checked) }, // 整行可点，Switch 自身消费自己的点击
+        onClick = { onChange(!checked) },
         trailing = { Switch(checked = checked, onCheckedChange = onChange) },
     )
 }
@@ -176,19 +161,24 @@ internal fun frequencyLabel(frequency: SyncFrequency): String = stringResource(
 )
 
 @Composable
+internal fun FrequencyRow(
+    option: SyncFrequency,
+    current: SyncFrequency,
+    onSelect: (SyncFrequency) -> Unit,
+    onDone: () -> Unit,
+) {
+    OptionRow(frequencyLabel(option), option == current) {
+        onSelect(option); onDone()
+    }
+}
+
+/** 选择行（底部弹层用）：BasicComponent + Check 图标 */
+@Composable
 internal fun OptionRow(label: String, selected: Boolean, onClick: () -> Unit) {
-    Row(
-        modifier = Modifier
-            .fillMaxWidth()
-            .clickable(
-                interactionSource = remember { MutableInteractionSource() },
-                indication = null,
-                onClick = onClick,
-            )
-            .padding(horizontal = 16.dp, vertical = 14.dp),
-        verticalAlignment = Alignment.CenterVertically,
-    ) {
-        Box(modifier = Modifier.size(20.dp), contentAlignment = Alignment.Center) {
+    BasicComponent(
+        modifier = Modifier.fillMaxWidth(),
+        title = label,
+        endActions = {
             if (selected) {
                 Icon(
                     imageVector = MiuixIcons.Basic.Check,
@@ -196,50 +186,10 @@ internal fun OptionRow(label: String, selected: Boolean, onClick: () -> Unit) {
                     tint = MiuixTheme.colorScheme.primaryVariant,
                 )
             }
-        }
-        Spacer(Modifier.width(10.dp))
-        Text(
-            text = label,
-            style = MiuixTheme.textStyles.body1,
-            color = if (selected) MiuixTheme.colorScheme.primaryVariant else MiuixTheme.colorScheme.onBackground,
-        )
-    }
-}
-
-@Composable
-internal fun FrequencyRow(
-    option: SyncFrequency,
-    current: SyncFrequency,
-    onSelect: (SyncFrequency) -> Unit,
-    onDone: () -> Unit,
-) {
-    Row(
-        modifier = Modifier
-            .fillMaxWidth()
-            .clickable(
-                interactionSource = remember { MutableInteractionSource() },
-                indication = null,
-            ) {
-                onSelect(option)
-                onDone()
-            }
-            .padding(horizontal = 16.dp, vertical = 14.dp),
-        verticalAlignment = Alignment.CenterVertically,
-    ) {
-        Box(modifier = Modifier.size(20.dp), contentAlignment = Alignment.Center) {
-            if (option == current) {
-                Icon(
-                    imageVector = MiuixIcons.Basic.Check,
-                    contentDescription = null,
-                    tint = MiuixTheme.colorScheme.primaryVariant,
-                )
-            }
-        }
-        Spacer(Modifier.width(10.dp))
-        Text(
-            text = frequencyLabel(option),
-            style = MiuixTheme.textStyles.body1,
-            color = if (option == current) MiuixTheme.colorScheme.primaryVariant else MiuixTheme.colorScheme.onBackground,
-        )
-    }
+        },
+        onClick = onClick,
+        insideMargin = PaddingValues(
+            start = 16.dp, end = 16.dp, top = 14.dp, bottom = 14.dp,
+        ),
+    )
 }

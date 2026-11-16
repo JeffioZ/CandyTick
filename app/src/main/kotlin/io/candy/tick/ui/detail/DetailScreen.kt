@@ -213,15 +213,22 @@ fun DetailScreen(repoId: Long, onBack: () -> Unit) {
                         }
                     }
                 }
-                // 页签：提交历史 / 版本发布（分段控件，与全局选择器同体系）
+                // 页签：提交历史 / 版本发布（Miuix TabRow）
                 item {
-                    DetailTabBar(
+                    top.yukonga.miuix.kmp.basic.TabRow(
                         tabs = listOf(
-                            stringResource(R.string.detail_commits) to DetailViewModel.DetailTab.COMMITS,
-                            stringResource(R.string.detail_releases) to DetailViewModel.DetailTab.RELEASES,
+                            stringResource(R.string.detail_commits),
+                            stringResource(R.string.detail_releases),
                         ),
-                        selected = state.tab,
-                        onSelect = vm::setTab,
+                        selectedTabIndex = if (state.tab == DetailViewModel.DetailTab.COMMITS) 0 else 1,
+                        onTabSelected = { index ->
+                            vm.setTab(
+                                if (index == 0) DetailViewModel.DetailTab.COMMITS else DetailViewModel.DetailTab.RELEASES,
+                            )
+                        },
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(horizontal = 16.dp, vertical = 6.dp),
                     )
                 }
                 if (state.tab == DetailViewModel.DetailTab.COMMITS) {
@@ -506,63 +513,6 @@ private fun HeaderCard(
             }
 
 
-        }
-    }
-}
-
-/** 详情页分段页签：胶囊轨道 + 滑动选中浮层（250ms），与全局选择器同观感 */
-@Composable
-private fun DetailTabBar(
-    tabs: List<Pair<String, DetailViewModel.DetailTab>>,
-    selected: DetailViewModel.DetailTab,
-    onSelect: (DetailViewModel.DetailTab) -> Unit,
-) {
-    val scheme = MiuixTheme.colorScheme
-    val shape = androidx.compose.foundation.shape.RoundedCornerShape(50)
-    Box(
-        modifier = Modifier
-            .fillMaxWidth()
-            .padding(horizontal = 16.dp, vertical = 8.dp)
-            .clip(shape)
-            .background(scheme.secondaryVariant)
-            .padding(3.dp),
-    ) {
-        androidx.compose.foundation.layout.BoxWithConstraints {
-            val segWidth = maxWidth / tabs.size
-            val index = tabs.indexOfFirst { it.second == selected }.coerceAtLeast(0)
-            val offset by androidx.compose.animation.core.animateDpAsState(
-                targetValue = segWidth * index,
-                animationSpec = androidx.compose.animation.core.tween(durationMillis = 250),
-                label = "detailTabOffset",
-            )
-            Box(
-                modifier = Modifier
-                    .offset(x = offset)
-                    .width(segWidth)
-                    .height(34.dp)
-                    .clip(shape)
-                    .background(scheme.surface),
-            )
-            Row(modifier = Modifier.fillMaxWidth()) {
-                tabs.forEach { (label, tab) ->
-                    Box(
-                        modifier = Modifier
-                            .weight(1f)
-                            .height(34.dp)
-                            .clickable(
-                                interactionSource = remember { androidx.compose.foundation.interaction.MutableInteractionSource() },
-                                indication = null,
-                            ) { onSelect(tab) },
-                        contentAlignment = Alignment.Center,
-                    ) {
-                        Text(
-                            text = label,
-                            color = if (tab == selected) scheme.onSurface else scheme.onSurfaceContainerVariant,
-                            style = MiuixTheme.textStyles.body2,
-                        )
-                    }
-                }
-            }
         }
     }
 }
