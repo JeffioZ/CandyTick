@@ -55,6 +55,12 @@
     <!-- 相对时间（过去 → … ago；未来 → in …） -->
     <string name="rel_now">just now</string>
     <string name="rel_until_soon">any moment now</string>
+
+    <!-- 下拉刷新（Miuix PullToRefresh 状态文案，跟库默认英文对位） -->
+    <string name="refresh_pull_down">Pull down to refresh</string>
+    <string name="refresh_release">Release to refresh</string>
+    <string name="refresh_refreshing">Refreshing…</string>
+    <string name="refresh_done">Refreshed</string>
     <plurals name="rel_minutes">
         <item quantity="one">%d min ago</item>
         <item quantity="other">%d mins ago</item>

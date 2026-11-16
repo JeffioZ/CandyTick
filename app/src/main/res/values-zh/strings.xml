@@ -55,6 +55,12 @@
     <!-- 相对时间（过去 → …前；未来 → …后） -->
     <string name="rel_now">刚刚</string>
     <string name="rel_until_soon">马上</string>
+
+    <!-- 下拉刷新 -->
+    <string name="refresh_pull_down">下拉刷新</string>
+    <string name="refresh_release">释放刷新</string>
+    <string name="refresh_refreshing">正在刷新…</string>
+    <string name="refresh_done">已刷新</string>
     <plurals name="rel_minutes">
         <item quantity="other">%d 分钟前</item>
     </plurals>
