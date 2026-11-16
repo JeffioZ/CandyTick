@@ -56,7 +56,7 @@ object Notifications {
             PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE,
         )
         val notification = NotificationCompat.Builder(context, CHANNEL_NEW_RELEASE)
-            .setSmallIcon(android.R.drawable.ic_dialog_info) // 定稿图标第 10 步替换
+            .setSmallIcon(R.drawable.ic_notification)
             .setContentTitle(repoName)
             .setContentText(context.getString(R.string.notif_new_release, tag))
             .setContentIntent(pending)
@@ -79,7 +79,7 @@ object Notifications {
             PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE,
         )
         val notification = NotificationCompat.Builder(context, CHANNEL_SELF_UPDATE)
-            .setSmallIcon(android.R.drawable.ic_dialog_info)
+            .setSmallIcon(R.drawable.ic_notification)
             .setContentTitle(context.getString(R.string.notif_update_ready_title))
             .setContentText(context.getString(R.string.notif_update_ready, tag))
             .setContentIntent(pending)

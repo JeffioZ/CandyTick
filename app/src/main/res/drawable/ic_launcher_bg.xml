@@ -1,0 +1,8 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- 深夜绿砖（icon-echo-dark 底）：135° 渐变 #1D3F2F → #102B1F -->
+<shape xmlns:android="http://schemas.android.com/apk/res/android">
+    <gradient
+        android:angle="45"
+        android:startColor="#1D3F2F"
+        android:endColor="#102B1F" />
+</shape>

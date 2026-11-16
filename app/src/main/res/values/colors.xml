@@ -1,9 +1,9 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
-    <!-- 占位启动图标底色 = Candy Mint 浅色态主色；定稿图标在施工第 10 步替换 -->
-    <color name="ic_launcher_background">#18936C</color>
-
     <!-- 窗口底色（避免冷启动白闪，与 Compose 主题 background 同值） -->
     <color name="candy_background_light">#F4F6F5</color>
     <color name="candy_background_dark">#0D100E</color>
+
+    <!-- 开屏底色（深夜绿砖深端） -->
+    <color name="candy_splash_bg">#102B1F</color>
 </resources>

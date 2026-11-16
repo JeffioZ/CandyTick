@@ -1,0 +1,8 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- 奶油砖（icon-echo-light 底）：暖奶油渐变 #F8F5EC → #EDEBDD -->
+<shape xmlns:android="http://schemas.android.com/apk/res/android">
+    <gradient
+        android:angle="45"
+        android:startColor="#F8F5EC"
+        android:endColor="#EDEBDD" />
+</shape>
