@@ -1,5 +1,5 @@
 <?xml version="1.0" encoding="utf-8"?>
-<!-- 开屏图标（系统 SplashScreen API）：环 + 糖珠，无底 -->
+<!-- 开屏图标（系统 SplashScreen API）：不透明自包含「深夜绿砖」，杜绝透明底被光栅化为黑方块 -->
 <vector xmlns:android="http://schemas.android.com/apk/res/android"
     xmlns:aapt="http://schemas.android.com/aapt"
     android:width="108dp"
@@ -7,18 +7,36 @@
     android:viewportWidth="108"
     android:viewportHeight="108">
 
+    <!-- 砖体底（135° 渐变，与启动图标一致） -->
+    <path android:pathData="M0,0 h108 v108 h-108 Z">
+        <aapt:attr name="android:fillColor">
+            <gradient
+                android:type="linear"
+                android:startX="0"
+                android:startY="0"
+                android:endX="108"
+                android:endY="108">
+                <item android:offset="0" android:color="#FF1D3F2F" />
+                <item android:offset="1" android:color="#FF102B1F" />
+            </gradient>
+        </aapt:attr>
+    </path>
+
+    <!-- 外涟漪（弱） -->
     <path
         android:pathData="M54,54 m-28.5,0 a28.5,28.5 0 1,1 57,0 a28.5,28.5 0 1,1 -57,0"
         android:fillColor="#00000000"
         android:strokeColor="#6B4ADE9E"
         android:strokeWidth="4.5" />
 
+    <!-- 内涟漪（强） -->
     <path
         android:pathData="M54,54 m-19.5,0 a19.5,19.5 0 1,1 39,0 a19.5,19.5 0 1,1 -39,0"
         android:fillColor="#00000000"
         android:strokeColor="#EB4ADE9E"
         android:strokeWidth="7" />
 
+    <!-- 荧光糖珠 -->
     <path android:pathData="M54,54 m-10.5,0 a10.5,10.5 0 1,1 21,0 a10.5,10.5 0 1,1 -21,0">
         <aapt:attr name="android:fillColor">
             <gradient
