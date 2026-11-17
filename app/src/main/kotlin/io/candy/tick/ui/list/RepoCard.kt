@@ -1,6 +1,5 @@
 package io.candy.tick.ui.list
 
-import androidx.compose.animation.animateContentSize
 import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
@@ -12,9 +11,9 @@ import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxWidth
-import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
@@ -33,11 +32,11 @@ import io.candy.tick.R
 import io.candy.tick.data.model.TrackedRepo
 import io.candy.tick.ui.common.InaccessibleBadge
 import io.candy.tick.ui.common.StatusBadge
+import io.candy.tick.ui.common.VersionStatusLine
 import io.candy.tick.ui.common.relTimeString
 import io.candy.tick.ui.common.toImageBitmap
 import io.candy.tick.ui.theme.AvatarPalette
 import io.candy.tick.ui.theme.MonoTokenStyle
-import io.candy.tick.util.VersionCompare
 import kotlin.math.abs
 import top.yukonga.miuix.kmp.basic.Card
 import top.yukonga.miuix.kmp.basic.Icon
@@ -45,7 +44,6 @@ import top.yukonga.miuix.kmp.basic.Text
 import top.yukonga.miuix.kmp.icon.MiuixIcons
 import top.yukonga.miuix.kmp.icon.extended.ExpandMore
 import top.yukonga.miuix.kmp.theme.MiuixTheme
-import androidx.compose.foundation.layout.IntrinsicSize
 import androidx.compose.foundation.layout.width
 
 /** 首页仓库卡片：4dp 色条 + 图标 + 名称 + 徽章 + 相对时间；展开显示提交与版本行 */
@@ -61,13 +59,11 @@ fun RepoCard(
 ) {
     val scheme = MiuixTheme.colorScheme
     Card(
-        modifier = modifier
-            .fillMaxWidth()
-            .animateContentSize(),
+        modifier = modifier.fillMaxWidth(),
         cornerRadius = 16.dp,
         onClick = onClick,
     ) {
-        Row(modifier = Modifier.height(IntrinsicSize.Min)) {
+        Row(modifier = Modifier) {
             Column(modifier = Modifier.padding(horizontal = 16.dp, vertical = 12.dp)) {
                 Row(verticalAlignment = Alignment.CenterVertically) {
                     RepoIcon(repo = item.repo)
@@ -88,7 +84,7 @@ fun RepoCard(
                 }
 
                 Spacer(Modifier.height(6.dp))
-                // 整行可点切换展开（尾部旋转箭头提供可视暗示），展开后露出删除
+                // 整行可点切换展开（尾部旋转箭头提供可视暗示）；竖向留白保证触控高度
                 val chevronAngle by animateFloatAsState(
                     targetValue = if (expanded) 180f else 0f,
                     label = "cardChevron",
@@ -96,6 +92,7 @@ fun RepoCard(
                 Row(
                     modifier = Modifier
                         .fillMaxWidth()
+                        .padding(vertical = 6.dp)
                         .clickable(
                             interactionSource = remember { MutableInteractionSource() },
                         ) { onToggle() },
@@ -129,9 +126,11 @@ fun RepoCard(
                     )
                 }
 
-                if (expanded) {
-                    Spacer(Modifier.height(4.dp))
-                    ExpandedDetails(item = item, extras = extras)
+                androidx.compose.animation.AnimatedVisibility(visible = expanded) {
+                    Column {
+                        Spacer(Modifier.height(4.dp))
+                        ExpandedDetails(item = item, extras = extras)
+                    }
                 }
             }
         }
@@ -171,34 +170,10 @@ private fun ExpandedDetails(item: ListViewModel.RepoListItem, extras: ListViewMo
             }
         }
 
-        // 版本行：最新 release vs 本机版本（宁可不比）
+        // 版本行：最新 release vs 本机版本（与详情页头部共用组件，口径一致）
         val release = extras?.latestRelease
-        if (release != null) VersionLine(repo = item.repo, release = release)
+        if (release != null) VersionStatusLine(repo = item.repo, remoteTag = release.tagName)
     }
-}
-
-@Composable
-private fun VersionLine(repo: TrackedRepo, release: io.candy.tick.data.model.ReleaseRecord) {
-    val scheme = MiuixTheme.colorScheme
-    val context = LocalContext.current
-    val local = repo.linkedPackage?.let { pkg ->
-        runCatching {
-            context.packageManager.getPackageInfo(pkg, 0).versionName
-        }.getOrNull()
-    }
-    val cmp = if (local != null) VersionCompare.compare(release.tagName, local) else null
-    val highlight = cmp != null && cmp > 0
-    val text = when {
-        local == null -> stringResource(R.string.version_latest_only, release.tagName)
-        cmp == null -> stringResource(R.string.version_incomparable, release.tagName)
-        highlight -> stringResource(R.string.version_update_available, release.tagName)
-        else -> stringResource(R.string.version_line, release.tagName, local)
-    }
-    Text(
-        text = text,
-        style = MonoTokenStyle,
-        color = if (highlight) scheme.primaryVariant else scheme.onBackgroundVariant,
-    )
 }
 
 /** 卡片图标两档：已关联 → 真 APP 图标；未关联 → 首字母块（owner hash 8 色环 135° 渐变） */

@@ -131,6 +131,9 @@ class RepoRepository(
                 is RepoInfoResult.Fetched -> {
                     val info = result.info
                     val renamed = tracked.owner != info.owner || tracked.repo != info.repo
+                    // latestReleaseTag 是跨刷新的累积状态（SyncWorker 维护），替换快照时必须保留，
+                    // 否则每次 200 刷新都会闪变 null→tag，被「有更新」监听误判
+                    val previousTag = store.state.value.snapshots[id]?.latestReleaseTag
                     store.update { s ->
                         s.copy(
                             repos = if (renamed) {
@@ -138,7 +141,7 @@ class RepoRepository(
                             } else {
                                 s.repos
                             },
-                            snapshots = s.snapshots + (id to info.toSnapshot()),
+                            snapshots = s.snapshots + (id to info.toSnapshot().copy(latestReleaseTag = previousTag)),
                         )
                     }
                     null
@@ -158,15 +161,26 @@ class RepoRepository(
             .associate { it.first to it.second!! }
     }
 
+    /** 浏览分支（null = 仓库默认分支；仅影响提交视图，状态/版本仍按仓库级） */
+    suspend fun setBranch(id: Long, branch: String?) = store.update { s ->
+        s.copy(repos = s.repos.map { if (it.id == id) it.copy(branch = branch) else it })
+    }
+
     // ---- 详情页数据（分页透传，SourceException 由调用方接） ----
 
+    /** 提交列表自动跟随该仓库已选分支 */
     suspend fun commits(repoId: Long, page: Int): List<CommitRecord> {
         val t = trackedOrNull(repoId) ?: return emptyList()
-        return provider(t.provider).commits(t.owner, t.repo, page)
+        return provider(t.provider).commits(t.owner, t.repo, page, t.branch)
     }
 
     suspend fun releases(repoId: Long, page: Int): List<ReleaseRecord> {
         val t = trackedOrNull(repoId) ?: return emptyList()
         return provider(t.provider).releases(t.owner, t.repo, page)
+    }
+
+    suspend fun branches(repoId: Long): List<String> {
+        val t = trackedOrNull(repoId) ?: return emptyList()
+        return provider(t.provider).branches(t.owner, t.repo)
     }
 }

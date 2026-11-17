@@ -83,6 +83,32 @@ class ListViewModel(
         Part2(errs, exp, crds, chg)
     }
 
+    // 快照变更监听：无论来源（下拉/SyncWorker/打开即同步），有新提交或新 release 就标
+    private var lastSnapshots: Map<Long, RepoSnapshot> = emptyMap()
+
+    init {
+        viewModelScope.launch {
+            repository.state.collect { newState ->
+                if (lastSnapshots.isNotEmpty()) {
+                    val newChanged = newState.snapshots.filterKeys { id ->
+                        val old = lastSnapshots[id] ?: return@filterKeys false
+                        val newSnap = newState.snapshots[id] ?: return@filterKeys false
+                        // 首次记录到 tag（null → 值）不算「新版本」，与 SyncWorker 通知规则一致
+                        val tagChanged = old.latestReleaseTag != null && newSnap.latestReleaseTag != null &&
+                            newSnap.latestReleaseTag != old.latestReleaseTag
+                        val pushAdvanced = newSnap.pushedAt != null && old.pushedAt != null &&
+                            java.time.Duration.between(old.pushedAt, newSnap.pushedAt).toMinutes() > 1
+                        tagChanged || pushAdvanced
+                    }.keys
+                    if (newChanged.isNotEmpty()) {
+                        changedRepos.value = changedRepos.value + newChanged
+                    }
+                }
+                lastSnapshots = newState.snapshots
+            }
+        }
+    }
+
     val state: StateFlow<UiState> = combine(part1, part2) { p1, p2 ->
         UiState(
             items = buildItems(p1.repos, p1.snapshots, p2.errors, p1.sort, p1.query),
@@ -167,20 +193,8 @@ class ListViewModel(
         viewModelScope.launch {
             refreshing.value = true
             banner.value = null
-            // 刷新前快照：记录每个仓库的 pushedAt 和 latestReleaseTag
-            val before = repository.state.value.snapshots.mapValues {
-                Triple(it.value.pushedAt, it.value.lastSyncAt, it.value.latestReleaseTag)
-            }
             val errors = repository.refreshAll()
             repoErrors.value = errors
-            // 刷新后对比：pushedAt 或 latestReleaseTag 有变化 → 标记
-            val after = repository.state.value.snapshots
-            val changed = after.filterKeys { id ->
-                val old = before[id] ?: return@filterKeys false
-                val newSnap = after[id] ?: return@filterKeys false
-                newSnap.pushedAt != old.first || newSnap.latestReleaseTag != old.third
-            }.keys
-            changedRepos.value = changed
             val total = state.value.items.size
             banner.value = if (errors.isNotEmpty() && errors.size >= total) {
                 errors.values.firstOrNull()
@@ -210,6 +224,8 @@ class ListViewModel(
         if (!next.add(id)) next.remove(id)
         expanded.value = next
         if (id in next) {
+            // 展开查看即视为已读：清除「有更新」标记
+            changedRepos.value = changedRepos.value - id
             val cached = cards.value[id]
             if (cached?.commits == null && cached?.loading != true) loadCard(id)
         }
