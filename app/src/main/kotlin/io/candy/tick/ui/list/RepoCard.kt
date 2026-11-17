@@ -43,6 +43,7 @@ import top.yukonga.miuix.kmp.basic.Icon
 import top.yukonga.miuix.kmp.basic.Text
 import top.yukonga.miuix.kmp.icon.MiuixIcons
 import top.yukonga.miuix.kmp.icon.extended.ExpandMore
+import top.yukonga.miuix.kmp.icon.extended.Pin
 import top.yukonga.miuix.kmp.theme.MiuixTheme
 import androidx.compose.foundation.layout.width
 
@@ -79,6 +80,15 @@ fun RepoCard(
                             style = MiuixTheme.textStyles.body2,
                             color = scheme.onBackgroundVariant,
                         )
+                    }
+                    if (item.repo.pinnedAt != null) {
+                        Icon(
+                            imageVector = MiuixIcons.Pin,
+                            contentDescription = stringResource(R.string.pinned_a11y),
+                            tint = scheme.onBackgroundVariant,
+                            modifier = Modifier.size(12.dp),
+                        )
+                        Spacer(Modifier.width(6.dp))
                     }
                     if (item.error != null) InaccessibleBadge() else StatusBadge(item.status)
                 }

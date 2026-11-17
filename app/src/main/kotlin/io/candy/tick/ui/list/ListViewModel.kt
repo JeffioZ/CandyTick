@@ -3,8 +3,11 @@ package io.candy.tick.ui.list
 import android.content.Context
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
+import io.candy.tick.CandyTickApp
 import io.candy.tick.data.RepoRepository
+import io.candy.tick.data.SnapshotDiff
 import io.candy.tick.data.SourceError
+import io.candy.tick.data.SyncStatus
 import io.candy.tick.data.model.CommitRecord
 import io.candy.tick.data.model.RepoSnapshot
 import io.candy.tick.data.model.RepoStatus
@@ -13,6 +16,7 @@ import io.candy.tick.data.model.TrackedRepo
 import io.candy.tick.data.model.statusAt
 import io.candy.tick.util.VersionCompare
 import java.time.Instant
+import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.channels.Channel
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -93,18 +97,36 @@ class ListViewModel(
                     val newChanged = newState.snapshots.filterKeys { id ->
                         val old = lastSnapshots[id] ?: return@filterKeys false
                         val newSnap = newState.snapshots[id] ?: return@filterKeys false
-                        // 首次记录到 tag（null → 值）不算「新版本」，与 SyncWorker 通知规则一致
-                        val tagChanged = old.latestReleaseTag != null && newSnap.latestReleaseTag != null &&
-                            newSnap.latestReleaseTag != old.latestReleaseTag
-                        val pushAdvanced = newSnap.pushedAt != null && old.pushedAt != null &&
-                            java.time.Duration.between(old.pushedAt, newSnap.pushedAt).toMinutes() > 1
-                        tagChanged || pushAdvanced
+                        // 与 SyncWorker 结果统计同口径（首次记录到 tag 不算，规则内置）
+                        SnapshotDiff.hasNewActivity(old, newSnap)
                     }.keys
                     if (newChanged.isNotEmpty()) {
                         changedRepos.value = changedRepos.value + newChanged
                     }
                 }
                 lastSnapshots = newState.snapshots
+            }
+        }
+    }
+
+    /** 自动同步信号（打开即同步 / 定时）：首页细线 + 结果胶囊消费 */
+    val syncStatus: kotlinx.coroutines.flow.StateFlow<SyncStatus> =
+        (context.applicationContext as CandyTickApp).container.syncStatus
+
+    init {
+        viewModelScope.launch(Dispatchers.Default) {
+            // 自动备注刷新：应用改名后标题跟随（自定义备注 autoNote=false 永不动）；
+            // 旧数据无标记时，值恰等于当前应用名的收编为自动值
+            repository.state.value.repos.forEach { tracked ->
+                val pkg = tracked.linkedPackage ?: return@forEach
+                val label = io.candy.tick.util.labelOf(context, pkg) ?: return@forEach
+                when {
+                    tracked.autoNote && label != tracked.noteName ->
+                        repository.setNoteName(tracked.id, label, auto = true)
+                    !tracked.autoNote && tracked.noteName == label ->
+                        repository.setNoteName(tracked.id, label, auto = true) // 收编
+                    // 其余 = 自定义备注或标签不可得：不动
+                }
             }
         }
     }
@@ -128,8 +150,10 @@ class ListViewModel(
      */
     private fun initialUiState(): UiState {
         val loaded = repository.state.value
+        // 排序与真实首发射一致（sortMode 初始化自持久化设置）：避免首帧按默认排序、
+        // 下一帧重排造成的「列表突然变一下」
         return UiState(
-            items = buildItems(loaded.repos, loaded.snapshots, emptyMap(), SortMode.LAST_PUSH, ""),
+            items = buildItems(loaded.repos, loaded.snapshots, emptyMap(), sortMode.value, ""),
         )
     }
 
@@ -162,9 +186,7 @@ class ListViewModel(
                 tracked.owner.lowercase().contains(q) ||
                 tracked.noteName?.lowercase()?.contains(q) == true
         }
-        return source.map { RepoListItem(it, snapshots[it.id], errors[it.id]) }
-            .sortedWith(
-            when (sort) {
+        val base = when (sort) {
                 SortMode.LAST_PUSH -> compareByDescending<RepoListItem> { it.snapshot?.pushedAt?.toEpochMilli() ?: Long.MIN_VALUE }
                 SortMode.STATUS -> compareBy { it.status }
                 SortMode.ADDED -> compareByDescending<RepoListItem> { it.repo.addedAt.toEpochMilli() }
@@ -173,8 +195,18 @@ class ListViewModel(
                 // 「可更新」优先：仅版本可比且严格更新（宁可不比）
                 SortMode.UPDATABLE -> compareByDescending<RepoListItem> { it.hasUpdate(context) }
                     .thenByDescending { it.snapshot?.pushedAt?.toEpochMilli() ?: Long.MIN_VALUE }
-            },
-        )
+            }
+        // 置顶组永远最前（组内沿用当前排序 + 最近置顶在前）；搜索时按纯排序避免困惑
+        return if (q.isBlank()) {
+            source.map { RepoListItem(it, snapshots[it.id], errors[it.id]) }
+                .sortedWith(
+                    compareByDescending<RepoListItem> { it.repo.pinnedAt != null }
+                        .thenByDescending { it.repo.pinnedAt?.toEpochMilli() ?: 0L }
+                        .then(base),
+                )
+        } else {
+            source.map { RepoListItem(it, snapshots[it.id], errors[it.id]) }.sortedWith(base)
+        }
     }
 
     /** 关联本机应用 + latestReleaseTag 严格更新（宁可不比） */
@@ -250,5 +282,15 @@ class ListViewModel(
 
     fun restore(repo: TrackedRepo, snapshot: RepoSnapshot?) {
         viewModelScope.launch { repository.restoreRepo(repo, snapshot) }
+    }
+
+    /** 置顶 / 取消置顶（卡片左滑 toggle；位置跳变 + 图钉出现即反馈） */
+    fun togglePin(item: RepoListItem) {
+        viewModelScope.launch {
+            repository.setPinned(
+                item.repo.id,
+                if (item.repo.pinnedAt == null) Instant.now() else null,
+            )
+        }
     }
 }

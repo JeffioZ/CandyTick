@@ -34,9 +34,11 @@ data class TrackedRepo(
     val repo: String,
     val provider: String = "github",
     val addedAt: Instant,
-    val noteName: String? = null, // 备注名（可空）
+    val noteName: String? = null, // 备注名（可空；autoNote=true 时为关联应用名，随改名刷新）
+    val autoNote: Boolean = false, // noteName 是否自动来自关联应用（自定义备注永不覆盖）
     val linkedPackage: String? = null, // 关联本机应用包名（可空）
     val branch: String? = null, // 浏览分支（可空 = 仓库默认分支；仅影响提交视图）
+    val pinnedAt: Instant? = null, // 置顶时间（可空 = 未置顶；置顶组永远排最前）
     val downloadedApk: DownloadedApk? = null, // 「下载保留」重装复用
 )
 

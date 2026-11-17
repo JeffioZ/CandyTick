@@ -53,7 +53,7 @@ fun AddScreen(
     onAdded: (Long) -> Unit,
 ) {
     val app = LocalContext.current.applicationContext as CandyTickApp
-    val vm: AddViewModel = viewModel { AddViewModel(app.container.repoRepository) }
+    val vm: AddViewModel = viewModel { AddViewModel(app.container.repoRepository, app) }
     val state by vm.state.collectAsStateWithLifecycle()
     var showAppPicker by remember { mutableStateOf(false) }
 

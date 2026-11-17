@@ -85,8 +85,41 @@ class RepoRepository(
             )
         }
 
-    suspend fun setLinkedPackage(id: Long, packageName: String?) = store.update { s ->
-        s.copy(repos = s.repos.map { if (it.id == id) it.copy(linkedPackage = packageName) else it })
+    /**
+     * 关联本机应用。标题自动跟随应用名，层级保护：用户自定义备注 > 自动应用名 > 仓库名。
+     * autoNote 标记 noteName 的来源——自定义（false）永不被自动值覆盖/清除；
+     * 解除关联时自动值随之清空。应用改名由刷新流程按标记更新。
+     */
+    suspend fun setLinkedPackage(
+        id: Long,
+        packageName: String?,
+        newLabel: String? = null,
+    ) = store.update { s ->
+        s.copy(
+            repos = s.repos.map { repo ->
+                if (repo.id != id) {
+                    repo
+                } else {
+                    val custom = repo.noteName != null && !repo.autoNote
+                    val note = when {
+                        packageName == null ->
+                            if (repo.autoNote) null else repo.noteName // 解除：自动值清空，自定义保留
+                        custom -> repo.noteName
+                        else -> newLabel ?: repo.noteName
+                    }
+                    repo.copy(
+                        linkedPackage = packageName,
+                        noteName = note,
+                        autoNote = note != null && note == newLabel,
+                    )
+                }
+            },
+        )
+    }
+
+    /** 备注名直写（自动刷新改名用；custom=false 路径由调用方保证不触自定义） */
+    suspend fun setNoteName(id: Long, name: String?, auto: Boolean) = store.update { s ->
+        s.copy(repos = s.repos.map { if (it.id == id) it.copy(noteName = name, autoNote = auto) else it })
     }
 
     /** 「下载保留」记录（安装失败不删，可直接重装） */
@@ -164,6 +197,11 @@ class RepoRepository(
     /** 浏览分支（null = 仓库默认分支；仅影响提交视图，状态/版本仍按仓库级） */
     suspend fun setBranch(id: Long, branch: String?) = store.update { s ->
         s.copy(repos = s.repos.map { if (it.id == id) it.copy(branch = branch) else it })
+    }
+
+    /** 置顶 / 取消置顶（null = 取消；时间戳保证置顶组内顺序稳定） */
+    suspend fun setPinned(id: Long, pinnedAt: Instant?) = store.update { s ->
+        s.copy(repos = s.repos.map { if (it.id == id) it.copy(pinnedAt = pinnedAt) else it })
     }
 
     // ---- 详情页数据（分页透传，SourceException 由调用方接） ----

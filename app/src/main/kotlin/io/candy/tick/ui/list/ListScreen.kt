@@ -1,5 +1,13 @@
 package io.candy.tick.ui.list
 
+import androidx.compose.animation.core.animateFloat
+import androidx.compose.animation.core.animateFloat
+import androidx.compose.animation.core.animateFloat
+import androidx.compose.foundation.background
+import androidx.compose.ui.draw.alpha
+import androidx.compose.ui.draw.clip
+import androidx.compose.ui.draw.shadow
+import io.candy.tick.data.SyncStatus
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -9,7 +17,10 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.offset
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.runtime.Composable
@@ -60,6 +71,9 @@ fun ListScreen(
     val app = LocalContext.current.applicationContext as CandyTickApp
     val vm: ListViewModel = viewModel { ListViewModel(app.container.repoRepository, app) }
     val state by vm.state.collectAsStateWithLifecycle()
+    val syncStatus by vm.syncStatus.collectAsStateWithLifecycle()
+    // 结果转变检测（Running→Done，或冷启动 10s 内的新鲜 Done）——顶栏完成符与胶囊共用
+    val syncResult = rememberSyncResult(syncStatus)
     val scheme = MiuixTheme.colorScheme
     val snackbar = remember { SnackbarHostState() }
     val scrollBehavior = MiuixScrollBehavior(rememberTopAppBarState())
@@ -94,11 +108,19 @@ fun ListScreen(
                     color = Color.Transparent,
                     scrollBehavior = scrollBehavior,
                     navigationIcon = {
-                        Text(
-                            text = stringResource(R.string.app_name),
-                            style = MiuixTheme.textStyles.title4,
-                            color = scheme.onBackground,
-                        )
+                        Row(verticalAlignment = Alignment.CenterVertically) {
+                            Text(
+                                text = stringResource(R.string.app_name),
+                                style = MiuixTheme.textStyles.title4,
+                                color = scheme.onBackground,
+                            )
+                            Spacer(Modifier.width(6.dp))
+                            // 自动同步活体：标题右侧三点轻跳 → 完成符（信息由悬浮胶囊承担）
+                            SyncDots(
+                                running = syncStatus is SyncStatus.Running,
+                                done = syncResult,
+                            )
+                        }
                     },
                     actions = {
                         IconButton(onClick = {
@@ -137,6 +159,7 @@ fun ListScreen(
                 )
             },
         ) { padding ->
+            Box(modifier = Modifier.padding(padding)) {
             PullToRefresh(
                 isRefreshing = state.refreshing,
                 onRefresh = vm::refresh,
@@ -148,7 +171,6 @@ fun ListScreen(
                     stringResource(R.string.refresh_refreshing),
                     stringResource(R.string.refresh_done),
                 ),
-                modifier = Modifier.padding(padding),
             ) {
                 Column(modifier = Modifier.fillMaxSize()) {
                     androidx.compose.animation.AnimatedVisibility(
@@ -204,6 +226,8 @@ fun ListScreen(
                         items(state.items, key = { it.repo.id }) { item ->
                             SwipeToDelete(
                                 onDelete = { vm.remove(item) },
+                                onPin = { vm.togglePin(item) },
+                                pinned = item.repo.pinnedAt != null,
                                 modifier = Modifier.animateItem(),
                             ) {
                                 RepoCard(
@@ -222,6 +246,11 @@ fun ListScreen(
                         }
                     }
                 }
+            }
+            ResultCapsule(
+                done = syncResult,
+                modifier = Modifier.align(Alignment.TopCenter),
+            )
             }
         }
 
@@ -276,6 +305,136 @@ private fun ErrorBanner(error: SourceError, onRetry: () -> Unit) {
                 text = stringResource(R.string.retry),
                 onClick = onRetry,
             )
+        }
+    }
+}
+
+/** 结果转变检测：Running→Done，或冷启动 10s 内的新鲜 Done；到位后按内容时长自动清空 */
+@Composable
+private fun rememberSyncResult(status: SyncStatus): SyncStatus.Done? {
+    var result by remember { mutableStateOf<SyncStatus.Done?>(null) }
+    var prev by remember { mutableStateOf<SyncStatus?>(null) }
+    androidx.compose.runtime.LaunchedEffect(status) {
+        val fresh = status is SyncStatus.Done &&
+            System.currentTimeMillis() - status.at < 10_000
+        when {
+            prev is SyncStatus.Running && status is SyncStatus.Done -> result = status
+            prev == null && fresh -> result = status // 冷启动竞态兜底
+        }
+        prev = status
+    }
+    androidx.compose.runtime.LaunchedEffect(result) {
+        val r = result ?: return@LaunchedEffect
+        kotlinx.coroutines.delay(if (r.changed > 0 || r.failed > 0) 4_000L else 2_000L)
+        result = null
+    }
+    return result
+}
+
+/** 顶栏同步活体：标题右侧三点轻跳（进行中）→ 完成/失败符；固定占位零布局跳动 */
+@Composable
+private fun SyncDots(running: Boolean, done: SyncStatus.Done?, modifier: Modifier = Modifier) {
+    val scheme = MiuixTheme.colorScheme
+    var dotsVisible by remember { mutableStateOf(false) }
+    androidx.compose.runtime.LaunchedEffect(running) {
+        if (running) {
+            kotlinx.coroutines.delay(300) // 近即时防闪
+            dotsVisible = true
+        } else {
+            if (dotsVisible) kotlinx.coroutines.delay(350) // 停一拍再收
+            dotsVisible = false
+        }
+    }
+    Box(modifier = modifier.width(36.dp), contentAlignment = Alignment.CenterStart) {
+        // 结果符（与胶囊同时出现/消失）
+        done?.let { d ->
+            val failedOnly = d.failed > 0 && d.changed == 0
+            Text(
+                text = if (failedOnly) "\u2715" else "\u2713",
+                style = MiuixTheme.textStyles.footnote1,
+                color = if (failedOnly) scheme.onErrorContainer else scheme.primaryVariant,
+            )
+        }
+        androidx.compose.animation.AnimatedVisibility(
+            visible = dotsVisible,
+            enter = androidx.compose.animation.fadeIn(),
+            exit = androidx.compose.animation.fadeOut(),
+        ) {
+            val infinite = androidx.compose.animation.core.rememberInfiniteTransition(label = "syncDots")
+            val t by infinite.animateFloat(
+                initialValue = 0f,
+                targetValue = 1f,
+                animationSpec = androidx.compose.animation.core.infiniteRepeatable(
+                    androidx.compose.animation.core.tween(900, easing = androidx.compose.animation.core.LinearEasing),
+                ),
+                label = "syncT",
+            )
+            Row(
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.spacedBy(3.dp),
+                modifier = Modifier.alpha(if (done != null) 0f else 1f),
+            ) {
+                repeat(3) { i ->
+                    val phase = (((t - i / 3f) % 1f) + 1f) % 1f
+                    // 双向正弦：围绕布局中心上下对称摆动（±2.5dp），静止态恰在中心线上
+                    val wave = kotlin.math.sin(phase * 2 * Math.PI).toFloat()
+                    Box(
+                        modifier = Modifier
+                            .offset(y = (-2.5).dp * wave)
+                            .size(4.dp)
+                            .alpha(0.45f + 0.55f * (0.5f + 0.5f * wave))
+                            .clip(androidx.compose.foundation.shape.CircleShape)
+                            .background(scheme.primaryVariant),
+                    )
+                }
+            }
+        }
+    }
+}
+
+/** 结果胶囊：悬浮列表区顶部，不推挤内容；信息层（状态符号在顶栏） */
+@Composable
+private fun ResultCapsule(done: SyncStatus.Done?, modifier: Modifier = Modifier) {
+    val scheme = MiuixTheme.colorScheme
+    Box(modifier = modifier.fillMaxWidth(), contentAlignment = Alignment.TopCenter) {
+        androidx.compose.animation.AnimatedVisibility(
+            visible = done != null,
+            enter = androidx.compose.animation.fadeIn() +
+                androidx.compose.animation.slideInVertically(initialOffsetY = { -it / 2 }),
+            exit = androidx.compose.animation.fadeOut(),
+        ) {
+            done?.let { d ->
+                val allFailed = d.failed > 0 && d.changed == 0
+                val text = when {
+                    allFailed -> stringResource(R.string.sync_result_all_failed, d.failed)
+                    d.changed > 0 -> buildString {
+                        append(stringResource(R.string.sync_result_updated, d.changed))
+                        if (d.failed > 0) append(stringResource(R.string.sync_result_failed_suffix, d.failed))
+                    }
+                    else -> stringResource(R.string.sync_result_fresh)
+                }
+                Row(
+                    modifier = Modifier
+                        .padding(top = 10.dp)
+                        .shadow(4.dp, androidx.compose.foundation.shape.RoundedCornerShape(20.dp))
+                        .clip(androidx.compose.foundation.shape.RoundedCornerShape(20.dp))
+                        .background(scheme.surface)
+                        .padding(horizontal = 14.dp, vertical = 8.dp),
+                    verticalAlignment = Alignment.CenterVertically,
+                ) {
+                    Text(
+                        text = if (allFailed) "\u2715" else "\u2713",
+                        style = MiuixTheme.textStyles.footnote1,
+                        color = if (allFailed) scheme.onErrorContainer else scheme.primaryVariant,
+                    )
+                    Spacer(Modifier.width(6.dp))
+                    Text(
+                        text = text,
+                        style = MiuixTheme.textStyles.footnote1,
+                        color = scheme.onBackground,
+                    )
+                }
+            }
         }
     }
 }

@@ -17,7 +17,13 @@ import kotlinx.coroutines.flow.receiveAsFlow
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
 
-class AddViewModel(private val repository: RepoRepository) : ViewModel() {
+class AddViewModel(
+    private val repository: RepoRepository,
+    context: android.content.Context,
+) : ViewModel() {
+
+    private val appContext = context.applicationContext
+    private var userClearedLink = false // 用户主动清除过关联：本会话不再自动关联
 
     sealed interface PreviewState {
         data object Idle : PreviewState
@@ -108,6 +114,16 @@ class AddViewModel(private val repository: RepoRepository) : ViewModel() {
                         // 页面已被重置（fetchingKey 变更）则丢弃过期结果
                         if (fetchingKey == key) {
                             _state.update { it.copy(preview = PreviewState.Loaded(result.info), duplicate = dup) }
+                            // 高置信自动关联（Obtainium 式静默体验）：仅本地查询，零下载零残留；
+                            // 用户已手动选过（linkedLabel 非空）则不覆盖
+                            if (!userClearedLink &&
+                                _state.value.linkedPackage == null && _state.value.linkedLabel == null
+                            ) {
+                                val m = io.candy.tick.util.AppMatcher.bestAutoMatch(
+                                    appContext, result.info.owner, result.info.repo,
+                                )
+                                if (m != null) setLinkedApp(m.packageName, m.label)
+                            }
                         }
                     }
                 }
@@ -120,6 +136,7 @@ class AddViewModel(private val repository: RepoRepository) : ViewModel() {
     }
 
     fun setLinkedApp(packageName: String?, label: String?) {
+        if (packageName == null) userClearedLink = true // 主动清除 = 退出自动关联
         _state.update { it.copy(linkedPackage = packageName, linkedLabel = label) }
     }
 
@@ -137,7 +154,7 @@ class AddViewModel(private val repository: RepoRepository) : ViewModel() {
             when (val result = repository.addRepo(preview.info.owner, preview.info.repo)) {
                 is RepoRepository.AddResult.Added -> {
                     _state.value.linkedPackage?.let { pkg ->
-                        repository.setLinkedPackage(result.repo.id, pkg)
+                        repository.setLinkedPackage(result.repo.id, pkg, newLabel = _state.value.linkedLabel)
                     }
                     _state.update { it.copy(adding = false) } // 成功也要复位（导航后 VM 仍存活）
                     _events.send(Event.Added(result.repo.id))

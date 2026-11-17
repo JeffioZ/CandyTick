@@ -10,6 +10,7 @@
     <!-- 通用 -->
     <string name="retry">重试</string>
     <string name="undo">撤销</string>
+    <string name="pinned_a11y">已置顶</string>
     <string name="removed">已移除</string>
     <string name="loading">加载中…</string>
 
@@ -67,6 +68,10 @@
     <string name="refresh_pull_down">下拉刷新</string>
     <string name="refresh_release">释放刷新</string>
     <string name="refresh_refreshing">正在刷新…</string>
+    <string name="sync_result_updated">同步完成 · %1$d 个仓库有更新</string>
+    <string name="sync_result_fresh">已是最新</string>
+    <string name="sync_result_failed_suffix"> · %1$d 个失败</string>
+    <string name="sync_result_all_failed">同步失败 · %1$d 个仓库</string>
     <string name="refresh_done">已刷新</string>
     <plurals name="rel_minutes">
         <item quantity="other">%d 分钟前</item>
@@ -105,11 +110,12 @@
     <!-- 分支 -->
     <string name="branch_default">默认分支</string>
     <string name="branch_picker_title">分支</string>
+    <string name="branch_search_hint">搜索分支</string>
     <string name="branch_load_failed">分支加载失败 · 重试</string>
 
     <!-- 添加页 -->
     <string name="add_input_hint">粘贴链接或搜索</string>
-    <string name="add_parse_error">无法识别的 GitHub 链接</string>
+    <string name="add_parse_error">无法识别 · 请粘贴 GitHub 仓库链接</string>
     <string name="add_search_failed">搜索失败 · 重试</string>
     <string name="add_search_empty">无匹配，试试粘贴完整链接</string>
     <string name="add_stars">★ %1$s</string>
@@ -167,7 +173,7 @@
     <string name="search_clear">清除搜索</string>
     <string name="settings_backup_group">数据</string>
     <string name="settings_export">导出订阅</string>
-    <string name="settings_export_summary">以 JSON 复制到剪贴板，并弹出分享</string>
+    <string name="settings_export_summary">复制 JSON 到剪贴板，并弹出分享菜单</string>
     <string name="settings_import">导入订阅</string>
     <string name="settings_import_summary">从 JSON 文件合并导入，不覆盖现有数据</string>
     <string name="import_result">已导入 %1$d 个仓库</string>
@@ -187,7 +193,7 @@
     <string name="lang_system">跟随系统</string>
     <string name="lang_chinese">简体中文</string>
     <string name="lang_english">English</string>
-    <string name="settings_token_hint">可选。提升接口限额：60 次/小时 → 5,000 次/小时。</string>
+    <string name="settings_token_hint">可选。提升 API 请求限额：60 次/小时 → 5,000 次/小时。</string>
     <string name="settings_token_test">保存并验证</string>
     <string name="token_help_link">如何获取 Token？</string>
     <string name="token_show">显示 Token</string>
