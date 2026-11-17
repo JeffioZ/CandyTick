@@ -2,7 +2,6 @@ package io.candy.tick.ui.list
 
 import androidx.compose.animation.core.animateFloat
 import androidx.compose.animation.core.animateFloat
-import androidx.compose.animation.core.animateFloat
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.ui.draw.alpha
@@ -21,8 +20,6 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.layout.padding
-import androidx.compose.foundation.layout.size
-import androidx.compose.foundation.layout.offset
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.runtime.Composable
@@ -470,33 +467,11 @@ private fun SyncDots(running: Boolean, done: SyncStatus.Done?, modifier: Modifie
             enter = androidx.compose.animation.fadeIn(),
             exit = androidx.compose.animation.fadeOut(),
         ) {
-            val infinite = androidx.compose.animation.core.rememberInfiniteTransition(label = "syncDots")
-            val t by infinite.animateFloat(
-                initialValue = 0f,
-                targetValue = 1f,
-                animationSpec = androidx.compose.animation.core.infiniteRepeatable(
-                    androidx.compose.animation.core.tween(900, easing = androidx.compose.animation.core.LinearEasing),
-                ),
-                label = "syncT",
-            )
-            Row(
-                verticalAlignment = Alignment.CenterVertically,
-                horizontalArrangement = Arrangement.spacedBy(3.dp),
+            // 复用公共组件（同一波浪语义）；结果出现时淡出
+            androidx.compose.foundation.layout.Box(
                 modifier = Modifier.alpha(if (done != null) 0f else 1f),
             ) {
-                repeat(3) { i ->
-                    val phase = (((t - i / 3f) % 1f) + 1f) % 1f
-                    // 双向正弦：围绕布局中心上下对称摆动（±2.5dp），静止态恰在中心线上
-                    val wave = kotlin.math.sin(phase * 2 * Math.PI).toFloat()
-                    Box(
-                        modifier = Modifier
-                            .offset(y = (-2.5).dp * wave)
-                            .size(4.dp)
-                            .alpha(0.45f + 0.55f * (0.5f + 0.5f * wave))
-                            .clip(androidx.compose.foundation.shape.CircleShape)
-                            .background(scheme.primaryVariant),
-                    )
-                }
+                io.candy.tick.ui.common.LoadingDots(color = scheme.primaryVariant)
             }
         }
     }

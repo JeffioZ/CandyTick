@@ -71,12 +71,12 @@ fun LazyListScope.releaseList(
 private fun ReleaseFooter(state: DetailViewModel.UiState, onLoadMore: () -> Unit) {
     val scheme = MiuixTheme.colorScheme
     when {
-        state.releasesLoading -> Text(
-            text = stringResource(R.string.loading),
-            style = MiuixTheme.textStyles.footnote1,
-            color = scheme.onBackgroundVariant,
-            modifier = Modifier.padding(vertical = 10.dp),
-        )
+        state.releasesLoading -> androidx.compose.foundation.layout.Box(
+            modifier = Modifier.fillMaxWidth().padding(vertical = 10.dp),
+            contentAlignment = Alignment.Center,
+        ) {
+            io.candy.tick.ui.common.LoadingDots(dotSize = 5.dp)
+        }
         state.releasesFailed -> TextButton(
             text = stringResource(R.string.load_failed_retry),
             onClick = onLoadMore,

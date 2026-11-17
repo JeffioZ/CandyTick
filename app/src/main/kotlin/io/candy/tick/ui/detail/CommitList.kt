@@ -66,12 +66,12 @@ fun LazyListScope.commitList(
 private fun CommitFooter(state: DetailViewModel.UiState, onLoadMore: () -> Unit) {
     val scheme = MiuixTheme.colorScheme
     when {
-        state.commitsLoading -> Text(
-            text = stringResource(R.string.loading),
-            style = MiuixTheme.textStyles.footnote1,
-            color = scheme.onBackgroundVariant,
-            modifier = Modifier.padding(vertical = 10.dp),
-        )
+        state.commitsLoading -> androidx.compose.foundation.layout.Box(
+            modifier = Modifier.fillMaxWidth().padding(vertical = 10.dp),
+            contentAlignment = Alignment.Center,
+        ) {
+            io.candy.tick.ui.common.LoadingDots(dotSize = 5.dp)
+        }
         state.commitsFailed -> Row(
             modifier = Modifier.fillMaxWidth().padding(vertical = 4.dp),
             verticalAlignment = Alignment.CenterVertically,

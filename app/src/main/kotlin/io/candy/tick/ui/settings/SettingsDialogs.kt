@@ -149,11 +149,17 @@ internal fun TokenDialog(
 
             // 验证结果 / 被拒提示（就近展示在输入框下方）
             when (state.tokenTest) {
-                SettingsViewModel.TokenTest.TESTING -> Text(
-                    text = stringResource(R.string.loading),
-                    style = MiuixTheme.textStyles.footnote1,
-                    color = scheme.onBackgroundVariant,
-                )
+                SettingsViewModel.TokenTest.TESTING -> androidx.compose.foundation.layout.Row(
+                    verticalAlignment = Alignment.CenterVertically,
+                ) {
+                    io.candy.tick.ui.common.LoadingDots()
+                    Spacer(Modifier.width(6.dp))
+                    Text(
+                        text = stringResource(R.string.loading),
+                        style = MiuixTheme.textStyles.footnote1,
+                        color = scheme.onBackgroundVariant,
+                    )
+                }
                 SettingsViewModel.TokenTest.VALID -> Text(
                     text = stringResource(R.string.token_verified),
                     style = MiuixTheme.textStyles.footnote1,

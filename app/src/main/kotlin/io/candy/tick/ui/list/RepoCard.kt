@@ -155,11 +155,12 @@ private fun ExpandedDetails(item: ListViewModel.RepoListItem, extras: ListViewMo
     val scheme = MiuixTheme.colorScheme
     Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
         when {
-            extras == null || extras.loading -> Text(
-                text = stringResource(R.string.loading),
-                style = MiuixTheme.textStyles.footnote1,
-                color = scheme.onBackgroundVariant,
-            )
+            extras == null || extras.loading -> androidx.compose.foundation.layout.Box(
+                modifier = Modifier.height(16.dp), // 与替换后的提交行等高，加载→内容不跳
+                contentAlignment = Alignment.CenterStart,
+            ) {
+                io.candy.tick.ui.common.LoadingDots(dotSize = 5.dp)
+            }
             extras.commits == null -> Text(
                 text = stringResource(R.string.card_details_failed),
                 style = MiuixTheme.textStyles.footnote1,

@@ -18,6 +18,7 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
+import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.stringResource
@@ -106,11 +107,12 @@ fun AddScreen(
             }
 
             when (val preview = state.preview) {
-                is AddViewModel.PreviewState.Loading -> Text(
-                    text = stringResource(R.string.loading),
-                    style = MiuixTheme.textStyles.body2,
-                    color = MiuixTheme.colorScheme.onBackgroundVariant,
-                )
+                is AddViewModel.PreviewState.Loading -> androidx.compose.foundation.layout.Box(
+                    modifier = Modifier.height(20.dp),
+                    contentAlignment = Alignment.CenterStart,
+                ) {
+                    io.candy.tick.ui.common.LoadingDots(dotSize = 5.dp)
+                }
                 is AddViewModel.PreviewState.Failed -> Text(
                     text = sourceErrorText(preview.error),
                     style = MiuixTheme.textStyles.body2,
@@ -124,12 +126,11 @@ fun AddScreen(
                 AddViewModel.PreviewState.Idle -> Unit
             }
 
-            if (state.searching) {
-                Text(
-                    text = stringResource(R.string.loading),
-                    style = MiuixTheme.textStyles.body2,
-                    color = MiuixTheme.colorScheme.onBackgroundVariant,
-                )
+            if (state.searching) androidx.compose.foundation.layout.Box(
+                modifier = Modifier.height(20.dp),
+                contentAlignment = Alignment.CenterStart,
+            ) {
+                io.candy.tick.ui.common.LoadingDots(dotSize = 5.dp)
             }
             if (state.searchFailed) {
                 Text(

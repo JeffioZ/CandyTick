@@ -124,12 +124,12 @@ internal fun BranchPickerSheet(
                 }
             }
             when {
-                state.branchesLoading -> Text(
-                    text = stringResource(R.string.loading),
-                    style = MiuixTheme.textStyles.footnote1,
-                    color = scheme.onBackgroundVariant,
-                    modifier = Modifier.padding(horizontal = 16.dp, vertical = 12.dp),
-                )
+                state.branchesLoading -> androidx.compose.foundation.layout.Box(
+                    modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 12.dp),
+                    contentAlignment = Alignment.Center,
+                ) {
+                    io.candy.tick.ui.common.LoadingDots(dotSize = 5.dp)
+                }
                 state.branchesFailed -> TextButton(
                     text = stringResource(R.string.branch_load_failed),
                     onClick = onLoadBranches,
