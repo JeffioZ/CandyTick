@@ -20,6 +20,7 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.focus.focusRequester
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.input.ImeAction
@@ -52,6 +53,12 @@ fun AddScreen(
     val vm: AddViewModel = viewModel { AddViewModel(app.container.repoRepository, app) }
     val state by vm.state.collectAsStateWithLifecycle()
     var showAppPicker by remember { mutableStateOf(false) }
+    // 进页即聚焦：本页唯一目的就是输入（等一帧布局稳定，防未挂载崩溃）
+    val inputFocus = androidx.compose.ui.focus.FocusRequester()
+    androidx.compose.runtime.LaunchedEffect(Unit) {
+        kotlinx.coroutines.delay(100)
+        runCatching { inputFocus.requestFocus() }
+    }
 
     // 每次进入添加页都从干净状态开始（VM 为 Activity 域单例）
     LaunchedEffect(Unit) { vm.reset() }
@@ -96,7 +103,9 @@ fun AddScreen(
                 label = stringResource(R.string.add_input_hint),
                 keyboardOptions = KeyboardOptions(imeAction = ImeAction.Search),
                 keyboardActions = KeyboardActions(onSearch = { vm.submit() }),
-                modifier = Modifier.fillMaxWidth(),
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .focusRequester(inputFocus),
             )
             if (state.parseError) {
                 Text(

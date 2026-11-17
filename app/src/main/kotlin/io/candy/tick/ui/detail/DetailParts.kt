@@ -63,6 +63,7 @@ import top.yukonga.miuix.kmp.theme.MiuixTheme
  */
 @Composable
 internal fun BranchPickerSheet(
+    show: Boolean,
     state: DetailViewModel.UiState,
     onSelect: (String?) -> Unit,
     onDismiss: () -> Unit,
@@ -76,8 +77,9 @@ internal fun BranchPickerSheet(
     val filtered = if (keyword.isEmpty()) state.branches else state.branches.filter {
         it.contains(keyword, ignoreCase = true)
     }
+    // show 直通（勿用 if 包裹组件）：关闭时组件仍在组合中，库的退场动画才能播放
     top.yukonga.miuix.kmp.window.WindowBottomSheet(
-        show = true,
+        show = show,
         title = stringResource(R.string.branch_picker_title),
         onDismissRequest = onDismiss,
     ) {
@@ -142,13 +144,14 @@ internal fun BranchPickerSheet(
 /** 移除订阅确认（破坏性操作：红色主按钮） */
 @Composable
 internal fun RemoveRepoDialog(
+    show: Boolean,
     repoName: String,
     onConfirm: () -> Unit,
     onDismiss: () -> Unit,
 ) {
     val scheme = MiuixTheme.colorScheme
     top.yukonga.miuix.kmp.window.WindowDialog(
-        show = true,
+        show = show,
         title = stringResource(R.string.remove_confirm_title),
         onDismissRequest = onDismiss,
     ) {

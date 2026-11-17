@@ -325,40 +325,36 @@ fun DetailScreen(repoId: Long, onBack: () -> Unit) {
         }
     }
 
-    if (showAppPicker) {
-        AppPickerSheet(
-            show = true,
-            onPick = { pkg, label ->
-                vm.setLinkedApp(pkg, newLabel = label)
-                showAppPicker = false
-            },
-            onDismiss = { showAppPicker = false },
-        )
-    }
+    AppPickerSheet(
+        show = showAppPicker,
+        onPick = { pkg, label ->
+            vm.setLinkedApp(pkg, newLabel = label)
+            showAppPicker = false
+        },
+        onDismiss = { showAppPicker = false },
+    )
 
-    // 分支选择弹层（提交视图浏览分支）
-    if (showBranchSheet) {
-        BranchPickerSheet(
-            state = state,
-            onSelect = {
-                vm.setBranch(it)
-                showBranchSheet = false
-            },
-            onDismiss = { showBranchSheet = false },
-            onLoadBranches = vm::loadBranches,
-        )
-    }
+    // 分支选择弹层（提交视图浏览分支）：show 直通，退场有动效
+    BranchPickerSheet(
+        show = showBranchSheet,
+        state = state,
+        onSelect = {
+            vm.setBranch(it)
+            showBranchSheet = false
+        },
+        onDismiss = { showBranchSheet = false },
+        onLoadBranches = vm::loadBranches,
+    )
 
-    // 移除确认（破坏性操作）
-    if (showRemoveDialog && repo != null) {
-        RemoveRepoDialog(
-            repoName = repo.noteName ?: "${repo.owner}/${repo.repo}",
-            onConfirm = {
-                showRemoveDialog = false
-                vm.removeRepo()
-                onBack()
-            },
-            onDismiss = { showRemoveDialog = false },
-        )
-    }
+    // 移除确认（破坏性操作）：show 直通，退场有动效
+    RemoveRepoDialog(
+        show = showRemoveDialog && repo != null,
+        repoName = repo?.let { it.noteName ?: "${it.owner}/${it.repo}" } ?: "",
+        onConfirm = {
+            showRemoveDialog = false
+            vm.removeRepo()
+            onBack()
+        },
+        onDismiss = { showRemoveDialog = false },
+    )
 }

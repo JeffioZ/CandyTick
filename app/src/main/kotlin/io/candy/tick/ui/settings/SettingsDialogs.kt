@@ -14,6 +14,7 @@ import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.focus.focusRequester
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.stringResource
@@ -39,12 +40,13 @@ import top.yukonga.miuix.kmp.theme.MiuixTheme
 /** 导入来源选择弹窗（文件 / 剪贴板）：主按钮 = 文件，次按钮 = 剪贴板 */
 @Composable
 internal fun ImportSourceDialog(
+    show: Boolean,
     onFromFile: () -> Unit,
     onFromClipboard: () -> Unit,
     onDismiss: () -> Unit,
 ) {
     top.yukonga.miuix.kmp.window.WindowDialog(
-        show = true,
+        show = show,
         title = stringResource(R.string.settings_import),
         onDismissRequest = onDismiss,
     ) {
@@ -76,6 +78,7 @@ internal fun ImportSourceDialog(
  */
 @Composable
 internal fun TokenDialog(
+    show: Boolean,
     state: SettingsViewModel.UiState,
     tokenVisible: Boolean,
     onToggleVisible: () -> Unit,
@@ -86,8 +89,17 @@ internal fun TokenDialog(
 ) {
     val scheme = MiuixTheme.colorScheme
     val context = LocalContext.current
+    // 弹窗打开即聚焦输入（唯一目的就是贴 Token）；show=false 不请求
+    val tokenFocus = androidx.compose.ui.focus.FocusRequester()
+    androidx.compose.runtime.LaunchedEffect(show) {
+        if (show) {
+            kotlinx.coroutines.delay(150)
+            runCatching { tokenFocus.requestFocus() }
+        }
+    }
+    // show 直通（勿用 if 包裹）：退场动画依赖组件持续组合
     top.yukonga.miuix.kmp.window.WindowDialog(
-        show = true,
+        show = show,
         title = stringResource(R.string.settings_token_row),
         summary = stringResource(R.string.settings_token_hint),
         onDismissRequest = { onDismiss() },
@@ -100,7 +112,9 @@ internal fun TokenDialog(
             TextField(
                 value = state.tokenInput,
                 onValueChange = onTokenInput,
-                modifier = Modifier.fillMaxWidth(),
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .focusRequester(tokenFocus),
                 singleLine = true,
                 visualTransformation = if (tokenVisible) {
                     androidx.compose.ui.text.input.VisualTransformation.None

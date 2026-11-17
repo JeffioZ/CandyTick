@@ -505,42 +505,40 @@ fun SettingsScreen(onBack: () -> Unit) {
         }
     }
 
-    // 导入来源选择弹窗（文件 / 剪贴板）
-    if (showImportDialog) {
-        ImportSourceDialog(
-            onFromFile = {
-                showImportDialog = false
-                importLauncher.launch(arrayOf("application/json"))
-            },
-            onFromClipboard = {
-                showImportDialog = false
-                importFromText(clipboard.getText()?.text)
-            },
-            onDismiss = { showImportDialog = false },
-        )
-    }
+    // 导入来源选择弹窗（文件 / 剪贴板）：show 直通，退场有动效
+    ImportSourceDialog(
+        show = showImportDialog,
+        onFromFile = {
+            showImportDialog = false
+            importLauncher.launch(arrayOf("application/json"))
+        },
+        onFromClipboard = {
+            showImportDialog = false
+            importFromText(clipboard.getText()?.text)
+        },
+        onDismiss = { showImportDialog = false },
+    )
 
-    // Token 弹窗：关闭 = 底部「取消」+ scrim 点击 + 返回键
-    if (showTokenDialog) {
-        TokenDialog(
-            state = state,
-            tokenVisible = tokenVisible,
-            onToggleVisible = { tokenVisible = !tokenVisible },
-            onTokenInput = vm::onTokenInput,
-            onSaveAndTest = vm::saveAndTestToken,
-            onOpenHelp = {
-                runCatching {
-                    context.startActivity(
-                        Intent(
-                            Intent.ACTION_VIEW,
-                            Uri.parse("https://docs.github.com/en/authentication/keeping-your-account-and-data-secure/managing-your-personal-access-tokens"),
-                        ).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK),
-                    )
-                }
-            },
-            onDismiss = { showTokenDialog = false },
-        )
-    }
+    // Token 弹窗：关闭 = 底部「取消」+ scrim 点击 + 返回键；show 直通保退场动效
+    TokenDialog(
+        show = showTokenDialog,
+        state = state,
+        tokenVisible = tokenVisible,
+        onToggleVisible = { tokenVisible = !tokenVisible },
+        onTokenInput = vm::onTokenInput,
+        onSaveAndTest = vm::saveAndTestToken,
+        onOpenHelp = {
+            runCatching {
+                context.startActivity(
+                    Intent(
+                        Intent.ACTION_VIEW,
+                        Uri.parse("https://docs.github.com/en/authentication/keeping-your-account-and-data-secure/managing-your-personal-access-tokens"),
+                    ).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK),
+                )
+            }
+        },
+        onDismiss = { showTokenDialog = false },
+    )
 }
 
 
