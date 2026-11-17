@@ -118,7 +118,7 @@
     <string name="add_parse_error">Unrecognized GitHub link</string>
     <string name="add_search_failed">Search failed · retry</string>
     <string name="add_search_empty">No match — try pasting the full link</string>
-    <string name="add_stars">★ %1$d</string>
+    <string name="add_stars">★ %1$s</string>
     <string name="add_license">License: %1$s</string>
     <string name="add_link_app_optional">Link installed app (optional)</string>
     <string name="add_linked_app_named">Linked: %1$s · change</string>
@@ -131,9 +131,9 @@
     <string name="detail_no_commits">No commits</string>
     <string name="detail_no_releases">No releases published</string>
     <string name="detail_no_apk">No APK in this release</string>
-    <string name="detail_stars">★ %1$d</string>
-    <string name="detail_forks">Fork %1$d</string>
-    <string name="detail_issues">Issue %1$d</string>
+    <string name="detail_stars">★ %1$s</string>
+    <string name="detail_forks">Fork %1$s</string>
+    <string name="detail_issues">Issue %1$s</string>
     <string name="detail_last_push">Last push %1$s</string>
     <string name="detail_link_app">Link installed app</string>
     <string name="detail_link_app_other">Choose another app</string>
