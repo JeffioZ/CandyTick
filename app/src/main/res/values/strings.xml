@@ -23,7 +23,6 @@
     <string name="sort_name_desc">Z-A</string>
     <string name="sort_updatable">Has update</string>
     <string name="sort_added">Recently added</string>
-    <string name="remove_repo">Remove</string>
     <string name="open_in_browser">Open in browser</string>
     <string name="detail_remove_repo">Remove repository</string>
     <string name="remove_confirm_title">Remove this repository?</string>
@@ -142,7 +141,6 @@
     <string name="detail_linked_app">Linked: %1$s</string>
     <string name="detail_link_change">Change linked app</string>
     <string name="detail_unlink">Unlink</string>
-    <string name="detail_reinstall">Reinstall downloaded %1$s</string>
     <string name="detail_delete_download">Delete downloaded APK</string>
     <string name="detail_download_deleted">Downloaded APK deleted</string>
     <string name="detail_unlinked">Unlinked</string>
@@ -190,8 +188,6 @@
     <string name="lang_system">System default</string>
     <string name="lang_chinese">简体中文</string>
     <string name="lang_english">English</string>
-    <string name="token_show">Show</string>
-    <string name="token_hide">Hide</string>
     <string name="settings_token_hint">Optional. Raises the API rate limit from 60 to 5,000 requests per hour.</string>
     <string name="settings_token_test">Save &amp; verify</string>
     <string name="token_help_link">How to get a token?</string>

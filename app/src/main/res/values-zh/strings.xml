@@ -23,7 +23,6 @@
     <string name="sort_name_desc">Z-A</string>
     <string name="sort_updatable">有更新</string>
     <string name="sort_added">新添加</string>
-    <string name="remove_repo">移除</string>
     <string name="open_in_browser">在浏览器打开</string>
     <string name="detail_remove_repo">移除仓库</string>
     <string name="remove_confirm_title">移除这个仓库？</string>
@@ -132,7 +131,6 @@
     <string name="detail_linked_app">已关联：%1$s</string>
     <string name="detail_link_change">更改关联应用</string>
     <string name="detail_unlink">解除关联</string>
-    <string name="detail_reinstall">重装已下载的 %1$s</string>
     <string name="detail_delete_download">删除下载的 APK</string>
     <string name="detail_download_deleted">已删除下载的 APK</string>
     <string name="detail_unlinked">已解除关联</string>
@@ -180,8 +178,6 @@
     <string name="lang_system">跟随系统</string>
     <string name="lang_chinese">简体中文</string>
     <string name="lang_english">English</string>
-    <string name="token_show">显示明文</string>
-    <string name="token_hide">隐藏明文</string>
     <string name="settings_token_hint">可选。提升接口限额：60 次/小时 → 5,000 次/小时。</string>
     <string name="settings_token_test">保存并验证</string>
     <string name="token_help_link">如何获取 Token？</string>
