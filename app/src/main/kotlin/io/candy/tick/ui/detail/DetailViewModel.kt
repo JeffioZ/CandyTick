@@ -83,12 +83,28 @@ class DetailViewModel(
     private var commitsPage = 1
     private var releasesPage = 1
     private var commitsGen = 0 // 提交列表代数：切分支/刷新时 +1，迟到的旧响应作废
+    private var autoLinkTried = false // 高置信自动关联只尝试一次
 
     init {
         viewModelScope.launch {
             repository.state.collect { s ->
                 _state.update {
                     it.copy(repo = s.repos.find { r -> r.id == repoId }, snapshot = s.snapshots[repoId])
+                }
+                if (!autoLinkTried) {
+                    val r = _state.value.repo ?: return@collect
+                    autoLinkTried = true
+                    if (r.linkedPackage == null) {
+                        // 高置信自动关联（AppMatcher：标签/包名尾段/owner.repo 段；全机唯一才绑）
+                        val auto = withContext(Dispatchers.Default) {
+                            io.candy.tick.util.AppMatcher.bestAutoMatch(appContext, r.owner, r.repo)
+                        }
+                        if (auto != null) {
+                            repository.setLinkedPackage(repoId, auto.packageName, newLabel = auto.label)
+                            _events.send(Event.AutoLinked(auto.packageName))
+                            return@collect
+                        }
+                    }
                 }
                 if (_state.value.linkSuggestion == null && _state.value.repo?.linkedPackage == null) {
                     val suggestion = computeLinkSuggestion()
@@ -271,32 +287,17 @@ class DetailViewModel(
         }.getOrNull()
         val pkg = info?.packageName?.takeIf { it.isNotBlank() } ?: return
         viewModelScope.launch {
-            repository.setLinkedPackage(repoId, pkg)
+            val label = io.candy.tick.util.apkLabelOf(appContext, file)
+            repository.setLinkedPackage(repoId, pkg, newLabel = label)
             _events.send(Event.AutoLinked(pkg))
         }
     }
 
-    /** 未关联时的智能建议：仓库名 ↔ 已装应用标签 归一化唯一匹配（零网络） */
+    /** 未关联时的建议条：弱匹配（标签包含式）唯一命中才显示，用户点一下才生效 */
     private suspend fun computeLinkSuggestion(): Pair<String, String>? = withContext(Dispatchers.Default) {
-        val name = _state.value.repo?.repo?.lowercase()?.replace(Regex("[^a-z0-9]"), "") ?: return@withContext null
-        if (name.isBlank()) return@withContext null
-        runCatching {
-            val pm = appContext.packageManager
-            val intent = android.content.Intent(android.content.Intent.ACTION_MAIN)
-                .addCategory(android.content.Intent.CATEGORY_LAUNCHER)
-            pm.queryIntentActivities(intent, 0)
-                .asSequence()
-                .filter { it.activityInfo.packageName != appContext.packageName }
-                .map { it to it.loadLabel(pm).toString() }
-                .filter { (ri, label) ->
-                    val norm = label.lowercase().replace(Regex("[^a-z0-9]"), "")
-                    norm == name || (norm.length >= 3 && (norm.contains(name) || name.contains(norm)))
-                }
-                .distinctBy { (ri, _) -> ri.activityInfo.packageName }
-                .toList()
-        }.getOrNull()?.let { matches ->
-            if (matches.size == 1) matches.first().let { (ri, label) -> ri.activityInfo.packageName to label } else null
-        }
+        val repo = _state.value.repo ?: return@withContext null
+        io.candy.tick.util.AppMatcher.containmentSuggestion(appContext, repo.repo)
+            ?.let { it.packageName to it.label }
     }
 
     fun installFile(file: File) = installManager.installApk(file)
@@ -343,8 +344,11 @@ class DetailViewModel(
         }
     }
 
-    fun setLinkedApp(packageName: String?) {
-        viewModelScope.launch { repository.setLinkedPackage(repoId, packageName) }
+    /** 关联 / 解除；newLabel 供手选与建议路径传入（自定义备注由 autoNote 标记保护） */
+    fun setLinkedApp(packageName: String?, newLabel: String? = null) {
+        viewModelScope.launch {
+            repository.setLinkedPackage(repoId, packageName, newLabel)
+        }
     }
 
     /** 详情页删除入口（确认对话框后调用；下载的 APK 文件保留） */

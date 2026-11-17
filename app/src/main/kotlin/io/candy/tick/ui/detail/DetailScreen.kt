@@ -1,6 +1,7 @@
 package io.candy.tick.ui.detail
 
 import io.candy.tick.util.CountFormat
+import androidx.compose.animation.animateContentSize
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
@@ -17,7 +18,9 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.lazy.items
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
@@ -28,6 +31,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.foundation.layout.offset
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.heightIn
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.stringResource
@@ -71,7 +75,6 @@ import top.yukonga.miuix.kmp.icon.extended.Delete
 import top.yukonga.miuix.kmp.icon.extended.Add
 import top.yukonga.miuix.kmp.icon.extended.Create
 import top.yukonga.miuix.kmp.icon.extended.Blocklist
-import top.yukonga.miuix.kmp.icon.extended.ExpandMore
 import top.yukonga.miuix.kmp.icon.extended.More
 import top.yukonga.miuix.kmp.icon.basic.Check
 
@@ -134,13 +137,25 @@ fun DetailScreen(repoId: Long, onBack: () -> Unit) {
         topBar = {
                 SmallTopAppBar(
                     color = androidx.compose.ui.graphics.Color.Transparent,
-                    title = repo?.let { it.noteName ?: it.repo } ?: stringResource(R.string.detail_title),
+                    title = "", // 标题左对齐走 navigationIcon 槽位（与首页一致；右侧三个动作图标下居中会被挤偏）
                     navigationIcon = {
-                        IconButton(onClick = onBack) {
-                            Icon(
-                                imageVector = MiuixIcons.Back,
-                                contentDescription = null,
-                                tint = scheme.onBackground,
+                        androidx.compose.foundation.layout.Row(
+                            verticalAlignment = Alignment.CenterVertically,
+                        ) {
+                            IconButton(onClick = onBack) {
+                                Icon(
+                                    imageVector = MiuixIcons.Back,
+                                    contentDescription = null,
+                                    tint = scheme.onBackground,
+                                )
+                            }
+                            Text(
+                                text = repo?.let { it.noteName ?: it.repo } ?: stringResource(R.string.detail_title),
+                                style = MiuixTheme.textStyles.title4,
+                                color = scheme.onBackground,
+                                maxLines = 1,
+                                overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis,
+                                modifier = Modifier.widthIn(max = 180.dp),
                             )
                         }
                     },
@@ -162,6 +177,17 @@ fun DetailScreen(repoId: Long, onBack: () -> Unit) {
                             Icon(
                                 imageVector = MiuixIcons.Link,
                                 contentDescription = stringResource(R.string.open_in_browser),
+                                tint = scheme.onBackground,
+                            )
+                        }
+                        // 切换浏览分支（仅影响提交视图；居中排布）
+                        IconButton(onClick = {
+                            showBranchSheet = true
+                            vm.loadBranches()
+                        }) {
+                            Icon(
+                                imageVector = io.candy.tick.ui.common.GitBranchIcon,
+                                contentDescription = stringResource(R.string.branch_picker_title),
                                 tint = scheme.onBackground,
                             )
                         }
@@ -206,7 +232,9 @@ fun DetailScreen(repoId: Long, onBack: () -> Unit) {
                                 snackbar.showSnackbar(unlinkedMsg)
                             }
                         },
-                        onLinkSuggestion = { state.linkSuggestion?.first?.let(vm::setLinkedApp) },
+                        onLinkSuggestion = {
+                            state.linkSuggestion?.let { (pkg, label) -> vm.setLinkedApp(pkg, newLabel = label) }
+                        },
                         onDownloadUpdate = vm::downloadUpdate,
                         onInstallUpdate = { repo?.let(vm::installDownloaded) },
                     )
@@ -288,38 +316,6 @@ fun DetailScreen(repoId: Long, onBack: () -> Unit) {
                     }
                 }
                 if (state.tab == DetailViewModel.DetailTab.COMMITS) {
-                    // 分支切换 pill（仅提交视图；状态/版本按仓库级不受影响）
-                    item {
-                        Row(
-                            modifier = Modifier
-                                .padding(start = 16.dp)
-                                .clip(RoundedCornerShape(18.dp))
-                                .background(scheme.secondaryContainer)
-                                .clickable(
-                                    interactionSource = remember { androidx.compose.foundation.interaction.MutableInteractionSource() },
-                                ) {
-                                    showBranchSheet = true
-                                    vm.loadBranches()
-                                }
-                                .padding(start = 14.dp, end = 10.dp, top = 9.dp, bottom = 9.dp),
-                            verticalAlignment = Alignment.CenterVertically,
-                        ) {
-                            Text(
-                                text = state.repo?.branch
-                                    ?: stringResource(R.string.branch_default),
-                                style = MiuixTheme.textStyles.footnote1,
-                                color = scheme.onBackground,
-                                maxLines = 1,
-                            )
-                            Spacer(Modifier.width(4.dp))
-                            Icon(
-                                imageVector = MiuixIcons.ExpandMore,
-                                contentDescription = stringResource(R.string.branch_picker_title),
-                                tint = scheme.onBackgroundVariant,
-                                modifier = Modifier.size(16.dp),
-                            )
-                        }
-                    }
                     commitList(state = state, onLoadMore = vm::loadCommits)
                 } else {
                     releaseList(
@@ -355,42 +351,70 @@ fun DetailScreen(repoId: Long, onBack: () -> Unit) {
     if (showAppPicker) {
         AppPickerSheet(
             show = true,
-            onPick = { pkg, _ ->
-                vm.setLinkedApp(pkg)
+            onPick = { pkg, label ->
+                vm.setLinkedApp(pkg, newLabel = label)
                 showAppPicker = false
             },
             onDismiss = { showAppPicker = false },
         )
     }
 
-    // 分支选择（提交视图浏览分支；首项 = 仓库默认分支）
+    // 分支选择（提交视图浏览分支；限高 60% 屏 + 平滑增高；分支多时给搜索框）
     if (showBranchSheet) {
         top.yukonga.miuix.kmp.window.WindowBottomSheet(
             show = true,
             title = stringResource(R.string.branch_picker_title),
             onDismissRequest = { showBranchSheet = false },
         ) {
-            Column {
+            val maxSheetHeight = androidx.compose.ui.platform.LocalConfiguration.current.screenHeightDp.dp * 0.6f
+            var query by remember { mutableStateOf("") }
+            val current = state.repo?.branch
+            val keyword = query.trim()
+            val filtered = if (keyword.isEmpty()) state.branches else state.branches.filter {
+                it.contains(keyword, ignoreCase = true)
+            }
+            androidx.compose.foundation.layout.Column(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .heightIn(max = maxSheetHeight)
+                    .animateContentSize(),
+            ) {
+                if (state.branches.size > 15) {
+                    top.yukonga.miuix.kmp.basic.TextField(
+                        value = query,
+                        onValueChange = { query = it },
+                        label = stringResource(R.string.branch_search_hint),
+                        singleLine = true,
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(horizontal = 16.dp),
+                    )
+                }
                 BranchRow(
                     label = stringResource(R.string.branch_default),
-                    selected = state.repo?.branch == null,
+                    selected = current == null,
                     onClick = {
                         vm.setBranch(null)
                         showBranchSheet = false
                     },
                 )
-                val current = state.repo?.branch
-                state.branches.forEach { name ->
-                    BranchRow(name, name == current) {
-                        vm.setBranch(name)
-                        showBranchSheet = false
+                androidx.compose.foundation.lazy.LazyColumn(
+                    modifier = Modifier.weight(1f, fill = false),
+                ) {
+                    items(filtered, key = { it }) { name ->
+                        BranchRow(name, name == current) {
+                            vm.setBranch(name)
+                            showBranchSheet = false
+                        }
                     }
-                }
-                // 已选分支被远端删除（不在列表里）：保留一行选中态，可切回默认
-                current?.takeIf { it !in state.branches }?.let { name ->
-                    BranchRow(name, true) {
-                        vm.setBranch(name)
-                        showBranchSheet = false
+                    // 已选分支被远端删除（不在列表里）：保留一行选中态，可切回默认
+                    current?.takeIf { it !in state.branches && (keyword.isEmpty() || it.contains(keyword, true)) }?.let { name ->
+                        item(key = "deleted-$name") {
+                            BranchRow(name, true) {
+                                vm.setBranch(name)
+                                showBranchSheet = false
+                            }
+                        }
                     }
                 }
                 when {
@@ -454,6 +478,17 @@ fun DetailScreen(repoId: Long, onBack: () -> Unit) {
             }
         }
     }
+}
+
+/** 卡内分区线：全宽 1dp，配 spacedBy(8) 形成 16dp 呼吸 */
+@Composable
+private fun SectionDivider() {
+    androidx.compose.foundation.layout.Box(
+        modifier = Modifier
+            .fillMaxWidth()
+            .height(1.dp)
+            .background(MiuixTheme.colorScheme.dividerLine),
+    )
 }
 
 @Composable
@@ -526,10 +561,12 @@ private fun HeaderCard(
                     text = it,
                     style = MiuixTheme.textStyles.body2,
                     color = scheme.onBackgroundVariant,
+                    maxLines = 3,
+                    overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis,
                 )
             }
 
-            Row(horizontalArrangement = Arrangement.spacedBy(16.dp)) {
+            Row(horizontalArrangement = Arrangement.spacedBy(14.dp)) {
                 Text(
                     text = stringResource(R.string.detail_stars, CountFormat.format(snapshot?.stars ?: 0)),
                     style = MiuixTheme.textStyles.footnote1,
@@ -550,6 +587,9 @@ private fun HeaderCard(
                         text = it,
                         style = MiuixTheme.textStyles.footnote1,
                         color = scheme.onBackgroundVariant,
+                        maxLines = 1,
+                        overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis,
+                        modifier = Modifier.weight(1f, fill = false),
                     )
                 }
             }
@@ -562,8 +602,9 @@ private fun HeaderCard(
                 )
             }
 
-            // 版本状态：最新 release vs 本机已装版本（与首页卡片展开同口径）
+            // ── 版本分区：版本状态 + 更新操作成组（因果相邻），与元数据/关联区用分隔线切开 ──
             snapshot?.latestReleaseTag?.let { tag ->
+                SectionDivider()
                 VersionStatusLine(repo = repo, remoteTag = tag)
             }
 
@@ -597,6 +638,8 @@ private fun HeaderCard(
                 }
             }
 
+            // ── 关联分区（始终存在，固定卡底）──
+            SectionDivider()
             // 关联本机应用（可修改 / 解除）
             val linkedLabel = repo.linkedPackage?.let { pkg ->
                 runCatching {
@@ -703,8 +746,6 @@ private fun HeaderCard(
             } else {
                 TextButton(text = stringResource(R.string.detail_link_app), onClick = onChangeLinked)
             }
-
-
         }
     }
 }
