@@ -7,7 +7,6 @@ import android.os.Build
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.layout.Arrangement
-import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
@@ -43,6 +42,7 @@ import io.candy.tick.data.Notifications
 import io.candy.tick.data.SelfUpdater
 import io.candy.tick.data.model.SyncFrequency
 import io.candy.tick.ui.common.PrimaryButton
+import io.candy.tick.ui.common.SecondaryButton
 import io.candy.tick.ui.theme.ChipAmber
 import io.candy.tick.ui.theme.ChipBlue
 import io.candy.tick.ui.theme.ChipOrange
@@ -63,6 +63,7 @@ import top.yukonga.miuix.kmp.icon.extended.CloudFill
 import top.yukonga.miuix.kmp.icon.extended.Download
 import top.yukonga.miuix.kmp.icon.extended.Email
 import top.yukonga.miuix.kmp.icon.extended.File
+import top.yukonga.miuix.kmp.icon.extended.FileDownloads
 import top.yukonga.miuix.kmp.icon.extended.Import
 import top.yukonga.miuix.kmp.icon.extended.Info
 import top.yukonga.miuix.kmp.icon.extended.Link
@@ -132,6 +133,24 @@ fun SettingsScreen(onBack: () -> Unit) {
         ActivityResultContracts.RequestPermission(),
     ) { notifGranted = Notifications.canNotify(app) }
 
+    var showImportDialog by remember { mutableStateOf(false) }
+
+    fun importFromText(text: String?) {
+        if (text.isNullOrBlank()) {
+            android.widget.Toast.makeText(app, app.getString(R.string.import_failed), android.widget.Toast.LENGTH_SHORT).show()
+            return
+        }
+        scope.launch {
+            val added = vm.importSubscriptions(text)
+            val msg = if (added >= 0) {
+                app.getString(R.string.import_result, added)
+            } else {
+                app.getString(R.string.import_failed)
+            }
+            android.widget.Toast.makeText(app, msg, android.widget.Toast.LENGTH_SHORT).show()
+        }
+    }
+
     val importLauncher = rememberLauncherForActivityResult(
         ActivityResultContracts.OpenDocument(),
     ) { uri ->
@@ -139,19 +158,7 @@ fun SettingsScreen(onBack: () -> Unit) {
             val text = runCatching {
                 context.contentResolver.openInputStream(uri)?.bufferedReader()?.use { it.readText() }
             }.getOrNull()
-            if (text.isNullOrBlank()) {
-                android.widget.Toast.makeText(app, app.getString(R.string.import_failed), android.widget.Toast.LENGTH_SHORT).show()
-            } else {
-                scope.launch {
-                    val added = vm.importSubscriptions(text)
-                    val msg = if (added >= 0) {
-                        app.getString(R.string.import_result, added)
-                    } else {
-                        app.getString(R.string.import_failed)
-                    }
-                    android.widget.Toast.makeText(app, msg, android.widget.Toast.LENGTH_SHORT).show()
-                }
-            }
+            importFromText(text)
         }
     }
 
@@ -367,6 +374,15 @@ fun SettingsScreen(onBack: () -> Unit) {
                     icon = MiuixIcons.Download,
                     iconTint = ChipSky,
                 )
+                RowDivider()
+                SwitchRow(
+                    title = stringResource(R.string.settings_auto_install),
+                    checked = state.settings.autoInstallDownload,
+                    onChange = vm::setAutoInstallDownload,
+                    summary = stringResource(R.string.settings_auto_install_summary),
+                    icon = MiuixIcons.FileDownloads,
+                    iconTint = ChipGreen,
+                )
                 SelfUpdateActions(state = state, vm = vm)
             }
 
@@ -401,7 +417,7 @@ fun SettingsScreen(onBack: () -> Unit) {
                     iconTint = ChipSand,
                     title = stringResource(R.string.settings_import),
                     summary = stringResource(R.string.settings_import_summary),
-                    onClick = { importLauncher.launch(arrayOf("application/json")) },
+                    onClick = { showImportDialog = true },
                 )
             }
 
@@ -486,52 +502,78 @@ fun SettingsScreen(onBack: () -> Unit) {
         }
     }
 
+    // 导入来源选择弹窗（文件 / 剪贴板）
+    if (showImportDialog) {
+        top.yukonga.miuix.kmp.window.WindowDialog(
+            show = true,
+            title = stringResource(R.string.settings_import),
+            onDismissRequest = { showImportDialog = false },
+        ) {
+            Column(
+                modifier = Modifier.padding(horizontal = 20.dp, vertical = 16.dp),
+                verticalArrangement = Arrangement.spacedBy(10.dp),
+            ) {
+                PrimaryButton(
+                    text = stringResource(R.string.import_from_file),
+                    onClick = {
+                        showImportDialog = false
+                        importLauncher.launch(arrayOf("application/json"))
+                    },
+                    modifier = Modifier.fillMaxWidth(),
+                )
+                SecondaryButton(
+                    text = stringResource(R.string.import_from_clipboard),
+                    onClick = {
+                        showImportDialog = false
+                        importFromText(clipboard.getText()?.text)
+                    },
+                    modifier = Modifier.fillMaxWidth(),
+                )
+            }
+        }
+    }
+
+    // Token 弹窗：标题/说明走 Dialog 内置槽位；关闭 = 底部「取消」+ scrim 点击 + 返回键
     if (showTokenDialog) {
         top.yukonga.miuix.kmp.window.WindowDialog(
             show = true,
             title = stringResource(R.string.settings_token_row),
+            summary = stringResource(R.string.settings_token_hint),
             onDismissRequest = { showTokenDialog = false },
         ) {
             Column(
-                modifier = Modifier.padding(horizontal = 20.dp, vertical = 16.dp),
+                modifier = Modifier.padding(horizontal = 20.dp, vertical = 4.dp),
                 verticalArrangement = Arrangement.spacedBy(12.dp),
             ) {
-                // 一句话说明：为什么需要 + 可选
-                Text(
-                    text = stringResource(R.string.settings_token_hint),
-                    style = MiuixTheme.textStyles.body2,
-                    color = scheme.onBackgroundVariant,
+                // 输入框：单行密码式，眼睛切换在原生 trailingIcon 槽位（48dp 触控）
+                TextField(
+                    value = state.tokenInput,
+                    onValueChange = vm::onTokenInput,
+                    modifier = Modifier.fillMaxWidth(),
+                    singleLine = true,
+                    visualTransformation = if (tokenVisible) {
+                        androidx.compose.ui.text.input.VisualTransformation.None
+                    } else {
+                        androidx.compose.ui.text.input.PasswordVisualTransformation()
+                    },
+                    keyboardOptions = androidx.compose.foundation.text.KeyboardOptions(
+                        keyboardType = androidx.compose.ui.text.input.KeyboardType.Password,
+                    ),
+                    trailingIcon = {
+                        IconButton(onClick = { tokenVisible = !tokenVisible }) {
+                            Icon(
+                                imageVector = if (tokenVisible) MiuixIcons.Hide else MiuixIcons.Show,
+                                contentDescription = stringResource(
+                                    if (tokenVisible) R.string.token_hide else R.string.token_show,
+                                ),
+                                tint = scheme.onBackgroundVariant,
+                            )
+                        }
+                    },
                 )
 
-                // 输入框 + 眼睛按钮
-                Row(
-                    modifier = Modifier.fillMaxWidth(),
-                    verticalAlignment = Alignment.CenterVertically,
-                ) {
-                    TextField(
-                        value = state.tokenInput,
-                        onValueChange = vm::onTokenInput,
-                        modifier = Modifier.weight(1f),
-                        visualTransformation = if (tokenVisible) {
-                            androidx.compose.ui.text.input.VisualTransformation.None
-                        } else {
-                            androidx.compose.ui.text.input.PasswordVisualTransformation()
-                        },
-                        keyboardOptions = androidx.compose.foundation.text.KeyboardOptions(
-                            keyboardType = androidx.compose.ui.text.input.KeyboardType.Password,
-                        ),
-                    )
-                    IconButton(onClick = { tokenVisible = !tokenVisible }) {
-                        Icon(
-                            imageVector = if (tokenVisible) MiuixIcons.Hide else MiuixIcons.Show,
-                            contentDescription = null,
-                            tint = scheme.onBackgroundVariant,
-                        )
-                    }
-                }
-
-                // 帮助链接
-                top.yukonga.miuix.kmp.basic.TextButton(
+                // 帮助链接（TextButton：自带按压态与触控高度）
+                TextButton(
                     text = stringResource(R.string.token_help_link),
                     onClick = {
                         runCatching {
@@ -545,15 +587,7 @@ fun SettingsScreen(onBack: () -> Unit) {
                     },
                 )
 
-                // 单一操作按钮
-                PrimaryButton(
-                    text = stringResource(R.string.settings_token_test),
-                    onClick = vm::saveAndTestToken,
-                    enabled = state.tokenInput.isNotBlank(),
-                    modifier = Modifier.fillMaxWidth(),
-                )
-
-                // 验证结果（单行，简洁）
+                // 验证结果 / 被拒提示（就近展示在输入框下方）
                 when (state.tokenTest) {
                     SettingsViewModel.TokenTest.TESTING -> Text(
                         text = stringResource(R.string.loading),
@@ -577,13 +611,29 @@ fun SettingsScreen(onBack: () -> Unit) {
                     )
                     null -> Unit
                 }
-
-                // Token 被拒提示（仅在适用时显示）
                 if (state.tokenRejected) {
                     Text(
                         text = stringResource(R.string.settings_token_rejected),
                         style = MiuixTheme.textStyles.footnote1,
                         color = scheme.onErrorContainer,
+                    )
+                }
+
+                // 底部按钮行：取消（显式关闭）+ 保存并验证（主操作）
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.End,
+                    verticalAlignment = Alignment.CenterVertically,
+                ) {
+                    TextButton(
+                        text = stringResource(R.string.action_cancel),
+                        onClick = { showTokenDialog = false },
+                    )
+                    Spacer(Modifier.width(12.dp))
+                    PrimaryButton(
+                        text = stringResource(R.string.settings_token_test),
+                        onClick = vm::saveAndTestToken,
+                        enabled = state.tokenInput.isNotBlank(),
                     )
                 }
             }

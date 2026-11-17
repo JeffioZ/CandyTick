@@ -110,10 +110,15 @@
     </plurals>
 
     <!-- 详情页 -->
-    <string name="detail_title">Repository</string>
+        <string name="detail_title">Repository</string>
+
+    <!-- 分支 -->
+    <string name="branch_default">Default branch</string>
+    <string name="branch_picker_title">Branch</string>
+    <string name="branch_load_failed">Failed to load branches · retry</string>
 
     <!-- 添加页 -->
-    <string name="add_input_hint">Paste a GitHub link or search</string>
+    <string name="add_input_hint">Paste link or search</string>
     <string name="add_parse_error">Unrecognized GitHub link</string>
     <string name="add_search_failed">Search failed · retry</string>
     <string name="add_search_empty">No match — try pasting the full link</string>
@@ -167,7 +172,7 @@
     <!-- 设置页 -->
     <string name="settings_appearance">Appearance</string>
     <string name="action_search">Search</string>
-    <string name="search_hint">Search repositories</string>
+    <string name="search_hint">Search</string>
     <string name="search_no_results">No results for \"%1$s\"</string>
     <string name="search_clear">Clear search</string>
     <string name="settings_backup_group">Data</string>
@@ -177,6 +182,8 @@
     <string name="settings_import_summary">Merge from a JSON file; existing data is kept</string>
     <string name="import_result">Imported %1$d repositories</string>
     <string name="import_failed">Import failed · not a valid backup file</string>
+    <string name="import_from_file">From file</string>
+    <string name="import_from_clipboard">From clipboard</string>
     <string name="settings_theme_mode">Theme</string>
     <string name="settings_sync">Sync</string>
     <string name="settings_sync_frequency">Frequency</string>
@@ -193,6 +200,11 @@
     <string name="settings_token_hint">Optional. Raises the API rate limit from 60 to 5,000 requests per hour.</string>
     <string name="settings_token_test">Save &amp; verify</string>
     <string name="token_help_link">How to get a token?</string>
+    <string name="token_show">Show token</string>
+    <string name="token_hide">Hide token</string>
+    <string name="download_update_action">Download update</string>
+    <string name="settings_auto_install">Auto-install after download</string>
+    <string name="settings_auto_install_summary">Show the system install prompt as soon as a repo APK finishes downloading</string>
     <string name="token_verified">✓ Verified</string>
     <string name="token_invalid_short">✗ Invalid token</string>
     <string name="token_network_error">Network error, try again</string>
