@@ -15,6 +15,16 @@ class MainActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         installSplashScreen()
         super.onCreate(savedInstanceState)
+        // 应用保存的语言设置（在 setContent 前生效）
+        val savedLang = (application as CandyTickApp).container.appStateStore.state.value.settings.language
+        if (savedLang.isNotBlank()) {
+            val locale = java.util.Locale.forLanguageTag(savedLang)
+            java.util.Locale.setDefault(locale)
+            val config = android.content.res.Configuration(resources.configuration)
+            config.setLocale(locale)
+            @Suppress("DEPRECATION")
+            resources.updateConfiguration(config, resources.displayMetrics)
+        }
         enableEdgeToEdge()
         val container = (application as CandyTickApp).container
         setContent {

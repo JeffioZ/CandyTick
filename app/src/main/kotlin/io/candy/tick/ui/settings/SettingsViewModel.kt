@@ -87,6 +87,12 @@ class SettingsViewModel(
         mutateSettings(transform = { s: Settings -> s.copy(selfUpdateCheck = enabled) })
     }
 
+    fun setLanguage(tag: String) {
+        viewModelScope.launch {
+            repository.updateSettings { it.copy(language = tag) }
+        }
+    }
+
     fun setSelfUpdateDownload(enabled: Boolean) {
         mutateSettings(transform = { s: Settings -> s.copy(selfUpdateAutoDownload = enabled) })
     }

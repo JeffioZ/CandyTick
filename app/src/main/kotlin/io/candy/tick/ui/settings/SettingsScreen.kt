@@ -194,6 +194,15 @@ fun SettingsScreen(onBack: () -> Unit) {
         }
     }
 
+    fun languageTag(): String = state.settings.language
+
+    fun applyLanguage(tag: String) {
+        scope.launch {
+            vm.setLanguage(tag)
+            (context as? android.app.Activity)?.recreate()
+        }
+    }
+
     /** 1=已授权 0=未授权 2=无需授予（见文件级 permText） */
 
     Scaffold(
@@ -224,7 +233,7 @@ fun SettingsScreen(onBack: () -> Unit) {
             SettingsGroup(title = stringResource(R.string.settings_appearance)) {
                 SettingRow(
                     title = stringResource(R.string.settings_language),
-                    value = languageLabel(),
+                    value = languageLabel(languageTag()),
                     icon = MiuixIcons.WorldClock,
                     iconTint = ChipBlue,
                     onClick = { showLanguageSheet = true },
@@ -566,19 +575,11 @@ fun SettingsScreen(onBack: () -> Unit) {
     }
 }
 
-
-private fun languageTag(): String = "" // TODO: 从 Settings 读取
-
 @Composable
-private fun languageLabel(): String = when (languageTag()) {
+private fun languageLabel(tag: String): String = when (tag) {
     "zh" -> stringResource(R.string.lang_chinese)
     "en" -> stringResource(R.string.lang_english)
     else -> stringResource(R.string.lang_system)
-}
-
-private fun applyLanguage(tag: String) {
-    // TODO: 改用 Configuration.setLocale + activity.recreate()（不依赖 AppCompat）
-    // 暂时禁用，验证 AppCompatActivity 是否为闪退根因
 }
 
 @Composable
