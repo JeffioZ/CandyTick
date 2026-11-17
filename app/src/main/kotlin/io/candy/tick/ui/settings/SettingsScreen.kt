@@ -131,7 +131,7 @@ fun SettingsScreen(onBack: () -> Unit) {
 
     fun importFromText(text: String?) {
         if (text.isNullOrBlank()) {
-            android.widget.Toast.makeText(app, app.getString(R.string.import_failed), android.widget.Toast.LENGTH_SHORT).show()
+            io.candy.tick.ui.common.Feedback.show(text = app.getString(R.string.import_failed), isError = true)
             return
         }
         scope.launch {
@@ -141,7 +141,7 @@ fun SettingsScreen(onBack: () -> Unit) {
             } else {
                 app.getString(R.string.import_failed)
             }
-            android.widget.Toast.makeText(app, msg, android.widget.Toast.LENGTH_SHORT).show()
+            io.candy.tick.ui.common.Feedback.show(text = msg, isError = added < 0)
         }
     }
 
@@ -158,7 +158,7 @@ fun SettingsScreen(onBack: () -> Unit) {
 
     fun shareCrashLog() {
         if (!crashLogExists()) {
-            android.widget.Toast.makeText(app, app.getString(R.string.crash_log_empty), android.widget.Toast.LENGTH_SHORT).show()
+            io.candy.tick.ui.common.Feedback.show(text = app.getString(R.string.crash_log_empty))
             return
         }
         val content = runCatching { crashLogFile.readText() }.getOrDefault("")
@@ -355,6 +355,9 @@ fun SettingsScreen(onBack: () -> Unit) {
                     valueMonospace = state.selfUpdate is SelfUpdater.State.NewVersion,
                     onClick = vm::checkUpdate,
                 )
+                // 更新动作流紧跟触发点（发现新版 → 版本/说明/下载立即出现在检查行下方），
+                // 偏好开关退到其后；空闲态渲染为空，布局不变
+                SelfUpdateActions(state = state, vm = vm)
                 RowDivider()
                 SwitchRow(
                     title = stringResource(R.string.settings_self_update_check),
@@ -381,7 +384,6 @@ fun SettingsScreen(onBack: () -> Unit) {
                     icon = MiuixIcons.FileDownloads,
                     iconTint = ChipGreen,
                 )
-                SelfUpdateActions(state = state, vm = vm)
             }
             }
 
@@ -396,11 +398,7 @@ fun SettingsScreen(onBack: () -> Unit) {
                     onClick = {
                         val text = vm.exportSubscriptions()
                         clipboard.setText(androidx.compose.ui.text.AnnotatedString(text))
-                        android.widget.Toast.makeText(
-                            app,
-                            app.getString(R.string.toast_copied),
-                            android.widget.Toast.LENGTH_SHORT,
-                        ).show()
+                        io.candy.tick.ui.common.Feedback.show(text = app.getString(R.string.toast_copied))
                         runCatching {
                             context.startActivity(
                                 Intent(Intent.ACTION_SEND)

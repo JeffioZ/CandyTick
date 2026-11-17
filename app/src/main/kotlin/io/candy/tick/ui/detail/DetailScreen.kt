@@ -44,8 +44,6 @@ import top.yukonga.miuix.kmp.basic.MiuixScrollBehavior
 import top.yukonga.miuix.kmp.basic.PullToRefresh
 import top.yukonga.miuix.kmp.basic.Scaffold
 import top.yukonga.miuix.kmp.basic.SmallTopAppBar
-import top.yukonga.miuix.kmp.basic.SnackbarHost
-import top.yukonga.miuix.kmp.basic.SnackbarHostState
 import top.yukonga.miuix.kmp.basic.Text
 import top.yukonga.miuix.kmp.basic.rememberPullToRefreshState
 import top.yukonga.miuix.kmp.basic.rememberTopAppBarState
@@ -76,7 +74,7 @@ fun DetailScreen(repoId: Long, onBack: () -> Unit) {
     var showRemoveDialog by remember { mutableStateOf(false) }
     val context = LocalContext.current
     val scope = androidx.compose.runtime.rememberCoroutineScope()
-    val snackbar = remember { SnackbarHostState() }
+    // 瞬时反馈走全局 FeedbackHost
     val doneMsg = stringResource(R.string.install_done)
     val failedMsg = stringResource(R.string.install_failed_format)
     val mismatchMsg = stringResource(R.string.install_signature_mismatch)
@@ -89,20 +87,17 @@ fun DetailScreen(repoId: Long, onBack: () -> Unit) {
         vm.events.collect { event ->
             when (event) {
                 is DetailViewModel.Event.InstallResultEvent -> when (val r = event.result) {
-                    is InstallManager.InstallResult.Success -> snackbar.showSnackbar(doneMsg)
-                    is InstallManager.InstallResult.Failed -> snackbar.showSnackbar(
-                        if (r.signatureMismatch) {
-                            mismatchMsg
-                        } else {
-                            failedMsg.format(r.message ?: "")
-                        },
+                    is InstallManager.InstallResult.Success -> io.candy.tick.ui.common.Feedback.show(doneMsg)
+                    is InstallManager.InstallResult.Failed -> io.candy.tick.ui.common.Feedback.show(
+                        text = if (r.signatureMismatch) mismatchMsg else failedMsg.format(r.message ?: ""),
+                        isError = true,
                     )
                     InstallManager.InstallResult.PendingUserAction -> Unit // 系统确认界面已接管
                     InstallManager.InstallResult.NeedsInstallPermission ->
-                        snackbar.showSnackbar(needPermMsg)
+                        io.candy.tick.ui.common.Feedback.show(text = needPermMsg, isError = true)
                 }
-                is DetailViewModel.Event.AutoLinked -> snackbar.showSnackbar(autoLinkedFmt.format(event.packageName))
-                DetailViewModel.Event.DownloadDeleted -> snackbar.showSnackbar(downloadDeletedMsg)
+                is DetailViewModel.Event.AutoLinked -> io.candy.tick.ui.common.Feedback.show(autoLinkedFmt.format(event.packageName))
+                DetailViewModel.Event.DownloadDeleted -> io.candy.tick.ui.common.Feedback.show(downloadDeletedMsg)
             }
         }
     }
@@ -206,7 +201,7 @@ fun DetailScreen(repoId: Long, onBack: () -> Unit) {
                         onUnlink = {
                             scope.launch {
                                 vm.setLinkedApp(null)
-                                snackbar.showSnackbar(unlinkedMsg)
+                                io.candy.tick.ui.common.Feedback.show(unlinkedMsg)
                             }
                         },
                         onLinkSuggestion = {
@@ -314,15 +309,6 @@ fun DetailScreen(repoId: Long, onBack: () -> Unit) {
         }
     }
 
-        // 安装结果 / 撤销类反馈覆盖层
-        Box(
-            modifier = Modifier
-                .fillMaxSize()
-                .padding(bottom = 24.dp),
-            contentAlignment = Alignment.BottomCenter,
-        ) {
-            SnackbarHost(state = snackbar)
-        }
     }
 
     AppPickerSheet(

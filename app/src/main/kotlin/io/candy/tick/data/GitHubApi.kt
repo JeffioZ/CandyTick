@@ -115,6 +115,7 @@ class GitHubApi(private val tokenProvider: () -> String?) {
                         tagName = r.tag_name,
                         name = r.name,
                         publishedAt = parseInstant(r.published_at),
+                        body = r.body,
                         apkAssets = r.assets.map { a ->
                             ApkAsset(
                                 name = a.name,
@@ -301,10 +302,14 @@ private data class GhCommitDetail(
 private data class GhBranch(val name: String = "")
 
 @Serializable
+private data class GhReleaseDto(val body: String = "")
+
+@Serializable
 private data class GhPerson(val name: String? = null, val date: String? = null)
 
 @Serializable
 private data class GhRelease(
+    val body: String = "",
     val tag_name: String = "",
     val name: String? = null,
     val published_at: String? = null,

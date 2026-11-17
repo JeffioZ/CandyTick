@@ -3,8 +3,11 @@ package io.candy.tick
 import android.os.Bundle
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
+import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.fillMaxSize
 import androidx.activity.enableEdgeToEdge
 import androidx.compose.runtime.getValue
+import androidx.compose.ui.Modifier
 import androidx.core.splashscreen.SplashScreen.Companion.installSplashScreen
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import io.candy.tick.ui.nav.AppNavHost
@@ -30,7 +33,11 @@ class MainActivity : ComponentActivity() {
         setContent {
             val state by container.appStateStore.state.collectAsStateWithLifecycle()
             CandyTickTheme(themeMode = state.settings.themeMode) {
-                AppNavHost(container)
+                Box(modifier = Modifier.fillMaxSize()) {
+                    AppNavHost(container)
+                    // 全局瞬时反馈宿主：导航之上、状态栏下居中（顶部信息带）
+                    io.candy.tick.ui.common.FeedbackHost()
+                }
             }
         }
     }

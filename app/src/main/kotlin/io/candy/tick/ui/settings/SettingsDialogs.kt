@@ -258,11 +258,24 @@ internal fun SelfUpdateActions(state: SettingsViewModel.UiState, vm: SettingsVie
                 Column(
                     modifier = Modifier.padding(start = 16.dp, end = 16.dp, bottom = 16.dp),
                 ) {
+                    // 醒目版本 tag：一眼看到"升到什么"
+                    update?.tag?.let {
+                        Text(
+                            text = it,
+                            style = io.candy.tick.ui.theme.MonoTokenStyle.copy(
+                                fontWeight = androidx.compose.ui.text.font.FontWeight.Bold,
+                            ),
+                            color = scheme.primaryVariant,
+                            modifier = Modifier.padding(bottom = 4.dp),
+                        )
+                    }
                     update?.notes?.let {
                         Text(
                             text = it,
                             style = MiuixTheme.textStyles.footnote1,
                             color = scheme.onBackgroundVariant,
+                            maxLines = 4,
+                            overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis,
                             modifier = Modifier.padding(bottom = 8.dp),
                         )
                     }

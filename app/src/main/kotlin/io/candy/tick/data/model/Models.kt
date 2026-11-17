@@ -76,6 +76,7 @@ data class ReleaseRecord(
     val name: String?,
     val publishedAt: Instant?,
     val apkAssets: List<ApkAsset> = emptyList(),
+    val body: String = "", // 更新说明正文（Markdown 原文，展示层做轻量清理）
 )
 
 @Serializable

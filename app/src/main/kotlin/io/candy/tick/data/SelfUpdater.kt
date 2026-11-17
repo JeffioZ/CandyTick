@@ -44,6 +44,14 @@ class SelfUpdater(
 
     private val updateDir: File = File(context.filesDir, "updates")
 
+    /** 轻量 Markdown 清理：剥标题井号/加粗星号/列表符号，压缩空行——正文在 UI 限 4 行展示 */
+    private fun plainNotes(md: String): String = md
+        .replace(Regex("#{1,6} "), "")
+        .replace("**", "")
+        .replace(Regex("^[-*] ", RegexOption.MULTILINE), "\u00b7 ")
+        .replace(Regex("\n{3,}"), "\n\n")
+        .trim()
+
     /** @return true = 有可比对新版本（可触发自动下载） */
     suspend fun check(): Boolean {
         _state.value = State.Checking
@@ -58,7 +66,14 @@ class SelfUpdater(
                 }
                 else -> {
                     val cmp = VersionCompare.compare(latest.tagName, local)
-                    val notes = latest.name?.takeIf { it.isNotBlank() }
+                    // 更新说明取 Release 正文（body），轻量清理 Markdown 符号；空则退回标题
+                    val notes = latest.body.takeIf { it.isNotBlank() }?.let { plainNotes(it) }
+                        ?.let { n ->
+                            // 首行若与版本号重复（正文常以 ## vX 开头）剔除
+                            val lines = n.lineSequence()
+                            if (lines.first() == latest.tagName) lines.drop(1).joinToString("\n") else n
+                        }
+                        ?: latest.name?.takeIf { it.isNotBlank() }
                     when {
                         cmp == null -> {
                             _state.value = State.NewVersion(

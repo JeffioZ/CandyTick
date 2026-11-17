@@ -1,10 +1,8 @@
 package io.candy.tick.ui.list
 
 import androidx.compose.foundation.background
-import androidx.compose.foundation.border
 import androidx.compose.ui.draw.alpha
 import androidx.compose.ui.draw.clip
-import androidx.compose.ui.draw.shadow
 import androidx.compose.ui.focus.focusRequester
 import io.candy.tick.data.SyncStatus
 import androidx.compose.foundation.layout.Arrangement
@@ -45,9 +43,6 @@ import top.yukonga.miuix.kmp.basic.MiuixScrollBehavior
 import top.yukonga.miuix.kmp.basic.PullToRefresh
 import top.yukonga.miuix.kmp.basic.Scaffold
 import top.yukonga.miuix.kmp.basic.SmallTopAppBar
-import top.yukonga.miuix.kmp.basic.SnackbarHost
-import top.yukonga.miuix.kmp.basic.SnackbarHostState
-import top.yukonga.miuix.kmp.basic.SnackbarResult
 import top.yukonga.miuix.kmp.basic.Text
 import top.yukonga.miuix.kmp.basic.rememberPullToRefreshState
 import top.yukonga.miuix.kmp.basic.rememberTopAppBarState
@@ -75,8 +70,21 @@ fun ListScreen(
         consumedAt = vm.syncResultConsumedAt,
         onConsumed = { vm.syncResultConsumedAt = it },
     )
+    // 同步结果也走统一反馈（顶栏 ✓ 符保留作状态指示）；app.getString 可在协程内带参取串
+    androidx.compose.runtime.LaunchedEffect(syncResult) {
+        syncResult?.let { d ->
+            val allFailed = d.failed > 0 && d.changed == 0
+            val text = when {
+                allFailed -> app.getString(R.string.sync_result_all_failed, d.failed)
+                d.changed > 0 -> app.getString(R.string.sync_result_updated, d.changed) +
+                    if (d.failed > 0) app.getString(R.string.sync_result_failed_suffix, d.failed) else ""
+                else -> app.getString(R.string.sync_result_fresh)
+            }
+            io.candy.tick.ui.common.Feedback.show(text = text, isError = allFailed)
+        }
+    }
     val scheme = MiuixTheme.colorScheme
-    val snackbar = remember { SnackbarHostState() }
+    // 瞬时反馈走全局 FeedbackHost（撤销动作由胶囊承载）
     val listState = androidx.compose.foundation.lazy.rememberLazyListState()
     // 重排锚点：抑制期内保持「用户原来看哪还看哪」——修复 LazyColumn 锚定取整误差
     // （重排项插到首见项之上时露出 1px 边 + 跨视口闪烁）
@@ -125,15 +133,11 @@ fun ListScreen(
     LaunchedEffect(Unit) {
         vm.events.collect { event ->
             when (event) {
-                is ListViewModel.Event.Removed -> {
-                    val result = snackbar.showSnackbar(
-                        message = removedMsg,
-                        actionLabel = undoLabel,
-                    )
-                    if (result == SnackbarResult.ActionPerformed) {
-                        vm.restore(event.repo, event.snapshot)
-                    }
-                }
+                is ListViewModel.Event.Removed -> io.candy.tick.ui.common.Feedback.show(
+                    text = removedMsg,
+                    actionLabel = undoLabel,
+                    onAction = { vm.restore(event.repo, event.snapshot) },
+                )
             }
         }
     }
@@ -322,22 +326,10 @@ fun ListScreen(
                     }
                 }
             }
-            ResultCapsule(
-                done = syncResult,
-                modifier = Modifier.align(Alignment.TopCenter),
-            )
+
             }
         }
 
-        // 撤销 Snackbar 覆盖层（无指针消费，不挡触摸）
-        Box(
-            modifier = Modifier
-                .fillMaxSize()
-                .padding(bottom = 24.dp),
-            contentAlignment = Alignment.BottomCenter,
-        ) {
-            SnackbarHost(state = snackbar)
-        }
     }
 
     SortSheet(
@@ -470,63 +462,6 @@ private fun SyncDots(running: Boolean, done: SyncStatus.Done?, modifier: Modifie
                 modifier = Modifier.alpha(if (done != null) 0f else 1f),
             ) {
                 io.candy.tick.ui.common.LoadingDots(color = scheme.primaryVariant)
-            }
-        }
-    }
-}
-
-/** 结果胶囊：悬浮列表区顶部，不推挤内容；信息层（状态符号在顶栏） */
-@Composable
-private fun ResultCapsule(done: SyncStatus.Done?, modifier: Modifier = Modifier) {
-    val scheme = MiuixTheme.colorScheme
-    // 捕获最后一个非空结果：退出动画期间内容不塌空（否则瞬间消失）
-    var shown by remember { mutableStateOf<SyncStatus.Done?>(null) }
-    if (done != null) shown = done
-    Box(modifier = modifier.fillMaxWidth(), contentAlignment = Alignment.TopCenter) {
-        androidx.compose.animation.AnimatedVisibility(
-            visible = done != null,
-            enter = androidx.compose.animation.fadeIn() +
-                androidx.compose.animation.slideInVertically(initialOffsetY = { -it / 2 }),
-            exit = androidx.compose.animation.fadeOut(
-                androidx.compose.animation.core.tween(220),
-            ) + androidx.compose.animation.slideOutVertically(
-                targetOffsetY = { -it / 2 },
-                animationSpec = androidx.compose.animation.core.tween(220),
-            ),
-        ) {
-            shown?.let { d ->
-                val allFailed = d.failed > 0 && d.changed == 0
-                val text = when {
-                    allFailed -> stringResource(R.string.sync_result_all_failed, d.failed)
-                    d.changed > 0 -> buildString {
-                        append(stringResource(R.string.sync_result_updated, d.changed))
-                        if (d.failed > 0) append(stringResource(R.string.sync_result_failed_suffix, d.failed))
-                    }
-                    else -> stringResource(R.string.sync_result_fresh)
-                }
-                Row(
-                    modifier = Modifier
-                        .padding(top = 10.dp)
-                        .shadow(4.dp, androidx.compose.foundation.shape.RoundedCornerShape(20.dp))
-                        .clip(androidx.compose.foundation.shape.RoundedCornerShape(20.dp))
-                        // 浮层分离双保险：色调抬升一档（深色下阴影不可见）+ 1dp 描边定边界
-                        .background(scheme.surfaceContainerHigh)
-                        .border(1.dp, scheme.dividerLine)
-                        .padding(horizontal = 14.dp, vertical = 8.dp),
-                    verticalAlignment = Alignment.CenterVertically,
-                ) {
-                    Text(
-                        text = if (allFailed) "\u2715" else "\u2713",
-                        style = MiuixTheme.textStyles.footnote1,
-                        color = if (allFailed) scheme.onErrorContainer else scheme.primaryVariant,
-                    )
-                    Spacer(Modifier.width(6.dp))
-                    Text(
-                        text = text,
-                        style = MiuixTheme.textStyles.footnote1,
-                        color = scheme.onBackground,
-                    )
-                }
             }
         }
     }
