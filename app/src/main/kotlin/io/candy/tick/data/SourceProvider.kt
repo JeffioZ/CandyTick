@@ -15,9 +15,12 @@ interface SourceProvider {
     /** 携带 ETag 条件请求；304 时返回 NotModified（不计配额） */
     suspend fun repoInfo(owner: String, repo: String, etag: String? = null): RepoInfoResult
 
-    suspend fun commits(owner: String, repo: String, page: Int = 1): List<CommitRecord>
+    suspend fun commits(owner: String, repo: String, page: Int = 1, sha: String? = null): List<CommitRecord>
 
     suspend fun releases(owner: String, repo: String, page: Int = 1): List<ReleaseRecord>
+
+    /** 分支列表（提交视图的分支切换；无对应能力的源返回空） */
+    suspend fun branches(owner: String, repo: String): List<String> = emptyList()
 
     /** 搜索（添加页辅助；无对应能力的源返回空） */
     suspend fun search(query: String): List<RepoInfo> = emptyList()
@@ -77,11 +80,13 @@ class GitHubProvider(private val api: GitHubApi) : SourceProvider {
     override suspend fun repoInfo(owner: String, repo: String, etag: String?) =
         api.repoInfo(owner, repo, etag)
 
-    override suspend fun commits(owner: String, repo: String, page: Int) =
-        api.commits(owner, repo, page)
+    override suspend fun commits(owner: String, repo: String, page: Int, sha: String?) =
+        api.commits(owner, repo, page, sha)
 
     override suspend fun releases(owner: String, repo: String, page: Int) =
         api.releases(owner, repo, page)
+
+    override suspend fun branches(owner: String, repo: String) = api.branches(owner, repo)
 
     override suspend fun search(query: String) = api.search(query)
 }

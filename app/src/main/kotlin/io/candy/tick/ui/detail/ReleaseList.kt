@@ -47,7 +47,6 @@ fun LazyListScope.releaseList(
     onSelectAsset: (String, ApkAsset) -> Unit,
     onDownload: (ReleaseRecord, ApkAsset) -> Unit,
     onRetry: (ReleaseRecord, ApkAsset) -> Unit,
-    onInstall: (java.io.File) -> Unit,
     onInstallDownloaded: () -> Unit,
     onDeleteDownloaded: () -> Unit,
 ) {
@@ -59,7 +58,6 @@ fun LazyListScope.releaseList(
             onSelectAsset = onSelectAsset,
             onDownload = onDownload,
             onRetry = onRetry,
-            onInstall = onInstall,
             onInstallDownloaded = onInstallDownloaded,
             onDeleteDownloaded = onDeleteDownloaded,
         )
@@ -100,7 +98,6 @@ private fun ReleaseCard(
     onSelectAsset: (String, ApkAsset) -> Unit,
     onDownload: (ReleaseRecord, ApkAsset) -> Unit,
     onRetry: (ReleaseRecord, ApkAsset) -> Unit,
-    onInstall: (java.io.File) -> Unit,
     onInstallDownloaded: () -> Unit,
     onDeleteDownloaded: () -> Unit,
 ) {
@@ -164,15 +161,6 @@ private fun ReleaseCard(
                             )
                         }
                     }
-                    is DetailViewModel.DownloadState.Done -> {
-                        if (download.assetName == selected?.name) {
-                            PrimaryButton(
-                                text = stringResource(R.string.install_apk),
-                                onClick = { onInstall(download.file) },
-                                modifier = Modifier.fillMaxWidth(),
-                            )
-                        }
-                    }
                     is DetailViewModel.DownloadState.Failed -> {
                         if (download.assetName == selected?.name) {
                             TextButton(
@@ -181,9 +169,10 @@ private fun ReleaseCard(
                             )
                         }
                     }
-                    null -> Unit
+                    else -> Unit
                 }
 
+                // 安装入口统一由持久记录 downloadedApk 渲染（会话态 Done 不再画按钮，避免双入口）
                 val isDownloadedVersion = state.repo?.downloadedApk?.version == release.tagName
                 if (isDownloadedVersion) {
                     // 已下载：安装 + 删除（归属此 Release，替代原头部行）
@@ -207,7 +196,9 @@ private fun ReleaseCard(
                             )
                         }
                     }
-                } else if (selected != null && state.download !is DetailViewModel.DownloadState.Active) {
+                } else if (selected != null &&
+                    (state.download == null || state.download is DetailViewModel.DownloadState.Failed)
+                ) {
                     PrimaryButton(
                         text = stringResource(R.string.download_apk),
                         onClick = { onDownload(release, selected) },

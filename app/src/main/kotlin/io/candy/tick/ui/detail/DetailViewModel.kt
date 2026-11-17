@@ -57,6 +57,9 @@ class DetailViewModel(
         val releasesFailed: Boolean = false,
         val download: DownloadState? = null,
         val selectedAssets: Map<String, ApkAsset> = emptyMap(), // releaseKey(tag) → 手选覆盖
+        val branches: List<String> = emptyList(), // 分支选择器数据
+        val branchesLoading: Boolean = false,
+        val branchesFailed: Boolean = false,
     )
 
     sealed interface Event {
@@ -79,6 +82,7 @@ class DetailViewModel(
     private val tab = MutableStateFlow(DetailTab.COMMITS)
     private var commitsPage = 1
     private var releasesPage = 1
+    private var commitsGen = 0 // 提交列表代数：切分支/刷新时 +1，迟到的旧响应作废
 
     init {
         viewModelScope.launch {
@@ -108,6 +112,38 @@ class DetailViewModel(
         tab.value = newTab
     }
 
+    /** 分支列表（选择器打开时懒加载，一次即缓存） */
+    fun loadBranches() {
+        if (_state.value.branches.isNotEmpty() || _state.value.branchesLoading) return
+        viewModelScope.launch {
+            _state.update { it.copy(branchesLoading = true, branchesFailed = false) }
+            val result = runCatching { repository.branches(repoId) }
+            _state.update {
+                result.fold(
+                    onSuccess = { list -> it.copy(branches = list, branchesLoading = false) },
+                    onFailure = { _ -> it.copy(branchesLoading = false, branchesFailed = true) },
+                )
+            }
+        }
+    }
+
+    /** 切换浏览分支：落库 + 重置提交列表（状态/版本仍按仓库级，不动） */
+    fun setBranch(branch: String?) {
+        if (_state.value.repo?.branch == branch) return
+        viewModelScope.launch {
+            repository.setBranch(repoId, branch)
+            commitsPage = 1
+            commitsGen++
+            _state.update {
+                it.copy(
+                    commits = emptyList(), commitsEnd = false, commitsFailed = false,
+                    commitsLoading = false,
+                )
+            }
+            loadCommits()
+        }
+    }
+
     /** 下拉刷新：刷新快照 + 重置提交 / Release 列表（与首页同一语义） */
     fun refresh() {
         if (_state.value.refreshing) return
@@ -116,6 +152,7 @@ class DetailViewModel(
             val error = repository.refreshRepo(repoId)
             if (error == null) {
                 commitsPage = 1
+                commitsGen++
                 releasesPage = 1
                 _state.update {
                     it.copy(
@@ -138,7 +175,9 @@ class DetailViewModel(
         viewModelScope.launch {
             _state.update { it.copy(commitsLoading = true, commitsFailed = false) }
             val page = commitsPage
+            val gen = commitsGen
             val more = runCatching { repository.commits(repoId, page) }
+            if (gen != commitsGen) return@launch // 已切分支/刷新：旧响应作废
             _state.update {
                 when (val data = more.getOrNull()) {
                     null -> it.copy(commitsLoading = false, commitsFailed = true)
@@ -212,6 +251,10 @@ class DetailViewModel(
                     repository.setDownloadedApk(repoId, DownloadedApk(asset.name, release.tagName))
                     // 下载到手 → 免费读包名自动关联（getPackageArchiveInfo，零依赖）
                     autoLinkFromApk(file)
+                    // 自动安装（默认开）：直接触发系统安装流程，确认框由系统兜底
+                    if (repository.state.value.settings.autoInstallDownload) {
+                        installManager.installApk(file)
+                    }
                 },
                 onFailure = {
                     _state.update { it.copy(download = DownloadState.Failed(asset.name)) } // 文件已保留，可重试
@@ -260,6 +303,27 @@ class DetailViewModel(
 
     fun retryDownload(release: ReleaseRecord, asset: ApkAsset) = downloadAsset(release, asset)
 
+    /**
+     * 头部「下载更新」入口：只精确匹配最新 tag 的 release（盲下列表第一条可能拿到
+     * 比已装更旧的版本）；列表未加载到或无 APK 资产时切到版本页签让用户直视。
+     */
+    fun downloadUpdate() {
+        val s = _state.value
+        val tag = s.snapshot?.latestReleaseTag ?: return
+        val release = s.releases.find { it.tagName == tag } ?: run {
+            tab.value = DetailTab.RELEASES
+            return
+        }
+        val (autoPick, _) = io.candy.tick.util.ApkPicker.pick(
+            release.apkAssets, android.os.Build.SUPPORTED_ABIS.toList(),
+        )
+        val asset = s.selectedAssets[release.tagName] ?: autoPick ?: run {
+            tab.value = DetailTab.RELEASES // 该 release 无 APK 资产
+            return
+        }
+        downloadAsset(release, asset)
+    }
+
     /** 下载保留复用：已下载过的文件直接安装 */
     fun installDownloaded(repo: TrackedRepo): Boolean {
         val record = repo.downloadedApk ?: return false
@@ -269,11 +333,12 @@ class DetailViewModel(
         return true
     }
 
-    /** 删除已下载的 APK（文件 + 记录；可随时重新下载） */
+    /** 删除已下载的 APK（文件 + 记录；会话态一并清空，避免残留入口） */
     fun deleteDownloaded() {
         viewModelScope.launch {
             apkDir.listFiles()?.forEach { it.delete() }
             repository.setDownloadedApk(repoId, null)
+            _state.update { it.copy(download = null) }
             _events.send(Event.DownloadDeleted)
         }
     }

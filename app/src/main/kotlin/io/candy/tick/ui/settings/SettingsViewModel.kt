@@ -93,6 +93,10 @@ class SettingsViewModel(
         }
     }
 
+    fun setAutoInstallDownload(enabled: Boolean) {
+        viewModelScope.launch { repository.updateSettings { it.copy(autoInstallDownload = enabled) } }
+    }
+
     fun setSelfUpdateDownload(enabled: Boolean) {
         mutateSettings(transform = { s: Settings -> s.copy(selfUpdateAutoDownload = enabled) })
     }

@@ -11,6 +11,7 @@ import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
@@ -36,9 +37,11 @@ import androidx.lifecycle.viewmodel.compose.viewModel
 import io.candy.tick.CandyTickApp
 import io.candy.tick.R
 import io.candy.tick.ui.common.AppPickerSheet
+import io.candy.tick.ui.common.PrimaryButton
 import io.candy.tick.ui.common.RelTimeText
 import io.candy.tick.ui.common.RepoIconBlock
 import io.candy.tick.ui.common.StatusBadge
+import io.candy.tick.ui.common.VersionStatusLine
 import io.candy.tick.ui.common.relTimeString
 import io.candy.tick.ui.common.toImageBitmap
 import io.candy.tick.ui.common.sourceErrorText
@@ -68,7 +71,9 @@ import top.yukonga.miuix.kmp.icon.extended.Delete
 import top.yukonga.miuix.kmp.icon.extended.Add
 import top.yukonga.miuix.kmp.icon.extended.Create
 import top.yukonga.miuix.kmp.icon.extended.Blocklist
+import top.yukonga.miuix.kmp.icon.extended.ExpandMore
 import top.yukonga.miuix.kmp.icon.extended.More
+import top.yukonga.miuix.kmp.icon.basic.Check
 
 @Composable
 fun DetailScreen(repoId: Long, onBack: () -> Unit) {
@@ -87,6 +92,7 @@ fun DetailScreen(repoId: Long, onBack: () -> Unit) {
     val pullState = rememberPullToRefreshState()
     val scrollBehavior = MiuixScrollBehavior(rememberTopAppBarState())
     var showAppPicker by remember { mutableStateOf(false) }
+    var showBranchSheet by remember { mutableStateOf(false) }
     var showRemoveDialog by remember { mutableStateOf(false) }
     val context = LocalContext.current
     val scope = androidx.compose.runtime.rememberCoroutineScope()
@@ -201,6 +207,8 @@ fun DetailScreen(repoId: Long, onBack: () -> Unit) {
                             }
                         },
                         onLinkSuggestion = { state.linkSuggestion?.first?.let(vm::setLinkedApp) },
+                        onDownloadUpdate = vm::downloadUpdate,
+                        onInstallUpdate = { repo?.let(vm::installDownloaded) },
                     )
                 }
                 state.banner?.let { error ->
@@ -215,26 +223,103 @@ fun DetailScreen(repoId: Long, onBack: () -> Unit) {
                         }
                     }
                 }
-                // 页签：提交历史 / 版本发布（Miuix TabRowWithContour：滑块动画 + 轮廓分组）
+                // 页签：分段控件（滑块移动动画）
                 item {
-                    top.yukonga.miuix.kmp.basic.TabRowWithContour(
-                        tabs = listOf(
-                            stringResource(R.string.detail_commits),
-                            stringResource(R.string.detail_releases),
-                        ),
-                        selectedTabIndex = if (state.tab == DetailViewModel.DetailTab.COMMITS) 0 else 1,
-                        onTabSelected = { index ->
-                            vm.setTab(
-                                if (index == 0) DetailViewModel.DetailTab.COMMITS
-                                else DetailViewModel.DetailTab.RELEASES
-                            )
-                        },
+                    val tabItems = listOf(
+                        stringResource(R.string.detail_commits) to DetailViewModel.DetailTab.COMMITS,
+                        stringResource(R.string.detail_releases) to DetailViewModel.DetailTab.RELEASES,
+                    )
+                    val selectedIndex = if (state.tab == DetailViewModel.DetailTab.COMMITS) 0 else 1
+                    val segShape = androidx.compose.foundation.shape.RoundedCornerShape(19.dp)
+                    androidx.compose.foundation.layout.Box(
                         modifier = Modifier
                             .fillMaxWidth()
-                            .padding(horizontal = 16.dp, vertical = 6.dp),
-                    )
+                            .padding(horizontal = 16.dp, vertical = 8.dp)
+                            .clip(segShape)
+                            .background(scheme.secondaryVariant)
+                            .height(44.dp)
+                            .padding(3.dp),
+                    ) {
+                        androidx.compose.foundation.layout.BoxWithConstraints {
+                            val segWidth = maxWidth / tabItems.size
+                            val offset by androidx.compose.animation.core.animateDpAsState(
+                                targetValue = segWidth * selectedIndex,
+                                animationSpec = androidx.compose.animation.core.tween(250),
+                                label = "tabThumb",
+                            )
+                            // 滑块（选中背景块）
+                            androidx.compose.foundation.layout.Box(
+                                modifier = Modifier
+                                    .offset(x = offset)
+                                    .width(segWidth)
+                                    .height(38.dp)
+                                    .clip(segShape)
+                                    .background(scheme.surface),
+                            )
+                            // 标签
+                            androidx.compose.foundation.layout.Row(modifier = Modifier.fillMaxWidth()) {
+                                tabItems.forEachIndexed { index, (label, tab) ->
+                                    val isSelected = index == selectedIndex
+                                    androidx.compose.foundation.layout.Box(
+                                        modifier = Modifier
+                                            .weight(1f)
+                                            .fillMaxHeight()
+                                            .clickable(
+                                                interactionSource = remember { androidx.compose.foundation.interaction.MutableInteractionSource() },
+                                                indication = null,
+                                            ) {
+                                                vm.setTab(
+                                                    if (index == 0) DetailViewModel.DetailTab.COMMITS
+                                                    else DetailViewModel.DetailTab.RELEASES
+                                                )
+                                            },
+                                        contentAlignment = Alignment.Center,
+                                    ) {
+                                        Text(
+                                            text = label,
+                                            color = if (isSelected) scheme.onSurface
+                                            else scheme.onSurfaceContainerVariant,
+                                            style = MiuixTheme.textStyles.body2,
+                                        )
+                                    }
+                                }
+                            }
+                        }
+                    }
                 }
                 if (state.tab == DetailViewModel.DetailTab.COMMITS) {
+                    // 分支切换 pill（仅提交视图；状态/版本按仓库级不受影响）
+                    item {
+                        Row(
+                            modifier = Modifier
+                                .padding(start = 16.dp)
+                                .clip(RoundedCornerShape(18.dp))
+                                .background(scheme.secondaryContainer)
+                                .clickable(
+                                    interactionSource = remember { androidx.compose.foundation.interaction.MutableInteractionSource() },
+                                ) {
+                                    showBranchSheet = true
+                                    vm.loadBranches()
+                                }
+                                .padding(start = 14.dp, end = 10.dp, top = 9.dp, bottom = 9.dp),
+                            verticalAlignment = Alignment.CenterVertically,
+                        ) {
+                            Text(
+                                text = state.repo?.branch
+                                    ?: stringResource(R.string.branch_default),
+                                style = MiuixTheme.textStyles.footnote1,
+                                color = scheme.onBackground,
+                                maxLines = 1,
+                            )
+                            Spacer(Modifier.width(4.dp))
+                            Icon(
+                                imageVector = MiuixIcons.ExpandMore,
+                                contentDescription = stringResource(R.string.branch_picker_title),
+                                tint = scheme.onBackgroundVariant,
+                                modifier = Modifier.size(16.dp),
+                            )
+                        }
+                    }
                     commitList(state = state, onLoadMore = vm::loadCommits)
                 } else {
                     releaseList(
@@ -243,7 +328,6 @@ fun DetailScreen(repoId: Long, onBack: () -> Unit) {
                         onSelectAsset = vm::selectAsset,
                         onDownload = vm::downloadAsset,
                         onRetry = vm::retryDownload,
-                        onInstall = vm::installFile,
                         onInstallDownloaded = { repo?.let(vm::installDownloaded) },
                         onDeleteDownloaded = vm::deleteDownloaded,
                     )
@@ -277,6 +361,52 @@ fun DetailScreen(repoId: Long, onBack: () -> Unit) {
             },
             onDismiss = { showAppPicker = false },
         )
+    }
+
+    // 分支选择（提交视图浏览分支；首项 = 仓库默认分支）
+    if (showBranchSheet) {
+        top.yukonga.miuix.kmp.window.WindowBottomSheet(
+            show = true,
+            title = stringResource(R.string.branch_picker_title),
+            onDismissRequest = { showBranchSheet = false },
+        ) {
+            Column {
+                BranchRow(
+                    label = stringResource(R.string.branch_default),
+                    selected = state.repo?.branch == null,
+                    onClick = {
+                        vm.setBranch(null)
+                        showBranchSheet = false
+                    },
+                )
+                val current = state.repo?.branch
+                state.branches.forEach { name ->
+                    BranchRow(name, name == current) {
+                        vm.setBranch(name)
+                        showBranchSheet = false
+                    }
+                }
+                // 已选分支被远端删除（不在列表里）：保留一行选中态，可切回默认
+                current?.takeIf { it !in state.branches }?.let { name ->
+                    BranchRow(name, true) {
+                        vm.setBranch(name)
+                        showBranchSheet = false
+                    }
+                }
+                when {
+                    state.branchesLoading -> Text(
+                        text = stringResource(R.string.loading),
+                        style = MiuixTheme.textStyles.footnote1,
+                        color = scheme.onBackgroundVariant,
+                        modifier = Modifier.padding(horizontal = 16.dp, vertical = 12.dp),
+                    )
+                    state.branchesFailed -> TextButton(
+                        text = stringResource(R.string.branch_load_failed),
+                        onClick = vm::loadBranches,
+                    )
+                }
+            }
+        }
     }
 
     // 移除确认（破坏性操作）
@@ -336,12 +466,36 @@ private fun FooterText(text: String) {
     )
 }
 
+/** 分支选择行：BasicComponent + Check 选中态（与设置页 OptionRow 同款） */
+@Composable
+private fun BranchRow(label: String, selected: Boolean, onClick: () -> Unit) {
+    top.yukonga.miuix.kmp.basic.BasicComponent(
+        modifier = Modifier.fillMaxWidth(),
+        title = label,
+        endActions = {
+            if (selected) {
+                Icon(
+                    imageVector = MiuixIcons.Basic.Check,
+                    contentDescription = null,
+                    tint = MiuixTheme.colorScheme.primaryVariant,
+                )
+            }
+        },
+        onClick = onClick,
+        insideMargin = androidx.compose.foundation.layout.PaddingValues(
+            start = 16.dp, end = 16.dp, top = 14.dp, bottom = 14.dp,
+        ),
+    )
+}
+
 @Composable
 private fun HeaderCard(
     state: DetailViewModel.UiState,
     onChangeLinked: () -> Unit,
     onUnlink: () -> Unit,
     onLinkSuggestion: () -> Unit,
+    onDownloadUpdate: () -> Unit,
+    onInstallUpdate: () -> Unit,
 ) {
     val repo = state.repo ?: return
     val snapshot = state.snapshot
@@ -408,6 +562,41 @@ private fun HeaderCard(
                 )
             }
 
+            // 版本状态：最新 release vs 本机已装版本（与首页卡片展开同口径）
+            snapshot?.latestReleaseTag?.let { tag ->
+                VersionStatusLine(repo = repo, remoteTag = tag)
+            }
+
+            // 更新入口（有新版时头部直接行动）：下载 → 进度 → 安装，不用翻版本列表
+            val latestTag = snapshot?.latestReleaseTag
+            val hasUpdate = latestTag != null && io.candy.tick.ui.common.updateAvailable(context, repo, latestTag)
+            val downloadedMatches = repo.downloadedApk?.version == latestTag
+            when (val dl = state.download) {
+                is DetailViewModel.DownloadState.Active -> Column {
+                    top.yukonga.miuix.kmp.basic.LinearProgressIndicator(
+                        progress = dl.progress,
+                        modifier = Modifier.fillMaxWidth(),
+                    )
+                    Text(
+                        text = stringResource(R.string.download_progress_percent, (dl.progress * 100).toInt()),
+                        style = MiuixTheme.textStyles.footnote2,
+                        color = scheme.onBackgroundVariant,
+                    )
+                }
+                else -> when {
+                    hasUpdate && downloadedMatches -> PrimaryButton(
+                        text = stringResource(R.string.install_apk),
+                        onClick = onInstallUpdate,
+                        modifier = Modifier.fillMaxWidth(),
+                    )
+                    hasUpdate -> PrimaryButton(
+                        text = stringResource(R.string.download_update_action),
+                        onClick = onDownloadUpdate,
+                        modifier = Modifier.fillMaxWidth(),
+                    )
+                }
+            }
+
             // 关联本机应用（可修改 / 解除）
             val linkedLabel = repo.linkedPackage?.let { pkg ->
                 runCatching {
@@ -439,20 +628,21 @@ private fun HeaderCard(
                         color = scheme.onBackgroundVariant,
                         modifier = Modifier.weight(1f),
                     )
-                    IconButton(onClick = onChangeLinked, modifier = Modifier.size(30.dp)) {
+                    IconButton(onClick = onChangeLinked) {
                         Icon(
                             imageVector = MiuixIcons.Create,
                             contentDescription = stringResource(R.string.detail_link_change),
                             tint = scheme.onBackgroundVariant,
-                            modifier = Modifier.size(16.dp),
+                            modifier = Modifier.size(18.dp),
                         )
                     }
-                    IconButton(onClick = onUnlink, modifier = Modifier.size(30.dp)) {
+                    Spacer(Modifier.width(8.dp))
+                    IconButton(onClick = onUnlink) {
                         Icon(
                             imageVector = MiuixIcons.Blocklist,
                             contentDescription = stringResource(R.string.detail_unlink),
                             tint = scheme.onBackgroundVariant,
-                            modifier = Modifier.size(16.dp),
+                            modifier = Modifier.size(18.dp),
                         )
                     }
                 }
@@ -500,8 +690,8 @@ private fun HeaderCard(
                         tint = scheme.primaryVariant,
                         modifier = Modifier.size(18.dp),
                     )
-                    Spacer(Modifier.width(2.dp))
-                    IconButton(onClick = onChangeLinked, modifier = Modifier.size(26.dp)) {
+                    Spacer(Modifier.width(6.dp))
+                    IconButton(onClick = onChangeLinked) {
                         Icon(
                             imageVector = MiuixIcons.More,
                             contentDescription = stringResource(R.string.detail_link_app_other),

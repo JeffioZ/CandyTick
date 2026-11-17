@@ -64,12 +64,13 @@ class GitHubApi(private val tokenProvider: () -> String?) {
             }
         }
 
-    suspend fun commits(owner: String, repo: String, page: Int = 1): List<CommitRecord> =
+    suspend fun commits(owner: String, repo: String, page: Int = 1, sha: String? = null): List<CommitRecord> =
         withContext(Dispatchers.IO) {
             val url = apiUrl("repos", owner, repo, "commits")
                 .newBuilder()
                 .addQueryParameter("per_page", PER_PAGE.toString())
                 .addQueryParameter("page", page.toString())
+                .apply { if (sha != null) addQueryParameter("sha", sha) }
                 .build()
             val response = executeAuthenticated(request(url, etag = null))
             response.use {
@@ -82,6 +83,20 @@ class GitHubApi(private val tokenProvider: () -> String?) {
                         date = parseInstant(c.commit.author?.date),
                     )
                 }
+            }
+        }
+
+    /** 分支列表（提交视图的分支切换；单页 100，超出截断——单仓库超百分支属极端场景） */
+    suspend fun branches(owner: String, repo: String): List<String> =
+        withContext(Dispatchers.IO) {
+            val url = apiUrl("repos", owner, repo, "branches")
+                .newBuilder()
+                .addQueryParameter("per_page", "100")
+                .build()
+            val response = executeAuthenticated(request(url, etag = null))
+            response.use {
+                checkHttp(it)
+                json.decodeFromString<List<GhBranch>>(it.body.string()).map { it.name }
             }
         }
 
@@ -281,6 +296,9 @@ private data class GhCommitDetail(
     val message: String = "",
     val author: GhPerson? = null,
 )
+
+@Serializable
+private data class GhBranch(val name: String = "")
 
 @Serializable
 private data class GhPerson(val name: String? = null, val date: String? = null)

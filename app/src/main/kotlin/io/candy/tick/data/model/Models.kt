@@ -36,6 +36,7 @@ data class TrackedRepo(
     val addedAt: Instant,
     val noteName: String? = null, // 备注名（可空）
     val linkedPackage: String? = null, // 关联本机应用包名（可空）
+    val branch: String? = null, // 浏览分支（可空 = 仓库默认分支；仅影响提交视图）
     val downloadedApk: DownloadedApk? = null, // 「下载保留」重装复用
 )
 
@@ -92,6 +93,7 @@ data class Settings(
     val notificationsEnabled: Boolean = true,
     val selfUpdateCheck: Boolean = true, // 自身更新：自动检查（默认开）
     val selfUpdateAutoDownload: Boolean = false, // 自身更新：自动下载（默认关，仅 Wi-Fi）
+    val autoInstallDownload: Boolean = true, // 仓库应用：下载完成自动弹出安装确认（默认开）
     val language: String = "", // 应用内语言（空 = 跟随系统；"zh" / "en"）
     val sortMode: String = "LAST_PUSH", // 首页排序（持久化，重启保留）
 )
