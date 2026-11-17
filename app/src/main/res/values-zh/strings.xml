@@ -174,7 +174,7 @@
     <string name="settings_sync_charging_only">仅充电</string>
     <string name="settings_token">GitHub Token（可选）</string>
     <string name="settings_token_row">GitHub Token</string>
-    <string name="settings_token_hint_short">可选，提升接口限额</string>
+    <string name="settings_token_hint_short">可选 · 60 → 5,000 次/小时</string>
     <string name="token_set">已设置</string>
     <string name="token_unset">未设置</string>
     <string name="settings_language">语言</string>
@@ -183,11 +183,15 @@
     <string name="lang_english">English</string>
     <string name="token_show">显示明文</string>
     <string name="token_hide">隐藏明文</string>
-    <string name="settings_token_hint">classic PAT 不勾任何 scope；fine-grained 选 Public repos 只读</string>
-    <string name="settings_token_test">测试连接</string>
+    <string name="settings_token_hint">可选。提升接口限额：60 次/小时 → 5,000 次/小时。</string>
+    <string name="settings_token_test">保存并验证</string>
     <string name="settings_token_valid">✓ Token 有效</string>
     <string name="settings_token_invalid">✗ 401 · Token 无效</string>
     <string name="settings_token_network_error">网络错误</string>
+    <string name="token_help_link">如何获取 Token？</string>
+    <string name="token_verified">✓ 验证通过</string>
+    <string name="token_invalid_short">✗ Token 无效</string>
+    <string name="token_network_error">网络错误，请重试</string>
     <string name="settings_token_rejected">Token 已被 GitHub 拒绝（401）· 当前按匿名模式请求</string>
     <string name="settings_notifications">新版本通知</string>
 

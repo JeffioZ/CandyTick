@@ -492,15 +492,17 @@ fun SettingsScreen(onBack: () -> Unit) {
             onDismissRequest = { showTokenDialog = false },
         ) {
             Column(
-                modifier = Modifier.padding(horizontal = 20.dp, vertical = 12.dp),
-                verticalArrangement = Arrangement.spacedBy(10.dp),
+                modifier = Modifier.padding(horizontal = 20.dp, vertical = 16.dp),
+                verticalArrangement = Arrangement.spacedBy(12.dp),
             ) {
+                // 一句话说明：为什么需要 + 可选
                 Text(
                     text = stringResource(R.string.settings_token_hint),
-                    style = MiuixTheme.textStyles.footnote1,
+                    style = MiuixTheme.textStyles.body2,
                     color = scheme.onBackgroundVariant,
                 )
-                // 输入框 + 眼睛按钮并排（不叠加）
+
+                // 输入框 + 眼睛按钮
                 Row(
                     modifier = Modifier.fillMaxWidth(),
                     verticalAlignment = Alignment.CenterVertically,
@@ -518,17 +520,64 @@ fun SettingsScreen(onBack: () -> Unit) {
                             keyboardType = androidx.compose.ui.text.input.KeyboardType.Password,
                         ),
                     )
-                    Spacer(Modifier.width(4.dp))
                     IconButton(onClick = { tokenVisible = !tokenVisible }) {
                         Icon(
                             imageVector = if (tokenVisible) MiuixIcons.Hide else MiuixIcons.Show,
-                            contentDescription = stringResource(
-                                if (tokenVisible) R.string.token_hide else R.string.token_show,
-                            ),
+                            contentDescription = null,
                             tint = scheme.onBackgroundVariant,
                         )
                     }
                 }
+
+                // 帮助链接
+                top.yukonga.miuix.kmp.basic.TextButton(
+                    text = stringResource(R.string.token_help_link),
+                    onClick = {
+                        runCatching {
+                            context.startActivity(
+                                Intent(
+                                    Intent.ACTION_VIEW,
+                                    Uri.parse("https://docs.github.com/en/authentication/keeping-your-account-and-data-secure/managing-your-personal-access-tokens"),
+                                ).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK),
+                            )
+                        }
+                    },
+                )
+
+                // 单一操作按钮
+                PrimaryButton(
+                    text = stringResource(R.string.settings_token_test),
+                    onClick = vm::saveAndTestToken,
+                    enabled = state.tokenInput.isNotBlank(),
+                    modifier = Modifier.fillMaxWidth(),
+                )
+
+                // 验证结果（单行，简洁）
+                when (state.tokenTest) {
+                    SettingsViewModel.TokenTest.TESTING -> Text(
+                        text = stringResource(R.string.loading),
+                        style = MiuixTheme.textStyles.footnote1,
+                        color = scheme.onBackgroundVariant,
+                    )
+                    SettingsViewModel.TokenTest.VALID -> Text(
+                        text = stringResource(R.string.token_verified),
+                        style = MiuixTheme.textStyles.footnote1,
+                        color = scheme.primaryVariant,
+                    )
+                    SettingsViewModel.TokenTest.INVALID -> Text(
+                        text = stringResource(R.string.token_invalid_short),
+                        style = MiuixTheme.textStyles.footnote1,
+                        color = scheme.onErrorContainer,
+                    )
+                    SettingsViewModel.TokenTest.NETWORK -> Text(
+                        text = stringResource(R.string.token_network_error),
+                        style = MiuixTheme.textStyles.footnote1,
+                        color = scheme.onErrorContainer,
+                    )
+                    null -> Unit
+                }
+
+                // Token 被拒提示（仅在适用时显示）
                 if (state.tokenRejected) {
                     Text(
                         text = stringResource(R.string.settings_token_rejected),
@@ -536,43 +585,10 @@ fun SettingsScreen(onBack: () -> Unit) {
                         color = scheme.onErrorContainer,
                     )
                 }
-                Row(
-                    modifier = Modifier.fillMaxWidth(),
-                    verticalAlignment = Alignment.CenterVertically,
-                    horizontalArrangement = Arrangement.spacedBy(12.dp),
-                ) {
-                    PrimaryButton(
-                        text = stringResource(R.string.settings_token_test),
-                        onClick = vm::saveAndTestToken,
-                        enabled = state.tokenInput.isNotBlank(),
-                    )
-                }
-                when (state.tokenTest) {
-                    SettingsViewModel.TokenTest.TESTING -> Text(
-                        stringResource(R.string.loading),
-                        style = MiuixTheme.textStyles.footnote1,
-                        color = scheme.onBackgroundVariant,
-                    )
-                    SettingsViewModel.TokenTest.VALID -> Text(
-                        stringResource(R.string.settings_token_valid),
-                        style = MiuixTheme.textStyles.footnote1,
-                        color = scheme.primaryVariant,
-                    )
-                    SettingsViewModel.TokenTest.INVALID -> Text(
-                        stringResource(R.string.settings_token_invalid),
-                        style = MiuixTheme.textStyles.footnote1,
-                        color = scheme.onErrorContainer,
-                    )
-                    SettingsViewModel.TokenTest.NETWORK -> Text(
-                        stringResource(R.string.settings_token_network_error),
-                        style = MiuixTheme.textStyles.footnote1,
-                        color = scheme.onErrorContainer,
-                    )
-                    null -> Unit
-                }
             }
         }
     }
+
 }
 
 @Composable

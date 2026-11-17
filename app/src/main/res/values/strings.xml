@@ -184,7 +184,7 @@
     <string name="settings_sync_charging_only">Charging only</string>
     <string name="settings_token">GitHub token (optional)</string>
     <string name="settings_token_row">GitHub token</string>
-    <string name="settings_token_hint_short">Optional, raises the rate limit</string>
+    <string name="settings_token_hint_short">Optional · 5,000 req/h instead of 60</string>
     <string name="token_set">Set</string>
     <string name="token_unset">Not set</string>
     <string name="settings_language">Language</string>
@@ -193,11 +193,15 @@
     <string name="lang_english">English</string>
     <string name="token_show">Show</string>
     <string name="token_hide">Hide</string>
-    <string name="settings_token_hint">Classic PAT with no scopes, or fine-grained read-only public repos</string>
-    <string name="settings_token_test">Test connection</string>
+    <string name="settings_token_hint">Optional. Raises the API rate limit from 60 to 5,000 requests per hour.</string>
+    <string name="settings_token_test">Save &amp; verify</string>
     <string name="settings_token_valid">✓ Token valid</string>
     <string name="settings_token_invalid">✗ 401 · Token invalid</string>
     <string name="settings_token_network_error">Network error</string>
+    <string name="token_help_link">How to get a token?</string>
+    <string name="token_verified">✓ Verified</string>
+    <string name="token_invalid_short">✗ Invalid token</string>
+    <string name="token_network_error">Network error, try again</string>
     <string name="settings_token_rejected">Token was rejected by GitHub (401) · requests are running anonymously</string>
     <string name="settings_notifications">New version notifications</string>
 
