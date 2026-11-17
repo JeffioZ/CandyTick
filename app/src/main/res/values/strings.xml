@@ -57,8 +57,8 @@
     <string name="err_timeout">Timed out (15s)</string>
     <string name="err_not_found">Repository not found or made private</string>
     <string name="err_rate_limited">Rate limited · recovers in %1$s</string>
-    <string name="err_rate_limited_plain">Rate limited, try later or add a token</string>
-    <string name="err_http">HTTP error %1$d</string>
+    <string name="err_rate_limited_plain">Too many requests — try later or add a token in Settings</string>
+    <string name="err_http">Server error (%1$d)</string>
 
     <!-- 相对时间（过去 → … ago；未来 → in …） -->
     <string name="rel_now">just now</string>
@@ -130,11 +130,11 @@
     <string name="detail_releases">Releases</string>
     <string name="detail_no_commits">No commits</string>
     <string name="detail_no_releases">No releases published</string>
-    <string name="detail_no_apk">No APK in this release</string>
+    <string name="detail_no_apk">No APK file in this release</string>
     <string name="detail_stars">★ %1$s</string>
     <string name="detail_forks">Fork %1$s</string>
     <string name="detail_issues">Issue %1$s</string>
-    <string name="detail_last_push">Last push %1$s</string>
+    <string name="detail_last_push">Last commit %1$s</string>
     <string name="detail_link_app">Link installed app</string>
     <string name="detail_link_app_other">Choose another app</string>
     <string name="detail_auto_link_hint">Installed "%1$s" · tap to link</string>
@@ -152,7 +152,7 @@
     <string name="list_end">— the end —</string>
     <string name="asset_recommended">Recommended</string>
     <string name="download_apk">Download APK</string>
-    <string name="download_retry">Download failed · retry (file kept)</string>
+    <string name="download_retry">Download failed · tap to retry</string>
     <string name="download_progress_percent">%1$d%%</string>
     <string name="install_apk">Install</string>
     <string name="install_done">Installed</string>
@@ -182,7 +182,6 @@
     <string name="settings_sync_frequency">Frequency</string>
     <string name="settings_sync_wifi_only">Wi-Fi only</string>
     <string name="settings_sync_charging_only">Charging only</string>
-    <string name="settings_token">GitHub token (optional)</string>
     <string name="settings_token_row">GitHub token</string>
     <string name="settings_token_hint_short">Optional · 5,000 req/h instead of 60</string>
     <string name="token_set">Set</string>
@@ -195,9 +194,6 @@
     <string name="token_hide">Hide</string>
     <string name="settings_token_hint">Optional. Raises the API rate limit from 60 to 5,000 requests per hour.</string>
     <string name="settings_token_test">Save &amp; verify</string>
-    <string name="settings_token_valid">✓ Token valid</string>
-    <string name="settings_token_invalid">✗ 401 · Token invalid</string>
-    <string name="settings_token_network_error">Network error</string>
     <string name="token_help_link">How to get a token?</string>
     <string name="token_verified">✓ Verified</string>
     <string name="token_invalid_short">✗ Invalid token</string>
@@ -224,14 +220,14 @@
     <string name="settings_download_update">Download &amp; install</string>
     <string name="settings_install_update">Install downloaded update</string>
     <string name="settings_update_failed">Update check failed · try later</string>
-    <string name="settings_silent_hint">On Android 12+ updates install silently when CandyTick is the install source</string>
+    <string name="settings_silent_hint">On Android 12+, updates install automatically without confirmation (when CandyTick is the install source)</string>
 
     <!-- 关于 -->
     <string name="settings_about_group">About</string>
     <string name="settings_github_repo">GitHub repository</string>
     <string name="settings_license">License</string>
     <string name="settings_crash_log">Crash log</string>
-    <string name="settings_crash_log_summary">Tap to share if the app crashed</string>
+    <string name="settings_crash_log_summary">Share the log if the app crashed</string>
     <string name="crash_log_empty">No crash recorded</string>
 
     <!-- 同步频率 -->

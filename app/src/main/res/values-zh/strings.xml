@@ -16,7 +16,7 @@
     <!-- 首页 -->
     <string name="add_repo">添加仓库</string>
     <string name="settings_title">设置</string>
-    <string name="sort_title">排序</string>
+    <string name="sort_title">排序方式</string>
     <string name="sort_last_push">最近活跃</string>
     <string name="sort_status">维护状态</string>
     <string name="sort_name">A-Z</string>
@@ -57,8 +57,8 @@
     <string name="err_timeout">超时（15 秒）</string>
     <string name="err_not_found">仓库不存在，或已设为私有</string>
     <string name="err_rate_limited">已限流 · %1$s后恢复</string>
-    <string name="err_rate_limited_plain">已被限流，稍后再试或添加 Token</string>
-    <string name="err_http">HTTP 错误 %1$d</string>
+    <string name="err_rate_limited_plain">请求太频繁，请稍后再试或在设置中添加 Token</string>
+    <string name="err_http">服务异常（%1$d）</string>
 
     <!-- 相对时间（过去 → …前；未来 → …后） -->
     <string name="rel_now">刚刚</string>
@@ -120,11 +120,11 @@
     <string name="detail_releases">版本发布</string>
     <string name="detail_no_commits">暂无提交</string>
     <string name="detail_no_releases">该仓库还没有发布过版本</string>
-    <string name="detail_no_apk">此版本没有 APK</string>
+    <string name="detail_no_apk">这个版本没有 APK</string>
     <string name="detail_stars">★ %1$s</string>
     <string name="detail_forks">Fork %1$s</string>
     <string name="detail_issues">Issue %1$s</string>
-    <string name="detail_last_push">最后提交 %1$s</string>
+    <string name="detail_last_push">最近提交 %1$s</string>
     <string name="detail_link_app">关联本机应用</string>
     <string name="detail_link_app_other">选择其他应用</string>
     <string name="detail_auto_link_hint">已装「%1$s」 · 点击关联</string>
@@ -142,7 +142,7 @@
     <string name="list_end">— 已到底 —</string>
     <string name="asset_recommended">推荐</string>
     <string name="download_apk">下载 APK</string>
-    <string name="download_retry">下载失败 · 重试（文件已保留）</string>
+    <string name="download_retry">下载失败 · 点击重试</string>
     <string name="download_progress_percent">%1$d%%</string>
     <string name="install_apk">安装</string>
     <string name="install_done">安装成功</string>
@@ -172,7 +172,6 @@
     <string name="settings_sync_frequency">同步频率</string>
     <string name="settings_sync_wifi_only">仅 Wi-Fi</string>
     <string name="settings_sync_charging_only">仅充电</string>
-    <string name="settings_token">GitHub Token（可选）</string>
     <string name="settings_token_row">GitHub Token</string>
     <string name="settings_token_hint_short">可选 · 60 → 5,000 次/小时</string>
     <string name="token_set">已设置</string>
@@ -185,9 +184,6 @@
     <string name="token_hide">隐藏明文</string>
     <string name="settings_token_hint">可选。提升接口限额：60 次/小时 → 5,000 次/小时。</string>
     <string name="settings_token_test">保存并验证</string>
-    <string name="settings_token_valid">✓ Token 有效</string>
-    <string name="settings_token_invalid">✗ 401 · Token 无效</string>
-    <string name="settings_token_network_error">网络错误</string>
     <string name="token_help_link">如何获取 Token？</string>
     <string name="token_verified">✓ 验证通过</string>
     <string name="token_invalid_short">✗ Token 无效</string>
@@ -214,14 +210,14 @@
     <string name="settings_download_update">下载并安装</string>
     <string name="settings_install_update">安装已下载的更新</string>
     <string name="settings_update_failed">检查失败 · 稍后再试</string>
-    <string name="settings_silent_hint">Android 12+ 且本应用为安装来源时，更新将自动静默安装</string>
+    <string name="settings_silent_hint">Android 12+ 支持免确认自动安装（需本应用为安装来源）</string>
 
     <!-- 关于 -->
     <string name="settings_about_group">关于</string>
     <string name="settings_github_repo">GitHub 仓库</string>
     <string name="settings_license">开源许可</string>
     <string name="settings_crash_log">崩溃日志</string>
-    <string name="settings_crash_log_summary">闪退时点按分享给我</string>
+    <string name="settings_crash_log_summary">如有闪退，点按分享日志</string>
     <string name="crash_log_empty">无崩溃记录</string>
 
     <!-- 同步频率 -->
