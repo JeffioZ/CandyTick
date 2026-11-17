@@ -1,6 +1,7 @@
 package io.candy.tick.ui.detail
 
 import androidx.compose.animation.animateContentSize
+import androidx.compose.animation.togetherWith
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
@@ -315,29 +316,53 @@ internal fun HeaderCard(
             val latestTag = snapshot?.latestReleaseTag
             val hasUpdate = latestTag != null && io.candy.tick.ui.common.updateAvailable(context, repo, latestTag)
             val downloadedMatches = repo.downloadedApk?.version == latestTag
-            when (val dl = state.download) {
-                is DetailViewModel.DownloadState.Active -> Column {
-                    top.yukonga.miuix.kmp.basic.LinearProgressIndicator(
-                        progress = dl.progress,
-                        modifier = Modifier.fillMaxWidth(),
-                    )
-                    Text(
-                        text = stringResource(R.string.download_progress_percent, (dl.progress * 100).toInt()),
-                        style = MiuixTheme.textStyles.footnote2,
-                        color = scheme.onBackgroundVariant,
-                    )
-                }
-                else -> when {
-                    hasUpdate && downloadedMatches -> PrimaryButton(
+            // 按分支作 key（不能按 state 对象：进度每跳一格会重播转场）；三态柔切换 + 进度补间
+            val updatePhase = when {
+                state.download is DetailViewModel.DownloadState.Active -> "progress"
+                hasUpdate && downloadedMatches -> "install"
+                hasUpdate -> "download"
+                else -> "idle"
+            }
+            androidx.compose.animation.AnimatedContent(
+                targetState = updatePhase,
+                transitionSpec = {
+                    (androidx.compose.animation.fadeIn(androidx.compose.animation.core.tween(180)) +
+                        androidx.compose.animation.slideInVertically(
+                            animationSpec = androidx.compose.animation.core.tween(180),
+                        ) { it / 6 }) togetherWith
+                        androidx.compose.animation.fadeOut(androidx.compose.animation.core.tween(180))
+                },
+                label = "updatePhase",
+            ) { phase ->
+                when (phase) {
+                    "progress" -> Column {
+                        val active = state.download as? DetailViewModel.DownloadState.Active
+                        val p by androidx.compose.animation.core.animateFloatAsState(
+                            targetValue = active?.progress ?: 0f,
+                            animationSpec = androidx.compose.animation.core.tween(300),
+                            label = "headerDl",
+                        )
+                        top.yukonga.miuix.kmp.basic.LinearProgressIndicator(
+                            progress = p,
+                            modifier = Modifier.fillMaxWidth(),
+                        )
+                        Text(
+                            text = stringResource(R.string.download_progress_percent, (p * 100).toInt()),
+                            style = MiuixTheme.textStyles.footnote2,
+                            color = scheme.onBackgroundVariant,
+                        )
+                    }
+                    "install" -> PrimaryButton(
                         text = stringResource(R.string.install_apk),
                         onClick = onInstallUpdate,
                         modifier = Modifier.fillMaxWidth(),
                     )
-                    hasUpdate -> PrimaryButton(
+                    "download" -> PrimaryButton(
                         text = stringResource(R.string.download_update_action),
                         onClick = onDownloadUpdate,
                         modifier = Modifier.fillMaxWidth(),
                     )
+                    else -> Spacer(Modifier.height(0.dp))
                 }
             }
 

@@ -170,6 +170,7 @@
     <string name="action_search">搜索</string>
     <string name="search_hint">搜索</string>
     <string name="search_no_results">没有找到「%1$s」</string>
+    <string name="close_search">关闭搜索</string>
     <string name="search_clear">清除搜索</string>
     <string name="settings_backup_group">数据</string>
     <string name="settings_export">导出订阅</string>

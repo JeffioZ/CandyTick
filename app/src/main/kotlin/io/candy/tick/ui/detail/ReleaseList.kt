@@ -16,6 +16,7 @@ import androidx.compose.foundation.lazy.LazyListScope
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.background
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.getValue
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
@@ -149,12 +150,18 @@ private fun ReleaseCard(
                 when (val download = state.download) {
                     is DetailViewModel.DownloadState.Active -> {
                         if (download.assetName == selected?.name) {
+                            // 进度补间：下载回调跳变 → 300ms 平滑
+                            val animatedProgress by androidx.compose.animation.core.animateFloatAsState(
+                                targetValue = download.progress,
+                                animationSpec = androidx.compose.animation.core.tween(300),
+                                label = "releaseDl",
+                            )
                             LinearProgressIndicator(
-                                progress = download.progress,
+                                progress = animatedProgress,
                                 modifier = Modifier.fillMaxWidth(),
                             )
                             Text(
-                                text = stringResource(R.string.download_progress_percent, (download.progress * 100).toInt()),
+                                text = stringResource(R.string.download_progress_percent, (animatedProgress * 100).toInt()),
                                 style = MiuixTheme.textStyles.footnote2,
                                 color = scheme.onBackgroundVariant,
                             )

@@ -61,7 +61,7 @@ fun RepoCard(
         cornerRadius = 16.dp,
         onClick = onClick,
     ) {
-        Column(modifier = Modifier.padding(horizontal = 16.dp, vertical = 12.dp)) {
+        Column(modifier = Modifier.padding(start = 16.dp, end = 16.dp, top = 12.dp)) {
                 Row(verticalAlignment = Alignment.CenterVertically) {
                     RepoIcon(repo = item.repo)
                     Spacer(Modifier.width(12.dp))
@@ -142,6 +142,8 @@ fun RepoCard(
                     Column {
                         Spacer(Modifier.height(4.dp))
                         ExpandedDetails(item = item, extras = extras)
+                        // 卡底留白放展开块内：收起时随动画移除，折叠态底部 12dp 与顶对称
+                        Spacer(Modifier.height(12.dp))
                     }
                 }
             }

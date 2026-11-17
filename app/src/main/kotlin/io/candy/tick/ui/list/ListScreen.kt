@@ -8,6 +8,7 @@ import androidx.compose.foundation.border
 import androidx.compose.ui.draw.alpha
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.shadow
+import androidx.compose.ui.focus.focusRequester
 import io.candy.tick.data.SyncStatus
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -58,6 +59,7 @@ import top.yukonga.miuix.kmp.basic.rememberTopAppBarState
 import top.yukonga.miuix.kmp.icon.MiuixIcons
 import top.yukonga.miuix.kmp.icon.basic.ArrowUpDown
 import top.yukonga.miuix.kmp.icon.basic.Search
+import top.yukonga.miuix.kmp.icon.extended.Close
 import top.yukonga.miuix.kmp.icon.extended.Add
 import top.yukonga.miuix.kmp.icon.extended.Settings
 import top.yukonga.miuix.kmp.theme.MiuixTheme
@@ -116,6 +118,12 @@ fun ListScreen(
     val pullState = rememberPullToRefreshState()
     var showSortSheet by remember { mutableStateOf(false) }
     var showSearch by remember { mutableStateOf(false) }
+    val searchFocus = androidx.compose.ui.focus.FocusRequester()
+    // 返回键先收起搜索（而非退出应用）——搜索态的标准返回语义
+    androidx.activity.compose.BackHandler(enabled = showSearch) {
+        vm.setQuery("")
+        showSearch = false
+    }
     val removedMsg = stringResource(R.string.removed)
     val undoLabel = stringResource(R.string.undo)
 
@@ -163,9 +171,16 @@ fun ListScreen(
                             if (showSearch) vm.setQuery("")
                             showSearch = !showSearch
                         }) {
+                            // 激活态换关闭图标：点一下能收起是可发现的
                             Icon(
-                                imageVector = MiuixIcons.Basic.Search,
-                                contentDescription = stringResource(R.string.action_search),
+                                imageVector = if (showSearch) {
+                                    MiuixIcons.Close
+                                } else {
+                                    MiuixIcons.Basic.Search
+                                },
+                                contentDescription = stringResource(
+                                    if (showSearch) R.string.close_search else R.string.action_search,
+                                ),
                                 tint = scheme.onBackground,
                             )
                         }
@@ -220,10 +235,25 @@ fun ListScreen(
                             value = state.query,
                             onValueChange = vm::setQuery,
                             label = stringResource(R.string.search_hint),
+                            keyboardOptions = androidx.compose.foundation.text.KeyboardOptions(
+                                imeAction = androidx.compose.ui.text.input.ImeAction.Search,
+                            ),
+                            keyboardActions = androidx.compose.foundation.text.KeyboardActions(
+                                // 实时过滤已出结果：回车只收键盘
+                                onSearch = { searchFocus.freeFocus() },
+                            ),
                             modifier = Modifier
                                 .fillMaxWidth()
+                                .focusRequester(searchFocus)
                                 .padding(horizontal = 16.dp, vertical = 6.dp),
                         )
+                        // 展开即聚焦（等一帧入场布局稳定，防未挂载请求崩溃）
+                        androidx.compose.runtime.LaunchedEffect(showSearch) {
+                            if (showSearch) {
+                                kotlinx.coroutines.delay(100)
+                                runCatching { searchFocus.requestFocus() }
+                            }
+                        }
                     }
                     state.banner?.let { error ->
                         ErrorBanner(error = error, onRetry = vm::refresh)
@@ -407,14 +437,33 @@ private fun SyncDots(running: Boolean, done: SyncStatus.Done?, modifier: Modifie
         }
     }
     Box(modifier = modifier.width(36.dp), contentAlignment = Alignment.CenterStart) {
-        // 结果符（与胶囊同时出现/消失）
-        done?.let { d ->
+        // 结果符：捕获最后一个非空结果——退出期间继续渲染，
+        // 否则 done 置空的瞬间内容塌空，退出动画淡出的是空气（= 瞬间消失）
+        var lastDone by remember { mutableStateOf<SyncStatus.Done?>(null) }
+        if (done != null) lastDone = done
+        androidx.compose.animation.AnimatedVisibility(
+            visible = done != null,
+            enter = androidx.compose.animation.fadeIn(
+                androidx.compose.animation.core.tween(150),
+            ) + androidx.compose.animation.scaleIn(
+                initialScale = 0.6f,
+                animationSpec = androidx.compose.animation.core.tween(150),
+            ),
+            exit = androidx.compose.animation.fadeOut(
+                androidx.compose.animation.core.tween(200),
+            ) + androidx.compose.animation.scaleOut(
+                targetScale = 0.6f,
+                animationSpec = androidx.compose.animation.core.tween(200),
+            ),
+        ) {
+        lastDone?.let { d ->
             val failedOnly = d.failed > 0 && d.changed == 0
             Text(
                 text = if (failedOnly) "\u2715" else "\u2713",
                 style = MiuixTheme.textStyles.footnote1,
                 color = if (failedOnly) scheme.onErrorContainer else scheme.primaryVariant,
             )
+        }
         }
         androidx.compose.animation.AnimatedVisibility(
             visible = dotsVisible,
@@ -457,14 +506,22 @@ private fun SyncDots(running: Boolean, done: SyncStatus.Done?, modifier: Modifie
 @Composable
 private fun ResultCapsule(done: SyncStatus.Done?, modifier: Modifier = Modifier) {
     val scheme = MiuixTheme.colorScheme
+    // 捕获最后一个非空结果：退出动画期间内容不塌空（否则瞬间消失）
+    var shown by remember { mutableStateOf<SyncStatus.Done?>(null) }
+    if (done != null) shown = done
     Box(modifier = modifier.fillMaxWidth(), contentAlignment = Alignment.TopCenter) {
         androidx.compose.animation.AnimatedVisibility(
             visible = done != null,
             enter = androidx.compose.animation.fadeIn() +
                 androidx.compose.animation.slideInVertically(initialOffsetY = { -it / 2 }),
-            exit = androidx.compose.animation.fadeOut(),
+            exit = androidx.compose.animation.fadeOut(
+                androidx.compose.animation.core.tween(220),
+            ) + androidx.compose.animation.slideOutVertically(
+                targetOffsetY = { -it / 2 },
+                animationSpec = androidx.compose.animation.core.tween(220),
+            ),
         ) {
-            done?.let { d ->
+            shown?.let { d ->
                 val allFailed = d.failed > 0 && d.changed == 0
                 val text = when {
                     allFailed -> stringResource(R.string.sync_result_all_failed, d.failed)
