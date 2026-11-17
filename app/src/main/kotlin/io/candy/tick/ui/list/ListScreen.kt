@@ -87,6 +87,7 @@ fun ListScreen(
 
     Box(modifier = Modifier.fillMaxSize()) {
         Scaffold(
+                 containerColor = androidx.compose.ui.graphics.Color.Transparent,
             topBar = {
                 SmallTopAppBar(
                     title = "", // 标题走 navigationIcon 槽位实现左对齐（内置 title 居中）

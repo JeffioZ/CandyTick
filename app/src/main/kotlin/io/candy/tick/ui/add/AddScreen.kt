@@ -69,6 +69,7 @@ fun AddScreen(
     }
 
     Scaffold(
+             containerColor = androidx.compose.ui.graphics.Color.Transparent,
         topBar = {
             SmallTopAppBar(
                 color = androidx.compose.ui.graphics.Color.Transparent,

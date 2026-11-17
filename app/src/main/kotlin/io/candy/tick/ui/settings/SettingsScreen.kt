@@ -206,6 +206,7 @@ fun SettingsScreen(onBack: () -> Unit) {
     /** 1=已授权 0=未授权 2=无需授予（见文件级 permText） */
 
     Scaffold(
+             containerColor = androidx.compose.ui.graphics.Color.Transparent,
         topBar = {
             SmallTopAppBar(
                 title = stringResource(R.string.settings_title),

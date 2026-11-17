@@ -124,6 +124,7 @@ fun DetailScreen(repoId: Long, onBack: () -> Unit) {
     val repo = state.repo
     Box(modifier = Modifier.fillMaxSize()) {
         Scaffold(
+             containerColor = androidx.compose.ui.graphics.Color.Transparent,
         topBar = {
                 SmallTopAppBar(
                     color = androidx.compose.ui.graphics.Color.Transparent,
