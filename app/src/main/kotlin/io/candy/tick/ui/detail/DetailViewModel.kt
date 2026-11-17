@@ -13,7 +13,6 @@ import io.candy.tick.data.model.DownloadedApk
 import io.candy.tick.data.model.RepoSnapshot
 import io.candy.tick.data.model.ReleaseRecord
 import io.candy.tick.data.model.TrackedRepo
-import io.candy.tick.data.model.statusAt
 import java.io.File
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.channels.Channel

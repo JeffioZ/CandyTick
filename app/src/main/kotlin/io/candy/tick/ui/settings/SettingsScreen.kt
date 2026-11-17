@@ -6,18 +6,11 @@ import android.net.Uri
 import android.os.Build
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
-import androidx.compose.foundation.clickable
-import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
-import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
-import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.layout.fillMaxSize
-import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
-import androidx.compose.foundation.rememberScrollState
-import androidx.compose.foundation.verticalScroll
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.getValue
@@ -25,9 +18,7 @@ import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
-import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.draw.clip
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.dp
@@ -43,8 +34,6 @@ import io.candy.tick.data.model.ThemeMode
 import io.candy.tick.data.Notifications
 import io.candy.tick.data.SelfUpdater
 import io.candy.tick.data.model.SyncFrequency
-import io.candy.tick.ui.common.PrimaryButton
-import io.candy.tick.ui.common.SecondaryButton
 import io.candy.tick.ui.theme.ChipAmber
 import io.candy.tick.ui.theme.ChipBlue
 import io.candy.tick.ui.theme.ChipOrange
@@ -58,8 +47,6 @@ import io.candy.tick.ui.theme.ChipSlate
 import io.candy.tick.ui.theme.ChipTeal
 import io.candy.tick.ui.theme.ChipViolet
 import top.yukonga.miuix.kmp.icon.MiuixIcons
-import top.yukonga.miuix.kmp.icon.extended.Hide
-import top.yukonga.miuix.kmp.icon.extended.Show
 import top.yukonga.miuix.kmp.icon.extended.Alarm
 import top.yukonga.miuix.kmp.icon.extended.CloudFill
 import top.yukonga.miuix.kmp.icon.extended.Download
@@ -80,12 +67,8 @@ import top.yukonga.miuix.kmp.icon.extended.Unlock
 import top.yukonga.miuix.kmp.icon.extended.Update
 import top.yukonga.miuix.kmp.basic.Icon
 import top.yukonga.miuix.kmp.basic.IconButton
-import top.yukonga.miuix.kmp.basic.LinearProgressIndicator
 import top.yukonga.miuix.kmp.basic.Scaffold
 import top.yukonga.miuix.kmp.basic.SmallTopAppBar
-import top.yukonga.miuix.kmp.basic.Text
-import top.yukonga.miuix.kmp.basic.TextField
-import top.yukonga.miuix.kmp.basic.TextButton
 import top.yukonga.miuix.kmp.theme.MiuixTheme
 import top.yukonga.miuix.kmp.window.WindowBottomSheet
 import top.yukonga.miuix.kmp.icon.extended.Back
@@ -115,9 +98,17 @@ fun SettingsScreen(onBack: () -> Unit) {
     var showTokenDialog by remember { mutableStateOf(false) }
     var tokenVisible by rememberSaveable { mutableStateOf(false) }
 
+    val crashLogFile = remember {
+        val dir = app.getExternalFilesDir(null) ?: app.filesDir
+        java.io.File(dir, "crash.log")
+    }
+    fun crashLogExists() = crashLogFile.exists() && crashLogFile.length() > 0
+
     // 权限状态：进入页面 / 从系统设置返回（ON_RESUME）时刷新
     var installPermGranted by remember { mutableStateOf(app.container.installManager.canRequestInstalls()) }
     var notifGranted by remember { mutableStateOf(Notifications.canNotify(app)) }
+    // 崩溃日志存在性走状态（ON_RESUME 刷新），避免每次重组都在主线程查磁盘
+    var crashLogPresent by remember { mutableStateOf(false) } // ON_RESUME 注册即刷新
     var askedNotifOnce by rememberSaveable { mutableStateOf(false) }
     val lifecycleOwner = LocalLifecycleOwner.current
     DisposableEffect(lifecycleOwner) {
@@ -125,6 +116,7 @@ fun SettingsScreen(onBack: () -> Unit) {
             if (event == Lifecycle.Event.ON_RESUME) {
                 installPermGranted = app.container.installManager.canRequestInstalls()
                 notifGranted = Notifications.canNotify(app)
+                crashLogPresent = crashLogExists()
             }
         }
         lifecycleOwner.lifecycle.addObserver(observer)
@@ -164,11 +156,6 @@ fun SettingsScreen(onBack: () -> Unit) {
         }
     }
 
-    val crashLogFile = remember {
-        val dir = app.getExternalFilesDir(null) ?: app.filesDir
-        java.io.File(dir, "crash.log")
-    }
-    fun crashLogExists() = crashLogFile.exists() && crashLogFile.length() > 0
     fun shareCrashLog() {
         if (!crashLogExists()) {
             android.widget.Toast.makeText(app, app.getString(R.string.crash_log_empty), android.widget.Toast.LENGTH_SHORT).show()
@@ -232,14 +219,15 @@ fun SettingsScreen(onBack: () -> Unit) {
             )
         },
     ) { padding ->
-        Column(
+        // LazyColumn：只组合可见分组，冷启动首进不再一次性构建整页
+        androidx.compose.foundation.lazy.LazyColumn(
             modifier = Modifier
                 .fillMaxSize()
                 .padding(padding)
-                .verticalScroll(rememberScrollState())
                 .padding(horizontal = 12.dp),
         ) {
             // ── 外观 ──
+            item(key = "appearance") {
             SettingsGroup(title = stringResource(R.string.settings_appearance)) {
                 SettingRow(
                     title = stringResource(R.string.settings_language),
@@ -257,8 +245,10 @@ fun SettingsScreen(onBack: () -> Unit) {
                     onClick = { showThemeSheet = true },
                 )
             }
+            }
 
             // ── 同步 ──
+            item(key = "sync") {
             SettingsGroup(title = stringResource(R.string.settings_sync)) {
                 SettingRow(
                     title = stringResource(R.string.settings_sync_frequency),
@@ -297,8 +287,10 @@ fun SettingsScreen(onBack: () -> Unit) {
                     onClick = { showTokenDialog = true },
                 )
             }
+            }
 
             // ── 通知 ──
+            item(key = "notifications") {
             SettingsGroup(title = stringResource(R.string.settings_notifications_group)) {
                 SwitchRow(
                     title = stringResource(R.string.settings_notifications),
@@ -308,8 +300,10 @@ fun SettingsScreen(onBack: () -> Unit) {
                     onChange = vm::setNotifications,
                 )
             }
+            }
 
             // ── 权限 ──
+            item(key = "permissions") {
             SettingsGroup(title = stringResource(R.string.settings_permission_group)) {
                 SettingRow(
                     icon = MiuixIcons.Unlock,
@@ -340,8 +334,10 @@ fun SettingsScreen(onBack: () -> Unit) {
                     },
                 )
             }
+            }
 
             // ── 关于 · 版本 ──
+            item(key = "selfupdate") {
             SettingsGroup(title = stringResource(R.string.settings_self_update)) {
                 SettingRow(
                     title = stringResource(R.string.settings_current_version_title),
@@ -387,8 +383,10 @@ fun SettingsScreen(onBack: () -> Unit) {
                 )
                 SelfUpdateActions(state = state, vm = vm)
             }
+            }
 
             // ── 数据 ──
+            item(key = "data") {
             SettingsGroup(title = stringResource(R.string.settings_backup_group)) {
                 SettingRow(
                     icon = MiuixIcons.Share,
@@ -422,8 +420,10 @@ fun SettingsScreen(onBack: () -> Unit) {
                     onClick = { showImportDialog = true },
                 )
             }
+            }
 
             // ── 关于 ──
+            item(key = "about") {
             SettingsGroup(title = stringResource(R.string.settings_about_group)) {
                 SettingRow(
                     icon = MiuixIcons.Link,
@@ -446,12 +446,13 @@ fun SettingsScreen(onBack: () -> Unit) {
                     iconTint = ChipOrange,
                     title = stringResource(R.string.settings_crash_log),
                     summary = stringResource(R.string.settings_crash_log_summary),
-                    value = if (crashLogExists()) "✓" else "",
+                    value = if (crashLogPresent) "✓" else "",
                     onClick = { shareCrashLog() },
                 )
             }
+            }
 
-            Spacer(Modifier.size(32.dp))
+            item(key = "footer") { Spacer(Modifier.size(32.dp)) }
         }
     }
 
@@ -506,161 +507,42 @@ fun SettingsScreen(onBack: () -> Unit) {
 
     // 导入来源选择弹窗（文件 / 剪贴板）
     if (showImportDialog) {
-        top.yukonga.miuix.kmp.window.WindowDialog(
-            show = true,
-            title = stringResource(R.string.settings_import),
-            onDismissRequest = { showImportDialog = false },
-        ) {
-            Column(
-                modifier = Modifier.padding(horizontal = 20.dp, vertical = 16.dp),
-                verticalArrangement = Arrangement.spacedBy(10.dp),
-            ) {
-                PrimaryButton(
-                    text = stringResource(R.string.import_from_file),
-                    onClick = {
-                        showImportDialog = false
-                        importLauncher.launch(arrayOf("application/json"))
-                    },
-                    modifier = Modifier.fillMaxWidth(),
-                )
-                SecondaryButton(
-                    text = stringResource(R.string.import_from_clipboard),
-                    onClick = {
-                        showImportDialog = false
-                        importFromText(clipboard.getText()?.text)
-                    },
-                    modifier = Modifier.fillMaxWidth(),
-                )
-            }
-        }
+        ImportSourceDialog(
+            onFromFile = {
+                showImportDialog = false
+                importLauncher.launch(arrayOf("application/json"))
+            },
+            onFromClipboard = {
+                showImportDialog = false
+                importFromText(clipboard.getText()?.text)
+            },
+            onDismiss = { showImportDialog = false },
+        )
     }
 
-    // Token 弹窗：标题/说明走 Dialog 内置槽位；关闭 = 底部「取消」+ scrim 点击 + 返回键
+    // Token 弹窗：关闭 = 底部「取消」+ scrim 点击 + 返回键
     if (showTokenDialog) {
-        top.yukonga.miuix.kmp.window.WindowDialog(
-            show = true,
-            title = stringResource(R.string.settings_token_row),
-            summary = stringResource(R.string.settings_token_hint),
-            onDismissRequest = { showTokenDialog = false },
-        ) {
-            Column(
-                modifier = Modifier.padding(horizontal = 20.dp, vertical = 4.dp),
-                verticalArrangement = Arrangement.spacedBy(12.dp),
-            ) {
-                // 输入框：单行密码式，眼睛切换在原生 trailingIcon 槽位（48dp 触控）
-                TextField(
-                    value = state.tokenInput,
-                    onValueChange = vm::onTokenInput,
-                    modifier = Modifier.fillMaxWidth(),
-                    singleLine = true,
-                    visualTransformation = if (tokenVisible) {
-                        androidx.compose.ui.text.input.VisualTransformation.None
-                    } else {
-                        androidx.compose.ui.text.input.PasswordVisualTransformation()
-                    },
-                    keyboardOptions = androidx.compose.foundation.text.KeyboardOptions(
-                        keyboardType = androidx.compose.ui.text.input.KeyboardType.Password,
-                    ),
-                    trailingIcon = {
-                        IconButton(onClick = { tokenVisible = !tokenVisible }) {
-                            Icon(
-                                imageVector = if (tokenVisible) MiuixIcons.Hide else MiuixIcons.Show,
-                                contentDescription = stringResource(
-                                    if (tokenVisible) R.string.token_hide else R.string.token_show,
-                                ),
-                                tint = scheme.onBackgroundVariant,
-                            )
-                        }
-                    },
-                )
-
-                // 帮助链接（超链接样式：链接图标 + 下划线强调色文字，点按有涟漪）
-                Row(
-                    modifier = Modifier
-                        .clip(androidx.compose.foundation.shape.RoundedCornerShape(8.dp))
-                        .clickable {
-                            runCatching {
-                                context.startActivity(
-                                    Intent(
-                                        Intent.ACTION_VIEW,
-                                        Uri.parse("https://docs.github.com/en/authentication/keeping-your-account-and-data-secure/managing-your-personal-access-tokens"),
-                                    ).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK),
-                                )
-                            }
-                        }
-                        .padding(top = 10.dp, bottom = 10.dp, start = 2.dp, end = 4.dp),
-                    verticalAlignment = Alignment.CenterVertically,
-                ) {
-                    Icon(
-                        imageVector = MiuixIcons.Link,
-                        contentDescription = null,
-                        tint = scheme.primaryVariant,
-                        modifier = Modifier.size(13.dp),
-                    )
-                    Spacer(Modifier.width(4.dp))
-                    Text(
-                        text = stringResource(R.string.token_help_link),
-                        style = MiuixTheme.textStyles.footnote1.copy(
-                            textDecoration = androidx.compose.ui.text.style.TextDecoration.Underline,
-                        ),
-                        color = scheme.primaryVariant,
+        TokenDialog(
+            state = state,
+            tokenVisible = tokenVisible,
+            onToggleVisible = { tokenVisible = !tokenVisible },
+            onTokenInput = vm::onTokenInput,
+            onSaveAndTest = vm::saveAndTestToken,
+            onOpenHelp = {
+                runCatching {
+                    context.startActivity(
+                        Intent(
+                            Intent.ACTION_VIEW,
+                            Uri.parse("https://docs.github.com/en/authentication/keeping-your-account-and-data-secure/managing-your-personal-access-tokens"),
+                        ).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK),
                     )
                 }
-
-                // 验证结果 / 被拒提示（就近展示在输入框下方）
-                when (state.tokenTest) {
-                    SettingsViewModel.TokenTest.TESTING -> Text(
-                        text = stringResource(R.string.loading),
-                        style = MiuixTheme.textStyles.footnote1,
-                        color = scheme.onBackgroundVariant,
-                    )
-                    SettingsViewModel.TokenTest.VALID -> Text(
-                        text = stringResource(R.string.token_verified),
-                        style = MiuixTheme.textStyles.footnote1,
-                        color = scheme.primaryVariant,
-                    )
-                    SettingsViewModel.TokenTest.INVALID -> Text(
-                        text = stringResource(R.string.token_invalid_short),
-                        style = MiuixTheme.textStyles.footnote1,
-                        color = scheme.onErrorContainer,
-                    )
-                    SettingsViewModel.TokenTest.NETWORK -> Text(
-                        text = stringResource(R.string.token_network_error),
-                        style = MiuixTheme.textStyles.footnote1,
-                        color = scheme.onErrorContainer,
-                    )
-                    null -> Unit
-                }
-                if (state.tokenRejected) {
-                    Text(
-                        text = stringResource(R.string.settings_token_rejected),
-                        style = MiuixTheme.textStyles.footnote1,
-                        color = scheme.onErrorContainer,
-                    )
-                }
-
-                // 底部按钮行：取消（显式关闭）+ 保存并验证（主操作）
-                Row(
-                    modifier = Modifier.fillMaxWidth(),
-                    horizontalArrangement = Arrangement.End,
-                    verticalAlignment = Alignment.CenterVertically,
-                ) {
-                    TextButton(
-                        text = stringResource(R.string.action_cancel),
-                        onClick = { showTokenDialog = false },
-                    )
-                    Spacer(Modifier.width(12.dp))
-                    PrimaryButton(
-                        text = stringResource(R.string.settings_token_test),
-                        onClick = vm::saveAndTestToken,
-                        enabled = state.tokenInput.isNotBlank(),
-                    )
-                }
-            }
-        }
+            },
+            onDismiss = { showTokenDialog = false },
+        )
     }
-
 }
+
 
 @Composable
 private fun languageLabel(tag: String): String = when (tag) {
@@ -696,48 +578,3 @@ private fun permText(status: Int): String = stringResource(
         else -> R.string.perm_not_granted
     },
 )
-
-/** 自身更新的可操作块：新版本（说明 + 下载）/ 下载进度 / 已下载（安装） */
-@Composable
-private fun SelfUpdateActions(state: SettingsViewModel.UiState, vm: SettingsViewModel) {
-    val scheme = MiuixTheme.colorScheme
-    when (val update = state.selfUpdate) {
-        is SelfUpdater.State.NewVersion -> Column(
-            modifier = Modifier.padding(start = 16.dp, end = 16.dp, bottom = 16.dp),
-        ) {
-            update.notes?.let {
-                Text(
-                    text = it,
-                    style = MiuixTheme.textStyles.footnote1,
-                    color = scheme.onBackgroundVariant,
-                    modifier = Modifier.padding(bottom = 8.dp),
-                )
-            }
-            PrimaryButton(
-                text = stringResource(R.string.settings_download_update),
-                onClick = vm::downloadUpdate,
-                modifier = Modifier.fillMaxWidth(),
-                enabled = update.asset != null,
-            )
-        }
-        is SelfUpdater.State.Downloading -> Column(
-            modifier = Modifier.padding(start = 16.dp, end = 16.dp, top = 4.dp, bottom = 16.dp),
-        ) {
-            LinearProgressIndicator(progress = update.progress, modifier = Modifier.fillMaxWidth())
-            Text(
-                text = stringResource(R.string.download_progress_percent, (update.progress * 100).toInt()),
-                style = MiuixTheme.textStyles.footnote2,
-                color = scheme.onBackgroundVariant,
-                modifier = Modifier.padding(top = 4.dp),
-            )
-        }
-        is SelfUpdater.State.Downloaded -> PrimaryButton(
-            text = stringResource(R.string.settings_install_update),
-            onClick = { vm.installUpdate(update.file) },
-            modifier = Modifier
-                .fillMaxWidth()
-                .padding(start = 16.dp, end = 16.dp, bottom = 16.dp),
-        )
-        else -> Unit
-    }
-}

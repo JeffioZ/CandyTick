@@ -1,6 +1,5 @@
 package io.candy.tick.data
 
-import io.candy.tick.data.model.ApkAsset
 import io.candy.tick.data.model.CommitRecord
 import io.candy.tick.data.model.RepoSnapshot
 import io.candy.tick.data.model.ReleaseRecord
