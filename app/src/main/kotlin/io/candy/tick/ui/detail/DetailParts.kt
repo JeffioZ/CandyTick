@@ -150,7 +150,8 @@ internal fun RemoveRepoDialog(
     onDismiss: () -> Unit,
 ) {
     val scheme = MiuixTheme.colorScheme
-    top.yukonga.miuix.kmp.window.WindowDialog(
+    // 底部浮层容器：与选项浮层同款动效
+    top.yukonga.miuix.kmp.window.WindowBottomSheet(
         show = show,
         title = stringResource(R.string.remove_confirm_title),
         onDismissRequest = onDismiss,

@@ -45,7 +45,8 @@ internal fun ImportSourceDialog(
     onFromClipboard: () -> Unit,
     onDismiss: () -> Unit,
 ) {
-    top.yukonga.miuix.kmp.window.WindowDialog(
+    // 底部浮层容器：与选项浮层同款滑入滑出动效
+    top.yukonga.miuix.kmp.window.WindowBottomSheet(
         show = show,
         title = stringResource(R.string.settings_import),
         onDismissRequest = onDismiss,
@@ -97,13 +98,23 @@ internal fun TokenDialog(
             runCatching { tokenFocus.requestFocus() }
         }
     }
-    // show 直通（勿用 if 包裹）：退场动画依赖组件持续组合
-    top.yukonga.miuix.kmp.window.WindowDialog(
+    // show 直通（勿用 if 包裹）：退场动画依赖组件持续组合；底部浮层与选项浮层动效统一
+    top.yukonga.miuix.kmp.window.WindowBottomSheet(
         show = show,
         title = stringResource(R.string.settings_token_row),
-        summary = stringResource(R.string.settings_token_hint),
         onDismissRequest = { onDismiss() },
     ) {
+        // 说明文字（sheet 无 summary 槽位，内容区首行居中呈现）
+        Text(
+            text = stringResource(R.string.settings_token_hint),
+            style = MiuixTheme.textStyles.footnote1,
+            color = scheme.onBackgroundVariant,
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(horizontal = 20.dp)
+                .padding(bottom = 4.dp),
+            textAlign = androidx.compose.ui.text.style.TextAlign.Center,
+        )
         Column(
             modifier = Modifier.padding(horizontal = 20.dp, vertical = 4.dp),
             verticalArrangement = Arrangement.spacedBy(12.dp),
