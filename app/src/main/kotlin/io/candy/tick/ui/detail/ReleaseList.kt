@@ -245,7 +245,7 @@ private fun AssetRow(
             if (selected) {
                 top.yukonga.miuix.kmp.basic.Icon(
                     imageVector = MiuixIcons.Basic.Check,
-                    contentDescription = null,
+                    contentDescription = "selected",
                     tint = scheme.primaryVariant,
                 )
             }
