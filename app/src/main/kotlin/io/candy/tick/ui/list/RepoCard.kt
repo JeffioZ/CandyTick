@@ -1,6 +1,5 @@
 package io.candy.tick.ui.list
 
-import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
@@ -21,7 +20,6 @@ import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
-import androidx.compose.ui.draw.rotate
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
@@ -42,7 +40,6 @@ import top.yukonga.miuix.kmp.basic.Card
 import top.yukonga.miuix.kmp.basic.Icon
 import top.yukonga.miuix.kmp.basic.Text
 import top.yukonga.miuix.kmp.icon.MiuixIcons
-import top.yukonga.miuix.kmp.icon.extended.ExpandMore
 import top.yukonga.miuix.kmp.icon.extended.Pin
 import top.yukonga.miuix.kmp.theme.MiuixTheme
 import androidx.compose.foundation.layout.width
@@ -64,8 +61,7 @@ fun RepoCard(
         cornerRadius = 16.dp,
         onClick = onClick,
     ) {
-        Row(modifier = Modifier) {
-            Column(modifier = Modifier.padding(horizontal = 16.dp, vertical = 12.dp)) {
+        Column(modifier = Modifier.padding(horizontal = 16.dp, vertical = 12.dp)) {
                 Row(verticalAlignment = Alignment.CenterVertically) {
                     RepoIcon(repo = item.repo)
                     Spacer(Modifier.width(12.dp))
@@ -94,18 +90,15 @@ fun RepoCard(
                 }
 
                 Spacer(Modifier.height(6.dp))
-                // 整行可点切换展开（尾部旋转箭头提供可视暗示）；竖向留白保证触控高度
-                val chevronAngle by animateFloatAsState(
-                    targetValue = if (expanded) 180f else 0f,
-                    label = "cardChevron",
-                )
                 Row(
                     modifier = Modifier
                         .fillMaxWidth()
-                        .padding(vertical = 6.dp)
+                        // clickable 在 padding 之前：留白计入命中区（~40dp 达标），
+                        // 且点击缓冲带不再穿透到卡片 onClick（误进详情）
                         .clickable(
                             interactionSource = remember { MutableInteractionSource() },
-                        ) { onToggle() },
+                        ) { onToggle() }
+                        .padding(vertical = 12.dp),
                     verticalAlignment = Alignment.CenterVertically,
                 ) {
                     item.snapshot?.pushedAt?.let { pushed ->
@@ -126,14 +119,23 @@ fun RepoCard(
                         )
                     }
                     Spacer(Modifier.weight(1f))
-                    Icon(
-                        imageVector = MiuixIcons.ExpandMore,
-                        contentDescription = null,
-                        tint = scheme.onBackgroundVariant,
-                        modifier = Modifier
-                            .size(18.dp)
-                            .rotate(chevronAngle),
-                    )
+                    // 普通 ⌄/⌃ 箭头，交叉淡入淡出（不旋转，无「转圈」感）
+                    androidx.compose.animation.Crossfade(
+                        targetState = expanded,
+                        animationSpec = androidx.compose.animation.core.tween(150),
+                        label = "expandArrow",
+                    ) { exp ->
+                        Icon(
+                            imageVector = if (exp) {
+                                io.candy.tick.ui.common.ChevronUpIcon
+                            } else {
+                                io.candy.tick.ui.common.ChevronDownIcon
+                            },
+                            contentDescription = null,
+                            tint = scheme.onBackgroundVariant,
+                            modifier = Modifier.size(18.dp),
+                        )
+                    }
                 }
 
                 androidx.compose.animation.AnimatedVisibility(visible = expanded) {
@@ -143,7 +145,6 @@ fun RepoCard(
                     }
                 }
             }
-        }
     }
 }
 

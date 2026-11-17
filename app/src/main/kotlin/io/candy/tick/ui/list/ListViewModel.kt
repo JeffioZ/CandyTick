@@ -1,6 +1,9 @@
 package io.candy.tick.ui.list
 
 import android.content.Context
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.setValue
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import io.candy.tick.CandyTickApp
@@ -25,6 +28,7 @@ import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.receiveAsFlow
 import kotlinx.coroutines.flow.stateIn
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 
 enum class SortMode { LAST_PUSH, ADDED, STATUS, NAME, NAME_DESC, UPDATABLE }
@@ -90,13 +94,51 @@ class ListViewModel(
     // 快照变更监听：无论来源（下拉/SyncWorker/打开即同步），有新提交或新 release 就标
     private var lastSnapshots: Map<Long, RepoSnapshot> = emptyMap()
 
+    /** 自动同步信号（打开即同步 / 定时）：首页细线 + 结果胶囊消费 */
+    val syncStatus: kotlinx.coroutines.flow.StateFlow<SyncStatus> =
+        (context.applicationContext as CandyTickApp).container.syncStatus
+
+    /** 已展示过的同步结果时间戳上限：导航往返组件重建后旧结果不复活（VM 跨导航存活） */
+    var syncResultConsumedAt by androidx.compose.runtime.mutableStateOf(0L)
+
+    /**
+     * 重排抑制：数据刷新引起的排序变化不做位移动画（长距离滑动=飞行感）；
+     * 仅用户操作（置顶/撤销）保留动画。手动刷新与自动同步两条来源都会置起。
+     */
+    var suppressItemPlacement by androidx.compose.runtime.mutableStateOf(false)
+        private set
+
+    private fun suppressPlacementTemporarily() {
+        suppressItemPlacement = true
+        viewModelScope.launch {
+            delay(600) // 覆盖刷新尾部与收尾组合的数帧
+            suppressItemPlacement = false
+        }
+    }
+
+
     init {
+        // 自动同步期间同样抑制重排动画（Running 置起，Done 后短暂释放）
+        viewModelScope.launch {
+            syncStatus.collect { st ->
+                when (st) {
+                    is SyncStatus.Running -> suppressItemPlacement = true
+                    is SyncStatus.Done -> suppressPlacementTemporarily()
+                    SyncStatus.Idle -> Unit
+                }
+            }
+        }
         viewModelScope.launch {
             repository.state.collect { newState ->
                 if (lastSnapshots.isNotEmpty()) {
+                    val importAt = newState.lastImportAt
                     val newChanged = newState.snapshots.filterKeys { id ->
                         val old = lastSnapshots[id] ?: return@filterKeys false
                         val newSnap = newState.snapshots[id] ?: return@filterKeys false
+                        // 导入基线：旧快照属备份数据（同步时间早于导入时刻）→ 首次本地同步只立基线不标记
+                        if (old.lastSyncAt != null && importAt != null && old.lastSyncAt.isBefore(importAt)) {
+                            return@filterKeys false
+                        }
                         // 与 SyncWorker 结果统计同口径（首次记录到 tag 不算，规则内置）
                         SnapshotDiff.hasNewActivity(old, newSnap)
                     }.keys
@@ -109,10 +151,6 @@ class ListViewModel(
         }
     }
 
-    /** 自动同步信号（打开即同步 / 定时）：首页细线 + 结果胶囊消费 */
-    val syncStatus: kotlinx.coroutines.flow.StateFlow<SyncStatus> =
-        (context.applicationContext as CandyTickApp).container.syncStatus
-
     init {
         viewModelScope.launch(Dispatchers.Default) {
             // 自动备注刷新：应用改名后标题跟随（自定义备注 autoNote=false 永不动）；
@@ -123,9 +161,10 @@ class ListViewModel(
                 when {
                     tracked.autoNote && label != tracked.noteName ->
                         repository.setNoteName(tracked.id, label, auto = true)
-                    !tracked.autoNote && tracked.noteName == label ->
-                        repository.setNoteName(tracked.id, label, auto = true) // 收编
-                    // 其余 = 自定义备注或标签不可得：不动
+                    // 收编无标记旧数据：备注为空（旧版手动关联从不写备注）或值恰等于当前应用名
+                    !tracked.autoNote && (tracked.noteName == null || tracked.noteName == label) ->
+                        repository.setNoteName(tracked.id, label, auto = true)
+                    // 其余 = 异机导入的旧自动值或标签不可得：不动
                 }
             }
         }
@@ -225,6 +264,7 @@ class ListViewModel(
         viewModelScope.launch {
             refreshing.value = true
             banner.value = null
+            suppressPlacementTemporarily() // 刷新重排瞬时落位
             val errors = repository.refreshAll()
             repoErrors.value = errors
             val total = state.value.items.size
@@ -234,6 +274,7 @@ class ListViewModel(
                 errors.values.firstOrNull { it is SourceError.RateLimited } // 限流永远值得横幅提示
             }
             refreshing.value = false
+            suppressPlacementTemporarily() // 弱网下刷新可超过首个抑制窗：落位点再压一次
         }
     }
 

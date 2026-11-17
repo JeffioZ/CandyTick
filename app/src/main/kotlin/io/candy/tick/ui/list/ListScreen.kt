@@ -4,6 +4,7 @@ import androidx.compose.animation.core.animateFloat
 import androidx.compose.animation.core.animateFloat
 import androidx.compose.animation.core.animateFloat
 import androidx.compose.foundation.background
+import androidx.compose.foundation.border
 import androidx.compose.ui.draw.alpha
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.shadow
@@ -42,7 +43,6 @@ import io.candy.tick.R
 import io.candy.tick.data.SourceError
 import io.candy.tick.ui.common.SecondaryButton
 import io.candy.tick.ui.common.sourceErrorText
-import top.yukonga.miuix.kmp.basic.Card
 import top.yukonga.miuix.kmp.basic.Icon
 import top.yukonga.miuix.kmp.basic.IconButton
 import top.yukonga.miuix.kmp.basic.MiuixScrollBehavior
@@ -73,9 +73,45 @@ fun ListScreen(
     val state by vm.state.collectAsStateWithLifecycle()
     val syncStatus by vm.syncStatus.collectAsStateWithLifecycle()
     // 结果转变检测（Running→Done，或冷启动 10s 内的新鲜 Done）——顶栏完成符与胶囊共用
-    val syncResult = rememberSyncResult(syncStatus)
+    val syncResult = rememberSyncResult(
+        status = syncStatus,
+        consumedAt = vm.syncResultConsumedAt,
+        onConsumed = { vm.syncResultConsumedAt = it },
+    )
     val scheme = MiuixTheme.colorScheme
     val snackbar = remember { SnackbarHostState() }
+    val listState = androidx.compose.foundation.lazy.rememberLazyListState()
+    // 重排锚点：抑制期内保持「用户原来看哪还看哪」——修复 LazyColumn 锚定取整误差
+    // （重排项插到首见项之上时露出 1px 边 + 跨视口闪烁）
+    var scrollAnchor by remember { mutableStateOf<Pair<Long, Int>?>(null) }
+    androidx.compose.runtime.LaunchedEffect(vm.suppressItemPlacement) {
+        if (vm.suppressItemPlacement) {
+            if (scrollAnchor == null && !listState.isScrollInProgress) {
+                state.items.getOrNull(listState.firstVisibleItemIndex)?.let {
+                    scrollAnchor = it.repo.id to listState.firstVisibleItemScrollOffset
+                }
+            }
+        } else {
+            scrollAnchor = null
+        }
+    }
+    androidx.compose.runtime.LaunchedEffect(state.items, vm.suppressItemPlacement, scrollAnchor) {
+        val anchor = scrollAnchor ?: return@LaunchedEffect
+        if (!vm.suppressItemPlacement) return@LaunchedEffect
+        when {
+            listState.isScrollInProgress -> scrollAnchor = null // 用户接管滚动：放弃锚点
+            else -> {
+                val idx = state.items.indexOfFirst { it.repo.id == anchor.first }
+                if (idx < 0) {
+                    scrollAnchor = null // 锚点条目已不在列表
+                } else if (listState.firstVisibleItemIndex != idx ||
+                    listState.firstVisibleItemScrollOffset != anchor.second
+                ) {
+                    listState.requestScrollToItem(idx, anchor.second)
+                }
+            }
+        }
+    }
     val scrollBehavior = MiuixScrollBehavior(rememberTopAppBarState())
     val pullState = rememberPullToRefreshState()
     var showSortSheet by remember { mutableStateOf(false) }
@@ -214,6 +250,7 @@ fun ListScreen(
                         EmptyState(onAdd = onAdd, modifier = Modifier.weight(1f))
                     } else {
                         LazyColumn(
+                            state = listState,
                             modifier = Modifier.fillMaxSize(),
                             contentPadding = PaddingValues(
                                 start = 16.dp,
@@ -228,7 +265,20 @@ fun ListScreen(
                                 onDelete = { vm.remove(item) },
                                 onPin = { vm.togglePin(item) },
                                 pinned = item.repo.pinnedAt != null,
-                                modifier = Modifier.animateItem(),
+                                modifier = Modifier.animateItem(
+                                    // 数据刷新重排=瞬时落位（suppress 由 VM 在刷新/同步期置起）；
+                                    // 用户操作（置顶/撤销）=中等刚度略回弹，长距离不飘；增删=短促淡入淡出
+                                    placementSpec = if (vm.suppressItemPlacement) {
+                                        androidx.compose.animation.core.snap()
+                                    } else {
+                                        androidx.compose.animation.core.spring(
+                                            dampingRatio = 0.875f,
+                                            stiffness = androidx.compose.animation.core.Spring.StiffnessMedium,
+                                        )
+                                    },
+                                    fadeInSpec = androidx.compose.animation.core.tween(150),
+                                    fadeOutSpec = androidx.compose.animation.core.tween(150),
+                                ),
                             ) {
                                 RepoCard(
                                     item = item,
@@ -280,10 +330,13 @@ fun ListScreen(
 @Composable
 private fun ErrorBanner(error: SourceError, onRetry: () -> Unit) {
     val scheme = MiuixTheme.colorScheme
-    Card(
+    // 错误容器底（浅粉/深红棕）：错误语义即时可读，深浅两模式下边界都清晰
+    Column(
         modifier = Modifier
             .fillMaxWidth()
-            .padding(horizontal = 16.dp, vertical = 6.dp),
+            .padding(horizontal = 16.dp, vertical = 6.dp)
+            .clip(androidx.compose.foundation.shape.RoundedCornerShape(16.dp))
+            .background(scheme.errorContainer),
     ) {
         Row(
             modifier = Modifier.padding(horizontal = 14.dp, vertical = 10.dp),
@@ -311,16 +364,24 @@ private fun ErrorBanner(error: SourceError, onRetry: () -> Unit) {
 
 /** 结果转变检测：Running→Done，或冷启动 10s 内的新鲜 Done；到位后按内容时长自动清空 */
 @Composable
-private fun rememberSyncResult(status: SyncStatus): SyncStatus.Done? {
+private fun rememberSyncResult(
+    status: SyncStatus,
+    consumedAt: Long,
+    onConsumed: (Long) -> Unit,
+): SyncStatus.Done? {
     var result by remember { mutableStateOf<SyncStatus.Done?>(null) }
     var prev by remember { mutableStateOf<SyncStatus?>(null) }
-    androidx.compose.runtime.LaunchedEffect(status) {
+    androidx.compose.runtime.LaunchedEffect(status, consumedAt) {
         val fresh = status is SyncStatus.Done &&
             System.currentTimeMillis() - status.at < 10_000
+        // 未消费闸门：at > consumedAt 才允许展示——导航往返重建后旧结果不复活
+        val unseen = (status as? SyncStatus.Done)?.at?.let { it > consumedAt } == true
         when {
-            prev is SyncStatus.Running && status is SyncStatus.Done -> result = status
-            prev == null && fresh -> result = status // 冷启动竞态兜底
+            prev is SyncStatus.Running && status is SyncStatus.Done && unseen -> result = status
+            prev == null && fresh && unseen -> result = status // 冷启动竞态兜底
         }
+        // 消费被展示的那个 result（而非强转当前 status——展示中若来新 Running 会崩）
+        result?.let { onConsumed(it.at) }
         prev = status
     }
     androidx.compose.runtime.LaunchedEffect(result) {
@@ -418,7 +479,9 @@ private fun ResultCapsule(done: SyncStatus.Done?, modifier: Modifier = Modifier)
                         .padding(top = 10.dp)
                         .shadow(4.dp, androidx.compose.foundation.shape.RoundedCornerShape(20.dp))
                         .clip(androidx.compose.foundation.shape.RoundedCornerShape(20.dp))
-                        .background(scheme.surface)
+                        // 浮层分离双保险：色调抬升一档（深色下阴影不可见）+ 1dp 描边定边界
+                        .background(scheme.surfaceContainerHigh)
+                        .border(1.dp, scheme.dividerLine)
                         .padding(horizontal = 14.dp, vertical = 8.dp),
                     verticalAlignment = Alignment.CenterVertically,
                 ) {

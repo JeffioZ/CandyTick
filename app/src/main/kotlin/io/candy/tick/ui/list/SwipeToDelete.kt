@@ -1,6 +1,7 @@
 package io.candy.tick.ui.list
 
 import androidx.compose.animation.core.Animatable
+import androidx.compose.animation.core.tween
 import androidx.compose.foundation.background
 import androidx.compose.foundation.gestures.detectHorizontalDragGestures
 import androidx.compose.foundation.layout.Box
@@ -16,10 +17,12 @@ import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.draw.rotate
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.unit.IntOffset
 import androidx.compose.ui.unit.dp
+import kotlinx.coroutines.coroutineScope
 import kotlinx.coroutines.launch
 import kotlin.math.roundToInt
 import top.yukonga.miuix.kmp.basic.Icon
@@ -44,6 +47,8 @@ fun SwipeToDelete(
 ) {
     val scope = rememberCoroutineScope()
     val offsetX = remember { Animatable(0f) }
+    // 删除消散进度：1=常态；删除时动画到 0（卡片缩回 + 粒子迸散），LibChecker 式 hero 特效
+    val dissolve = remember { Animatable(1f) }
     val scheme = MiuixTheme.colorScheme
     // 手势块持有创建时的闭包（key 不变不重启）：不桥接最新值的话，
     // togglePin 会拿到置顶前的旧条目快照，导致「无法取消置顶」
@@ -88,10 +93,16 @@ fun SwipeToDelete(
                 )
             }
         }
-        // 上层：内容随手势横移（负向 = 置顶方向）
+        // 上层：内容随手势横移（负向 = 置顶方向）；删除时缩放淡出
         Box(
             modifier = Modifier
                 .offset { IntOffset(offsetX.value.roundToInt(), 0) }
+                .graphicsLayer {
+                    val d = dissolve.value
+                    alpha = d
+                    scaleX = 0.6f + 0.4f * d
+                    scaleY = 0.6f + 0.4f * d
+                }
                 .pointerInput(onPin != null) {
                     detectHorizontalDragGestures(
                         onHorizontalDrag = { change, dragAmount ->
@@ -106,12 +117,22 @@ fun SwipeToDelete(
                             scope.launch {
                                 when {
                                     offsetX.value > threshold -> {
+                                        // hero 特效：卡片滑回原位的同时缩小消散 + 粒子迸散，320ms 后移除条目
+                                        kotlinx.coroutines.coroutineScope {
+                                            launch {
+                                                offsetX.animateTo(0f, tween(200))
+                                            }
+                                            launch {
+                                                dissolve.animateTo(0f, tween(320))
+                                            }
+                                        }
                                         currentOnDelete()
-                                        offsetX.snapTo(0f) // 条目即被列表移除，复位供撤销回归
+                                        dissolve.snapTo(1f) // 复位供撤销回归重绘
                                     }
                                     offsetX.value < -threshold -> {
                                         currentOnPin?.invoke()
-                                        offsetX.animateTo(0f) // 置顶不移除条目：回弹，位置跳变即反馈
+                                        // 横向瞬间归位：置顶重排只走纵向动画，避免横竖叠加的斜向飞行
+                                        offsetX.snapTo(0f)
                                     }
                                     else -> offsetX.animateTo(0f)
                                 }
@@ -121,6 +142,32 @@ fun SwipeToDelete(
                 },
         ) {
             content()
+        }
+        // 粒子层：删除消散时从卡片中心迸散（红/薄荷双色系，重力下坠），不随卡片缩放
+        if (dissolve.value < 0.999f) {
+            androidx.compose.foundation.Canvas(
+                modifier = Modifier
+                    .matchParentSize()
+                    .offset { IntOffset(offsetX.value.roundToInt(), 0) },
+            ) {
+                val p = 1f - dissolve.value
+                val accent = scheme.onErrorContainer
+                val main = scheme.primaryVariant
+                repeat(22) { i ->
+                    val angle = (i / 22f) * 2f * Math.PI + i * 2.399963f
+                    val speed = 0.5f + ((i * 37) % 100) / 100f
+                    val dist = size.minDimension * 0.62f * p * speed
+                    val cx = center.x + kotlin.math.cos(angle).toFloat() * dist
+                    val cy = center.y + kotlin.math.sin(angle).toFloat() * dist +
+                        size.height * 0.3f * p * p // 重力
+                    drawCircle(
+                        color = if (i % 3 == 0) accent else main,
+                        radius = 3.dp.toPx() * (1f - p * 0.6f),
+                        center = androidx.compose.ui.geometry.Offset(cx, cy),
+                        alpha = (1f - p).coerceIn(0f, 1f),
+                    )
+                }
+            }
         }
     }
 }

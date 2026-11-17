@@ -145,10 +145,18 @@ fun CandyTickTheme(
     }
     val colors = if (dark) CandyDarkColors else CandyLightColors
     MiuixTheme(colors = colors) {
+        // 按压反馈按主题定向：MiuixIndication 默认黑色 10% 叠加，深色底上不可见——
+        // 深色改白色叠加（按下变亮），浅色保持黑（按下变暗）；一处覆盖全部默认 clickable/Button
+        val indication = androidx.compose.runtime.remember(dark) {
+            top.yukonga.miuix.kmp.utils.MiuixIndication(
+                if (dark) androidx.compose.ui.graphics.Color.White else androidx.compose.ui.graphics.Color.Black,
+            )
+        }
         // 静态 MiuixTheme 不提供 LocalContentColor，这里按底色补上
         CompositionLocalProvider(
             LocalContentColor provides colors.onBackground,
             LocalDarkTheme provides dark,
+            androidx.compose.foundation.LocalIndication provides indication,
         ) {
             SystemBars(dark = dark)
             content()
