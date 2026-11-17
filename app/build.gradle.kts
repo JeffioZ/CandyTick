@@ -19,9 +19,34 @@ android {
         versionName = "0.1.0"
     }
 
+    // 正式签名（keystore.properties 不入库，本地读取）
+    val ksFile = rootProject.file("keystore.properties")
+    val ksMap = if (ksFile.exists()) {
+        ksFile.readLines().filter { it.contains("=") }.associate {
+            val idx = it.indexOf('=')
+            it.substring(0, idx).trim() to it.substring(idx + 1).trim()
+        }
+    } else emptyMap<String, String>()
+    val ksPath = ksMap["storeFile"]
+    val ksPass = ksMap["storePassword"] ?: ""
+    val ksAlias = ksMap["keyAlias"] ?: ""
+    val ksKeyPass = ksMap["keyPassword"] ?: ""
+
+    signingConfigs {
+        create("release") {
+            if (ksPath != null) {
+                storeFile = rootProject.file(ksPath)
+                storePassword = ksPass
+                keyAlias = ksAlias
+                keyPassword = ksKeyPass
+            }
+        }
+    }
+
     buildTypes {
         release {
             isMinifyEnabled = true
+            signingConfig = signingConfigs.getByName("release")
             proguardFiles(
                 getDefaultProguardFile("proguard-android-optimize.txt"),
                 "proguard-rules.pro",

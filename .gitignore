@@ -26,3 +26,5 @@ docs/
 
 # Kotlin workspace (K2)
 .kotlin/
+*.keystore
+keystore.properties
