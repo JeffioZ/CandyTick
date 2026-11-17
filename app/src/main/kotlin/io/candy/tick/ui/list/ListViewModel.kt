@@ -64,7 +64,10 @@ class ListViewModel(
     private val _events = Channel<Event>(Channel.BUFFERED)
     val events: Flow<Event> = _events.receiveAsFlow()
 
-    private val sortMode = MutableStateFlow(SortMode.LAST_PUSH)
+    private val sortMode = MutableStateFlow(
+        runCatching { SortMode.valueOf(repository.state.value.settings.sortMode) }
+            .getOrDefault(SortMode.LAST_PUSH)
+    )
     private val query = MutableStateFlow("")
     private val refreshing = MutableStateFlow(false)
     private val banner = MutableStateFlow<SourceError?>(null)
@@ -195,6 +198,7 @@ class ListViewModel(
 
     fun setSort(mode: SortMode) {
         sortMode.value = mode
+        viewModelScope.launch { repository.updateSettings { it.copy(sortMode = mode.name) } }
     }
 
     fun setQuery(text: String) {

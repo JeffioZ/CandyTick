@@ -93,6 +93,7 @@ data class Settings(
     val selfUpdateCheck: Boolean = true, // 自身更新：自动检查（默认开）
     val selfUpdateAutoDownload: Boolean = false, // 自身更新：自动下载（默认关，仅 Wi-Fi）
     val language: String = "", // 应用内语言（空 = 跟随系统；"zh" / "en"）
+    val sortMode: String = "LAST_PUSH", // 首页排序（持久化，重启保留）
 )
 
 /** 持久化根：订阅 + 快照 + 设置，单 JSON 文件 */
