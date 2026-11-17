@@ -9,6 +9,7 @@ import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.staticCompositionLocalOf
 import androidx.compose.ui.platform.LocalView
 import androidx.core.view.WindowCompat
+import androidx.compose.ui.graphics.toArgb
 import io.candy.tick.data.model.ThemeMode
 import top.yukonga.miuix.kmp.theme.LocalContentColor
 import top.yukonga.miuix.kmp.theme.MiuixTheme
@@ -155,7 +156,7 @@ fun CandyTickTheme(
     }
 }
 
-/** edge-to-edge：窗口不内缩 + 按主题档切换系统栏图标明暗 */
+/** edge-to-edge：窗口不内缩 + 按主题档同步窗口底色/系统栏图标明暗 */
 @Composable
 private fun SystemBars(dark: Boolean) {
     val view = LocalView.current
@@ -163,7 +164,11 @@ private fun SystemBars(dark: Boolean) {
         val window = (view.context as? Activity)?.window
         if (window != null) {
             WindowCompat.setDecorFitsSystemWindows(window, false)
-            // 29+：关掉系统给三键导航栏强加的灰色对比纱罩（深色下会围出一圈灰）
+            // 同步窗口底色：主题切换时消除 Compose 深色内容叠在浅色窗口底上的闪白
+            window.decorView.setBackgroundColor(
+                if (dark) DarkBackground.toArgb() else LightBackground.toArgb(),
+            )
+            // 29+：关掉系统给三键导航栏强加的灰色对比纱罩
             if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
                 window.isNavigationBarContrastEnforced = false
             }
