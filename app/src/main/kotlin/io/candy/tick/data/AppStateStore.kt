@@ -70,6 +70,7 @@ class AppStateStore(context: Context) {
                 s.copy(
                     repos = s.repos + newRepos,
                     snapshots = s.snapshots + imported.snapshots.filterKeys { it in newIds },
+                    lastImportAt = java.time.Instant.now(),
                 )
             }
         }

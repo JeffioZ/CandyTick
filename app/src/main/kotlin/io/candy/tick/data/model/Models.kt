@@ -106,6 +106,7 @@ data class AppState(
     val repos: List<TrackedRepo> = emptyList(),
     val snapshots: Map<Long, RepoSnapshot> = emptyMap(),
     val settings: Settings = Settings(),
+    val lastImportAt: Instant? = null, // 导入基线：早于它的快照属备份数据，首次本地同步不标「有更新」
 )
 
 /** 生命体征（判定规则：默认分支最新提交距今天数 + archived） */

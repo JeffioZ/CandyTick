@@ -48,8 +48,11 @@ class SyncWorker(context: Context, params: WorkerParameters) : CoroutineWorker(c
                         container.repoRepository.releases(tracked.id, 1).firstOrNull()?.tagName
                     }.getOrNull()
                     val previous = state.snapshots[tracked.id]?.latestReleaseTag
+                    // 导入基线：备份数据（同步时间早于导入时刻）首次同步不通知不计更新数
+                    val importedBaseline = state.snapshots[tracked.id]?.lastSyncAt
+                        ?.let { state.lastImportAt != null && it.isBefore(state.lastImportAt) } == true
                     runCatching { container.repoRepository.setLatestReleaseTag(tracked.id, latestTag) }
-                    if (latestTag != null && previous != null && latestTag != previous) {
+                    if (latestTag != null && previous != null && latestTag != previous && !importedBaseline) {
                         tagChanged.incrementAndGet()
                         if (settings.notificationsEnabled) {
                             Notifications.notifyRepoNewVersion(
@@ -69,7 +72,10 @@ class SyncWorker(context: Context, params: WorkerParameters) : CoroutineWorker(c
         val after = container.appStateStore.state.value.snapshots
         val snapshotChanged = state.repos.count { tracked ->
             before[tracked.id]?.let { b ->
-                after[tracked.id]?.let { SnapshotDiff.hasNewActivity(b, it) }
+                // 导入基线数据的首轮同步不计入（与首页圆点、通知同口径）
+                val importedBaseline = b.lastSyncAt != null &&
+                    state.lastImportAt != null && b.lastSyncAt.isBefore(state.lastImportAt)
+                !importedBaseline && after[tracked.id]?.let { SnapshotDiff.hasNewActivity(b, it) } == true
             } == true
         }
         // tag 变化的仓库可能与 pushedAt 推进重合，取两者较大值（并集近似）并封顶总数
