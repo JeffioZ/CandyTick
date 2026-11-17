@@ -214,50 +214,24 @@ fun DetailScreen(repoId: Long, onBack: () -> Unit) {
                         }
                     }
                 }
-                // 页签：提交历史 / 版本发布（分段控件：胶囊轨道 + 选中块）
+                // 页签：提交历史 / 版本发布（Miuix TabRowWithContour：滑块动画 + 轮廓分组）
                 item {
-                    val tabItems = listOf(
-                        stringResource(R.string.detail_commits) to DetailViewModel.DetailTab.COMMITS,
-                        stringResource(R.string.detail_releases) to DetailViewModel.DetailTab.RELEASES,
-                    )
-                    val selectedIndex = if (state.tab == DetailViewModel.DetailTab.COMMITS) 0 else 1
-                    val segShape = androidx.compose.foundation.shape.RoundedCornerShape(19.dp)
-                    Row(
+                    top.yukonga.miuix.kmp.basic.TabRowWithContour(
+                        tabs = listOf(
+                            stringResource(R.string.detail_commits),
+                            stringResource(R.string.detail_releases),
+                        ),
+                        selectedTabIndex = if (state.tab == DetailViewModel.DetailTab.COMMITS) 0 else 1,
+                        onTabSelected = { index ->
+                            vm.setTab(
+                                if (index == 0) DetailViewModel.DetailTab.COMMITS
+                                else DetailViewModel.DetailTab.RELEASES
+                            )
+                        },
                         modifier = Modifier
                             .fillMaxWidth()
-                            .padding(horizontal = 16.dp, vertical = 8.dp)
-                            .clip(segShape)
-                            .background(scheme.secondaryVariant)
-                            .padding(3.dp),
-                    ) {
-                        tabItems.forEachIndexed { index, (label, tab) ->
-                            val isSelected = index == selectedIndex
-                            Box(
-                                modifier = Modifier
-                                    .weight(1f)
-                                    .height(34.dp)
-                                    .clip(segShape)
-                                    .background(
-                                        if (isSelected) scheme.surface
-                                        else androidx.compose.ui.graphics.Color.Transparent
-                                    )
-                                    .clickable {
-                                        vm.setTab(
-                                            if (index == 0) DetailViewModel.DetailTab.COMMITS
-                                            else DetailViewModel.DetailTab.RELEASES
-                                        )
-                                    },
-                                contentAlignment = Alignment.Center,
-                            ) {
-                                Text(
-                                    text = label,
-                                    color = if (isSelected) scheme.onSurface
-                                    else scheme.onSurfaceContainerVariant,
-                                    style = MiuixTheme.textStyles.body2,
-                                )
-                            }
-                        }
-                    }
+                            .padding(horizontal = 16.dp, vertical = 6.dp),
+                    )
                 }
                 if (state.tab == DetailViewModel.DetailTab.COMMITS) {
                     commitList(state = state, onLoadMore = vm::loadCommits)
