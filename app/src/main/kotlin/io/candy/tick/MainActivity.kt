@@ -18,25 +18,50 @@ class MainActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         installSplashScreen()
         super.onCreate(savedInstanceState)
-        // 应用保存的语言设置（在 setContent 前生效）
+        // 应用保存的语言设置（在 setContent 前生效）；跟随系统（空串）时重置为系统 locale
         val savedLang = (application as CandyTickApp).container.appStateStore.state.value.settings.language
-        if (savedLang.isNotBlank()) {
-            val locale = java.util.Locale.forLanguageTag(savedLang)
-            java.util.Locale.setDefault(locale)
-            val config = android.content.res.Configuration(resources.configuration)
-            config.setLocale(locale)
-            @Suppress("DEPRECATION")
-            resources.updateConfiguration(config, resources.displayMetrics)
+        val locale = if (savedLang.isNotBlank()) {
+            java.util.Locale.forLanguageTag(savedLang)
+        } else {
+            android.content.res.Resources.getSystem().configuration.locales[0]
         }
+        java.util.Locale.setDefault(locale)
+        val config = android.content.res.Configuration(resources.configuration)
+        config.setLocale(locale)
+        @Suppress("DEPRECATION")
+        resources.updateConfiguration(config, resources.displayMetrics)
         enableEdgeToEdge()
         val container = (application as CandyTickApp).container
         setContent {
             val state by container.appStateStore.state.collectAsStateWithLifecycle()
-            CandyTickTheme(themeMode = state.settings.themeMode) {
-                Box(modifier = Modifier.fillMaxSize()) {
-                    AppNavHost(container)
-                    // 全局瞬时反馈宿主：导航之上、状态栏下居中（顶部信息带）
-                    io.candy.tick.ui.common.FeedbackHost()
+            // 语言切换（不 recreate）：ContextWrapper 包住 Activity，只覆写 getResources()
+            // 的 locale——ViewModel（LocalViewModelStoreOwner）、startActivity、Window 等
+            // 全部委托原 Activity，stringResource 走 wrapper.resources 拿新 locale 的串
+            val activity = this
+            val localizedContext = androidx.compose.runtime.remember(state.settings.language) {
+                val lang = state.settings.language
+                val locale = if (lang.isNotBlank()) {
+                    java.util.Locale.forLanguageTag(lang)
+                } else {
+                    android.content.res.Resources.getSystem().configuration.locales[0]
+                }
+                // 进程级默认 locale 同步（String.format 等非 resources 路径的格式化）
+                java.util.Locale.setDefault(locale)
+                val config = android.content.res.Configuration(activity.resources.configuration)
+                config.setLocale(locale)
+                val localizedRes = activity.createConfigurationContext(config).resources
+                object : android.content.ContextWrapper(activity) {
+                    override fun getResources(): android.content.res.Resources = localizedRes
+                }
+            }
+            androidx.compose.runtime.CompositionLocalProvider(
+                androidx.compose.ui.platform.LocalContext provides localizedContext,
+            ) {
+                CandyTickTheme(themeMode = state.settings.themeMode) {
+                    Box(modifier = Modifier.fillMaxSize()) {
+                        AppNavHost(container)
+                        io.candy.tick.ui.common.FeedbackHost()
+                    }
                 }
             }
         }

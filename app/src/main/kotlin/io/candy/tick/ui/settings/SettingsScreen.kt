@@ -197,10 +197,8 @@ fun SettingsScreen(onBack: () -> Unit) {
     fun languageTag(): String = state.settings.language
 
     fun applyLanguage(tag: String) {
-        scope.launch {
-            vm.setLanguage(tag)
-            (context as? android.app.Activity)?.recreate()
-        }
+        scope.launch { vm.setLanguage(tag) }
+        // 不 recreate：ContextWrapper 包裹会响应 language 变化原地切换文字
     }
 
     /** 1=已授权 0=未授权 2=无需授予（见文件级 permText） */
