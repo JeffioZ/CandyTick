@@ -51,8 +51,8 @@ import top.yukonga.miuix.kmp.basic.TextButton
 import top.yukonga.miuix.kmp.icon.MiuixIcons
 import top.yukonga.miuix.kmp.icon.basic.Check
 import top.yukonga.miuix.kmp.icon.extended.Add
-import top.yukonga.miuix.kmp.icon.extended.Blocklist
-import top.yukonga.miuix.kmp.icon.extended.Create
+import top.yukonga.miuix.kmp.icon.extended.Link
+import top.yukonga.miuix.kmp.icon.extended.Remove
 import top.yukonga.miuix.kmp.icon.extended.More
 import top.yukonga.miuix.kmp.theme.MiuixTheme
 
@@ -250,8 +250,8 @@ internal fun HeaderCard(
     val scheme = MiuixTheme.colorScheme
     val context = LocalContext.current
     Card(modifier = Modifier.fillMaxWidth()) {
-        // 双层间距体系：跨组 12dp（Spacer）、组内 6dp——视觉分组靠间距差而非分隔线堆叠
-        Column(modifier = Modifier.padding(horizontal = 16.dp, vertical = 10.dp)) {
+        // 双层间距体系：跨组 8dp（Spacer）、组内 6dp——头卡多组累加，组距收紧一档防松散
+        Column(modifier = Modifier.padding(horizontal = 16.dp, vertical = 8.dp)) {
             Row(verticalAlignment = Alignment.CenterVertically) {
                 RepoIconBlock(repo = repo, size = 56.dp, corner = 14.dp)
                 Spacer(Modifier.width(12.dp))
@@ -270,8 +270,8 @@ internal fun HeaderCard(
                 StatusBadge(status = snapshot?.statusAt() ?: io.candy.tick.data.model.RepoStatus.UNKNOWN)
             }
 
-            // ── 信息组（描述 + 统计+推送时间，组内 6dp；无描述时跨组 12dp 不叠加）──
-            Spacer(Modifier.height(10.dp))
+            // ── 信息组（描述 + 统计+推送时间，组内 6dp；无描述时跨组 8dp 不叠加）──
+            Spacer(Modifier.height(8.dp))
             snapshot?.description?.takeIf { it.isNotBlank() }?.let {
                 Text(
                     text = it,
@@ -313,9 +313,9 @@ internal fun HeaderCard(
 
             // ── 版本分区（有 tag 时显示分隔线 + 版本行 + 操作按钮）──
             snapshot?.latestReleaseTag?.let { tag ->
-                Spacer(Modifier.height(10.dp))
-                SectionDivider()
                 Spacer(Modifier.height(8.dp))
+                SectionDivider()
+                Spacer(Modifier.height(6.dp))
                 VersionStatusLine(repo = repo, remoteTag = tag)
 
                 // 更新入口（有新版时头部直接行动）：下载 → 进度 → 安装
@@ -390,8 +390,8 @@ internal fun HeaderCard(
                 }
             }
 
-            // ── 关联分区（始终存在，固定卡底）；前置 12dp 与上方版本区呼吸对称 ──
-            Spacer(Modifier.height(10.dp))
+            // ── 关联分区（始终存在，固定卡底）；前置 8dp 与上方版本区呼吸对称 ──
+            Spacer(Modifier.height(8.dp))
             SectionDivider()
             // 关联本机应用（可修改 / 解除）
             val linkedLabel = repo.linkedPackage?.let { pkg ->
@@ -426,7 +426,8 @@ internal fun HeaderCard(
                     )
                     IconButton(onClick = onChangeLinked) {
                         Icon(
-                            imageVector = MiuixIcons.Create,
+                            // Link 锁链 =「关联」本命语义（换关联 = 重新建链）
+                            imageVector = MiuixIcons.Link,
                             contentDescription = stringResource(R.string.detail_link_change),
                             tint = scheme.onBackgroundVariant,
                             modifier = Modifier.size(18.dp),
@@ -435,7 +436,8 @@ internal fun HeaderCard(
                     Spacer(Modifier.width(8.dp))
                     IconButton(onClick = onUnlink) {
                         Icon(
-                            imageVector = MiuixIcons.Blocklist,
+                            // Remove 减号 = 移除关联（Blocklist 禁止圈是「拉黑」语义，偏威胁性）
+                            imageVector = MiuixIcons.Remove,
                             contentDescription = stringResource(R.string.detail_unlink),
                             tint = scheme.onBackgroundVariant,
                             modifier = Modifier.size(18.dp),

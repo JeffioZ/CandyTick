@@ -192,7 +192,7 @@ fun AddScreen(
                             cornerRadius = 16.dp,
                             onClick = { vm.pickResult(info) },
                         ) {
-                            Column(modifier = Modifier.padding(horizontal = 16.dp, vertical = 10.dp)) {
+                            Column(modifier = Modifier.padding(horizontal = 16.dp, vertical = 8.dp)) {
                                 Row(verticalAlignment = Alignment.CenterVertically) {
                                     AvatarBlock(owner = info.owner)
                                     Spacer(Modifier.width(12.dp))
@@ -286,7 +286,7 @@ private fun PreviewCard(
     val scheme = MiuixTheme.colorScheme
     Card(modifier = Modifier.fillMaxWidth(), cornerRadius = 16.dp) {
         // 与首页卡/详情头卡同一语言：身份区（头像+名称+路径）→ 信息组 → 操作区，跨组 12dp / 组内 6dp
-        Column(modifier = Modifier.padding(horizontal = 16.dp, vertical = 10.dp)) {
+        Column(modifier = Modifier.padding(horizontal = 16.dp, vertical = 8.dp)) {
             Row(verticalAlignment = Alignment.CenterVertically) {
                 AvatarBlock(owner = info.owner)
                 Spacer(Modifier.width(12.dp))
@@ -304,7 +304,7 @@ private fun PreviewCard(
                 }
             }
 
-            Spacer(Modifier.height(10.dp))
+            Spacer(Modifier.height(8.dp))
             if (!info.description.isNullOrBlank()) {
                 Text(
                     text = info.description,
@@ -326,7 +326,7 @@ private fun PreviewCard(
                 )
             }
 
-            Spacer(Modifier.height(10.dp))
+            Spacer(Modifier.height(8.dp))
             TextButtonLike(
                 text = state.linkedLabel?.let {
                     stringResource(R.string.add_linked_app_named, it)
