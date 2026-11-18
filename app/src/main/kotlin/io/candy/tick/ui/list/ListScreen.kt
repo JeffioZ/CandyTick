@@ -70,16 +70,21 @@ fun ListScreen(
         onConsumed = { vm.syncResultConsumedAt = it },
     )
     // 同步结果也走统一反馈（顶栏 ✓ 符保留作状态指示）；app.getString 可在协程内带参取串
+    // 胶囊只在有信息量时出（有更新计数/有失败）；无变化不出——顶栏 ✓ 已确认成功，
+    // 卡片圆点缺席已说明无更新，静默即无变化
     androidx.compose.runtime.LaunchedEffect(syncResult) {
         syncResult?.let { d ->
             val allFailed = d.failed > 0 && d.changed == 0
-            val text = when {
-                allFailed -> app.getString(R.string.sync_result_all_failed, d.failed)
-                d.changed > 0 -> app.getString(R.string.sync_result_updated, d.changed) +
-                    if (d.failed > 0) app.getString(R.string.sync_result_failed_suffix, d.failed) else ""
-                else -> app.getString(R.string.sync_result_fresh)
+            when {
+                allFailed -> io.candy.tick.ui.common.Feedback.show(
+                    text = app.getString(R.string.sync_result_all_failed, d.failed),
+                    isError = true,
+                )
+                d.changed > 0 -> io.candy.tick.ui.common.Feedback.show(
+                    text = app.getString(R.string.sync_result_updated, d.changed) +
+                        if (d.failed > 0) app.getString(R.string.sync_result_failed_suffix, d.failed) else "",
+                )
             }
-            io.candy.tick.ui.common.Feedback.show(text = text, isError = allFailed)
         }
     }
     val scheme = MiuixTheme.colorScheme
@@ -214,12 +219,9 @@ fun ListScreen(
                 onRefresh = vm::refresh,
                 pullToRefreshState = pullState,
                 topAppBarScrollBehavior = scrollBehavior,
-                refreshTexts = listOf(
-                    stringResource(R.string.refresh_pull_down),
-                    stringResource(R.string.refresh_release),
-                    stringResource(R.string.refresh_refreshing),
-                    stringResource(R.string.refresh_done),
-                ),
+                color = scheme.primaryVariant, // 薄荷主色：与全应用活动色统一
+                // 只在刷新中显示两个字：36dp 文字区是库的固定结构，用它让间距有目的
+                refreshTexts = listOf("", "", stringResource(R.string.refresh_refreshing), ""),
             ) {
                 Column(modifier = Modifier.fillMaxSize()) {
                     androidx.compose.animation.AnimatedVisibility(

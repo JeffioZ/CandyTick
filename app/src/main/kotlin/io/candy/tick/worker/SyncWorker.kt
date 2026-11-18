@@ -57,8 +57,11 @@ class SyncWorker(context: Context, params: WorkerParameters) : CoroutineWorker(c
         coroutineScope {
             state.repos.map { tracked ->
                 async {
+                    // 取前 10 个 release，跳过无 APK 资产的（桌面专用 nightly 等）——
+                    // 否则 tag 可能是 "nightly" 这种非版本号，版本比较永远「无法比较」
                     val latestTag = runCatching {
-                        container.repoRepository.releases(tracked.id, 1).firstOrNull()?.tagName
+                        container.repoRepository.releases(tracked.id, 1)
+                            .firstOrNull { it.apkAssets.isNotEmpty() }?.tagName
                     }.getOrNull()
                     val previous = state.snapshots[tracked.id]?.latestReleaseTag
                     // 导入基线：备份数据（同步时间早于导入时刻）首次同步不通知不计更新数

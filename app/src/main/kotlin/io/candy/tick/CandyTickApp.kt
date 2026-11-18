@@ -1,6 +1,7 @@
 package io.candy.tick
 
 import android.app.Activity
+import kotlinx.coroutines.launch
 import android.app.Application
 import io.candy.tick.di.AppContainer
 
@@ -34,6 +35,16 @@ class CandyTickApp : Application() {
             defaultHandler?.uncaughtException(thread, throwable)
         }
         container = AppContainer(this)
+        // 孤儿 APK 回收（后台线程：仓库已删除但 apks/{id}/ 残留）
+        android.os.Handler(android.os.Looper.getMainLooper()).post {
+            kotlinx.coroutines.GlobalScope.launch(kotlinx.coroutines.Dispatchers.IO) {
+                runCatching {
+                    container.cacheManager.cleanOrphanApks(
+                        container.appStateStore.state.value.repos.map { it.id }.toSet(),
+                    )
+                }
+            }
+        }
         // 默认调度（设置变更时 UPDATE 重排）
         runCatching {
             container.syncScheduler.apply(container.appStateStore.state.value.settings)

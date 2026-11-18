@@ -129,6 +129,11 @@ class SelfUpdater(
     /** 用户手动点「安装更新」：走 Intent 通道，用户锁定的第三方安装器（InstallerX/Shizuku 系）可接管 */
     fun install(file: File) = installManager.installApk(file)
 
+    /** 缓存清理后状态复位（Downloaded → Idle，安装按钮回到可下载态） */
+    fun resetState() {
+        _state.value = State.Idle
+    }
+
     /** 后台 worker 自动安装：保留系统会话（后台 startActivity 受限，且自动流程要求免打扰） */
     fun installSilently(file: File) = installManager.installViaSession(file)
 

@@ -37,7 +37,7 @@ fun VersionStatusLine(repo: TrackedRepo, remoteTag: String) {
     val highlight = cmp != null && cmp > 0
     val text = when {
         local == null -> stringResource(R.string.version_latest_only, remoteTag)
-        cmp == null -> stringResource(R.string.version_incomparable, remoteTag)
+        cmp == null -> stringResource(R.string.version_incomparable_full, remoteTag, local)
         highlight -> stringResource(R.string.version_update_available, remoteTag)
         else -> stringResource(R.string.version_line, remoteTag, local)
     }

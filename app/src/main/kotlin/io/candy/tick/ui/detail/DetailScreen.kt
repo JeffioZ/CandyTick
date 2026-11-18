@@ -80,8 +80,6 @@ fun DetailScreen(repoId: Long, onBack: () -> Unit) {
     val mismatchMsg = stringResource(R.string.install_signature_mismatch)
     val autoLinkedFmt = stringResource(R.string.detail_auto_linked)
     val needPermMsg = stringResource(R.string.detail_need_install_permission)
-    val downloadDeletedMsg = stringResource(R.string.detail_download_deleted)
-    val unlinkedMsg = stringResource(R.string.detail_unlinked)
 
     LaunchedEffect(Unit) {
         vm.events.collect { event ->
@@ -97,7 +95,8 @@ fun DetailScreen(repoId: Long, onBack: () -> Unit) {
                         io.candy.tick.ui.common.Feedback.show(text = needPermMsg, isError = true)
                 }
                 is DetailViewModel.Event.AutoLinked -> io.candy.tick.ui.common.Feedback.show(autoLinkedFmt.format(event.packageName))
-                DetailViewModel.Event.DownloadDeleted -> io.candy.tick.ui.common.Feedback.show(downloadDeletedMsg)
+                // DownloadDeleted 不出胶囊：动作区四相动画当场可见，复述即噪音
+                DetailViewModel.Event.DownloadDeleted -> Unit
             }
         }
     }
@@ -181,12 +180,9 @@ fun DetailScreen(repoId: Long, onBack: () -> Unit) {
             onRefresh = vm::refresh,
             pullToRefreshState = pullState,
             topAppBarScrollBehavior = scrollBehavior,
-            refreshTexts = listOf(
-                stringResource(R.string.refresh_pull_down),
-                stringResource(R.string.refresh_release),
-                stringResource(R.string.refresh_refreshing),
-                stringResource(R.string.refresh_done),
-            ),
+            color = scheme.primaryVariant, // 薄荷主色：与全应用活动色统一
+            // 只在刷新中显示两个字：36dp 文字区是库的固定结构，用它让间距有目的
+            refreshTexts = listOf("", "", stringResource(R.string.refresh_refreshing), ""),
             modifier = Modifier.padding(padding),
         ) {
             LazyColumn(
@@ -201,7 +197,7 @@ fun DetailScreen(repoId: Long, onBack: () -> Unit) {
                         onUnlink = {
                             scope.launch {
                                 vm.setLinkedApp(null)
-                                io.candy.tick.ui.common.Feedback.show(unlinkedMsg)
+                                // 不出胶囊：头卡关联行当场消失，视觉已确认
                             }
                         },
                         onLinkSuggestion = {

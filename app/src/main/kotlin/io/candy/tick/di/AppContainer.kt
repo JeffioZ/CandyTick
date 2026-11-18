@@ -8,6 +8,7 @@ import io.candy.tick.data.InstallManager
 import io.candy.tick.data.Notifications
 import io.candy.tick.data.PROVIDER_GITHUB
 import io.candy.tick.data.RepoRepository
+import io.candy.tick.data.CacheManager
 import io.candy.tick.data.SelfUpdater
 import io.candy.tick.data.SyncStatus
 import io.candy.tick.worker.SyncScheduler
@@ -32,6 +33,7 @@ class AppContainer(context: Context) {
     }
 
     val syncScheduler: SyncScheduler by lazy { SyncScheduler(context) }
+    val cacheManager: CacheManager by lazy { CacheManager(context) }
 
     init {
         Notifications.ensureChannels(context)

@@ -9,6 +9,7 @@
 
     <!-- 通用 -->
     <string name="retry">重试</string>
+    <string name="refresh_refreshing">正在刷新…</string>
     <string name="undo">撤销</string>
     <string name="pinned_a11y">已置顶</string>
     <string name="removed">已移除</string>
@@ -49,6 +50,7 @@
     <!-- 版本行 -->
     <string name="version_latest_only">最新 %1$s</string>
     <string name="version_incomparable">发布 %1$s · 无法比较版本</string>
+    <string name="version_incomparable_full">发布 %1$s · 本机 %2$s · 无法比较</string>
     <string name="version_line">%1$s · 本机 %2$s</string>
     <string name="version_update_available">有新版本：%1$s</string>
 
@@ -65,14 +67,9 @@
     <string name="rel_until_soon">马上</string>
 
     <!-- 下拉刷新 -->
-    <string name="refresh_pull_down">下拉刷新</string>
-    <string name="refresh_release">释放刷新</string>
-    <string name="refresh_refreshing">正在刷新…</string>
     <string name="sync_result_updated">同步完成 · %1$d 个仓库有更新</string>
-    <string name="sync_result_fresh">已是最新</string>
     <string name="sync_result_failed_suffix"> · %1$d 个失败</string>
     <string name="sync_result_all_failed">同步失败 · %1$d 个仓库</string>
-    <string name="refresh_done">已刷新</string>
     <plurals name="rel_minutes">
         <item quantity="other">%d 分钟前</item>
     </plurals>
@@ -111,7 +108,6 @@
     <string name="branch_default">默认分支</string>
     <string name="branch_picker_title">分支</string>
     <string name="branch_search_hint">搜索分支</string>
-    <string name="branch_load_failed">分支加载失败 · 重试</string>
 
     <!-- 添加页 -->
     <string name="add_input_hint">粘贴链接或搜索</string>
@@ -143,12 +139,9 @@
     <string name="detail_link_change">更改关联应用</string>
     <string name="detail_unlink">解除关联</string>
     <string name="detail_delete_download">删除下载的 APK</string>
-    <string name="detail_download_deleted">已删除下载的 APK</string>
-    <string name="detail_unlinked">已解除关联</string>
     <string name="toast_copied">已复制到剪贴板</string>
     <string name="load_failed">加载失败</string>
     <string name="status_error_subtitle">网络或接口出了点问题，稍后再试试</string>
-    <string name="load_failed_retry">加载失败 · 重试</string>
     <string name="list_end">— 已到底 —</string>
     <string name="asset_recommended">推荐</string>
     <string name="download_apk">下载 APK</string>
@@ -186,10 +179,10 @@
     <string name="settings_theme_mode">主题</string>
     <string name="settings_sync">同步</string>
     <string name="settings_sync_frequency">同步频率</string>
-    <string name="settings_sync_wifi_only">仅 Wi-Fi</string>
-    <string name="settings_sync_charging_only">仅充电</string>
+    <string name="settings_sync_wifi_only">仅 Wi-Fi 同步</string>
+    <string name="settings_sync_charging_only">仅充电时同步</string>
     <string name="settings_token_row">GitHub Token</string>
-    <string name="settings_token_hint_short">可选 · 60 → 5,000 次/小时</string>
+    <string name="settings_token_hint_short">可选 · 限额 60 → 5,000 次/小时</string>
     <string name="token_set">已设置</string>
     <string name="token_unset">未设置</string>
     <string name="settings_language">语言</string>
@@ -203,7 +196,7 @@
     <string name="token_hide">隐藏 Token</string>
     <string name="download_update_action">下载更新</string>
     <string name="settings_auto_install">下载后自动安装</string>
-    <string name="settings_auto_install_summary">仓库应用 APK 下载完成后，自动弹出系统安装确认</string>
+    <string name="settings_auto_install_summary">所有 APK（含应用自身更新）下载完成后，自动进入安装流程</string>
     <string name="token_verified">✓ 验证通过</string>
     <string name="token_invalid_short">✗ Token 无效</string>
     <string name="token_network_error">网络错误，请重试</string>
@@ -220,21 +213,30 @@
     <string name="perm_not_granted">未授权</string>
     <string name="perm_not_required">无需授予</string>
     <string name="detail_need_install_permission">请先在系统设置授予「安装未知应用」权限，再重试</string>
-    <string name="settings_self_update">应用更新</string>
+    <string name="settings_self_update">版本与安装</string>
     <string name="settings_current_version_title">当前版本</string>
-    <string name="settings_check_update">检查更新</string>
+    <string name="settings_check_update">立即检查</string>
     <string name="settings_self_update_check">自动检查更新</string>
     <string name="settings_self_update_download">自动下载（仅 Wi-Fi）</string>
-    <string name="settings_up_to_date">已是最新版本</string>
+    <string name="settings_up_to_date">已是最新</string>
     <string name="settings_download_update">下载并安装</string>
     <string name="settings_install_update">安装已下载的更新</string>
     <string name="settings_update_failed">检查失败 · 稍后再试</string>
-    <string name="settings_silent_hint">Android 12+ 支持免确认自动安装（需本应用为安装来源）</string>
 
     <!-- 关于 -->
     <string name="settings_about_group">关于</string>
     <string name="settings_github_repo">GitHub 仓库</string>
     <string name="settings_license">开源许可</string>
+        <string name="settings_cache_summary">清理已下载的安装包与日志，释放存储空间</string>
+    <string name="settings_cache_cleanup">清理缓存</string>
+    <string name="settings_cache_repo_apk">已下载的仓库安装包</string>
+    <string name="settings_cache_update_apk">自身更新安装包</string>
+    <string name="settings_cache_crash_log">崩溃日志</string>
+    <string name="settings_cache_cleaning">正在清理…</string>
+    <string name="settings_cache_clean_action">清理选中项</string>
+    <string name="settings_cache_empty">没有可清理的缓存</string>
+    <string name="settings_cache_none">无</string>
+    <string name="settings_cache_freed">已释放 %1$s</string>
     <string name="settings_crash_log">崩溃日志</string>
     <string name="settings_crash_log_summary">如有闪退，点按分享日志</string>
     <string name="crash_log_empty">无崩溃记录</string>

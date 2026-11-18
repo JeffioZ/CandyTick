@@ -49,6 +49,7 @@ import io.candy.tick.ui.theme.ChipViolet
 import top.yukonga.miuix.kmp.icon.MiuixIcons
 import top.yukonga.miuix.kmp.icon.extended.Alarm
 import top.yukonga.miuix.kmp.icon.extended.CloudFill
+import top.yukonga.miuix.kmp.icon.extended.Delete
 import top.yukonga.miuix.kmp.icon.extended.Download
 import top.yukonga.miuix.kmp.icon.extended.Email
 import top.yukonga.miuix.kmp.icon.extended.File
@@ -85,9 +86,11 @@ fun SettingsScreen(onBack: () -> Unit) {
             githubApi = app.container.githubApi,
             selfUpdater = app.container.selfUpdater,
             syncScheduler = app.container.syncScheduler,
+            cacheManager = app.container.cacheManager,
         )
     }
     val state by vm.state.collectAsStateWithLifecycle()
+    val cacheState by vm.cacheState.collectAsStateWithLifecycle()
     val scheme = MiuixTheme.colorScheme
     val context = LocalContext.current
     val scope = androidx.compose.runtime.rememberCoroutineScope()
@@ -128,6 +131,7 @@ fun SettingsScreen(onBack: () -> Unit) {
     ) { notifGranted = Notifications.canNotify(app) }
 
     var showImportDialog by remember { mutableStateOf(false) }
+    var showCacheCleanup by remember { mutableStateOf(false) }
 
     fun importFromText(text: String?) {
         if (text.isNullOrBlank()) {
@@ -371,7 +375,6 @@ fun SettingsScreen(onBack: () -> Unit) {
                     title = stringResource(R.string.settings_self_update_download),
                     checked = state.settings.selfUpdateAutoDownload,
                     onChange = vm::setSelfUpdateDownload,
-                    summary = stringResource(R.string.settings_silent_hint),
                     icon = MiuixIcons.Download,
                     iconTint = ChipSky,
                 )
@@ -416,6 +419,14 @@ fun SettingsScreen(onBack: () -> Unit) {
                     title = stringResource(R.string.settings_import),
                     summary = stringResource(R.string.settings_import_summary),
                     onClick = { showImportDialog = true },
+                )
+                RowDivider()
+                SettingRow(
+                    icon = MiuixIcons.Delete,
+                    iconTint = ChipOrange,
+                    title = stringResource(R.string.settings_cache_cleanup),
+                    summary = stringResource(R.string.settings_cache_summary),
+                    onClick = { showCacheCleanup = true },
                 )
             }
             }
@@ -539,6 +550,15 @@ fun SettingsScreen(onBack: () -> Unit) {
             showTokenDialog = false
             vm.resetTokenDraft() // 退出=放弃未保存编辑：重置为已保存值，消灭幽灵草稿
         },
+    )
+
+    // 清理缓存浮层
+    CacheCleanupSheet(
+        show = showCacheCleanup,
+        state = cacheState,
+        onScan = vm::scanCache,
+        onClean = vm::cleanCache,
+        onDismiss = { showCacheCleanup = false },
     )
 }
 

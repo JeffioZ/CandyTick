@@ -18,6 +18,7 @@ import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.background
 import top.yukonga.miuix.kmp.icon.extended.Close
 import top.yukonga.miuix.kmp.icon.extended.File
+import androidx.compose.animation.animateContentSize
 import androidx.compose.animation.togetherWith
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
@@ -170,8 +171,10 @@ private fun ReleaseCard(
                     mine && dl is DetailViewModel.DownloadState.Failed -> "failed"
                     else -> "download"
                 }
+                // 容器尺寸渐变：消除 downloaded→download 行宽突变（AnimatedContent 交叉淡出不动画尺寸）
                 androidx.compose.animation.AnimatedContent(
                     targetState = actionPhase,
+                    modifier = Modifier.animateContentSize(),
                     transitionSpec = {
                         (androidx.compose.animation.fadeIn(androidx.compose.animation.core.tween(180)) +
                             androidx.compose.animation.slideInVertically(

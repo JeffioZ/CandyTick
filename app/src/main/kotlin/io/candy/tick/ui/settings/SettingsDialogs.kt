@@ -1,6 +1,12 @@
 package io.candy.tick.ui.settings
 
 import androidx.compose.animation.togetherWith
+import androidx.compose.runtime.setValue
+import kotlinx.coroutines.launch
+import androidx.compose.runtime.rememberCoroutineScope
+import androidx.compose.foundation.layout.Box
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.foundation.clickable
@@ -9,6 +15,7 @@ import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.imePadding
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
@@ -36,6 +43,158 @@ import top.yukonga.miuix.kmp.icon.extended.Show
 import top.yukonga.miuix.kmp.theme.MiuixTheme
 
 // ── 设置页弹窗与自身更新操作块（自 SettingsScreen 拆出）──
+
+/** 缓存清理浮层：实时扫描 → 逐类勾选 → 清理（loading 阻断 + 释放量反馈） */
+@Composable
+internal fun CacheCleanupSheet(
+    show: Boolean,
+    state: SettingsViewModel.CacheState,
+    onScan: () -> Unit,
+    onClean: suspend (Boolean, Boolean, Boolean) -> Long,
+    onDismiss: () -> Unit,
+) {
+    val scheme = MiuixTheme.colorScheme
+    val scope = androidx.compose.runtime.rememberCoroutineScope()
+    var cleanRepo by remember { mutableStateOf(true) }
+    var cleanUpdate by remember { mutableStateOf(true) }
+    var cleanCrash by remember { mutableStateOf(true) }
+
+    androidx.compose.runtime.LaunchedEffect(show) {
+        if (show) {
+            cleanRepo = true; cleanUpdate = true; cleanCrash = true
+            onScan()
+        }
+    }
+
+    top.yukonga.miuix.kmp.window.WindowBottomSheet(
+        show = show,
+        title = stringResource(R.string.settings_cache_cleanup),
+        onDismissRequest = { if (!state.cleaning) onDismiss() },
+    ) {
+        Column(
+            modifier = Modifier
+                .padding(horizontal = 20.dp)
+                .imePadding()
+                .padding(top = 4.dp, bottom = 16.dp),
+            verticalArrangement = Arrangement.spacedBy(8.dp),
+        ) {
+            if (state.scanning) {
+                Box(
+                    modifier = Modifier.fillMaxWidth().padding(vertical = 24.dp),
+                    contentAlignment = Alignment.Center,
+                ) {
+                    io.candy.tick.ui.common.LoadingDots(dotSize = 5.dp)
+                }
+            } else {
+                // 逐类列出
+                CacheCleanupRow(
+                    label = stringResource(R.string.settings_cache_repo_apk),
+                    sizeBytes = state.repoApkBytes,
+                    checked = cleanRepo,
+                    onChecked = { cleanRepo = it },
+                )
+                CacheCleanupRow(
+                    label = stringResource(R.string.settings_cache_update_apk),
+                    sizeBytes = state.updateApkBytes,
+                    checked = cleanUpdate,
+                    onChecked = { cleanUpdate = it },
+                )
+                CacheCleanupRow(
+                    label = stringResource(R.string.settings_cache_crash_log),
+                    sizeBytes = state.crashLogBytes,
+                    checked = cleanCrash,
+                    onChecked = { cleanCrash = it },
+                )
+
+                Spacer(Modifier.height(8.dp))
+                if (state.cleaning) {
+                    // 清理中：轻量阻断（转圈 + 文案，防误触返回）
+                    Box(
+                        modifier = Modifier.fillMaxWidth(),
+                        contentAlignment = Alignment.Center,
+                    ) {
+                        androidx.compose.foundation.layout.Row(
+                            verticalAlignment = Alignment.CenterVertically,
+                        ) {
+                            io.candy.tick.ui.common.LoadingDots()
+                            Spacer(Modifier.width(8.dp))
+                            Text(
+                                text = stringResource(R.string.settings_cache_cleaning),
+                                style = MiuixTheme.textStyles.footnote1,
+                                color = scheme.onBackgroundVariant,
+                            )
+                        }
+                    }
+                } else {
+                    val hasSelection = (cleanRepo && state.repoApkBytes > 0) ||
+                        (cleanUpdate && state.updateApkBytes > 0) ||
+                        (cleanCrash && state.crashLogBytes > 0)
+                    val ctx = androidx.compose.ui.platform.LocalContext.current
+                    PrimaryButton(
+                        text = stringResource(R.string.settings_cache_clean_action),
+                        enabled = hasSelection,
+                        onClick = {
+                            scope.launch {
+                                val freed = onClean(cleanRepo, cleanUpdate, cleanCrash)
+                                io.candy.tick.ui.common.Feedback.show(
+                                    text = ctx.getString(R.string.settings_cache_freed, formatBytes(freed)),
+                                )
+                                onDismiss()
+                            }
+                        },
+                        modifier = Modifier.fillMaxWidth(),
+                    )
+                    if (!hasSelection) {
+                        Text(
+                            text = stringResource(R.string.settings_cache_empty),
+                            style = MiuixTheme.textStyles.footnote1,
+                            color = scheme.onBackgroundVariant,
+                            modifier = Modifier.fillMaxWidth(),
+                            textAlign = androidx.compose.ui.text.style.TextAlign.Center,
+                        )
+                    }
+                }
+            }
+        }
+    }
+}
+
+@Composable
+private fun CacheCleanupRow(
+    label: String,
+    sizeBytes: Long,
+    checked: Boolean,
+    onChecked: (Boolean) -> Unit,
+) {
+    val scheme = MiuixTheme.colorScheme
+    val enabled = sizeBytes > 0
+    top.yukonga.miuix.kmp.basic.BasicComponent(
+        modifier = Modifier.fillMaxWidth(),
+        title = label,
+        summary = if (enabled) formatBytes(sizeBytes) else stringResource(R.string.settings_cache_none),
+        onClick = if (enabled) { { onChecked(!checked) } } else null,
+        endActions = {
+            if (enabled) {
+                top.yukonga.miuix.kmp.basic.Switch(
+                    checked = checked,
+                    onCheckedChange = onChecked,
+                )
+            }
+        },
+        insideMargin = androidx.compose.foundation.layout.PaddingValues(
+            start = 0.dp, end = 0.dp, top = 10.dp, bottom = 10.dp,
+        ),
+    )
+}
+
+/** 字节数格式化：1.2 MB / 345 KB / 0 B */
+private fun formatBytes(bytes: Long): String = when {
+    bytes >= 1024 * 1024 -> String.format("%.1f MB", bytes / 1024f / 1024f)
+    bytes >= 1024 -> "${bytes / 1024} KB"
+    else -> "$bytes B"
+}
+
+
 
 /** 导入来源选择弹窗（文件 / 剪贴板）：主按钮 = 文件，次按钮 = 剪贴板 */
 @Composable

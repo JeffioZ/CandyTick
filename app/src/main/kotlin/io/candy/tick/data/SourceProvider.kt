@@ -16,7 +16,7 @@ interface SourceProvider {
 
     suspend fun commits(owner: String, repo: String, page: Int = 1, sha: String? = null): List<CommitRecord>
 
-    suspend fun releases(owner: String, repo: String, page: Int = 1): List<ReleaseRecord>
+    suspend fun releases(owner: String, repo: String, page: Int = 1, perPage: Int = 30): List<ReleaseRecord>
 
     /** 分支列表（提交视图的分支切换；无对应能力的源返回空） */
     suspend fun branches(owner: String, repo: String): List<String> = emptyList()
@@ -82,8 +82,8 @@ class GitHubProvider(private val api: GitHubApi) : SourceProvider {
     override suspend fun commits(owner: String, repo: String, page: Int, sha: String?) =
         api.commits(owner, repo, page, sha)
 
-    override suspend fun releases(owner: String, repo: String, page: Int) =
-        api.releases(owner, repo, page)
+    override suspend fun releases(owner: String, repo: String, page: Int, perPage: Int) =
+        api.releases(owner, repo, page, perPage)
 
     override suspend fun branches(owner: String, repo: String) = api.branches(owner, repo)
 

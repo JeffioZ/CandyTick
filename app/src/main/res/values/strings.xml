@@ -9,6 +9,7 @@
 
     <!-- 通用 -->
     <string name="retry">Retry</string>
+    <string name="refresh_refreshing">Refreshing…</string>
     <string name="undo">Undo</string>
     <string name="pinned_a11y">Pinned</string>
     <string name="removed">Removed</string>
@@ -49,6 +50,7 @@
     <!-- 版本行 -->
     <string name="version_latest_only">latest %1$s</string>
     <string name="version_incomparable">release %1$s · cannot compare versions</string>
+    <string name="version_incomparable_full">release %1$s · installed %2$s · cannot compare</string>
     <string name="version_line">%1$s · installed %2$s</string>
     <string name="version_update_available">update available: %1$s</string>
 
@@ -65,14 +67,9 @@
     <string name="rel_until_soon">any moment now</string>
 
     <!-- 下拉刷新（Miuix PullToRefresh 状态文案，跟库默认英文对位） -->
-    <string name="refresh_pull_down">Pull down to refresh</string>
-    <string name="refresh_release">Release to refresh</string>
-    <string name="refresh_refreshing">Refreshing…</string>
     <string name="sync_result_updated">Synced · %1$d repos updated</string>
-    <string name="sync_result_fresh">Up to date</string>
     <string name="sync_result_failed_suffix"> · %1$d failed</string>
     <string name="sync_result_all_failed">Sync failed · %1$d repos</string>
-    <string name="refresh_done">Refreshed</string>
     <plurals name="rel_minutes">
         <item quantity="one">%d min ago</item>
         <item quantity="other">%d mins ago</item>
@@ -121,7 +118,6 @@
     <string name="branch_default">Default branch</string>
     <string name="branch_picker_title">Branch</string>
     <string name="branch_search_hint">Search branches</string>
-    <string name="branch_load_failed">Failed to load branches · retry</string>
 
     <!-- 添加页 -->
     <string name="add_input_hint">Paste link or search</string>
@@ -153,12 +149,9 @@
     <string name="detail_link_change">Change linked app</string>
     <string name="detail_unlink">Unlink</string>
     <string name="detail_delete_download">Delete downloaded APK</string>
-    <string name="detail_download_deleted">Downloaded APK deleted</string>
-    <string name="detail_unlinked">Unlinked</string>
     <string name="toast_copied">Copied to clipboard</string>
     <string name="load_failed">Load failed</string>
     <string name="status_error_subtitle">Network or API hiccup — give it another moment</string>
-    <string name="load_failed_retry">Load failed · retry</string>
     <string name="list_end">— the end —</string>
     <string name="asset_recommended">Recommended</string>
     <string name="download_apk">Download APK</string>
@@ -196,10 +189,10 @@
     <string name="settings_theme_mode">Theme</string>
     <string name="settings_sync">Sync</string>
     <string name="settings_sync_frequency">Frequency</string>
-    <string name="settings_sync_wifi_only">Wi-Fi only</string>
-    <string name="settings_sync_charging_only">Charging only</string>
+    <string name="settings_sync_wifi_only">Wi-Fi only sync</string>
+    <string name="settings_sync_charging_only">Sync while charging</string>
     <string name="settings_token_row">GitHub token</string>
-    <string name="settings_token_hint_short">Optional · 5,000 req/h instead of 60</string>
+    <string name="settings_token_hint_short">Optional · 5,000 vs 60 req/h</string>
     <string name="token_set">Set</string>
     <string name="token_unset">Not set</string>
     <string name="settings_language">Language</string>
@@ -213,7 +206,7 @@
     <string name="token_hide">Hide token</string>
     <string name="download_update_action">Download update</string>
     <string name="settings_auto_install">Auto-install after download</string>
-    <string name="settings_auto_install_summary">Show the system install prompt as soon as a repo APK finishes downloading</string>
+    <string name="settings_auto_install_summary">Enter the install flow automatically after any APK download (app updates included)</string>
     <string name="token_verified">✓ Verified</string>
     <string name="token_invalid_short">✗ Invalid token</string>
     <string name="token_network_error">Network error, try again</string>
@@ -230,21 +223,30 @@
     <string name="perm_not_granted">Not granted</string>
     <string name="perm_not_required">Not required</string>
     <string name="detail_need_install_permission">Grant "install unknown apps" in system settings, then retry</string>
-    <string name="settings_self_update">App updates</string>
+    <string name="settings_self_update">Version &amp; install</string>
     <string name="settings_current_version_title">Current version</string>
-    <string name="settings_check_update">Check for updates</string>
+    <string name="settings_check_update">Check now</string>
     <string name="settings_self_update_check">Auto check for updates</string>
     <string name="settings_self_update_download">Auto download (Wi-Fi only)</string>
     <string name="settings_up_to_date">Up to date</string>
     <string name="settings_download_update">Download &amp; install</string>
     <string name="settings_install_update">Install downloaded update</string>
     <string name="settings_update_failed">Update check failed · try later</string>
-    <string name="settings_silent_hint">On Android 12+, updates install automatically without confirmation (when CandyTick is the install source)</string>
 
     <!-- 关于 -->
     <string name="settings_about_group">About</string>
     <string name="settings_github_repo">GitHub repository</string>
     <string name="settings_license">License</string>
+        <string name="settings_cache_summary">Clear downloaded APKs and logs to free up space</string>
+    <string name="settings_cache_cleanup">Clear cache</string>
+    <string name="settings_cache_repo_apk">Downloaded repo APKs</string>
+    <string name="settings_cache_update_apk">App update APKs</string>
+    <string name="settings_cache_crash_log">Crash log</string>
+    <string name="settings_cache_cleaning">Cleaning…</string>
+    <string name="settings_cache_clean_action">Clear selected</string>
+    <string name="settings_cache_empty">Nothing to clear</string>
+    <string name="settings_cache_none">None</string>
+    <string name="settings_cache_freed">Freed %1$s</string>
     <string name="settings_crash_log">Crash log</string>
     <string name="settings_crash_log_summary">Share the log if the app crashed</string>
     <string name="crash_log_empty">No crash recorded</string>

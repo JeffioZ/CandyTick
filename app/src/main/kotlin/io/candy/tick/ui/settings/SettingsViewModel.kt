@@ -14,6 +14,7 @@ import java.io.File
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
+import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.launch
@@ -23,6 +24,7 @@ class SettingsViewModel(
     private val githubApi: GitHubApi,
     private val selfUpdater: SelfUpdater,
     private val syncScheduler: SyncScheduler,
+    private val cacheManager: io.candy.tick.data.CacheManager,
 ) : ViewModel() {
 
     enum class TokenTest { TESTING, VALID, INVALID, NETWORK }
@@ -146,6 +148,61 @@ class SettingsViewModel(
         tokenTest.value = null
     }
 
+    // ---- 缓存清理 ----
+
+    data class CacheState(
+        val scanning: Boolean = false,
+        val repoApkBytes: Long = 0,
+        val updateApkBytes: Long = 0,
+        val crashLogBytes: Long = 0,
+        val cleaning: Boolean = false,
+    ) {
+        val totalBytes: Long get() = repoApkBytes + updateApkBytes + crashLogBytes
+    }
+
+    private val _cacheState = MutableStateFlow(CacheState())
+    val cacheState: StateFlow<CacheState> = _cacheState.asStateFlow()
+
+    /** 进入设置页时粗算（行 value 用） */
+    fun quickCacheSize(): Long = cacheManager.quickSize()
+
+    /** 打开清理浮层：实时扫描各类大小 */
+    fun scanCache() {
+        viewModelScope.launch {
+            _cacheState.value = CacheState(scanning = true)
+            val info = io.candy.tick.data.CacheManager.CacheInfo(0, 0, 0) // placeholder
+            val scan = cacheManager.scan()
+            _cacheState.value = CacheState(
+                repoApkBytes = scan.repoApkBytes,
+                updateApkBytes = scan.updateApkBytes,
+                crashLogBytes = scan.crashLogBytes,
+            )
+        }
+    }
+
+    /**
+     * 执行清理。返回释放的字节数（挂起直到完成——调用方用 loading 阻断动画包裹）。
+     * 同步清空 downloadedApk 记录（UI 状态自动变更）+ SelfUpdater 状态复位。
+     */
+    suspend fun cleanCache(repoApks: Boolean, updateApks: Boolean, crashLog: Boolean): Long {
+        _cacheState.value = _cacheState.value.copy(cleaning = true)
+        val freed = cacheManager.clean(repoApks, updateApks, crashLog)
+        // 清空已下载记录 → 详情页/卡片「已下载」UI 自动变回「下载」按钮
+        if (repoApks) {
+            repository.state.value.repos.forEach { repo ->
+                if (repo.downloadedApk != null) {
+                    repository.setDownloadedApk(repo.id, null)
+                }
+            }
+        }
+        // 自身更新状态复位 → 「安装已下载的更新」变回可下载
+        if (updateApks) {
+            selfUpdater.resetState()
+        }
+        _cacheState.value = _cacheState.value.copy(cleaning = false)
+        return freed
+    }
+
     // ---- 备份 ----
 
     fun exportSubscriptions(): String = repository.exportState()
@@ -161,7 +218,13 @@ class SettingsViewModel(
     fun downloadUpdate() {
         viewModelScope.launch {
             val current = selfUpdater.state.value as? SelfUpdater.State.NewVersion ?: return@launch
-            current.asset?.let { selfUpdater.download(it) }
+            current.asset?.let {
+                val file = selfUpdater.download(it)
+                // 统一开关：下载完成自动进入安装（与仓库 APK 同一行为）；关则停在安装按钮
+                if (file != null && repository.state.value.settings.autoInstallDownload) {
+                    selfUpdater.install(file)
+                }
+            }
         }
     }
 

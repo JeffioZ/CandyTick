@@ -100,7 +100,7 @@ class GitHubApi(private val tokenProvider: () -> String?) {
             }
         }
 
-    suspend fun releases(owner: String, repo: String, page: Int = 1): List<ReleaseRecord> =
+    suspend fun releases(owner: String, repo: String, page: Int = 1, perPage: Int = PER_PAGE): List<ReleaseRecord> =
         withContext(Dispatchers.IO) {
             val url = apiUrl("repos", owner, repo, "releases")
                 .newBuilder()
@@ -116,13 +116,23 @@ class GitHubApi(private val tokenProvider: () -> String?) {
                         name = r.name,
                         publishedAt = parseInstant(r.published_at),
                         body = r.body ?: "",
-                        apkAssets = r.assets.map { a ->
-                            ApkAsset(
-                                name = a.name,
-                                url = a.browser_download_url,
-                                size = a.size,
-                            )
-                        },
+                        // 只收 Android 安装包格式：.apk（标准）/ .apks（split）/ .xapk / .apkm
+                        // 桌面资产（AppImage/msi/zip）混入会污染版本 tag 选取和下载候选列表；
+                        // .aab 不含（需 bundletool 转换，不可直接安装）
+                        apkAssets = r.assets
+                            .filter { a ->
+                                a.name.endsWith(".apk", true) ||
+                                    a.name.endsWith(".apks", true) ||
+                                    a.name.endsWith(".xapk", true) ||
+                                    a.name.endsWith(".apkm", true)
+                            }
+                            .map { a ->
+                                ApkAsset(
+                                    name = a.name,
+                                    url = a.browser_download_url,
+                                    size = a.size,
+                                )
+                            },
                     )
                 }
             }
