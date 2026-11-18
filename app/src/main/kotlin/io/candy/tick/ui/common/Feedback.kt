@@ -35,7 +35,7 @@ import top.yukonga.miuix.kmp.basic.Text
 import top.yukonga.miuix.kmp.theme.MiuixTheme
 
 /**
- * 全局统一瞬时反馈：底部悬浮胶囊（✓/✕ + 文字 + 可选动作）。
+ * 全局统一瞬时反馈：顶部居中悬浮胶囊（✓/✕ + 文字 + 可选动作），顶栏下方。
  * 取代此前并存的三套通道（顶部结果胶囊 / Miuix Snackbar / 系统 Toast）——
  * 位置、配色、动效全应用一致；skill 准则：无动作 2.2s、有动作 4.5s 自动消失，统一动效 token。
  */
@@ -135,7 +135,7 @@ fun FeedbackHost() {
                                     m.onAction?.invoke()
                                     visible = false
                                 }
-                                .padding(horizontal = 8.dp, vertical = 4.dp),
+                                .padding(horizontal = 8.dp, vertical = 6.dp),
                         )
                     }
                 }

@@ -100,6 +100,8 @@ private fun ReleaseFooter(state: DetailViewModel.UiState, onLoadMore: () -> Unit
                 .fillMaxWidth()
                 .height(320.dp),
         )
+        // 到底且有内容：终点提示（与 CommitFooter 对称，替代原先挂在 Screen 层的外置 if）
+        else -> io.candy.tick.ui.common.FooterText(text = stringResource(R.string.list_end))
     }
 }
 

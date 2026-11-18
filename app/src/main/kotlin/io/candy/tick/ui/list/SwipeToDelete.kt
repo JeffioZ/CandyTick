@@ -125,8 +125,8 @@ fun SwipeToDelete(
                                 when {
                                     offsetX.value > commitThreshold -> {
                                         kotlinx.coroutines.coroutineScope {
-                                            launch { offsetX.animateTo(0f, tween(200)) }
-                                            launch { dissolve.animateTo(0f, tween(320)) }
+                                            launch { offsetX.animateTo(0f, tween(220)) }
+                                            launch { dissolve.animateTo(0f, tween(300)) }
                                         }
                                         currentOnDelete()
                                         dissolve.snapTo(1f)

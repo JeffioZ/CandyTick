@@ -437,10 +437,10 @@ private fun SyncDots(running: Boolean, done: SyncStatus.Done?, modifier: Modifie
                 animationSpec = androidx.compose.animation.core.tween(150),
             ),
             exit = androidx.compose.animation.fadeOut(
-                androidx.compose.animation.core.tween(200),
+                androidx.compose.animation.core.tween(150),
             ) + androidx.compose.animation.scaleOut(
                 targetScale = 0.6f,
-                animationSpec = androidx.compose.animation.core.tween(200),
+                animationSpec = androidx.compose.animation.core.tween(150),
             ),
         ) {
         lastDone?.let { d ->

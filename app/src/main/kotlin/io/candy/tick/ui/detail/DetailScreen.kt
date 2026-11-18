@@ -34,7 +34,6 @@ import androidx.lifecycle.viewmodel.compose.viewModel
 import io.candy.tick.CandyTickApp
 import io.candy.tick.R
 import io.candy.tick.ui.common.AppPickerSheet
-import io.candy.tick.ui.common.FooterText
 import io.candy.tick.ui.common.sourceErrorText
 import io.candy.tick.data.InstallManager
 import kotlinx.coroutines.launch
@@ -241,7 +240,7 @@ fun DetailScreen(repoId: Long, onBack: () -> Unit) {
                             val segWidth = maxWidth / tabItems.size
                             val offset by androidx.compose.animation.core.animateDpAsState(
                                 targetValue = segWidth * selectedIndex,
-                                animationSpec = androidx.compose.animation.core.tween(250),
+                                animationSpec = androidx.compose.animation.core.tween(220),
                                 label = "tabThumb",
                             )
                             // 滑块（选中背景块）
@@ -296,11 +295,6 @@ fun DetailScreen(repoId: Long, onBack: () -> Unit) {
                         onInstallDownloaded = { repo?.let(vm::installDownloaded) },
                         onDeleteDownloaded = vm::deleteDownloaded,
                     )
-                    if (state.releasesEnd && state.releases.isNotEmpty()) {
-                        item {
-                            FooterText(text = stringResource(R.string.list_end))
-                        }
-                    }
                 }
             }
         }
