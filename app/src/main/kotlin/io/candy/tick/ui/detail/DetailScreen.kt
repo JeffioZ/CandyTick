@@ -34,6 +34,7 @@ import androidx.lifecycle.viewmodel.compose.viewModel
 import io.candy.tick.CandyTickApp
 import io.candy.tick.R
 import io.candy.tick.ui.common.AppPickerSheet
+import io.candy.tick.ui.common.FooterText
 import io.candy.tick.ui.common.sourceErrorText
 import io.candy.tick.data.InstallManager
 import kotlinx.coroutines.launch

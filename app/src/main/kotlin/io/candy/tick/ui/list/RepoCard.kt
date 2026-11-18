@@ -214,7 +214,7 @@ private fun RepoIcon(repo: TrackedRepo) {
 }
 
 @Composable
-private fun AvatarBlock(owner: String) {
+internal fun AvatarBlock(owner: String) {
     val (start, end) = remember(owner) { avatarGradient(owner) }
     Box(
         modifier = Modifier

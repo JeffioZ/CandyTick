@@ -28,7 +28,7 @@
     <string name="open_in_browser">在浏览器打开</string>
     <string name="detail_remove_repo">移除仓库</string>
     <string name="remove_confirm_title">移除这个仓库？</string>
-    <string name="remove_confirm_body">将停止追踪 %1$s，已下载的 APK 会保留。</string>
+    <string name="remove_confirm_body">将停止追踪 %1$s，已下载的安装包会保留。</string>
     <string name="action_cancel">取消</string>
     <string name="action_remove">移除</string>
     <string name="empty_title">还在维护吗？</string>
@@ -127,11 +127,10 @@
     <string name="detail_no_commits">暂无提交</string>
     <string name="detail_no_releases">该仓库还没有发布过版本</string>
     <string name="detail_select_asset_hint">请选择要下载的安装包</string>
-    <string name="detail_no_apk">这个版本没有 APK</string>
+    <string name="detail_no_apk">这个版本没有安装包</string>
     <string name="detail_stars">★ %1$s</string>
     <string name="detail_forks">Fork %1$s</string>
     <string name="detail_issues">Issue %1$s</string>
-    <string name="detail_last_push">最近提交 %1$s</string>
     <string name="detail_link_app">关联本机应用</string>
     <string name="detail_link_app_other">选择其他应用</string>
     <string name="detail_auto_link_hint">已装「%1$s」 · 点击关联</string>
@@ -139,13 +138,13 @@
     <string name="detail_linked_app">已关联：%1$s</string>
     <string name="detail_link_change">更改关联应用</string>
     <string name="detail_unlink">解除关联</string>
-    <string name="detail_delete_download">删除下载的 APK</string>
+    <string name="detail_delete_download">删除下载的安装包</string>
     <string name="toast_copied">已复制到剪贴板</string>
     <string name="load_failed">加载失败</string>
     <string name="status_error_subtitle">网络或接口出了点问题，稍后再试试</string>
     <string name="list_end">— 已到底 —</string>
     <string name="asset_recommended">推荐</string>
-    <string name="download_apk">下载 APK</string>
+    <string name="download_apk">下载安装包</string>
     <string name="retry_download">重试下载</string>
     <string name="download_failed_reason">下载失败 · %1$s</string>
     <string name="download_progress_percent">%1$d%%</string>
@@ -197,7 +196,7 @@
     <string name="token_hide">隐藏 Token</string>
     <string name="download_update_action">下载更新</string>
     <string name="settings_auto_install">下载后自动安装</string>
-    <string name="settings_auto_install_summary">所有 APK（含应用自身更新）下载完成后，自动进入安装流程</string>
+    <string name="settings_auto_install_summary">所有安装包（含应用自身更新）下载完成后，自动进入安装流程</string>
     <string name="token_verified">✓ 验证通过</string>
     <string name="token_invalid_short">✗ Token 无效</string>
     <string name="token_network_error">网络错误，请重试</string>
@@ -208,7 +207,7 @@
     <string name="settings_notifications_group">通知</string>
     <string name="settings_permission_group">权限</string>
     <string name="settings_perm_install_unknown">安装未知应用</string>
-    <string name="settings_perm_install_summary">安装 APK 与应用更新需要此权限</string>
+    <string name="settings_perm_install_summary">安装应用与更新需要此权限</string>
     <string name="settings_perm_notifications">通知权限</string>
     <string name="perm_granted">已授权</string>
     <string name="perm_not_granted">未授权</string>

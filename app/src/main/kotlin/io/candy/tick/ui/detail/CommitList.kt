@@ -93,5 +93,7 @@ private fun CommitFooter(state: DetailViewModel.UiState, onLoadMore: () -> Unit)
                 .fillMaxWidth()
                 .height(320.dp),
         )
+        // 到底且有内容：终点提示（修复缺失——此前 when 链在此情形什么都不渲染）
+        else -> io.candy.tick.ui.common.FooterText(text = stringResource(R.string.list_end))
     }
 }

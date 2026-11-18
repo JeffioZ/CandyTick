@@ -212,16 +212,6 @@ internal fun SectionDivider() {
     )
 }
 
-@Composable
-internal fun FooterText(text: String) {
-    Text(
-        text = text,
-        style = MiuixTheme.textStyles.footnote2,
-        color = MiuixTheme.colorScheme.onBackgroundVariant,
-        modifier = Modifier.padding(vertical = 8.dp),
-    )
-}
-
 /** 分支选择行：BasicComponent + Check 选中态（与设置页 OptionRow 同款） */
 @Composable
 internal fun BranchRow(label: String, selected: Boolean, onClick: () -> Unit) {
@@ -258,7 +248,8 @@ internal fun HeaderCard(
     val scheme = MiuixTheme.colorScheme
     val context = LocalContext.current
     Card(modifier = Modifier.fillMaxWidth()) {
-        Column(modifier = Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+        // 双层间距体系：跨组 12dp（Spacer）、组内 6dp——视觉分组靠间距差而非分隔线堆叠
+        Column(modifier = Modifier.padding(horizontal = 16.dp, vertical = 12.dp)) {
             Row(verticalAlignment = Alignment.CenterVertically) {
                 RepoIconBlock(repo = repo, size = 56.dp, corner = 14.dp)
                 Spacer(Modifier.width(12.dp))
@@ -277,6 +268,8 @@ internal fun HeaderCard(
                 StatusBadge(status = snapshot?.statusAt() ?: io.candy.tick.data.model.RepoStatus.UNKNOWN)
             }
 
+            // ── 信息组（描述 + 统计+推送时间，组内 6dp；无描述时跨组 12dp 不叠加）──
+            Spacer(Modifier.height(12.dp))
             snapshot?.description?.takeIf { it.isNotBlank() }?.let {
                 Text(
                     text = it,
@@ -285,9 +278,9 @@ internal fun HeaderCard(
                     maxLines = 3,
                     overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis,
                 )
+                Spacer(Modifier.height(6.dp))
             }
-
-            Row(horizontalArrangement = Arrangement.spacedBy(14.dp)) {
+            Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
                 Text(
                     text = stringResource(R.string.detail_stars, CountFormat.format(snapshot?.stars ?: 0)),
                     style = MiuixTheme.textStyles.footnote1,
@@ -303,9 +296,10 @@ internal fun HeaderCard(
                     style = MiuixTheme.textStyles.footnote1,
                     color = scheme.onBackgroundVariant,
                 )
-                snapshot?.license?.let {
+                // push time 替换 license（末位弹性项）：健康监控场景「最近提交」比协议更有价值
+                snapshot?.pushedAt?.let { pushed ->
                     Text(
-                        text = it,
+                        text = relTimeString(pushed),
                         style = MiuixTheme.textStyles.footnote1,
                         color = scheme.onBackgroundVariant,
                         maxLines = 1,
@@ -315,77 +309,71 @@ internal fun HeaderCard(
                 }
             }
 
-            snapshot?.pushedAt?.let { pushed ->
-                Text(
-                    text = stringResource(R.string.detail_last_push, relTimeString(pushed)),
-                    style = MiuixTheme.textStyles.footnote1,
-                    color = scheme.onBackgroundVariant,
-                )
-            }
-
-            // ── 版本分区：版本状态 + 更新操作成组（因果相邻），与元数据/关联区用分隔线切开 ──
+            // ── 版本分区（有 tag 时显示分隔线 + 版本行 + 操作按钮）──
             snapshot?.latestReleaseTag?.let { tag ->
+                Spacer(Modifier.height(12.dp))
                 SectionDivider()
+                Spacer(Modifier.height(8.dp))
                 VersionStatusLine(repo = repo, remoteTag = tag)
-            }
 
-            // 更新入口（有新版时头部直接行动）：下载 → 进度 → 安装，不用翻版本列表
-            val latestTag = snapshot?.latestReleaseTag
-            val hasUpdate = latestTag != null && io.candy.tick.ui.common.updateAvailable(context, repo, latestTag)
-            val downloadedMatches = repo.downloadedApk?.version == latestTag
-            // 按分支作 key（不能按 state 对象：进度每跳一格会重播转场）；三态柔切换 + 进度补间
-            val updatePhase = when {
-                // 仅头部入口发起的下载在头部显示进度；卡片入口的进度归卡片，不重复
-                state.download is DetailViewModel.DownloadState.Active &&
-                    state.download.fromHeader -> "progress"
-                hasUpdate && downloadedMatches -> "install"
-                hasUpdate -> "download"
-                else -> "idle"
-            }
-            androidx.compose.animation.AnimatedContent(
-                targetState = updatePhase,
-                transitionSpec = {
-                    (androidx.compose.animation.fadeIn(androidx.compose.animation.core.tween(180)) +
-                        androidx.compose.animation.slideInVertically(
-                            animationSpec = androidx.compose.animation.core.tween(180),
-                        ) { it / 6 }) togetherWith
-                        androidx.compose.animation.fadeOut(androidx.compose.animation.core.tween(180))
-                },
-                label = "updatePhase",
-            ) { phase ->
-                when (phase) {
-                    "progress" -> Column {
-                        val active = state.download as? DetailViewModel.DownloadState.Active
-                        val p by androidx.compose.animation.core.animateFloatAsState(
-                            targetValue = active?.progress ?: 0f,
-                            animationSpec = androidx.compose.animation.core.tween(300),
-                            label = "headerDl",
-                        )
-                        top.yukonga.miuix.kmp.basic.LinearProgressIndicator(
-                            progress = p,
-                            modifier = Modifier.fillMaxWidth(),
-                        )
-                        Text(
-                            text = stringResource(R.string.download_progress_percent, (p * 100).toInt()),
-                            style = MiuixTheme.textStyles.footnote2,
-                            color = scheme.onBackgroundVariant,
-                        )
+                // 更新入口（有新版时头部直接行动）：下载 → 进度 → 安装
+                val hasUpdate = io.candy.tick.ui.common.updateAvailable(context, repo, tag)
+                val downloadedMatches = repo.downloadedApk?.version == tag
+                val updatePhase = when {
+                    state.download is DetailViewModel.DownloadState.Active &&
+                        state.download.fromHeader -> "progress"
+                    hasUpdate && downloadedMatches -> "install"
+                    hasUpdate -> "download"
+                    else -> null // idle 不渲染（零占位）
+                }
+                if (updatePhase != null) {
+                    Spacer(Modifier.height(6.dp))
+                    androidx.compose.animation.AnimatedContent(
+                        targetState = updatePhase,
+                        transitionSpec = {
+                            (androidx.compose.animation.fadeIn(androidx.compose.animation.core.tween(180)) +
+                                androidx.compose.animation.slideInVertically(
+                                    animationSpec = androidx.compose.animation.core.tween(180),
+                                ) { it / 6 }) togetherWith
+                                androidx.compose.animation.fadeOut(androidx.compose.animation.core.tween(180))
+                        },
+                        label = "updatePhase",
+                    ) { phase ->
+                        when (phase) {
+                            "progress" -> Column {
+                                val active = state.download as? DetailViewModel.DownloadState.Active
+                                val p by androidx.compose.animation.core.animateFloatAsState(
+                                    targetValue = active?.progress ?: 0f,
+                                    animationSpec = androidx.compose.animation.core.tween(300),
+                                    label = "headerDl",
+                                )
+                                top.yukonga.miuix.kmp.basic.LinearProgressIndicator(
+                                    progress = p,
+                                    modifier = Modifier.fillMaxWidth(),
+                                )
+                                Text(
+                                    text = stringResource(R.string.download_progress_percent, (p * 100).toInt()),
+                                    style = MiuixTheme.textStyles.footnote2,
+                                    color = scheme.onBackgroundVariant,
+                                )
+                            }
+                            "install" -> PrimaryButton(
+                                text = stringResource(R.string.install_apk),
+                                onClick = onInstallUpdate,
+                                modifier = Modifier.fillMaxWidth(),
+                            )
+                            "download" -> PrimaryButton(
+                                text = stringResource(R.string.download_update_action),
+                                onClick = onDownloadUpdate,
+                                modifier = Modifier.fillMaxWidth(),
+                            )
+                        }
                     }
-                    "install" -> PrimaryButton(
-                        text = stringResource(R.string.install_apk),
-                        onClick = onInstallUpdate,
-                        modifier = Modifier.fillMaxWidth(),
-                    )
-                    "download" -> PrimaryButton(
-                        text = stringResource(R.string.download_update_action),
-                        onClick = onDownloadUpdate,
-                        modifier = Modifier.fillMaxWidth(),
-                    )
-                    else -> Spacer(Modifier.height(0.dp))
                 }
             }
 
-            // ── 关联分区（始终存在，固定卡底）──
+            // ── 关联分区（始终存在，固定卡底）；前置 12dp 与上方版本区呼吸对称 ──
+            Spacer(Modifier.height(12.dp))
             SectionDivider()
             // 关联本机应用（可修改 / 解除）
             val linkedLabel = repo.linkedPackage?.let { pkg ->

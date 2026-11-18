@@ -3,15 +3,18 @@ package io.candy.tick.ui.add
 import io.candy.tick.util.CountFormat
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.text.KeyboardActions
 import androidx.compose.foundation.text.KeyboardOptions
+import androidx.compose.ui.text.style.TextOverflow
 import top.yukonga.miuix.kmp.icon.basic.Search
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
@@ -31,8 +34,10 @@ import androidx.lifecycle.viewmodel.compose.viewModel
 import io.candy.tick.CandyTickApp
 import io.candy.tick.R
 import io.candy.tick.ui.common.AppPickerSheet
+import io.candy.tick.ui.common.FooterText
 import io.candy.tick.ui.common.PrimaryButton
 import io.candy.tick.ui.common.sourceErrorText
+import io.candy.tick.ui.list.AvatarBlock
 import kotlinx.coroutines.flow.collect
 import top.yukonga.miuix.kmp.basic.Card
 import top.yukonga.miuix.kmp.basic.Icon
@@ -164,31 +169,54 @@ fun AddScreen(
             if (state.results.isNotEmpty()) {
                 LazyColumn(
                     modifier = Modifier.weight(1f),
-                    verticalArrangement = Arrangement.spacedBy(4.dp),
+                    verticalArrangement = Arrangement.spacedBy(8.dp),
                 ) {
                     items(state.results, key = { it.githubId }) { info ->
-                        Card(modifier = Modifier.fillMaxWidth(), onClick = { vm.pickResult(info) }) {
+                        // 与首页 RepoCard 同款语言：头像 + title4 名称 + body2 路径 + 统计
+                        Card(
+                            modifier = Modifier.fillMaxWidth(),
+                            cornerRadius = 16.dp,
+                            onClick = { vm.pickResult(info) },
+                        ) {
                             Column(modifier = Modifier.padding(horizontal = 16.dp, vertical = 12.dp)) {
-                                Text(
-                                    text = "${info.owner}/${info.repo}",
-                                    style = MiuixTheme.textStyles.subtitle,
-                                    color = MiuixTheme.colorScheme.onBackground,
-                                )
+                                Row(verticalAlignment = Alignment.CenterVertically) {
+                                    AvatarBlock(owner = info.owner)
+                                    Spacer(Modifier.width(12.dp))
+                                    Column(modifier = Modifier.weight(1f)) {
+                                        Text(
+                                            text = info.repo,
+                                            style = MiuixTheme.textStyles.title4,
+                                            color = MiuixTheme.colorScheme.onBackground,
+                                        )
+                                        Text(
+                                            text = "${info.owner}/${info.repo}",
+                                            style = MiuixTheme.textStyles.body2,
+                                            color = MiuixTheme.colorScheme.onBackgroundVariant,
+                                        )
+                                    }
+                                }
                                 if (!info.description.isNullOrBlank()) {
+                                    Spacer(Modifier.height(6.dp))
                                     Text(
                                         text = info.description,
-                                        style = MiuixTheme.textStyles.footnote1,
+                                        style = MiuixTheme.textStyles.body2,
                                         color = MiuixTheme.colorScheme.onBackgroundVariant,
                                         maxLines = 2,
+                                        overflow = TextOverflow.Ellipsis,
                                     )
                                 }
+                                Spacer(Modifier.height(6.dp))
                                 Text(
                                     text = stringResource(R.string.add_stars, CountFormat.format(info.stars)),
-                                    style = MiuixTheme.textStyles.footnote2,
+                                    style = MiuixTheme.textStyles.footnote1,
                                     color = MiuixTheme.colorScheme.onBackgroundVariant,
                                 )
                             }
                         }
+                    }
+                    // 到底提示：搜索一次取前 20 条，明示列表不会再增长
+                    item(key = "search-end") {
+                        FooterText(text = stringResource(R.string.list_end))
                     }
                 }
             } else if (state.preview is AddViewModel.PreviewState.Idle && !state.searching) {
@@ -216,32 +244,49 @@ private fun PreviewCard(
     val preview = state.preview as AddViewModel.PreviewState.Loaded
     val info = preview.info
     val scheme = MiuixTheme.colorScheme
-    Card(modifier = Modifier.fillMaxWidth()) {
-        Column(modifier = Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
-            Text(
-                text = "${info.owner}/${info.repo}",
-                style = MiuixTheme.textStyles.subtitle,
-                color = scheme.onBackground,
-            )
+    Card(modifier = Modifier.fillMaxWidth(), cornerRadius = 16.dp) {
+        // 与首页卡/详情头卡同一语言：身份区（头像+名称+路径）→ 信息组 → 操作区，跨组 12dp / 组内 6dp
+        Column(modifier = Modifier.padding(horizontal = 16.dp, vertical = 12.dp)) {
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                AvatarBlock(owner = info.owner)
+                Spacer(Modifier.width(12.dp))
+                Column(modifier = Modifier.weight(1f)) {
+                    Text(
+                        text = info.repo,
+                        style = MiuixTheme.textStyles.title4,
+                        color = scheme.onBackground,
+                    )
+                    Text(
+                        text = "${info.owner}/${info.repo}",
+                        style = MiuixTheme.textStyles.body2,
+                        color = scheme.onBackgroundVariant,
+                    )
+                }
+            }
+
+            Spacer(Modifier.height(12.dp))
             if (!info.description.isNullOrBlank()) {
                 Text(
                     text = info.description,
                     style = MiuixTheme.textStyles.body2,
                     color = scheme.onBackgroundVariant,
                 )
+                Spacer(Modifier.height(6.dp))
             }
-            Text(
-                text = stringResource(R.string.add_stars, CountFormat.format(info.stars)),
-                style = MiuixTheme.textStyles.footnote1,
-                color = scheme.onBackgroundVariant,
-            )
-            Text(
-                text = stringResource(R.string.add_license, info.license ?: "—"),
-                style = MiuixTheme.textStyles.footnote1,
-                color = scheme.onBackgroundVariant,
-            )
+            Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+                Text(
+                    text = stringResource(R.string.add_stars, CountFormat.format(info.stars)),
+                    style = MiuixTheme.textStyles.footnote1,
+                    color = scheme.onBackgroundVariant,
+                )
+                Text(
+                    text = stringResource(R.string.add_license, info.license ?: "—"),
+                    style = MiuixTheme.textStyles.footnote1,
+                    color = scheme.onBackgroundVariant,
+                )
+            }
 
-            Spacer(Modifier.height(4.dp))
+            Spacer(Modifier.height(12.dp))
             TextButtonLike(
                 text = state.linkedLabel?.let {
                     stringResource(R.string.add_linked_app_named, it)

@@ -316,6 +316,12 @@ fun ListScreen(
                                 )
                             }
                         }
+                        // 到底提示
+                        if (state.items.isNotEmpty() && state.query.isBlank()) {
+                            item(key = "list-end") {
+                                io.candy.tick.ui.common.FooterText(text = stringResource(R.string.list_end))
+                            }
+                        }
                         }
                     }
                 }
