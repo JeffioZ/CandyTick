@@ -73,6 +73,10 @@ internal fun BranchPickerSheet(
     val scheme = MiuixTheme.colorScheme
     val maxSheetHeight = androidx.compose.ui.platform.LocalConfiguration.current.screenHeightDp.dp * 0.6f
     var query by remember { mutableStateOf("") }
+    // sheet 关闭即清搜索词：消灭幽灵草稿（与 Token sheet 同一治理原则）
+    androidx.compose.runtime.LaunchedEffect(show) {
+        if (!show && query.isNotEmpty()) query = ""
+    }
     val current = state.repo?.branch
     val keyword = query.trim()
     val filtered = if (keyword.isEmpty()) state.branches else state.branches.filter {

@@ -108,8 +108,13 @@ class SettingsViewModel(
         tokenTest.value = null
     }
 
+    /**
+     * 保存并验证。状态机（「已保存」永远 = 最后一次验证通过的值）：
+     * - 验证通过 → 落盘保留；失败/网络错 → 回滚原值（旧的先落盘后验证会让无效 Token 悬在设置里）
+     */
     fun saveAndTestToken() {
         val token = tokenInput.value.trim().takeIf { it.isNotBlank() }
+        val previous = repository.state.value.settings.githubToken
         mutateSettings(transform = { s: Settings -> s.copy(githubToken = token) })
         if (token == null) {
             tokenTest.value = null
@@ -117,7 +122,7 @@ class SettingsViewModel(
         }
         viewModelScope.launch {
             tokenTest.value = TokenTest.TESTING
-            tokenTest.value = try {
+            val result = try {
                 if (githubApi.validateToken(token)) {
                     githubApi.clearTokenRejected()
                     TokenTest.VALID
@@ -127,7 +132,18 @@ class SettingsViewModel(
             } catch (e: SourceException) {
                 TokenTest.NETWORK
             }
+            tokenTest.value = result
+            // 验证未通过：回滚——无效/未验证的 Token 不留在设置里（401 降级反而更差）
+            if (result != TokenTest.VALID) {
+                mutateSettings(transform = { s: Settings -> s.copy(githubToken = previous) })
+            }
         }
+    }
+
+    /** sheet 关闭时丢弃未保存的编辑：输入框重置为已保存值，消灭幽灵草稿（所见即所存） */
+    fun resetTokenDraft() {
+        tokenInput.value = repository.state.value.settings.githubToken ?: ""
+        tokenTest.value = null
     }
 
     // ---- 备份 ----

@@ -9,6 +9,7 @@ import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.imePadding
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
@@ -26,7 +27,6 @@ import io.candy.tick.ui.common.SecondaryButton
 import top.yukonga.miuix.kmp.basic.Icon
 import top.yukonga.miuix.kmp.basic.LinearProgressIndicator
 import top.yukonga.miuix.kmp.basic.Text
-import top.yukonga.miuix.kmp.basic.TextButton
 import top.yukonga.miuix.kmp.basic.TextField
 import top.yukonga.miuix.kmp.basic.IconButton
 import top.yukonga.miuix.kmp.icon.MiuixIcons
@@ -104,21 +104,19 @@ internal fun TokenDialog(
         title = stringResource(R.string.settings_token_row),
         onDismissRequest = { onDismiss() },
     ) {
-        // 说明文字（sheet 无 summary 槽位，内容区首行居中呈现）
-        Text(
-            text = stringResource(R.string.settings_token_hint),
-            style = MiuixTheme.textStyles.footnote1,
-            color = scheme.onBackgroundVariant,
-            modifier = Modifier
-                .fillMaxWidth()
-                .padding(horizontal = 20.dp)
-                .padding(bottom = 4.dp),
-            textAlign = androidx.compose.ui.text.style.TextAlign.Center,
-        )
         Column(
-            modifier = Modifier.padding(horizontal = 20.dp, vertical = 4.dp),
+            modifier = Modifier
+                .padding(horizontal = 20.dp)
+                .imePadding()
+                .padding(top = 4.dp, bottom = 12.dp),
             verticalArrangement = Arrangement.spacedBy(12.dp),
         ) {
+            // 说明（左对齐：sheet 内容语言；居中是对话框时代遗产）
+            Text(
+                text = stringResource(R.string.settings_token_hint),
+                style = MiuixTheme.textStyles.footnote1,
+                color = scheme.onBackgroundVariant,
+            )
             // 输入框：单行密码式，眼睛切换在原生 trailingIcon 槽位（48dp 触控）
             TextField(
                 value = state.tokenInput,
@@ -147,32 +145,7 @@ internal fun TokenDialog(
                     }
                 },
             )
-
-            // 帮助链接（超链接样式：链接图标 + 下划线强调色文字，点按有涟漪）
-            Row(
-                modifier = Modifier
-                    .clip(androidx.compose.foundation.shape.RoundedCornerShape(8.dp))
-                    .clickable(onClick = onOpenHelp)
-                    .padding(top = 10.dp, bottom = 10.dp, start = 2.dp, end = 4.dp),
-                verticalAlignment = Alignment.CenterVertically,
-            ) {
-                Icon(
-                    imageVector = MiuixIcons.Link,
-                    contentDescription = null,
-                    tint = scheme.primaryVariant,
-                    modifier = Modifier.size(13.dp),
-                )
-                Spacer(Modifier.width(4.dp))
-                Text(
-                    text = stringResource(R.string.token_help_link),
-                    style = MiuixTheme.textStyles.footnote1.copy(
-                        textDecoration = androidx.compose.ui.text.style.TextDecoration.Underline,
-                    ),
-                    color = scheme.primaryVariant,
-                )
-            }
-
-            // 验证结果 / 被拒提示（就近展示在输入框下方）
+            // 验证结果 / 被拒提示（紧贴输入框；状态机见 VM 注释）
             when (state.tokenTest) {
                 SettingsViewModel.TokenTest.TESTING -> androidx.compose.foundation.layout.Row(
                     verticalAlignment = Alignment.CenterVertically,
@@ -209,22 +182,34 @@ internal fun TokenDialog(
                     color = scheme.onErrorContainer,
                 )
             }
-
-            // 底部按钮行：取消（显式关闭）+ 保存并验证（主操作）
-            Row(
+            // 满宽主按钮（退出=放弃由 scrim/下拉/返回键承担，不再设取消按钮）
+            PrimaryButton(
+                text = stringResource(R.string.settings_token_test),
+                onClick = onSaveAndTest,
+                enabled = state.tokenInput.isNotBlank(),
                 modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.End,
+            )
+            // 帮助链接（底部辅助位：不插主操作流）
+            Row(
+                modifier = Modifier
+                    .clip(androidx.compose.foundation.shape.RoundedCornerShape(8.dp))
+                    .clickable(onClick = onOpenHelp)
+                    .padding(top = 2.dp, bottom = 6.dp, start = 2.dp, end = 4.dp),
                 verticalAlignment = Alignment.CenterVertically,
             ) {
-                TextButton(
-                    text = stringResource(R.string.action_cancel),
-                    onClick = { onDismiss() },
+                Icon(
+                    imageVector = MiuixIcons.Link,
+                    contentDescription = null,
+                    tint = scheme.primaryVariant,
+                    modifier = Modifier.size(13.dp),
                 )
-                Spacer(Modifier.width(12.dp))
-                PrimaryButton(
-                    text = stringResource(R.string.settings_token_test),
-                    onClick = onSaveAndTest,
-                    enabled = state.tokenInput.isNotBlank(),
+                Spacer(Modifier.width(4.dp))
+                Text(
+                    text = stringResource(R.string.token_help_link),
+                    style = MiuixTheme.textStyles.footnote1.copy(
+                        textDecoration = androidx.compose.ui.text.style.TextDecoration.Underline,
+                    ),
+                    color = scheme.primaryVariant,
                 )
             }
         }

@@ -535,7 +535,10 @@ fun SettingsScreen(onBack: () -> Unit) {
                 )
             }
         },
-        onDismiss = { showTokenDialog = false },
+        onDismiss = {
+            showTokenDialog = false
+            vm.resetTokenDraft() // 退出=放弃未保存编辑：重置为已保存值，消灭幽灵草稿
+        },
     )
 }
 
