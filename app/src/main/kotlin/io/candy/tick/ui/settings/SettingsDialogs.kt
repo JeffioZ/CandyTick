@@ -198,8 +198,6 @@ private fun formatBytes(bytes: Long): String = when {
     else -> "$bytes B"
 }
 
-
-
 /** 导入来源选择弹窗（文件 / 剪贴板）：主按钮 = 文件，次按钮 = 剪贴板 */
 @Composable
 internal fun ImportSourceDialog(
@@ -381,91 +379,3 @@ internal fun TokenDialog(
     }
 }
 
-@Composable
-internal fun SelfUpdateActions(state: SettingsViewModel.UiState, vm: SettingsViewModel) {
-    val scheme = MiuixTheme.colorScheme
-    // 按分支作 key 的柔切换（检查出新版 → 下载进度 → 安装）；进度条 300ms 补间
-    val phase = when (state.selfUpdate) {
-        is SelfUpdater.State.NewVersion -> "new"
-        is SelfUpdater.State.Downloading -> "downloading"
-        is SelfUpdater.State.Downloaded -> "downloaded"
-        else -> "idle"
-    }
-    androidx.compose.animation.AnimatedContent(
-        targetState = phase,
-        transitionSpec = {
-            (androidx.compose.animation.fadeIn(androidx.compose.animation.core.tween(180)) +
-                androidx.compose.animation.slideInVertically(
-                    animationSpec = androidx.compose.animation.core.tween(180),
-                ) { it / 6 }) togetherWith
-                androidx.compose.animation.fadeOut(androidx.compose.animation.core.tween(180))
-        },
-        label = "selfUpdatePhase",
-    ) { p ->
-        when (p) {
-            "new" -> {
-                val update = state.selfUpdate as? SelfUpdater.State.NewVersion
-                Column(
-                    modifier = Modifier.padding(start = 16.dp, end = 16.dp, bottom = 16.dp),
-                ) {
-                    // 醒目版本 tag：一眼看到"升到什么"
-                    update?.tag?.let {
-                        Text(
-                            text = it,
-                            style = io.candy.tick.ui.theme.MonoTokenStyle.copy(
-                                fontWeight = androidx.compose.ui.text.font.FontWeight.Bold,
-                            ),
-                            color = scheme.primaryVariant,
-                            modifier = Modifier.padding(bottom = 4.dp),
-                        )
-                    }
-                    update?.notes?.let {
-                        Text(
-                            text = it,
-                            style = MiuixTheme.textStyles.footnote1,
-                            color = scheme.onBackgroundVariant,
-                            maxLines = 4,
-                            overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis,
-                            modifier = Modifier.padding(bottom = 8.dp),
-                        )
-                    }
-                    PrimaryButton(
-                        text = stringResource(R.string.settings_download_update),
-                        onClick = vm::downloadUpdate,
-                        modifier = Modifier.fillMaxWidth(),
-                        enabled = update?.asset != null,
-                    )
-                }
-            }
-            "downloading" -> Column(
-                modifier = Modifier.padding(start = 16.dp, end = 16.dp, top = 4.dp, bottom = 16.dp),
-            ) {
-                val prog by androidx.compose.animation.core.animateFloatAsState(
-                    targetValue = (state.selfUpdate as? SelfUpdater.State.Downloading)?.progress ?: 0f,
-                    animationSpec = androidx.compose.animation.core.tween(300),
-                    label = "selfDl",
-                )
-                LinearProgressIndicator(progress = prog, modifier = Modifier.fillMaxWidth())
-                Text(
-                    text = stringResource(R.string.download_progress_percent, (prog * 100).toInt()),
-                    style = MiuixTheme.textStyles.footnote2,
-                    color = scheme.onBackgroundVariant,
-                    modifier = Modifier.padding(top = 4.dp),
-                )
-            }
-            "downloaded" -> {
-                val update = state.selfUpdate as? SelfUpdater.State.Downloaded
-                update?.let {
-                    PrimaryButton(
-                        text = stringResource(R.string.settings_install_update),
-                        onClick = { vm.installUpdate(it.file) },
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .padding(start = 16.dp, end = 16.dp, bottom = 16.dp),
-                    )
-                }
-            }
-            else -> Unit
-        }
-    }
-}

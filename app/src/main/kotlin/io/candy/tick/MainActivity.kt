@@ -61,6 +61,11 @@ class MainActivity : ComponentActivity() {
                     Box(modifier = Modifier.fillMaxSize()) {
                         AppNavHost(container)
                         io.candy.tick.ui.common.FeedbackHost()
+                        // 全局更新弹窗：设置页未打开时（后台自动检查）也能弹出
+                        io.candy.tick.ui.common.UpdateSheet(
+                            selfUpdater = container.selfUpdater,
+                            autoInstall = state.settings.autoInstallDownload,
+                        )
                     }
                 }
             }

@@ -219,6 +219,7 @@
     <string name="detail_need_install_permission">请先在系统设置授予「安装未知应用」权限，再重试</string>
     <string name="settings_app_updates">应用更新</string>
     <string name="settings_current_version_title">当前版本</string>
+    <string name="settings_update_found">发现新版本</string>
     <string name="settings_check_update">立即检查</string>
     <string name="settings_self_update_check">自动检查更新</string>
     <string name="settings_self_update_download">自动下载（仅 Wi-Fi）</string>

@@ -323,11 +323,15 @@ fun SettingsScreen(onBack: () -> Unit) {
                     title = stringResource(R.string.settings_check_update),
                     value = checkStateValue(state.selfUpdate),
                     valueMonospace = state.selfUpdate is SelfUpdater.State.NewVersion,
-                    onClick = vm::checkUpdate,
+                    onClick = {
+                        // 已下载/下载中：直接重开弹窗（重复检查会覆盖已下载文件，浪费流量）
+                        when (state.selfUpdate) {
+                            is SelfUpdater.State.Downloaded, is SelfUpdater.State.Downloading -> Unit
+                            else -> vm.checkUpdate()
+                        }
+                        io.candy.tick.ui.common.UpdateSheetController.manualRequest = true
+                    },
                 )
-                // 更新动作流紧跟触发点（发现新版 → 版本/说明/下载立即出现在检查行下方），
-                // 偏好开关退到其后；空闲态渲染为空，布局不变
-                SelfUpdateActions(state = state, vm = vm)
                 RowDivider()
                 SwitchRow(
                     title = stringResource(R.string.settings_self_update_check),

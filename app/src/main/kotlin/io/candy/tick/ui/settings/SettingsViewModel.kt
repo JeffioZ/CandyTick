@@ -10,7 +10,6 @@ import io.candy.tick.data.model.Settings
 import io.candy.tick.data.model.SyncFrequency
 import io.candy.tick.data.model.ThemeMode
 import io.candy.tick.worker.SyncScheduler
-import java.io.File
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
@@ -216,18 +215,4 @@ class SettingsViewModel(
         viewModelScope.launch { selfUpdater.check() }
     }
 
-    fun downloadUpdate() {
-        viewModelScope.launch {
-            val current = selfUpdater.state.value as? SelfUpdater.State.NewVersion ?: return@launch
-            current.asset?.let {
-                val file = selfUpdater.download(it)
-                // 统一开关：下载完成自动进入安装（与仓库 APK 同一行为）；关则停在安装按钮
-                if (file != null && repository.state.value.settings.autoInstallDownload) {
-                    selfUpdater.install(file)
-                }
-            }
-        }
-    }
-
-    fun installUpdate(file: File) = selfUpdater.install(file)
 }
