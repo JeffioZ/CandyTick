@@ -148,6 +148,7 @@
     <string name="retry_download">重试下载</string>
     <string name="download_failed_reason">下载失败 · %1$s</string>
     <string name="download_progress_percent">%1$d%%</string>
+    <string name="cancel">取消</string>
     <string name="install_apk">安装</string>
     <string name="install_done">安装成功</string>
     <string name="install_failed_format">安装失败：%1$s</string>

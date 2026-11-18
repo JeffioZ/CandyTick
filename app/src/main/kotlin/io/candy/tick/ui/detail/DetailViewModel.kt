@@ -55,6 +55,7 @@ class DetailViewModel(
             override val releaseKey: String,
             override val assetName: String,
             val message: String? = null,
+            val error: io.candy.tick.data.SourceError? = null,
         ) : DownloadState
     }
 
@@ -264,9 +265,11 @@ class DetailViewModel(
     }
 
     /** 下载 APK → 私有目录（下载保留；同仓库只留最新一份），完成后记录到 TrackedRepo */
+    private var downloadJob: kotlinx.coroutines.Job? = null
+
     fun downloadAsset(release: ReleaseRecord, asset: ApkAsset, fromHeader: Boolean = false) {
         if (_state.value.download is DownloadState.Active) return
-        viewModelScope.launch {
+        downloadJob = viewModelScope.launch {
             _state.update {
                 it.copy(download = DownloadState.Active(release.tagName, asset.name, 0f, fromHeader))
             }
@@ -281,6 +284,9 @@ class DetailViewModel(
             }
             result.fold(
                 onSuccess = { file ->
+                    // 取消竞态防护：下载完成瞬间被取消时，cancelDownload 已删文件并清空状态，
+                    // 本回调作废（否则会把状态写回 Done 指向已删文件）
+                    if (_state.value.download !is DownloadState.Active) return@fold
                     // 清理同仓库旧文件（下载保留只留当前）
                     apkDir.listFiles()?.filter { it != file }?.forEach { it.delete() }
                     _state.update { it.copy(download = DownloadState.Done(release.tagName, asset.name, file)) }
@@ -293,13 +299,25 @@ class DetailViewModel(
                     }
                 },
                 onFailure = { e ->
-                    // 捕获失败原因：渲染层展示，便于定位（网络/文件/权限一目了然）
+                    // 取消不是失败：状态已由 cancelDownload 清空，这里直接短路防串台
+                    if (e is kotlinx.coroutines.CancellationException) return@fold
+                    // 结构化错误优先（UI 走 sourceErrorText 本地化），原始 message 兜底
+                    val se = (e as? io.candy.tick.data.SourceException)?.error
                     _state.update {
-                        it.copy(download = DownloadState.Failed(release.tagName, asset.name, e.message))
+                        it.copy(download = DownloadState.Failed(release.tagName, asset.name, e.message, se))
                     }
                 },
             )
         }
+    }
+
+    /** 取消下载：停任务 + 清半成品，状态归位让动作区回到「下载」相 */
+    fun cancelDownload() {
+        val d = _state.value.download as? DownloadState.Active ?: return
+        downloadJob?.cancel()
+        downloadJob = null
+        File(apkDir, d.assetName).delete()
+        _state.update { it.copy(download = null) }
     }
 
     /** APK 已在本机：直接解析包名，未关联时自动建立关联 */

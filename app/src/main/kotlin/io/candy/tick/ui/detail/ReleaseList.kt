@@ -1,6 +1,7 @@
 package io.candy.tick.ui.detail
 
 import android.os.Build
+import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.layout.Arrangement
@@ -53,6 +54,7 @@ fun LazyListScope.releaseList(
     onRetry: (ReleaseRecord, ApkAsset) -> Unit,
     onInstallDownloaded: () -> Unit,
     onDeleteDownloaded: () -> Unit,
+    onCancelDownload: () -> Unit,
 ) {
     items(count = state.releases.size, key = { state.releases[it].tagName + it }) { index ->
         val release = state.releases[index]
@@ -64,6 +66,7 @@ fun LazyListScope.releaseList(
             onRetry = onRetry,
             onInstallDownloaded = onInstallDownloaded,
             onDeleteDownloaded = onDeleteDownloaded,
+            onCancelDownload = onCancelDownload,
         )
     }
     item(key = "releases-footer") {
@@ -76,7 +79,7 @@ private fun ReleaseFooter(state: DetailViewModel.UiState, onLoadMore: () -> Unit
     val scheme = MiuixTheme.colorScheme
     when {
         state.releasesLoading -> androidx.compose.foundation.layout.Box(
-            modifier = Modifier.fillMaxWidth().padding(vertical = 10.dp),
+            modifier = Modifier.fillMaxWidth().padding(vertical = 8.dp),
             contentAlignment = Alignment.Center,
         ) {
             io.candy.tick.ui.common.LoadingDots(dotSize = 5.dp)
@@ -114,6 +117,7 @@ private fun ReleaseCard(
     onRetry: (ReleaseRecord, ApkAsset) -> Unit,
     onInstallDownloaded: () -> Unit,
     onDeleteDownloaded: () -> Unit,
+    onCancelDownload: () -> Unit,
 ) {
     val scheme = MiuixTheme.colorScheme
     val candidates = remember(release) { ApkPicker.apkCandidates(release.apkAssets) }
@@ -218,21 +222,47 @@ private fun ReleaseCard(
                                 progress = animatedProgress,
                                 modifier = Modifier.fillMaxWidth(),
                             )
-                            Text(
-                                text = stringResource(
-                                    R.string.download_progress_percent,
-                                    (animatedProgress * 100).toInt(),
-                                ),
-                                style = MiuixTheme.textStyles.footnote2,
-                                color = scheme.onBackgroundVariant,
-                            )
+                            Row(verticalAlignment = Alignment.CenterVertically) {
+                                Text(
+                                    text = stringResource(
+                                        R.string.download_progress_percent,
+                                        (animatedProgress * 100).toInt(),
+                                    ) + (
+                                        // 大小参考（asset 带 size 时）：大文件不再「不知要等多久」
+                                        selected?.takeIf { it.size > 0 }?.let { a ->
+                                            val totalMb = a.size / (1024f * 1024f)
+                                            " · %.1f/%.0f MB".format(totalMb * animatedProgress, totalMb)
+                                        } ?: ""
+                                        ),
+                                    style = MiuixTheme.textStyles.footnote2,
+                                    color = scheme.onBackgroundVariant,
+                                    modifier = Modifier.weight(1f),
+                                )
+                                // 取消：文字链而非 X 图标（「取消」语义直白；点击后回「下载」相即反馈）
+                                Text(
+                                    text = stringResource(R.string.cancel),
+                                    style = MiuixTheme.textStyles.footnote1,
+                                    color = scheme.primaryVariant,
+                                    modifier = Modifier
+                                        .clickable(
+                                            interactionSource = remember { MutableInteractionSource() },
+                                            indication = null,
+                                            onClick = onCancelDownload,
+                                        )
+                                        .padding(horizontal = 8.dp, vertical = 4.dp),
+                                )
+                            }
                         }
                         "failed" -> Column {
                             val failed = dl as? DetailViewModel.DownloadState.Failed
                             Text(
                                 text = stringResource(
                                     R.string.download_failed_reason,
-                                    failed?.message ?: stringResource(R.string.err_network),
+                                    // 结构化错误本地化优先，原始 message 兜底（英文技术串也比空白强）
+                                    failed?.let { f ->
+                                        f.error?.let { io.candy.tick.ui.common.sourceErrorText(it) }
+                                            ?: f.message
+                                    } ?: stringResource(R.string.err_network),
                                 ),
                                 style = MiuixTheme.textStyles.footnote2,
                                 color = scheme.onErrorContainer,
@@ -284,11 +314,11 @@ private fun AssetRow(
                 indication = null,
                 onClick = onSelect,
             )
-            .padding(vertical = 6.dp),
+            .padding(vertical = 8.dp),
         verticalAlignment = Alignment.CenterVertically,
     ) {
         Box(
-            modifier = Modifier.size(18.dp),
+            modifier = Modifier.size(20.dp),
             contentAlignment = Alignment.Center,
         ) {
             if (selected) {
@@ -296,6 +326,15 @@ private fun AssetRow(
                     imageVector = MiuixIcons.Basic.Check,
                     contentDescription = "selected",
                     tint = scheme.primaryVariant,
+                    modifier = Modifier.size(20.dp), // intrinsic 26dp，统一选中标记 20dp
+                )
+            } else {
+                // 未选中空心圈：给出「这里可选」的可点暗示（无它整行像纯文本）
+                androidx.compose.foundation.layout.Box(
+                    modifier = Modifier
+                        .size(16.dp)
+                        .clip(CircleShape)
+                        .border(1.5.dp, scheme.onBackgroundVariant.copy(alpha = 0.35f), CircleShape),
                 )
             }
         }

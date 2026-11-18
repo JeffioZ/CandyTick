@@ -158,6 +158,7 @@
     <string name="retry_download">Retry download</string>
     <string name="download_failed_reason">Download failed · %1$s</string>
     <string name="download_progress_percent">%1$d%%</string>
+    <string name="cancel">Cancel</string>
     <string name="install_apk">Install</string>
     <string name="install_done">Installed</string>
     <string name="install_failed_format">Install failed: %1$s</string>
