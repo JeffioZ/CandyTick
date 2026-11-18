@@ -49,9 +49,9 @@ import top.yukonga.miuix.kmp.basic.Text
 import top.yukonga.miuix.kmp.basic.rememberPullToRefreshState
 import top.yukonga.miuix.kmp.basic.rememberTopAppBarState
 import top.yukonga.miuix.kmp.icon.MiuixIcons
-import top.yukonga.miuix.kmp.icon.basic.ArrowUpDown
-import top.yukonga.miuix.kmp.icon.basic.Search
 import top.yukonga.miuix.kmp.icon.extended.Close
+import top.yukonga.miuix.kmp.icon.extended.Search
+import top.yukonga.miuix.kmp.icon.extended.Sort
 import top.yukonga.miuix.kmp.icon.extended.Add
 import top.yukonga.miuix.kmp.icon.extended.Settings
 import top.yukonga.miuix.kmp.theme.MiuixTheme
@@ -191,23 +191,21 @@ fun ListScreen(
                                 imageVector = if (showSearch) {
                                     MiuixIcons.Close
                                 } else {
-                                    MiuixIcons.Basic.Search
+                                    MiuixIcons.Search
                                 },
                                 contentDescription = stringResource(
                                     if (showSearch) R.string.close_search else R.string.action_search,
                                 ),
                                 tint = scheme.onBackground,
-                                // Basic 包 intrinsic 尺寸混乱（Search 20 / Close 24），显式 24dp 与 extended 家族对齐
-                                modifier = Modifier.size(24.dp),
+                                modifier = Modifier.size(24.dp), // 顶栏动作图标统一 24dp
                             )
                         }
                         IconButton(onClick = { showSortSheet = true }) {
                             Icon(
-                                imageVector = MiuixIcons.Basic.ArrowUpDown,
+                                imageVector = MiuixIcons.Sort,
                                 contentDescription = stringResource(R.string.sort_title),
                                 tint = scheme.onBackground,
-                                // intrinsic 10x16dp 窄条，显式 24dp（Fit 等比居中不变形）
-                                modifier = Modifier.size(24.dp),
+                                modifier = Modifier.size(24.dp), // 顶栏动作图标统一 24dp
                             )
                         }
                         IconButton(onClick = onOpenSettings) {
@@ -277,7 +275,7 @@ fun ListScreen(
                     if (state.query.isNotBlank() && state.items.isEmpty() && !state.refreshing) {
                         // 搜索无结果：统一空态组件
                         io.candy.tick.ui.common.StatusPage(
-                            icon = MiuixIcons.Basic.Search,
+                            icon = MiuixIcons.Search,
                             title = stringResource(R.string.search_no_results, state.query),
                             actionLabel = stringResource(R.string.search_clear),
                             onAction = { vm.setQuery("") },

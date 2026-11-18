@@ -170,33 +170,33 @@ internal fun RemoveRepoDialog(
         onDismissRequest = onDismiss,
     ) {
         Column(
-            modifier = Modifier.padding(horizontal = 20.dp, vertical = 12.dp),
-            verticalArrangement = Arrangement.spacedBy(12.dp),
+            modifier = Modifier.padding(horizontal = 20.dp, vertical = 16.dp),
+            verticalArrangement = Arrangement.spacedBy(10.dp),
         ) {
             Text(
                 text = stringResource(R.string.remove_confirm_body, repoName),
                 style = MiuixTheme.textStyles.body2,
                 color = scheme.onBackgroundVariant,
             )
-            Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
-                Spacer(Modifier.weight(1f))
-                TextButton(
-                    text = stringResource(R.string.action_cancel),
-                    onClick = onDismiss,
+            // 与导入弹层同构：主上副下、全宽竖排（dialog 式右对齐小按钮不属于 sheet 体系）
+            top.yukonga.miuix.kmp.basic.Button(
+                onClick = onConfirm,
+                colors = top.yukonga.miuix.kmp.basic.ButtonDefaults.buttonColors(
+                    color = scheme.error,
+                    contentColor = scheme.onError,
+                ),
+                modifier = Modifier.fillMaxWidth(),
+            ) {
+                Text(
+                    text = stringResource(R.string.action_remove),
+                    style = MiuixTheme.textStyles.button,
                 )
-                top.yukonga.miuix.kmp.basic.Button(
-                    onClick = onConfirm,
-                    colors = top.yukonga.miuix.kmp.basic.ButtonDefaults.buttonColors(
-                        color = scheme.error,
-                        contentColor = scheme.onError,
-                    ),
-                ) {
-                    Text(
-                        text = stringResource(R.string.action_remove),
-                        style = MiuixTheme.textStyles.button,
-                    )
-                }
             }
+            io.candy.tick.ui.common.SecondaryButton(
+                text = stringResource(R.string.action_cancel),
+                onClick = onDismiss,
+                modifier = Modifier.fillMaxWidth(),
+            )
         }
     }
 }
@@ -251,7 +251,7 @@ internal fun HeaderCard(
     val context = LocalContext.current
     Card(modifier = Modifier.fillMaxWidth()) {
         // 双层间距体系：跨组 12dp（Spacer）、组内 6dp——视觉分组靠间距差而非分隔线堆叠
-        Column(modifier = Modifier.padding(horizontal = 16.dp, vertical = 12.dp)) {
+        Column(modifier = Modifier.padding(horizontal = 16.dp, vertical = 10.dp)) {
             Row(verticalAlignment = Alignment.CenterVertically) {
                 RepoIconBlock(repo = repo, size = 56.dp, corner = 14.dp)
                 Spacer(Modifier.width(12.dp))
@@ -271,7 +271,7 @@ internal fun HeaderCard(
             }
 
             // ── 信息组（描述 + 统计+推送时间，组内 6dp；无描述时跨组 12dp 不叠加）──
-            Spacer(Modifier.height(12.dp))
+            Spacer(Modifier.height(10.dp))
             snapshot?.description?.takeIf { it.isNotBlank() }?.let {
                 Text(
                     text = it,
@@ -313,7 +313,7 @@ internal fun HeaderCard(
 
             // ── 版本分区（有 tag 时显示分隔线 + 版本行 + 操作按钮）──
             snapshot?.latestReleaseTag?.let { tag ->
-                Spacer(Modifier.height(12.dp))
+                Spacer(Modifier.height(10.dp))
                 SectionDivider()
                 Spacer(Modifier.height(8.dp))
                 VersionStatusLine(repo = repo, remoteTag = tag)
@@ -391,7 +391,7 @@ internal fun HeaderCard(
             }
 
             // ── 关联分区（始终存在，固定卡底）；前置 12dp 与上方版本区呼吸对称 ──
-            Spacer(Modifier.height(12.dp))
+            Spacer(Modifier.height(10.dp))
             SectionDivider()
             // 关联本机应用（可修改 / 解除）
             val linkedLabel = repo.linkedPackage?.let { pkg ->
@@ -459,7 +459,7 @@ internal fun HeaderCard(
                         .clickable(
                             interactionSource = remember { androidx.compose.foundation.interaction.MutableInteractionSource() },
                         ) { onLinkSuggestion() }
-                        .padding(horizontal = 12.dp, vertical = 12.dp),
+                        .padding(horizontal = 12.dp, vertical = 10.dp),
                     verticalAlignment = Alignment.CenterVertically,
                 ) {
                     if (appIcon != null) {

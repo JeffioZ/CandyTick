@@ -50,7 +50,6 @@ import top.yukonga.miuix.kmp.basic.rememberTopAppBarState
 import top.yukonga.miuix.kmp.theme.MiuixTheme
 import top.yukonga.miuix.kmp.icon.MiuixIcons
 import top.yukonga.miuix.kmp.icon.extended.Back
-import top.yukonga.miuix.kmp.icon.extended.Link
 import top.yukonga.miuix.kmp.icon.extended.Delete
 
 @Composable
@@ -156,7 +155,7 @@ fun DetailScreen(repoId: Long, onBack: () -> Unit) {
                             },
                         ) {
                             Icon(
-                                imageVector = MiuixIcons.Link,
+                                imageVector = io.candy.tick.ui.common.ExternalLinkIcon,
                                 contentDescription = stringResource(R.string.open_in_browser),
                                 tint = scheme.onBackground,
                             )

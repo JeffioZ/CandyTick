@@ -40,6 +40,8 @@ import top.yukonga.miuix.kmp.basic.Card
 import top.yukonga.miuix.kmp.basic.Icon
 import top.yukonga.miuix.kmp.basic.Text
 import top.yukonga.miuix.kmp.icon.MiuixIcons
+import top.yukonga.miuix.kmp.icon.extended.ExpandLess
+import top.yukonga.miuix.kmp.icon.extended.ExpandMore
 import top.yukonga.miuix.kmp.icon.extended.Pin
 import top.yukonga.miuix.kmp.theme.MiuixTheme
 import androidx.compose.foundation.layout.width
@@ -61,7 +63,7 @@ fun RepoCard(
         cornerRadius = 16.dp,
         onClick = onClick,
     ) {
-        Column(modifier = Modifier.padding(start = 16.dp, end = 16.dp, top = 12.dp)) {
+        Column(modifier = Modifier.padding(start = 16.dp, end = 16.dp, top = 10.dp)) {
                 Row(verticalAlignment = Alignment.CenterVertically) {
                     RepoIcon(repo = item.repo)
                     Spacer(Modifier.width(12.dp))
@@ -125,11 +127,13 @@ fun RepoCard(
                         animationSpec = androidx.compose.animation.core.tween(150),
                         label = "expandArrow",
                     ) { exp ->
+                        // 库版 Expand 系列（viewport 1088/1122 不一致）：显式 18dp 钉死，Crossfade 切换无尺寸跳
+                        // （曾因此自绘 ChevronPair，改由 size 约束解决——见 GitBranchIcon.kt 的自绘范围注释）
                         Icon(
                             imageVector = if (exp) {
-                                io.candy.tick.ui.common.ChevronUpIcon
+                                MiuixIcons.ExpandLess
                             } else {
-                                io.candy.tick.ui.common.ChevronDownIcon
+                                MiuixIcons.ExpandMore
                             },
                             contentDescription = null,
                             tint = scheme.onBackgroundVariant,
@@ -142,8 +146,8 @@ fun RepoCard(
                     Column {
                         Spacer(Modifier.height(4.dp))
                         ExpandedDetails(item = item, extras = extras)
-                        // 卡底留白放展开块内：收起时随动画移除，折叠态底部 12dp 与顶对称
-                        Spacer(Modifier.height(12.dp))
+                        // 卡底留白放展开块内：收起时随动画移除，折叠态底部与顶对称（10dp）
+                        Spacer(Modifier.height(10.dp))
                     }
                 }
             }

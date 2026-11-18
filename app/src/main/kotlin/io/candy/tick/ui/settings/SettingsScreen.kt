@@ -56,11 +56,11 @@ import top.yukonga.miuix.kmp.icon.extended.File
 import top.yukonga.miuix.kmp.icon.extended.FileDownloads
 import top.yukonga.miuix.kmp.icon.extended.Import
 import top.yukonga.miuix.kmp.icon.extended.Info
-import top.yukonga.miuix.kmp.icon.extended.Link
 import top.yukonga.miuix.kmp.icon.extended.Lock
 import top.yukonga.miuix.kmp.icon.extended.WorldClock
 import top.yukonga.miuix.kmp.icon.extended.Messages
 import top.yukonga.miuix.kmp.icon.extended.Refresh
+import top.yukonga.miuix.kmp.icon.extended.Report
 import top.yukonga.miuix.kmp.icon.extended.Share
 import top.yukonga.miuix.kmp.icon.extended.Theme
 import top.yukonga.miuix.kmp.icon.extended.Timer
@@ -201,10 +201,8 @@ fun SettingsScreen(onBack: () -> Unit) {
         // 不 recreate：ContextWrapper 包裹会响应 language 变化原地切换文字
     }
 
-    /** 1=已授权 0=未授权 2=无需授予（见文件级 permText） */
-
     Scaffold(
-             containerColor = androidx.compose.ui.graphics.Color.Transparent,
+        containerColor = androidx.compose.ui.graphics.Color.Transparent,
         topBar = {
             SmallTopAppBar(
                 title = stringResource(R.string.settings_title),
@@ -433,7 +431,7 @@ fun SettingsScreen(onBack: () -> Unit) {
             item(key = "about") {
             SettingsGroup(title = stringResource(R.string.settings_about_group)) {
                 SettingRow(
-                    icon = MiuixIcons.Link,
+                    icon = io.candy.tick.ui.common.ExternalLinkIcon,
                     iconTint = ChipPeriwinkle,
                     title = stringResource(R.string.settings_github_repo),
                     value = "JeffioZ/CandyTick",
@@ -449,7 +447,8 @@ fun SettingsScreen(onBack: () -> Unit) {
                 )
                 RowDivider()
                 SettingRow(
-                    icon = MiuixIcons.Info,
+                    // Report（错误报告）：与「当前版本」的 Info 区分，崩溃日志语义更准
+                    icon = MiuixIcons.Report,
                     iconTint = ChipOrange,
                     title = stringResource(R.string.settings_crash_log),
                     summary = stringResource(R.string.settings_crash_log_summary),

@@ -38,7 +38,6 @@ import top.yukonga.miuix.kmp.basic.TextField
 import top.yukonga.miuix.kmp.basic.IconButton
 import top.yukonga.miuix.kmp.icon.MiuixIcons
 import top.yukonga.miuix.kmp.icon.extended.Hide
-import top.yukonga.miuix.kmp.icon.extended.Link
 import top.yukonga.miuix.kmp.icon.extended.Show
 import top.yukonga.miuix.kmp.theme.MiuixTheme
 
@@ -357,7 +356,7 @@ internal fun TokenDialog(
                 verticalAlignment = Alignment.CenterVertically,
             ) {
                 Icon(
-                    imageVector = MiuixIcons.Link,
+                    imageVector = io.candy.tick.ui.common.ExternalLinkIcon,
                     contentDescription = null,
                     tint = scheme.primaryVariant,
                     modifier = Modifier.size(13.dp),
