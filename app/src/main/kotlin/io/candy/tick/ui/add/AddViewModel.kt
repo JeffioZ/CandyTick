@@ -57,9 +57,11 @@ class AddViewModel(
     val state: StateFlow<UiState> = _state.asStateFlow()
 
     private var fetchingKey: String? = null
+    private var parseJob: kotlinx.coroutines.Job? = null
 
     fun onInput(text: String) {
         _state.update { it.copy(input = text, searchFailed = false, searched = false) }
+        parseJob?.cancel()
         val parsed = UrlParser.parse(text)
         if (parsed == null) {
             val looksTried = UrlParser.looksLikeUrl(text)
@@ -73,9 +75,22 @@ class AddViewModel(
             return
         }
         _state.update { it.copy(parseError = false) }
-        val key = "${parsed.first}/${parsed.second}"
-        if (key == fetchingKey) return
-        fetchingKey = key
+        // 250ms debounce：裸 owner/repo 逐字输入的中间态不再各发一次请求（匿名限额 60/h 很贵）
+        parseJob = viewModelScope.launch {
+            kotlinx.coroutines.delay(250)
+            val key = "${parsed.first}/${parsed.second}"
+            if (key == fetchingKey) return@launch
+            fetchingKey = key
+            fetchPreview(parsed.first, parsed.second)
+        }
+    }
+
+    /** 预览失败重试：清键后按当前输入重新解析拉取 */
+    fun retryPreview() {
+        parseJob?.cancel()
+        fetchingKey = null
+        val parsed = UrlParser.parse(_state.value.input) ?: return
+        fetchingKey = "${parsed.first}/${parsed.second}"
         fetchPreview(parsed.first, parsed.second)
     }
 
@@ -142,6 +157,7 @@ class AddViewModel(
 
     /** 每次进入添加页调用：清空上一次的输入 / 预览 / 卡死标志 */
     fun reset() {
+        parseJob?.cancel()
         fetchingKey = null
         _state.value = UiState()
     }

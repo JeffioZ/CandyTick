@@ -26,6 +26,7 @@ import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.combine
+import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.receiveAsFlow
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.delay
@@ -225,26 +226,33 @@ class ListViewModel(
                 tracked.owner.lowercase().contains(q) ||
                 tracked.noteName?.lowercase()?.contains(q) == true
         }
+        val items = source.map { RepoListItem(it, snapshots[it.id], errors[it.id]) }
+        // 「可更新」预计算：比较器内直查 Map，避免每次比较都跑 PackageManager IPC（O(n·log n) → O(n)）
+        val upd = if (sort == SortMode.UPDATABLE) {
+            items.associate { it.repo.id to it.hasUpdate(context) }
+        } else {
+            emptyMap()
+        }
         val base = when (sort) {
                 SortMode.LAST_PUSH -> compareByDescending<RepoListItem> { it.snapshot?.pushedAt?.toEpochMilli() ?: Long.MIN_VALUE }
                 SortMode.STATUS -> compareBy { it.status }
                 SortMode.ADDED -> compareByDescending<RepoListItem> { it.repo.addedAt.toEpochMilli() }
-                SortMode.NAME -> compareBy { it.repo.repo.lowercase() }
-                SortMode.NAME_DESC -> compareByDescending<RepoListItem> { it.repo.repo.lowercase() }
+                // 按显示名排（备注优先）：列表显示什么就按什么排，改名后排序跟随
+                SortMode.NAME -> compareBy { (it.repo.noteName ?: it.repo.repo).lowercase() }
+                SortMode.NAME_DESC -> compareByDescending<RepoListItem> { (it.repo.noteName ?: it.repo.repo).lowercase() }
                 // 「可更新」优先：仅版本可比且严格更新（宁可不比）
-                SortMode.UPDATABLE -> compareByDescending<RepoListItem> { it.hasUpdate(context) }
+                SortMode.UPDATABLE -> compareByDescending<RepoListItem> { upd[it.repo.id] == true }
                     .thenByDescending { it.snapshot?.pushedAt?.toEpochMilli() ?: Long.MIN_VALUE }
             }
         // 置顶组永远最前（组内沿用当前排序 + 最近置顶在前）；搜索时按纯排序避免困惑
         return if (q.isBlank()) {
-            source.map { RepoListItem(it, snapshots[it.id], errors[it.id]) }
-                .sortedWith(
+            items.sortedWith(
                     compareByDescending<RepoListItem> { it.repo.pinnedAt != null }
                         .thenByDescending { it.repo.pinnedAt?.toEpochMilli() ?: 0L }
                         .then(base),
                 )
         } else {
-            source.map { RepoListItem(it, snapshots[it.id], errors[it.id]) }.sortedWith(base)
+            items.sortedWith(base)
         }
     }
 
@@ -261,8 +269,17 @@ class ListViewModel(
     /** 下拉刷新：单仓库失败只做角标，全部失败才出横幅（旧数据保留） */
     fun refresh() {
         if (refreshing.value) return
-        // 自动同步进行中则让位：结果同样经胶囊/圆点交付，避免同一仓库并发双请求烧配额
-        if (syncStatus.value is SyncStatus.Running) return
+        // 自动同步进行中则让位：结果同样经胶囊/圆点交付，避免同一仓库并发双请求烧配额。
+        // 但松手瞬间「刷新中」文字已亮——静默 return 会让它闪现即逝（进页同步窗口内下拉必现），
+        // 接管 refreshing 直到同步结束，指示器节奏才连贯
+        if (syncStatus.value is SyncStatus.Running) {
+            viewModelScope.launch {
+                refreshing.value = true
+                syncStatus.first { it !is SyncStatus.Running }
+                refreshing.value = false
+            }
+            return
+        }
         viewModelScope.launch {
             refreshing.value = true
             banner.value = null

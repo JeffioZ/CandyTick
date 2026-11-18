@@ -24,11 +24,11 @@
     <string name="sort_name">A-Z</string>
     <string name="sort_name_desc">Z-A</string>
     <string name="sort_updatable">有更新</string>
-    <string name="sort_added">新添加</string>
+    <string name="sort_added">最近添加</string>
     <string name="open_in_browser">在浏览器打开</string>
     <string name="detail_remove_repo">移除仓库</string>
     <string name="remove_confirm_title">移除这个仓库？</string>
-    <string name="remove_confirm_body">将停止追踪 %1$s，已下载的安装包会保留。</string>
+    <string name="remove_confirm_body">将停止追踪 %1$s，已下载的安装包将在下次启动时清理。</string>
     <string name="action_cancel">取消</string>
     <string name="action_remove">移除</string>
     <string name="empty_title">还在维护吗？</string>
@@ -118,6 +118,9 @@
     <string name="add_license">许可证：%1$s</string>
     <string name="add_link_app_optional">关联本机应用（可选）</string>
     <string name="add_linked_app_named">已关联：%1$s · 更改</string>
+    <string name="add_guide_title">粘贴仓库链接，或输入关键词搜索</string>
+    <string name="add_guide_formats">支持 github.com/owner/repo 或 owner/repo</string>
+    <string name="add_open_existing">打开已订阅的仓库</string>
     <string name="add_duplicate">已在列表中</string>
     <string name="add_confirm">添加仓库</string>
 

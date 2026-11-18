@@ -5,6 +5,7 @@ import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.imePadding
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
@@ -49,6 +50,8 @@ import top.yukonga.miuix.kmp.basic.TextField
 import top.yukonga.miuix.kmp.theme.MiuixTheme
 import top.yukonga.miuix.kmp.icon.MiuixIcons
 import top.yukonga.miuix.kmp.icon.extended.Back
+import top.yukonga.miuix.kmp.icon.extended.Link
+import top.yukonga.miuix.kmp.icon.extended.Search
 
 @Composable
 fun AddScreen(
@@ -78,7 +81,9 @@ fun AddScreen(
     }
 
     Scaffold(
-             containerColor = androidx.compose.ui.graphics.Color.Transparent,
+        // 键盘弹出时整页收缩到 ime 上方：居中的 loading/引导不被键盘盖住
+        modifier = Modifier.imePadding(),
+        containerColor = androidx.compose.ui.graphics.Color.Transparent,
         topBar = {
             SmallTopAppBar(
                 color = androidx.compose.ui.graphics.Color.Transparent,
@@ -129,15 +134,20 @@ fun AddScreen(
                 ) {
                     io.candy.tick.ui.common.LoadingDots(dotSize = 5.dp)
                 }
-                is AddViewModel.PreviewState.Failed -> Text(
-                    text = sourceErrorText(preview.error),
-                    style = MiuixTheme.textStyles.body2,
-                    color = MiuixTheme.colorScheme.onErrorContainer,
-                )
+                is AddViewModel.PreviewState.Failed -> androidx.compose.foundation.layout.Column {
+                    Text(
+                        text = sourceErrorText(preview.error),
+                        style = MiuixTheme.textStyles.body2,
+                        color = MiuixTheme.colorScheme.onErrorContainer,
+                    )
+                    // 网络抖动类失败：重试不必改输入重来（skill error-recovery）
+                    TextButtonLike(text = stringResource(R.string.retry), onClick = vm::retryPreview)
+                }
                 is AddViewModel.PreviewState.Loaded -> PreviewCard(
                     state = state,
                     onLinkApp = { showAppPicker = true },
                     onConfirm = vm::confirmAdd,
+                    onOpenExisting = { onAdded(preview.info.githubId) },
                 )
                 AddViewModel.PreviewState.Idle -> Unit
             }
@@ -155,11 +165,13 @@ fun AddScreen(
                     style = MiuixTheme.textStyles.footnote1,
                     color = MiuixTheme.colorScheme.onErrorContainer,
                 )
+                // 失败要有出路（skill error-recovery）：重试走同一条提交路径
+                TextButtonLike(text = stringResource(R.string.retry), onClick = vm::submit)
             } else if (state.searched && !state.searching && state.results.isEmpty() &&
                 state.preview is AddViewModel.PreviewState.Idle
             ) {
                 io.candy.tick.ui.common.StatusPage(
-                    icon = top.yukonga.miuix.kmp.icon.MiuixIcons.Basic.Search,
+                    icon = MiuixIcons.Search,
                     compact = true,
                     title = stringResource(R.string.add_search_empty),
                     modifier = Modifier
@@ -180,7 +192,7 @@ fun AddScreen(
                             cornerRadius = 16.dp,
                             onClick = { vm.pickResult(info) },
                         ) {
-                            Column(modifier = Modifier.padding(horizontal = 16.dp, vertical = 12.dp)) {
+                            Column(modifier = Modifier.padding(horizontal = 16.dp, vertical = 10.dp)) {
                                 Row(verticalAlignment = Alignment.CenterVertically) {
                                     AvatarBlock(owner = info.owner)
                                     Spacer(Modifier.width(12.dp))
@@ -222,7 +234,32 @@ fun AddScreen(
                     }
                 }
             } else if (state.preview is AddViewModel.PreviewState.Idle && !state.searching) {
-                Spacer(Modifier.weight(1f))
+                // 初次进入的输入引导：说清两种输入方式（新用户不知道能粘链接/裸 owner/repo）
+                Column(
+                    modifier = Modifier.weight(1f).fillMaxWidth(),
+                    horizontalAlignment = Alignment.CenterHorizontally,
+                    verticalArrangement = Arrangement.Center,
+                ) {
+                    top.yukonga.miuix.kmp.basic.Icon(
+                        imageVector = top.yukonga.miuix.kmp.icon.MiuixIcons.Link,
+                        contentDescription = null,
+                        tint = MiuixTheme.colorScheme.onBackgroundVariant,
+                    )
+                    Spacer(Modifier.height(10.dp))
+                    Text(
+                        text = stringResource(R.string.add_guide_title),
+                        style = MiuixTheme.textStyles.body2,
+                        color = MiuixTheme.colorScheme.onBackgroundVariant,
+                        textAlign = androidx.compose.ui.text.style.TextAlign.Center,
+                    )
+                    Spacer(Modifier.height(4.dp))
+                    Text(
+                        text = stringResource(R.string.add_guide_formats),
+                        style = MiuixTheme.textStyles.footnote2,
+                        color = MiuixTheme.colorScheme.onBackgroundVariant,
+                        textAlign = androidx.compose.ui.text.style.TextAlign.Center,
+                    )
+                }
             }
         }
     }
@@ -242,13 +279,14 @@ private fun PreviewCard(
     state: AddViewModel.UiState,
     onLinkApp: () -> Unit,
     onConfirm: () -> Unit,
+    onOpenExisting: () -> Unit,
 ) {
     val preview = state.preview as AddViewModel.PreviewState.Loaded
     val info = preview.info
     val scheme = MiuixTheme.colorScheme
     Card(modifier = Modifier.fillMaxWidth(), cornerRadius = 16.dp) {
         // 与首页卡/详情头卡同一语言：身份区（头像+名称+路径）→ 信息组 → 操作区，跨组 12dp / 组内 6dp
-        Column(modifier = Modifier.padding(horizontal = 16.dp, vertical = 12.dp)) {
+        Column(modifier = Modifier.padding(horizontal = 16.dp, vertical = 10.dp)) {
             Row(verticalAlignment = Alignment.CenterVertically) {
                 AvatarBlock(owner = info.owner)
                 Spacer(Modifier.width(12.dp))
@@ -266,7 +304,7 @@ private fun PreviewCard(
                 }
             }
 
-            Spacer(Modifier.height(12.dp))
+            Spacer(Modifier.height(10.dp))
             if (!info.description.isNullOrBlank()) {
                 Text(
                     text = info.description,
@@ -288,7 +326,7 @@ private fun PreviewCard(
                 )
             }
 
-            Spacer(Modifier.height(12.dp))
+            Spacer(Modifier.height(10.dp))
             TextButtonLike(
                 text = state.linkedLabel?.let {
                     stringResource(R.string.add_linked_app_named, it)
@@ -301,6 +339,12 @@ private fun PreviewCard(
                     text = stringResource(R.string.add_duplicate),
                     style = MiuixTheme.textStyles.footnote1,
                     color = scheme.onErrorContainer,
+                )
+                // 已订阅过不是死路：直接打开现有仓库（githubId 即内部 id）
+                PrimaryButton(
+                    text = stringResource(R.string.add_open_existing),
+                    onClick = onOpenExisting,
+                    modifier = Modifier.fillMaxWidth(),
                 )
             } else {
                 PrimaryButton(

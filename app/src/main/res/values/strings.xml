@@ -23,12 +23,12 @@
     <string name="sort_status">Status</string>
     <string name="sort_name">A-Z</string>
     <string name="sort_name_desc">Z-A</string>
-    <string name="sort_updatable">Has update</string>
+    <string name="sort_updatable">Updates available</string>
     <string name="sort_added">Recently added</string>
     <string name="open_in_browser">Open in browser</string>
     <string name="detail_remove_repo">Remove repository</string>
     <string name="remove_confirm_title">Remove this repository?</string>
-    <string name="remove_confirm_body">Stop tracking %1$s. Downloaded APKs are kept.</string>
+    <string name="remove_confirm_body">Stop tracking %1$s. Downloaded packages will be cleaned up on next launch.</string>
     <string name="action_cancel">Cancel</string>
     <string name="action_remove">Remove</string>
     <string name="empty_title">still ticking?</string>
@@ -128,6 +128,9 @@
     <string name="add_license">License: %1$s</string>
     <string name="add_link_app_optional">Link installed app (optional)</string>
     <string name="add_linked_app_named">Linked: %1$s · change</string>
+    <string name="add_guide_title">Paste a repository link, or search by keyword</string>
+    <string name="add_guide_formats">github.com/owner/repo or owner/repo</string>
+    <string name="add_open_existing">Open the existing repo</string>
     <string name="add_duplicate">Already in your list</string>
     <string name="add_confirm">Add repository</string>
 
