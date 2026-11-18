@@ -162,7 +162,8 @@
     <string name="list_end">— the end —</string>
     <string name="asset_recommended">Recommended</string>
     <string name="download_apk">Download APK</string>
-    <string name="download_retry">Download failed · tap to retry</string>
+    <string name="retry_download">Retry download</string>
+    <string name="download_failed_reason">Download failed · %1$s</string>
     <string name="download_progress_percent">%1$d%%</string>
     <string name="install_apk">Install</string>
     <string name="install_done">Installed</string>

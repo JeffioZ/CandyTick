@@ -7,7 +7,6 @@ import androidx.compose.animation.fadeOut
 import androidx.compose.animation.slideInVertically
 import androidx.compose.animation.slideOutVertically
 import androidx.compose.foundation.background
-import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Row
@@ -84,12 +83,13 @@ fun FeedbackHost() {
         visible = false
     }
 
-    // 顶部居中（状态栏之下）：本应用反馈位既定决策 + HyperOS 系统提示同位；
+    // 顶部居中、顶栏之下：状态栏 + 标准顶栏高（64dp）+ 间距，避开标题/动作区；
     // 不与拇指区/手势条/键盘争地盘。动效自上滑入、向上滑出（与原同步胶囊一致）
     Box(
         modifier = Modifier
             .fillMaxSize()
-            .statusBarsPadding(),
+            .statusBarsPadding()
+            .padding(top = 76.dp),
         contentAlignment = Alignment.TopCenter,
     ) {
         AnimatedVisibility(
@@ -98,33 +98,37 @@ fun FeedbackHost() {
             exit = fadeOut(tween(220)) + slideOutVertically(tween(220)) { -it },
         ) {
             shown?.let { m ->
+                // 语义容器：成功=品牌薄荷（primaryContainer 系），错误=红容器（与错误横幅同语言）。
+                // 整颗胶囊说结果的颜色，替代之前的灰底灰字（中性浮层在薄荷品牌里发闷无主）
+                val container = if (m.isError) scheme.errorContainer else scheme.primaryContainer
+                val onContainer = if (m.isError) scheme.onErrorContainer else scheme.onPrimaryContainer
                 Row(
                     modifier = Modifier
-                        .padding(top = 12.dp)
+                        .padding(top = 0.dp)
                         .shadow(4.dp, RoundedCornerShape(20.dp))
                         .clip(RoundedCornerShape(20.dp))
-                        .background(scheme.surfaceContainerHigh)
-                        .border(1.dp, scheme.dividerLine)
-                        .padding(start = 14.dp, end = 14.dp, top = 10.dp, bottom = 10.dp),
+                        .background(container)
+                        .padding(start = 14.dp, end = 12.dp, top = 10.dp, bottom = 10.dp),
                     verticalAlignment = Alignment.CenterVertically,
                 ) {
                     Text(
-                        text = if (m.isError) "\u2715" else "\u2713",
+                        text = if (m.isError) "✕" else "✓",
                         style = MiuixTheme.textStyles.footnote1,
-                        color = if (m.isError) scheme.onErrorContainer else scheme.primaryVariant,
+                        color = onContainer,
                     )
                     Spacer(Modifier.width(6.dp))
                     Text(
                         text = m.text,
                         style = MiuixTheme.textStyles.footnote1,
-                        color = scheme.onBackground,
+                        color = onContainer,
                     )
                     m.actionLabel?.let { label ->
                         Spacer(Modifier.width(4.dp))
                         Text(
                             text = label,
                             style = MiuixTheme.textStyles.footnote1,
-                            color = scheme.primaryVariant,
+                            color = onContainer,
+                            fontWeight = androidx.compose.ui.text.font.FontWeight.Medium,
                             modifier = Modifier
                                 .clip(RoundedCornerShape(8.dp))
                                 .clickable {

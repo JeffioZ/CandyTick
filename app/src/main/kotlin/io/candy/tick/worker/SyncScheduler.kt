@@ -46,6 +46,8 @@ class SyncScheduler(private val context: Context) {
         val manager = WorkManager.getInstance(context)
         val request = OneTimeWorkRequestBuilder<SyncWorker>()
             .setConstraints(Constraints.Builder().setRequiredNetworkType(NetworkType.CONNECTED).build())
+            // 加急作业：消除 WorkManager 调度延迟，启动即跑（10 分钟节流远在加急配额内）
+            .setExpedited(androidx.work.OutOfQuotaPolicy.RUN_AS_NON_EXPEDITED_WORK_REQUEST)
             .build()
         manager.enqueueUniqueWork(WORK_SYNC_ON_OPEN, ExistingWorkPolicy.REPLACE, request)
     }

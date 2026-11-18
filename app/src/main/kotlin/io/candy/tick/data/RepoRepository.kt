@@ -164,10 +164,11 @@ class RepoRepository(
                 is RepoInfoResult.Fetched -> {
                     val info = result.info
                     val renamed = tracked.owner != info.owner || tracked.repo != info.repo
-                    // latestReleaseTag 是跨刷新的累积状态（SyncWorker 维护），替换快照时必须保留，
-                    // 否则每次 200 刷新都会闪变 null→tag，被「有更新」监听误判
-                    val previousTag = store.state.value.snapshots[id]?.latestReleaseTag
+                    // latestReleaseTag 是跨刷新的累积状态（SyncWorker 维护），替换快照时必须保留；
+                    // previousTag 的读取必须在 update 的 transform 内——否则与 SyncWorker 的
+                    // setLatestReleaseTag 并发时会用旧值覆盖新值（重复通知竞态的根因）
                     store.update { s ->
+                        val previousTag = s.snapshots[id]?.latestReleaseTag
                         s.copy(
                             repos = if (renamed) {
                                 s.repos.map { if (it.id == id) it.copy(owner = info.owner, repo = info.repo) else it }

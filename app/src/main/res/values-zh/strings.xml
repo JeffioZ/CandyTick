@@ -152,7 +152,8 @@
     <string name="list_end">— 已到底 —</string>
     <string name="asset_recommended">推荐</string>
     <string name="download_apk">下载 APK</string>
-    <string name="download_retry">下载失败 · 点击重试</string>
+    <string name="retry_download">重试下载</string>
+    <string name="download_failed_reason">下载失败 · %1$s</string>
     <string name="download_progress_percent">%1$d%%</string>
     <string name="install_apk">安装</string>
     <string name="install_done">安装成功</string>

@@ -19,6 +19,19 @@ import java.util.concurrent.atomic.AtomicInteger
  */
 class SyncWorker(context: Context, params: WorkerParameters) : CoroutineWorker(context, params) {
 
+    /** API 29-30 上加急作业以前台服务执行，必须提供此信息（否则运行时崩） */
+    override suspend fun getForegroundInfo(): androidx.work.ForegroundInfo {
+        val notification = androidx.core.app.NotificationCompat.Builder(
+            applicationContext,
+            io.candy.tick.data.Notifications.CHANNEL_SELF_UPDATE,
+        )
+            .setSmallIcon(io.candy.tick.R.drawable.ic_notification)
+            .setContentTitle(applicationContext.getString(io.candy.tick.R.string.app_name))
+            .setSilent(true)
+            .build()
+        return androidx.work.ForegroundInfo(id.hashCode(), notification)
+    }
+
     override suspend fun doWork(): Result {
         val container = (applicationContext as CandyTickApp).container
         val state = container.appStateStore.state.value

@@ -18,6 +18,7 @@ import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.background
 import top.yukonga.miuix.kmp.icon.extended.Close
 import top.yukonga.miuix.kmp.icon.extended.File
+import androidx.compose.animation.togetherWith
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.LaunchedEffect
@@ -37,7 +38,6 @@ import io.candy.tick.util.ApkPicker
 import top.yukonga.miuix.kmp.basic.Card
 import top.yukonga.miuix.kmp.basic.LinearProgressIndicator
 import top.yukonga.miuix.kmp.basic.Text
-import top.yukonga.miuix.kmp.basic.TextButton
 import top.yukonga.miuix.kmp.icon.MiuixIcons
 import top.yukonga.miuix.kmp.icon.basic.Check
 import top.yukonga.miuix.kmp.icon.extended.Delete
@@ -158,12 +158,54 @@ private fun ReleaseCard(
                     )
                 }
 
-                when (val download = state.download) {
-                    is DetailViewModel.DownloadState.Active -> {
-                        if (download.assetName == selected?.name) {
-                            // 进度补间：下载回调跳变 → 300ms 平滑
+                // 动作区四相（download/progress/failed/downloaded）：AnimatedContent 柔切换，
+                // 尺寸渐变消除删除后按钮宽度突变；进度/失败只归属对应 release+asset（双维匹配防串台），
+                // 头部入口的下载不在卡片重复显示进度
+                val dl = state.download
+                val mine = dl != null && dl.releaseKey == release.tagName &&
+                    dl.assetName == selected?.name
+                val actionPhase = when {
+                    state.repo?.downloadedApk?.version == release.tagName -> "downloaded"
+                    mine && dl is DetailViewModel.DownloadState.Active && !dl.fromHeader -> "progress"
+                    mine && dl is DetailViewModel.DownloadState.Failed -> "failed"
+                    else -> "download"
+                }
+                androidx.compose.animation.AnimatedContent(
+                    targetState = actionPhase,
+                    transitionSpec = {
+                        (androidx.compose.animation.fadeIn(androidx.compose.animation.core.tween(180)) +
+                            androidx.compose.animation.slideInVertically(
+                                animationSpec = androidx.compose.animation.core.tween(180),
+                            ) { it / 6 }) togetherWith
+                            androidx.compose.animation.fadeOut(androidx.compose.animation.core.tween(180))
+                    },
+                    label = "releaseAction",
+                ) { phase ->
+                    when (phase) {
+                        "downloaded" -> Row(
+                            modifier = Modifier.fillMaxWidth(),
+                            horizontalArrangement = Arrangement.spacedBy(8.dp),
+                            verticalAlignment = Alignment.CenterVertically,
+                        ) {
+                            Box(modifier = Modifier.weight(1f)) {
+                                PrimaryButton(
+                                    text = stringResource(R.string.install_apk),
+                                    onClick = onInstallDownloaded,
+                                    modifier = Modifier.fillMaxWidth(),
+                                )
+                            }
+                            top.yukonga.miuix.kmp.basic.IconButton(onClick = onDeleteDownloaded) {
+                                top.yukonga.miuix.kmp.basic.Icon(
+                                    imageVector = top.yukonga.miuix.kmp.icon.MiuixIcons.Delete,
+                                    contentDescription = stringResource(R.string.detail_delete_download),
+                                    tint = scheme.onErrorContainer,
+                                )
+                            }
+                        }
+                        "progress" -> Column {
+                            val active = dl as? DetailViewModel.DownloadState.Active
                             val animatedProgress by androidx.compose.animation.core.animateFloatAsState(
-                                targetValue = download.progress,
+                                targetValue = active?.progress ?: 0f,
                                 animationSpec = androidx.compose.animation.core.tween(300),
                                 label = "releaseDl",
                             )
@@ -172,55 +214,36 @@ private fun ReleaseCard(
                                 modifier = Modifier.fillMaxWidth(),
                             )
                             Text(
-                                text = stringResource(R.string.download_progress_percent, (animatedProgress * 100).toInt()),
+                                text = stringResource(
+                                    R.string.download_progress_percent,
+                                    (animatedProgress * 100).toInt(),
+                                ),
                                 style = MiuixTheme.textStyles.footnote2,
                                 color = scheme.onBackgroundVariant,
                             )
                         }
-                    }
-                    is DetailViewModel.DownloadState.Failed -> {
-                        if (download.assetName == selected?.name) {
-                            TextButton(
-                                text = stringResource(R.string.download_retry),
-                                onClick = { onRetry(release, selected) },
+                        "failed" -> Column {
+                            val failed = dl as? DetailViewModel.DownloadState.Failed
+                            Text(
+                                text = stringResource(
+                                    R.string.download_failed_reason,
+                                    failed?.message ?: stringResource(R.string.err_network),
+                                ),
+                                style = MiuixTheme.textStyles.footnote2,
+                                color = scheme.onErrorContainer,
                             )
-                        }
-                    }
-                    else -> Unit
-                }
-
-                // 安装入口统一由持久记录 downloadedApk 渲染（会话态 Done 不再画按钮，避免双入口）
-                val isDownloadedVersion = state.repo?.downloadedApk?.version == release.tagName
-                if (isDownloadedVersion) {
-                    // 已下载：安装 + 删除（归属此 Release，替代原头部行）
-                    Row(
-                        modifier = Modifier.fillMaxWidth(),
-                        horizontalArrangement = Arrangement.spacedBy(8.dp),
-                        verticalAlignment = Alignment.CenterVertically,
-                    ) {
-                        Box(modifier = Modifier.weight(1f)) {
                             PrimaryButton(
-                                text = stringResource(R.string.install_apk),
-                                onClick = onInstallDownloaded,
+                                text = stringResource(R.string.retry_download),
+                                onClick = { selected?.let { onRetry(release, it) } },
                                 modifier = Modifier.fillMaxWidth(),
                             )
                         }
-                        top.yukonga.miuix.kmp.basic.IconButton(onClick = onDeleteDownloaded) {
-                            top.yukonga.miuix.kmp.basic.Icon(
-                                imageVector = top.yukonga.miuix.kmp.icon.MiuixIcons.Delete,
-                                contentDescription = stringResource(R.string.detail_delete_download),
-                                tint = scheme.onErrorContainer,
-                            )
-                        }
+                        else -> PrimaryButton(
+                            text = stringResource(R.string.download_apk),
+                            onClick = { selected?.let { onDownload(release, it) } },
+                            modifier = Modifier.fillMaxWidth(),
+                        )
                     }
-                } else if (selected != null &&
-                    (state.download == null || state.download is DetailViewModel.DownloadState.Failed)
-                ) {
-                    PrimaryButton(
-                        text = stringResource(R.string.download_apk),
-                        onClick = { onDownload(release, selected) },
-                        modifier = Modifier.fillMaxWidth(),
-                    )
                 }
             }
         }

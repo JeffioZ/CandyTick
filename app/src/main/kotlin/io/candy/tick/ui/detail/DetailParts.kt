@@ -331,7 +331,9 @@ internal fun HeaderCard(
             val downloadedMatches = repo.downloadedApk?.version == latestTag
             // 按分支作 key（不能按 state 对象：进度每跳一格会重播转场）；三态柔切换 + 进度补间
             val updatePhase = when {
-                state.download is DetailViewModel.DownloadState.Active -> "progress"
+                // 仅头部入口发起的下载在头部显示进度；卡片入口的进度归卡片，不重复
+                state.download is DetailViewModel.DownloadState.Active &&
+                    state.download.fromHeader -> "progress"
                 hasUpdate && downloadedMatches -> "install"
                 hasUpdate -> "download"
                 else -> "idle"

@@ -261,6 +261,8 @@ class ListViewModel(
     /** 下拉刷新：单仓库失败只做角标，全部失败才出横幅（旧数据保留） */
     fun refresh() {
         if (refreshing.value) return
+        // 自动同步进行中则让位：结果同样经胶囊/圆点交付，避免同一仓库并发双请求烧配额
+        if (syncStatus.value is SyncStatus.Running) return
         viewModelScope.launch {
             refreshing.value = true
             banner.value = null

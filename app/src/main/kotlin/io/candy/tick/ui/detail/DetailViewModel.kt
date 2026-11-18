@@ -34,9 +34,28 @@ class DetailViewModel(
 ) : ViewModel() {
 
     sealed interface DownloadState {
-        data class Active(val assetName: String, val progress: Float) : DownloadState
-        data class Done(val assetName: String, val file: File) : DownloadState
-        data class Failed(val assetName: String) : DownloadState
+        /** releaseKey=tagName + assetName 双维匹配：防同名资产的失败/进度态跨版本误显示 */
+        val releaseKey: String
+        val assetName: String
+
+        data class Active(
+            override val releaseKey: String,
+            override val assetName: String,
+            val progress: Float,
+            val fromHeader: Boolean = false, // 头部入口下载：进度只在头部显示，卡片不重复
+        ) : DownloadState
+
+        data class Done(
+            override val releaseKey: String,
+            override val assetName: String,
+            val file: File,
+        ) : DownloadState
+
+        data class Failed(
+            override val releaseKey: String,
+            override val assetName: String,
+            val message: String? = null,
+        ) : DownloadState
     }
 
     data class UiState(
@@ -245,10 +264,12 @@ class DetailViewModel(
     }
 
     /** 下载 APK → 私有目录（下载保留；同仓库只留最新一份），完成后记录到 TrackedRepo */
-    fun downloadAsset(release: ReleaseRecord, asset: ApkAsset) {
+    fun downloadAsset(release: ReleaseRecord, asset: ApkAsset, fromHeader: Boolean = false) {
         if (_state.value.download is DownloadState.Active) return
         viewModelScope.launch {
-            _state.update { it.copy(download = DownloadState.Active(asset.name, 0f)) }
+            _state.update {
+                it.copy(download = DownloadState.Active(release.tagName, asset.name, 0f, fromHeader))
+            }
             val dest = File(apkDir, asset.name)
             val result = runCatching {
                 githubApi.download(asset.url, dest) { p ->
@@ -262,7 +283,7 @@ class DetailViewModel(
                 onSuccess = { file ->
                     // 清理同仓库旧文件（下载保留只留当前）
                     apkDir.listFiles()?.filter { it != file }?.forEach { it.delete() }
-                    _state.update { it.copy(download = DownloadState.Done(asset.name, file)) }
+                    _state.update { it.copy(download = DownloadState.Done(release.tagName, asset.name, file)) }
                     repository.setDownloadedApk(repoId, DownloadedApk(asset.name, release.tagName))
                     // 下载到手 → 免费读包名自动关联（getPackageArchiveInfo，零依赖）
                     autoLinkFromApk(file)
@@ -271,8 +292,11 @@ class DetailViewModel(
                         installManager.installApk(file)
                     }
                 },
-                onFailure = {
-                    _state.update { it.copy(download = DownloadState.Failed(asset.name)) } // 文件已保留，可重试
+                onFailure = { e ->
+                    // 捕获失败原因：渲染层展示，便于定位（网络/文件/权限一目了然）
+                    _state.update {
+                        it.copy(download = DownloadState.Failed(release.tagName, asset.name, e.message))
+                    }
                 },
             )
         }
@@ -301,7 +325,7 @@ class DetailViewModel(
 
     fun installFile(file: File) = installManager.installApk(file)
 
-    fun retryDownload(release: ReleaseRecord, asset: ApkAsset) = downloadAsset(release, asset)
+    fun retryDownload(release: ReleaseRecord, asset: ApkAsset) = downloadAsset(release, asset, fromHeader = true)
 
     /**
      * 头部「下载更新」入口：只精确匹配最新 tag 的 release（盲下列表第一条可能拿到
