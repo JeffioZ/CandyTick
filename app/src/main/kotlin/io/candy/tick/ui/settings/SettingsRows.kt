@@ -29,9 +29,8 @@ import top.yukonga.miuix.kmp.basic.Card
 import top.yukonga.miuix.kmp.basic.Icon
 import top.yukonga.miuix.kmp.basic.Switch
 import top.yukonga.miuix.kmp.basic.Text
-import top.yukonga.miuix.kmp.icon.MiuixIcons
-import top.yukonga.miuix.kmp.icon.basic.Check
 import top.yukonga.miuix.kmp.theme.MiuixTheme
+import androidx.compose.ui.res.vectorResource
 
 /**
  * 设置页分组列表体系：基于 Miuix BasicComponent 构建（不自绘行布局），
@@ -180,7 +179,7 @@ internal fun OptionRow(label: String, selected: Boolean, onClick: () -> Unit) {
         endActions = {
             if (selected) {
                 Icon(
-                    imageVector = MiuixIcons.Basic.Check,
+                    imageVector = ImageVector.vectorResource(R.drawable.ic_check),
                     contentDescription = null,
                     tint = MiuixTheme.colorScheme.primaryVariant,
                     modifier = Modifier.size(20.dp), // intrinsic 26dp，统一选中标记 20dp

@@ -17,8 +17,6 @@ import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyListScope
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.background
-import top.yukonga.miuix.kmp.icon.extended.Close
-import top.yukonga.miuix.kmp.icon.extended.File
 import androidx.compose.animation.animateContentSize
 import androidx.compose.animation.togetherWith
 import androidx.compose.runtime.Composable
@@ -40,10 +38,9 @@ import io.candy.tick.util.ApkPicker
 import top.yukonga.miuix.kmp.basic.Card
 import top.yukonga.miuix.kmp.basic.LinearProgressIndicator
 import top.yukonga.miuix.kmp.basic.Text
-import top.yukonga.miuix.kmp.icon.MiuixIcons
-import top.yukonga.miuix.kmp.icon.basic.Check
-import top.yukonga.miuix.kmp.icon.extended.Delete
 import top.yukonga.miuix.kmp.theme.MiuixTheme
+import androidx.compose.ui.res.vectorResource
+import androidx.compose.ui.graphics.vector.ImageVector
 
 /** Release 历史 + APK 资产（多 APK 自动推荐 + 手选；下载 → 安装） */
 fun LazyListScope.releaseList(
@@ -85,7 +82,7 @@ private fun ReleaseFooter(state: DetailViewModel.UiState, onLoadMore: () -> Unit
             io.candy.tick.ui.common.LoadingDots(dotSize = 5.dp)
         }
         state.releasesFailed -> io.candy.tick.ui.common.StatusPage(
-            icon = top.yukonga.miuix.kmp.icon.MiuixIcons.Close,
+            icon = ImageVector.vectorResource(R.drawable.ic_close),
             isError = true,
             title = stringResource(R.string.load_failed),
             subtitle = stringResource(R.string.status_error_subtitle),
@@ -97,7 +94,7 @@ private fun ReleaseFooter(state: DetailViewModel.UiState, onLoadMore: () -> Unit
         )
         !state.releasesEnd && state.releases.isNotEmpty() -> LaunchedEffect(state.releases.size) { onLoadMore() }
         state.releases.isEmpty() -> io.candy.tick.ui.common.StatusPage(
-            icon = top.yukonga.miuix.kmp.icon.MiuixIcons.File,
+            icon = ImageVector.vectorResource(R.drawable.ic_file),
             title = stringResource(R.string.detail_no_releases),
             modifier = Modifier
                 .fillMaxWidth()
@@ -205,7 +202,7 @@ private fun ReleaseCard(
                             }
                             top.yukonga.miuix.kmp.basic.IconButton(onClick = onDeleteDownloaded) {
                                 top.yukonga.miuix.kmp.basic.Icon(
-                                    imageVector = top.yukonga.miuix.kmp.icon.MiuixIcons.Delete,
+                                    imageVector = ImageVector.vectorResource(R.drawable.ic_delete),
                                     contentDescription = stringResource(R.string.detail_delete_download),
                                     tint = scheme.onErrorContainer,
                                 )
@@ -323,7 +320,7 @@ private fun AssetRow(
         ) {
             if (selected) {
                 top.yukonga.miuix.kmp.basic.Icon(
-                    imageVector = MiuixIcons.Basic.Check,
+                    imageVector = ImageVector.vectorResource(R.drawable.ic_check),
                     contentDescription = "selected",
                     tint = scheme.primaryVariant,
                     modifier = Modifier.size(20.dp), // intrinsic 26dp，统一选中标记 20dp

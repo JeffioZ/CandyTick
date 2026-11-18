@@ -26,6 +26,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.foundation.layout.offset
 import androidx.compose.foundation.layout.height
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.hapticfeedback.HapticFeedbackType
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.dp
@@ -48,9 +49,8 @@ import top.yukonga.miuix.kmp.basic.Text
 import top.yukonga.miuix.kmp.basic.rememberPullToRefreshState
 import top.yukonga.miuix.kmp.basic.rememberTopAppBarState
 import top.yukonga.miuix.kmp.theme.MiuixTheme
-import top.yukonga.miuix.kmp.icon.MiuixIcons
-import top.yukonga.miuix.kmp.icon.extended.Back
-import top.yukonga.miuix.kmp.icon.extended.Delete
+import androidx.compose.ui.res.vectorResource
+import androidx.compose.ui.graphics.vector.ImageVector
 
 @Composable
 fun DetailScreen(repoId: Long, onBack: () -> Unit) {
@@ -75,6 +75,7 @@ fun DetailScreen(repoId: Long, onBack: () -> Unit) {
     val scope = androidx.compose.runtime.rememberCoroutineScope()
     // 列表状态提升：点标题回顶部需要驱动滚动动画（真实滚动让折叠顶栏自动展开）
     val detailListState = androidx.compose.foundation.lazy.rememberLazyListState()
+    val haptic = androidx.compose.ui.platform.LocalHapticFeedback.current
     // 瞬时反馈走全局 FeedbackHost
     val doneMsg = stringResource(R.string.install_done)
     val failedMsg = stringResource(R.string.install_failed_format)
@@ -116,7 +117,7 @@ fun DetailScreen(repoId: Long, onBack: () -> Unit) {
                         ) {
                             IconButton(onClick = onBack) {
                                 Icon(
-                                    imageVector = MiuixIcons.Back,
+                                    imageVector = ImageVector.vectorResource(R.drawable.ic_back),
                                     contentDescription = null,
                                     tint = scheme.onBackground,
                                 )
@@ -155,7 +156,7 @@ fun DetailScreen(repoId: Long, onBack: () -> Unit) {
                             },
                         ) {
                             Icon(
-                                imageVector = io.candy.tick.ui.common.ExternalLinkIcon,
+                                imageVector = ImageVector.vectorResource(R.drawable.ic_external_link),
                                 contentDescription = stringResource(R.string.open_in_browser),
                                 tint = scheme.onBackground,
                             )
@@ -166,7 +167,7 @@ fun DetailScreen(repoId: Long, onBack: () -> Unit) {
                             vm.loadBranches()
                         }) {
                             Icon(
-                                imageVector = io.candy.tick.ui.common.GitBranchIcon,
+                                imageVector = ImageVector.vectorResource(R.drawable.ic_git_branch),
                                 contentDescription = stringResource(R.string.branch_picker_title),
                                 tint = scheme.onBackground,
                             )
@@ -174,7 +175,7 @@ fun DetailScreen(repoId: Long, onBack: () -> Unit) {
                         // 移除订阅（destructive → 确认对话框；底部文字按钮已移除）
                         IconButton(onClick = { showRemoveDialog = true }) {
                             Icon(
-                                imageVector = MiuixIcons.Delete,
+                                imageVector = ImageVector.vectorResource(R.drawable.ic_delete),
                                 contentDescription = stringResource(R.string.detail_remove_repo),
                                 tint = scheme.onBackground,
                             )
@@ -340,6 +341,8 @@ fun DetailScreen(repoId: Long, onBack: () -> Unit) {
         show = showRemoveDialog && repo != null,
         repoName = repo?.let { it.noteName ?: "${it.owner}/${it.repo}" } ?: "",
         onConfirm = {
+            // 破坏性确认时刻：轻触感（视觉红按钮之外的物理确认）
+            haptic.performHapticFeedback(HapticFeedbackType.LongPress)
             showRemoveDialog = false
             vm.removeRepo()
             onBack()

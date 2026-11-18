@@ -36,10 +36,9 @@ import top.yukonga.miuix.kmp.basic.LinearProgressIndicator
 import top.yukonga.miuix.kmp.basic.Text
 import top.yukonga.miuix.kmp.basic.TextField
 import top.yukonga.miuix.kmp.basic.IconButton
-import top.yukonga.miuix.kmp.icon.MiuixIcons
-import top.yukonga.miuix.kmp.icon.extended.Hide
-import top.yukonga.miuix.kmp.icon.extended.Show
 import top.yukonga.miuix.kmp.theme.MiuixTheme
+import androidx.compose.ui.res.vectorResource
+import androidx.compose.ui.graphics.vector.ImageVector
 
 // ── 设置页弹窗与自身更新操作块（自 SettingsScreen 拆出）──
 
@@ -72,10 +71,9 @@ internal fun CacheCleanupSheet(
     ) {
         Column(
             modifier = Modifier
-                .padding(horizontal = 20.dp)
-                .imePadding()
+                .padding(horizontal = 16.dp)
                 .padding(top = 4.dp, bottom = 16.dp),
-            verticalArrangement = Arrangement.spacedBy(8.dp),
+            verticalArrangement = Arrangement.spacedBy(10.dp),
         ) {
             if (state.scanning) {
                 Box(
@@ -125,12 +123,19 @@ internal fun CacheCleanupSheet(
                         }
                     }
                 } else {
-                    val hasSelection = (cleanRepo && state.repoApkBytes > 0) ||
-                        (cleanUpdate && state.updateApkBytes > 0) ||
-                        (cleanCrash && state.crashLogBytes > 0)
+                    val selectedBytes = (if (cleanRepo) state.repoApkBytes else 0L) +
+                        (if (cleanUpdate) state.updateApkBytes else 0L) +
+                        (if (cleanCrash) state.crashLogBytes else 0L)
+                    val hasSelection = selectedBytes > 0
                     val ctx = androidx.compose.ui.platform.LocalContext.current
                     PrimaryButton(
-                        text = stringResource(R.string.settings_cache_clean_action),
+                        // 带选中总量：行动前量级一目了然
+                        text = stringResource(R.string.settings_cache_clean_action) +
+                            if (selectedBytes > 0) {
+                                " · " + formatBytes(selectedBytes)
+                            } else {
+                                ""
+                            },
                         enabled = hasSelection,
                         onClick = {
                             scope.launch {
@@ -210,7 +215,9 @@ internal fun ImportSourceDialog(
         onDismissRequest = onDismiss,
     ) {
         Column(
-            modifier = Modifier.padding(horizontal = 20.dp, vertical = 16.dp),
+            modifier = Modifier
+                .padding(horizontal = 16.dp)
+                .padding(top = 4.dp, bottom = 16.dp),
             verticalArrangement = Arrangement.spacedBy(10.dp),
         ) {
             PrimaryButton(
@@ -264,10 +271,10 @@ internal fun TokenDialog(
     ) {
         Column(
             modifier = Modifier
-                .padding(horizontal = 20.dp)
+                .padding(horizontal = 16.dp)
                 .imePadding()
-                .padding(top = 4.dp, bottom = 12.dp),
-            verticalArrangement = Arrangement.spacedBy(12.dp),
+                .padding(top = 4.dp, bottom = 16.dp),
+            verticalArrangement = Arrangement.spacedBy(10.dp),
         ) {
             // 说明（左对齐：sheet 内容语言；居中是对话框时代遗产）
             Text(
@@ -294,7 +301,7 @@ internal fun TokenDialog(
                 trailingIcon = {
                     top.yukonga.miuix.kmp.basic.IconButton(onClick = onToggleVisible) {
                         Icon(
-                            imageVector = if (tokenVisible) MiuixIcons.Hide else MiuixIcons.Show,
+                            imageVector = if (tokenVisible) ImageVector.vectorResource(R.drawable.ic_hide) else ImageVector.vectorResource(R.drawable.ic_show),
                             contentDescription = stringResource(
                                 if (tokenVisible) R.string.token_hide else R.string.token_show,
                             ),
@@ -356,7 +363,7 @@ internal fun TokenDialog(
                 verticalAlignment = Alignment.CenterVertically,
             ) {
                 Icon(
-                    imageVector = io.candy.tick.ui.common.ExternalLinkIcon,
+                    imageVector = ImageVector.vectorResource(R.drawable.ic_external_link),
                     contentDescription = null,
                     tint = scheme.primaryVariant,
                     modifier = Modifier.size(13.dp),

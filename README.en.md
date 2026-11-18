@@ -34,9 +34,9 @@ Track GitHub repositories and their maintenance status; download and install new
 - Periodic background sync with new-release notifications; sync can be restricted to Wi-Fi or charging
 - List: search, sorting, swipe-to-pin, swipe-to-delete (with particle dissolve and undo); update badges
 - Light and dark themes: follow system or set manually; English / 简体中文 in-app
-- Works anonymously; an optional GitHub token raises the rate limit (60/h → 5000/h)
+- Works anonymously; an optional GitHub token raises the rate limit (60/h → 5,000/h)
 - Subscriptions can be exported and merged back in (including linked apps and pins)
-- Cache cleanup: downloaded packages and crash logs, categorized and one-tap
+- Cache cleanup: downloaded packages and crash logs, with sizes per category and one-tap clearing
 - In-app updates: manual check, auto check, Wi-Fi-only auto download, and silent install on Android 12+ when CandyTick is the install source
 
 ## Building
@@ -53,4 +53,4 @@ Kotlin · Compose + [Miuix](https://github.com/compose-miuix-ui/miuix) · Naviga
 
 ## License
 
-[GPL-3.0](LICENSE) · Version comparison and APK selection are informed by [Obtainium](https://github.com/ImranR98/Obtainium)
+[GPL-3.0](LICENSE) · Version comparison and APK selection are informed by [Obtainium](https://github.com/ImranR98/Obtainium) · UI icon set from [Lucide](https://lucide.dev) (ISC)

@@ -39,14 +39,12 @@ import kotlin.math.abs
 import top.yukonga.miuix.kmp.basic.Card
 import top.yukonga.miuix.kmp.basic.Icon
 import top.yukonga.miuix.kmp.basic.Text
-import top.yukonga.miuix.kmp.icon.MiuixIcons
-import top.yukonga.miuix.kmp.icon.extended.ExpandLess
-import top.yukonga.miuix.kmp.icon.extended.ExpandMore
-import top.yukonga.miuix.kmp.icon.extended.Pin
 import top.yukonga.miuix.kmp.theme.MiuixTheme
 import androidx.compose.foundation.layout.width
+import androidx.compose.ui.res.vectorResource
+import androidx.compose.ui.graphics.vector.ImageVector
 
-/** 首页仓库卡片：4dp 色条 + 图标 + 名称 + 徽章 + 相对时间；展开显示提交与版本行 */
+/** 首页仓库卡片：图标 + 名称 + 徽章 + 相对时间；展开显示提交与版本行 */
 @Composable
 fun RepoCard(
     item: ListViewModel.RepoListItem,
@@ -81,7 +79,7 @@ fun RepoCard(
                     }
                     if (item.repo.pinnedAt != null) {
                         Icon(
-                            imageVector = MiuixIcons.Pin,
+                            imageVector = ImageVector.vectorResource(R.drawable.ic_pin),
                             contentDescription = stringResource(R.string.pinned_a11y),
                             tint = scheme.onBackgroundVariant,
                             modifier = Modifier.size(12.dp),
@@ -100,7 +98,7 @@ fun RepoCard(
                         .clickable(
                             interactionSource = remember { MutableInteractionSource() },
                         ) { onToggle() }
-                        .padding(vertical = 12.dp),
+                        .padding(vertical = 10.dp),
                     verticalAlignment = Alignment.CenterVertically,
                 ) {
                     item.snapshot?.pushedAt?.let { pushed ->
@@ -127,13 +125,12 @@ fun RepoCard(
                         animationSpec = androidx.compose.animation.core.tween(150),
                         label = "expandArrow",
                     ) { exp ->
-                        // 库版 Expand 系列（viewport 1088/1122 不一致）：显式 18dp 钉死，Crossfade 切换无尺寸跳
-                        // （曾因此自绘 ChevronPair，改由 size 约束解决——见 GitBranchIcon.kt 的自绘范围注释）
+                        // 显式 18dp 钉死：Lucide chevron viewport 稳定，Crossfade 切换无尺寸跳
                         Icon(
                             imageVector = if (exp) {
-                                MiuixIcons.ExpandLess
+                                ImageVector.vectorResource(R.drawable.ic_chevron_up)
                             } else {
-                                MiuixIcons.ExpandMore
+                                ImageVector.vectorResource(R.drawable.ic_chevron_down)
                             },
                             contentDescription = null,
                             tint = scheme.onBackgroundVariant,
@@ -144,7 +141,7 @@ fun RepoCard(
 
                 androidx.compose.animation.AnimatedVisibility(visible = expanded) {
                     Column {
-                        Spacer(Modifier.height(4.dp))
+                        Spacer(Modifier.height(2.dp))
                         ExpandedDetails(item = item, extras = extras)
                         // 卡底留白放展开块内：收起时随动画移除，折叠态底部与顶对称（8dp）
                         Spacer(Modifier.height(8.dp))
@@ -223,7 +220,7 @@ internal fun AvatarBlock(owner: String) {
     Box(
         modifier = Modifier
             .size(48.dp)
-            .clip(RoundedCornerShape(14.dp))
+            .clip(RoundedCornerShape(12.dp)) // 与 APP 图标档统一：48×25%，切换无圆角跳变
             .background(Brush.linearGradient(listOf(start, end), start = androidx.compose.ui.geometry.Offset(0f, 0f), end = androidx.compose.ui.geometry.Offset(Float.POSITIVE_INFINITY, Float.POSITIVE_INFINITY))),
         contentAlignment = Alignment.Center,
     ) {

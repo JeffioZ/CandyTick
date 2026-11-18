@@ -53,4 +53,4 @@ Kotlin · Compose + [Miuix](https://github.com/compose-miuix-ui/miuix) · Naviga
 
 ## 许可
 
-[GPL-3.0](LICENSE) · 版本比较与 APK 选择的思路参考了 [Obtainium](https://github.com/ImranR98/Obtainium)
+[GPL-3.0](LICENSE) · 版本比较与 APK 选择的思路参考了 [Obtainium](https://github.com/ImranR98/Obtainium) · UI 图标集取自 [Lucide](https://lucide.dev)（ISC）

@@ -19,7 +19,6 @@ import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.RoundedCornerShape
-import top.yukonga.miuix.kmp.icon.extended.Close
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
@@ -48,13 +47,9 @@ import top.yukonga.miuix.kmp.basic.Icon
 import top.yukonga.miuix.kmp.basic.IconButton
 import top.yukonga.miuix.kmp.basic.Text
 import top.yukonga.miuix.kmp.basic.TextButton
-import top.yukonga.miuix.kmp.icon.MiuixIcons
-import top.yukonga.miuix.kmp.icon.basic.Check
-import top.yukonga.miuix.kmp.icon.extended.Add
-import top.yukonga.miuix.kmp.icon.extended.Link
-import top.yukonga.miuix.kmp.icon.extended.Remove
-import top.yukonga.miuix.kmp.icon.extended.More
 import top.yukonga.miuix.kmp.theme.MiuixTheme
+import androidx.compose.ui.res.vectorResource
+import androidx.compose.ui.graphics.vector.ImageVector
 
 // ── 详情页子组件（自 DetailScreen 拆出：头部卡 / 分支弹层 / 移除确认）──
 
@@ -138,7 +133,7 @@ internal fun BranchPickerSheet(
                     io.candy.tick.ui.common.LoadingDots(dotSize = 5.dp)
                 }
                 state.branchesFailed -> io.candy.tick.ui.common.StatusPage(
-                    icon = top.yukonga.miuix.kmp.icon.MiuixIcons.Close,
+                    icon = ImageVector.vectorResource(R.drawable.ic_close),
                     isError = true,
                     compact = true,
                     title = stringResource(R.string.load_failed),
@@ -170,7 +165,9 @@ internal fun RemoveRepoDialog(
         onDismissRequest = onDismiss,
     ) {
         Column(
-            modifier = Modifier.padding(horizontal = 20.dp, vertical = 16.dp),
+            modifier = Modifier
+                .padding(horizontal = 16.dp)
+                .padding(top = 4.dp, bottom = 16.dp),
             verticalArrangement = Arrangement.spacedBy(10.dp),
         ) {
             Text(
@@ -221,7 +218,7 @@ internal fun BranchRow(label: String, selected: Boolean, onClick: () -> Unit) {
         endActions = {
             if (selected) {
                 Icon(
-                    imageVector = MiuixIcons.Basic.Check,
+                    imageVector = ImageVector.vectorResource(R.drawable.ic_check),
                     contentDescription = null,
                     tint = MiuixTheme.colorScheme.primaryVariant,
                     modifier = Modifier.size(20.dp), // intrinsic 26dp，统一选中标记 20dp
@@ -427,7 +424,7 @@ internal fun HeaderCard(
                     IconButton(onClick = onChangeLinked) {
                         Icon(
                             // Link 锁链 =「关联」本命语义（换关联 = 重新建链）
-                            imageVector = MiuixIcons.Link,
+                            imageVector = ImageVector.vectorResource(R.drawable.ic_link),
                             contentDescription = stringResource(R.string.detail_link_change),
                             tint = scheme.onBackgroundVariant,
                             modifier = Modifier.size(18.dp),
@@ -437,7 +434,7 @@ internal fun HeaderCard(
                     IconButton(onClick = onUnlink) {
                         Icon(
                             // Remove 减号 = 移除关联（Blocklist 禁止圈是「拉黑」语义，偏威胁性）
-                            imageVector = MiuixIcons.Remove,
+                            imageVector = ImageVector.vectorResource(R.drawable.ic_minus),
                             contentDescription = stringResource(R.string.detail_unlink),
                             tint = scheme.onBackgroundVariant,
                             modifier = Modifier.size(18.dp),
@@ -484,7 +481,7 @@ internal fun HeaderCard(
                     )
                     Spacer(Modifier.width(6.dp))
                     Icon(
-                        imageVector = MiuixIcons.Add,
+                        imageVector = ImageVector.vectorResource(R.drawable.ic_add),
                         contentDescription = null,
                         tint = scheme.onPrimaryContainer,
                         modifier = Modifier.size(18.dp),
@@ -492,7 +489,7 @@ internal fun HeaderCard(
                     Spacer(Modifier.width(6.dp))
                     IconButton(onClick = onChangeLinked) {
                         Icon(
-                            imageVector = MiuixIcons.More,
+                            imageVector = ImageVector.vectorResource(R.drawable.ic_more),
                             contentDescription = stringResource(R.string.detail_link_app_other),
                             tint = scheme.onBackgroundVariant,
                             modifier = Modifier.size(18.dp),

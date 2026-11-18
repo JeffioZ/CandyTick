@@ -8,8 +8,6 @@ import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyListScope
-import top.yukonga.miuix.kmp.icon.extended.Close
-import top.yukonga.miuix.kmp.icon.extended.File
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.ui.Alignment
@@ -22,6 +20,8 @@ import io.candy.tick.ui.theme.MonoTokenStyle
 import top.yukonga.miuix.kmp.basic.Card
 import top.yukonga.miuix.kmp.basic.Text
 import top.yukonga.miuix.kmp.theme.MiuixTheme
+import androidx.compose.ui.res.vectorResource
+import androidx.compose.ui.graphics.vector.ImageVector
 
 /** 提交历史分页（到底自动加载；失败行内重试；尽头「已到底」） */
 fun LazyListScope.commitList(
@@ -75,7 +75,7 @@ private fun CommitFooter(state: DetailViewModel.UiState, onLoadMore: () -> Unit)
             io.candy.tick.ui.common.LoadingDots(dotSize = 5.dp)
         }
         state.commitsFailed -> io.candy.tick.ui.common.StatusPage(
-            icon = top.yukonga.miuix.kmp.icon.MiuixIcons.Close,
+            icon = ImageVector.vectorResource(R.drawable.ic_close),
             isError = true,
             title = stringResource(R.string.load_failed),
             subtitle = stringResource(R.string.status_error_subtitle),
@@ -87,7 +87,7 @@ private fun CommitFooter(state: DetailViewModel.UiState, onLoadMore: () -> Unit)
         )
         !state.commitsEnd -> LaunchedEffect(state.commits.size) { onLoadMore() }
         state.commits.isEmpty() -> io.candy.tick.ui.common.StatusPage(
-            icon = top.yukonga.miuix.kmp.icon.MiuixIcons.File,
+            icon = ImageVector.vectorResource(R.drawable.ic_file),
             title = stringResource(R.string.detail_no_commits),
             modifier = Modifier
                 .fillMaxWidth()

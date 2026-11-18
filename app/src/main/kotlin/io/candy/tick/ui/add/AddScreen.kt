@@ -16,7 +16,6 @@ import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.text.KeyboardActions
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.ui.text.style.TextOverflow
-import top.yukonga.miuix.kmp.icon.basic.Search
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
@@ -48,10 +47,8 @@ import top.yukonga.miuix.kmp.basic.SmallTopAppBar
 import top.yukonga.miuix.kmp.basic.Text
 import top.yukonga.miuix.kmp.basic.TextField
 import top.yukonga.miuix.kmp.theme.MiuixTheme
-import top.yukonga.miuix.kmp.icon.MiuixIcons
-import top.yukonga.miuix.kmp.icon.extended.Back
-import top.yukonga.miuix.kmp.icon.extended.Link
-import top.yukonga.miuix.kmp.icon.extended.Search
+import androidx.compose.ui.res.vectorResource
+import androidx.compose.ui.graphics.vector.ImageVector
 
 @Composable
 fun AddScreen(
@@ -91,7 +88,7 @@ fun AddScreen(
                 navigationIcon = {
                     IconButton(onClick = onClose) {
                         Icon(
-                            imageVector = top.yukonga.miuix.kmp.icon.MiuixIcons.Back,
+                            imageVector = ImageVector.vectorResource(R.drawable.ic_back),
                             contentDescription = null,
                             tint = MiuixTheme.colorScheme.onBackground,
                         )
@@ -171,7 +168,7 @@ fun AddScreen(
                 state.preview is AddViewModel.PreviewState.Idle
             ) {
                 io.candy.tick.ui.common.StatusPage(
-                    icon = MiuixIcons.Search,
+                    icon = ImageVector.vectorResource(R.drawable.ic_search),
                     compact = true,
                     title = stringResource(R.string.add_search_empty),
                     modifier = Modifier
@@ -241,7 +238,7 @@ fun AddScreen(
                     verticalArrangement = Arrangement.Center,
                 ) {
                     top.yukonga.miuix.kmp.basic.Icon(
-                        imageVector = top.yukonga.miuix.kmp.icon.MiuixIcons.Link,
+                        imageVector = ImageVector.vectorResource(R.drawable.ic_link),
                         contentDescription = null,
                         tint = MiuixTheme.colorScheme.onBackgroundVariant,
                     )

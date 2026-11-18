@@ -3,6 +3,7 @@ package io.candy.tick.ui.list
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.size
+import androidx.compose.ui.hapticfeedback.HapticFeedbackType
 import androidx.compose.ui.draw.alpha
 import kotlinx.coroutines.launch
 import androidx.compose.ui.draw.clip
@@ -48,13 +49,9 @@ import top.yukonga.miuix.kmp.basic.SmallTopAppBar
 import top.yukonga.miuix.kmp.basic.Text
 import top.yukonga.miuix.kmp.basic.rememberPullToRefreshState
 import top.yukonga.miuix.kmp.basic.rememberTopAppBarState
-import top.yukonga.miuix.kmp.icon.MiuixIcons
-import top.yukonga.miuix.kmp.icon.extended.Close
-import top.yukonga.miuix.kmp.icon.extended.Search
-import top.yukonga.miuix.kmp.icon.extended.Sort
-import top.yukonga.miuix.kmp.icon.extended.Add
-import top.yukonga.miuix.kmp.icon.extended.Settings
 import top.yukonga.miuix.kmp.theme.MiuixTheme
+import androidx.compose.ui.res.vectorResource
+import androidx.compose.ui.graphics.vector.ImageVector
 
 @Composable
 fun ListScreen(
@@ -94,6 +91,7 @@ fun ListScreen(
     // 瞬时反馈走全局 FeedbackHost（撤销动作由胶囊承载）
     val listState = androidx.compose.foundation.lazy.rememberLazyListState()
     val scope = androidx.compose.runtime.rememberCoroutineScope()
+    val haptic = androidx.compose.ui.platform.LocalHapticFeedback.current
     // 重排锚点：抑制期内保持「用户原来看哪还看哪」——修复 LazyColumn 锚定取整误差
     // （重排项插到首见项之上时露出 1px 边 + 跨视口闪烁）
     var scrollAnchor by remember { mutableStateOf<Pair<Long, Int>?>(null) }
@@ -189,9 +187,9 @@ fun ListScreen(
                             // 激活态换关闭图标：点一下能收起是可发现的
                             Icon(
                                 imageVector = if (showSearch) {
-                                    MiuixIcons.Close
+                                    ImageVector.vectorResource(R.drawable.ic_close)
                                 } else {
-                                    MiuixIcons.Search
+                                    ImageVector.vectorResource(R.drawable.ic_search)
                                 },
                                 contentDescription = stringResource(
                                     if (showSearch) R.string.close_search else R.string.action_search,
@@ -202,7 +200,7 @@ fun ListScreen(
                         }
                         IconButton(onClick = { showSortSheet = true }) {
                             Icon(
-                                imageVector = MiuixIcons.Sort,
+                                imageVector = ImageVector.vectorResource(R.drawable.ic_sort),
                                 contentDescription = stringResource(R.string.sort_title),
                                 tint = scheme.onBackground,
                                 modifier = Modifier.size(24.dp), // 顶栏动作图标统一 24dp
@@ -210,7 +208,7 @@ fun ListScreen(
                         }
                         IconButton(onClick = onOpenSettings) {
                             Icon(
-                                imageVector = MiuixIcons.Settings,
+                                imageVector = ImageVector.vectorResource(R.drawable.ic_settings),
                                 contentDescription = stringResource(R.string.settings_title),
                                 tint = scheme.onBackground,
                             )
@@ -218,7 +216,7 @@ fun ListScreen(
                         // 主操作：添加仓库（顶栏最右，替代 FAB）
                         IconButton(onClick = onAdd) {
                             Icon(
-                                imageVector = MiuixIcons.Add,
+                                imageVector = ImageVector.vectorResource(R.drawable.ic_add),
                                 contentDescription = stringResource(R.string.add_repo),
                                 tint = scheme.primaryVariant,
                             )
@@ -230,7 +228,11 @@ fun ListScreen(
             Box(modifier = Modifier.padding(padding)) {
             PullToRefresh(
                 isRefreshing = state.refreshing,
-                onRefresh = vm::refresh,
+                onRefresh = {
+                    // 松手触发刷新：轻触感确认（HyperOS 下拉刷新惯例）
+                    haptic.performHapticFeedback(HapticFeedbackType.LongPress)
+                    vm.refresh()
+                },
                 pullToRefreshState = pullState,
                 topAppBarScrollBehavior = scrollBehavior,
                 color = scheme.primaryVariant, // 薄荷主色：与全应用活动色统一
@@ -275,7 +277,7 @@ fun ListScreen(
                     if (state.query.isNotBlank() && state.items.isEmpty() && !state.refreshing) {
                         // 搜索无结果：统一空态组件
                         io.candy.tick.ui.common.StatusPage(
-                            icon = MiuixIcons.Search,
+                            icon = ImageVector.vectorResource(R.drawable.ic_search),
                             title = stringResource(R.string.search_no_results, state.query),
                             actionLabel = stringResource(R.string.search_clear),
                             onAction = { vm.setQuery("") },

@@ -102,7 +102,7 @@
     </plurals>
 
     <!-- 详情页 -->
-        <string name="detail_title">仓库</string>
+    <string name="detail_title">仓库</string>
 
     <!-- 分支 -->
     <string name="branch_default">默认分支</string>
@@ -111,11 +111,12 @@
 
     <!-- 添加页 -->
     <string name="add_input_hint">粘贴链接或搜索</string>
-    <string name="add_parse_error">无法识别 · 请粘贴 GitHub 仓库链接</string>
-    <string name="add_search_failed">搜索失败 · 重试</string>
+    <string name="add_parse_error">无法识别 · 支持 GitHub 链接或 owner/仓库名</string>
+    <string name="add_search_failed">搜索失败</string>
     <string name="add_search_empty">无匹配，试试粘贴完整链接</string>
     <string name="add_stars">★ %1$s</string>
     <string name="add_license">许可证：%1$s</string>
+    <string name="picker_search_app">搜索应用</string>
     <string name="add_link_app_optional">关联本机应用（可选）</string>
     <string name="add_linked_app_named">已关联：%1$s · 更改</string>
     <string name="add_guide_title">粘贴仓库链接，或输入关键词搜索</string>
@@ -181,7 +182,7 @@
     <string name="import_from_file">从文件导入</string>
     <string name="import_from_clipboard">从剪贴板导入</string>
     <string name="settings_theme_mode">主题</string>
-    <string name="settings_sync">同步</string>
+    <string name="settings_sync_and_notify">同步与通知</string>
     <string name="settings_sync_frequency">同步频率</string>
     <string name="settings_sync_wifi_only">仅 Wi-Fi 同步</string>
     <string name="settings_sync_charging_only">仅充电时同步</string>
@@ -208,8 +209,7 @@
     <string name="settings_notifications">新版本通知</string>
 
     <!-- 权限 -->
-    <string name="settings_notifications_group">通知</string>
-    <string name="settings_permission_group">权限</string>
+        <string name="settings_permission_group">权限</string>
     <string name="settings_perm_install_unknown">安装未知应用</string>
     <string name="settings_perm_install_summary">安装应用与更新需要此权限</string>
     <string name="settings_perm_notifications">通知权限</string>
@@ -217,7 +217,7 @@
     <string name="perm_not_granted">未授权</string>
     <string name="perm_not_required">无需授予</string>
     <string name="detail_need_install_permission">请先在系统设置授予「安装未知应用」权限，再重试</string>
-    <string name="settings_self_update">版本与安装</string>
+    <string name="settings_app_updates">应用更新</string>
     <string name="settings_current_version_title">当前版本</string>
     <string name="settings_check_update">立即检查</string>
     <string name="settings_self_update_check">自动检查更新</string>

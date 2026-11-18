@@ -112,7 +112,7 @@
     </plurals>
 
     <!-- 详情页 -->
-        <string name="detail_title">Repository</string>
+    <string name="detail_title">Repository</string>
 
     <!-- 分支 -->
     <string name="branch_default">Default branch</string>
@@ -121,11 +121,12 @@
 
     <!-- 添加页 -->
     <string name="add_input_hint">Paste link or search</string>
-    <string name="add_parse_error">Unrecognized link · paste a GitHub repository URL</string>
-    <string name="add_search_failed">Search failed · retry</string>
+    <string name="add_parse_error">Unrecognized · use a GitHub link or owner/repo</string>
+    <string name="add_search_failed">Search failed</string>
     <string name="add_search_empty">No match — try pasting the full link</string>
     <string name="add_stars">★ %1$s</string>
     <string name="add_license">License: %1$s</string>
+    <string name="picker_search_app">Search apps</string>
     <string name="add_link_app_optional">Link installed app (optional)</string>
     <string name="add_linked_app_named">Linked: %1$s · change</string>
     <string name="add_guide_title">Paste a repository link, or search by keyword</string>
@@ -140,7 +141,7 @@
     <string name="detail_no_commits">No commits</string>
     <string name="detail_no_releases">No releases published</string>
     <string name="detail_select_asset_hint">Choose a package to download</string>
-    <string name="detail_no_apk">No APK file in this release</string>
+    <string name="detail_no_apk">No installable package in this release</string>
     <string name="detail_stars">★ %1$s</string>
     <string name="detail_forks">Fork %1$s</string>
     <string name="detail_issues">Issue %1$s</string>
@@ -151,10 +152,10 @@
     <string name="detail_linked_app">Linked: %1$s</string>
     <string name="detail_link_change">Change linked app</string>
     <string name="detail_unlink">Unlink</string>
-    <string name="detail_delete_download">Delete downloaded APK</string>
+    <string name="detail_delete_download">Delete downloaded package</string>
     <string name="toast_copied">Copied to clipboard</string>
     <string name="load_failed">Load failed</string>
-    <string name="status_error_subtitle">Network or API hiccup — give it another moment</string>
+    <string name="status_error_subtitle">Network or API hiccup — try again in a moment</string>
     <string name="list_end">— the end —</string>
     <string name="asset_recommended">Recommended</string>
     <string name="download_apk">Download</string>
@@ -191,12 +192,12 @@
     <string name="import_from_file">From file</string>
     <string name="import_from_clipboard">From clipboard</string>
     <string name="settings_theme_mode">Theme</string>
-    <string name="settings_sync">Sync</string>
+    <string name="settings_sync_and_notify">Sync &amp; notifications</string>
     <string name="settings_sync_frequency">Frequency</string>
     <string name="settings_sync_wifi_only">Wi-Fi only sync</string>
     <string name="settings_sync_charging_only">Sync while charging</string>
     <string name="settings_token_row">GitHub token</string>
-    <string name="settings_token_hint_short">Optional · 5,000 vs 60 req/h</string>
+    <string name="settings_token_hint_short">Optional · 60 → 5,000 req/h</string>
     <string name="token_set">Set</string>
     <string name="token_unset">Not set</string>
     <string name="settings_language">Language</string>
@@ -218,8 +219,7 @@
     <string name="settings_notifications">New version notifications</string>
 
     <!-- 权限 -->
-    <string name="settings_notifications_group">Notifications</string>
-    <string name="settings_permission_group">Permissions</string>
+        <string name="settings_permission_group">Permissions</string>
     <string name="settings_perm_install_unknown">Install unknown apps</string>
     <string name="settings_perm_install_summary">Needed to install APKs and app updates</string>
     <string name="settings_perm_notifications">Notification permission</string>
@@ -227,7 +227,7 @@
     <string name="perm_not_granted">Not granted</string>
     <string name="perm_not_required">Not required</string>
     <string name="detail_need_install_permission">Grant "install unknown apps" in system settings, then retry</string>
-    <string name="settings_self_update">Version &amp; install</string>
+    <string name="settings_app_updates">App updates</string>
     <string name="settings_current_version_title">Current version</string>
     <string name="settings_check_update">Check now</string>
     <string name="settings_self_update_check">Auto check for updates</string>

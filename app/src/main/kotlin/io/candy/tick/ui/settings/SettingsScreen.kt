@@ -46,33 +46,14 @@ import io.candy.tick.ui.theme.ChipSky
 import io.candy.tick.ui.theme.ChipSlate
 import io.candy.tick.ui.theme.ChipTeal
 import io.candy.tick.ui.theme.ChipViolet
-import top.yukonga.miuix.kmp.icon.MiuixIcons
-import top.yukonga.miuix.kmp.icon.extended.Alarm
-import top.yukonga.miuix.kmp.icon.extended.CloudFill
-import top.yukonga.miuix.kmp.icon.extended.Delete
-import top.yukonga.miuix.kmp.icon.extended.Download
-import top.yukonga.miuix.kmp.icon.extended.Email
-import top.yukonga.miuix.kmp.icon.extended.File
-import top.yukonga.miuix.kmp.icon.extended.FileDownloads
-import top.yukonga.miuix.kmp.icon.extended.Import
-import top.yukonga.miuix.kmp.icon.extended.Info
-import top.yukonga.miuix.kmp.icon.extended.Lock
-import top.yukonga.miuix.kmp.icon.extended.WorldClock
-import top.yukonga.miuix.kmp.icon.extended.Messages
-import top.yukonga.miuix.kmp.icon.extended.Refresh
-import top.yukonga.miuix.kmp.icon.extended.Report
-import top.yukonga.miuix.kmp.icon.extended.Share
-import top.yukonga.miuix.kmp.icon.extended.Theme
-import top.yukonga.miuix.kmp.icon.extended.Timer
-import top.yukonga.miuix.kmp.icon.extended.Unlock
-import top.yukonga.miuix.kmp.icon.extended.Update
 import top.yukonga.miuix.kmp.basic.Icon
 import top.yukonga.miuix.kmp.basic.IconButton
 import top.yukonga.miuix.kmp.basic.Scaffold
 import top.yukonga.miuix.kmp.basic.SmallTopAppBar
 import top.yukonga.miuix.kmp.theme.MiuixTheme
 import top.yukonga.miuix.kmp.window.WindowBottomSheet
-import top.yukonga.miuix.kmp.icon.extended.Back
+import androidx.compose.ui.res.vectorResource
+import androidx.compose.ui.graphics.vector.ImageVector
 
 private const val REPO_URL = "https://github.com/JeffioZ/CandyTick"
 private const val LICENSE_URL = "https://github.com/JeffioZ/CandyTick/blob/main/LICENSE"
@@ -210,7 +191,7 @@ fun SettingsScreen(onBack: () -> Unit) {
                 navigationIcon = {
                     IconButton(onClick = onBack) {
                         Icon(
-                            imageVector = MiuixIcons.Back,
+                            imageVector = ImageVector.vectorResource(R.drawable.ic_back),
                             contentDescription = null,
                             tint = scheme.onBackground,
                         )
@@ -232,7 +213,7 @@ fun SettingsScreen(onBack: () -> Unit) {
                 SettingRow(
                     title = stringResource(R.string.settings_language),
                     value = languageLabel(languageTag()),
-                    icon = MiuixIcons.WorldClock,
+                    icon = ImageVector.vectorResource(R.drawable.ic_globe),
                     iconTint = ChipBlue,
                     onClick = { showLanguageSheet = true },
                 )
@@ -240,20 +221,20 @@ fun SettingsScreen(onBack: () -> Unit) {
                 SettingRow(
                     title = stringResource(R.string.settings_theme_mode),
                     value = themeModeLabel(state.settings.themeMode),
-                    icon = MiuixIcons.Theme,
+                    icon = ImageVector.vectorResource(R.drawable.ic_theme),
                     iconTint = ChipPeriwinkle,
                     onClick = { showThemeSheet = true },
                 )
             }
             }
 
-            // ── 同步 ──
+            // ── 同步与通知（通知 = 同步的结果输出）──
             item(key = "sync") {
-            SettingsGroup(title = stringResource(R.string.settings_sync)) {
+            SettingsGroup(title = stringResource(R.string.settings_sync_and_notify)) {
                 SettingRow(
                     title = stringResource(R.string.settings_sync_frequency),
                     value = frequencyLabel(state.settings.syncFrequency),
-                    icon = MiuixIcons.Timer,
+                    icon = ImageVector.vectorResource(R.drawable.ic_timer),
                     iconTint = ChipTeal,
                     onClick = { showFrequencySheet = true },
                 )
@@ -261,7 +242,7 @@ fun SettingsScreen(onBack: () -> Unit) {
                 SwitchRow(
                     title = stringResource(R.string.settings_sync_wifi_only),
                     checked = state.settings.wifiOnly,
-                    icon = MiuixIcons.CloudFill,
+                    icon = ImageVector.vectorResource(R.drawable.ic_cloud),
                     iconTint = ChipSky,
                     onChange = vm::setWifiOnly,
                 )
@@ -269,7 +250,7 @@ fun SettingsScreen(onBack: () -> Unit) {
                 SwitchRow(
                     title = stringResource(R.string.settings_sync_charging_only),
                     checked = state.settings.chargingOnly,
-                    icon = MiuixIcons.Alarm,
+                    icon = ImageVector.vectorResource(R.drawable.ic_alarm),
                     iconTint = ChipAmber,
                     onChange = vm::setChargingOnly,
                 )
@@ -282,20 +263,16 @@ fun SettingsScreen(onBack: () -> Unit) {
                     } else {
                         stringResource(R.string.token_unset)
                     },
-                    icon = MiuixIcons.Lock,
+                    icon = ImageVector.vectorResource(R.drawable.ic_lock),
                     iconTint = ChipOrange,
                     onClick = { showTokenDialog = true },
                 )
-            }
-            }
-
-            // ── 通知 ──
-            item(key = "notifications") {
-            SettingsGroup(title = stringResource(R.string.settings_notifications_group)) {
+                RowDivider()
+                // 通知 = 同步的结果输出，并入同步组（原孤组收敛）
                 SwitchRow(
                     title = stringResource(R.string.settings_notifications),
                     checked = state.settings.notificationsEnabled,
-                    icon = MiuixIcons.Messages,
+                    icon = ImageVector.vectorResource(R.drawable.ic_messages),
                     iconTint = ChipPink,
                     onChange = vm::setNotifications,
                 )
@@ -306,7 +283,7 @@ fun SettingsScreen(onBack: () -> Unit) {
             item(key = "permissions") {
             SettingsGroup(title = stringResource(R.string.settings_permission_group)) {
                 SettingRow(
-                    icon = MiuixIcons.Unlock,
+                    icon = ImageVector.vectorResource(R.drawable.ic_unlock),
                     iconTint = ChipGreen,
                     title = stringResource(R.string.settings_perm_install_unknown),
                     summary = stringResource(R.string.settings_perm_install_summary),
@@ -315,7 +292,7 @@ fun SettingsScreen(onBack: () -> Unit) {
                 )
                 RowDivider()
                 SettingRow(
-                    icon = MiuixIcons.Email,
+                    icon = ImageVector.vectorResource(R.drawable.ic_email),
                     iconTint = ChipViolet,
                     title = stringResource(R.string.settings_perm_notifications),
                     value = when {
@@ -336,19 +313,12 @@ fun SettingsScreen(onBack: () -> Unit) {
             }
             }
 
-            // ── 关于 · 版本 ──
-            item(key = "selfupdate") {
-            SettingsGroup(title = stringResource(R.string.settings_self_update)) {
+
+            // ── 应用更新：检查行动 + 自动化偏好（行为归组、信息归关于）──
+            item(key = "appupdate") {
+            SettingsGroup(title = stringResource(R.string.settings_app_updates)) {
                 SettingRow(
-                    title = stringResource(R.string.settings_current_version_title),
-                    value = state.localVersion,
-                    icon = MiuixIcons.Info,
-                    iconTint = ChipSlate,
-                    valueMonospace = true,
-                )
-                RowDivider()
-                SettingRow(
-                    icon = MiuixIcons.Update,
+                    icon = ImageVector.vectorResource(R.drawable.ic_update),
                     iconTint = ChipMint,
                     title = stringResource(R.string.settings_check_update),
                     value = checkStateValue(state.selfUpdate),
@@ -362,7 +332,7 @@ fun SettingsScreen(onBack: () -> Unit) {
                 SwitchRow(
                     title = stringResource(R.string.settings_self_update_check),
                     checked = state.settings.selfUpdateCheck,
-                    icon = MiuixIcons.Refresh,
+                    icon = ImageVector.vectorResource(R.drawable.ic_refresh),
                     iconTint = ChipTeal,
                     onChange = vm::setSelfUpdateCheck,
                 )
@@ -371,7 +341,7 @@ fun SettingsScreen(onBack: () -> Unit) {
                     title = stringResource(R.string.settings_self_update_download),
                     checked = state.settings.selfUpdateAutoDownload,
                     onChange = vm::setSelfUpdateDownload,
-                    icon = MiuixIcons.Download,
+                    icon = ImageVector.vectorResource(R.drawable.ic_download),
                     iconTint = ChipSky,
                 )
                 RowDivider()
@@ -380,7 +350,7 @@ fun SettingsScreen(onBack: () -> Unit) {
                     checked = state.settings.autoInstallDownload,
                     onChange = vm::setAutoInstallDownload,
                     summary = stringResource(R.string.settings_auto_install_summary),
-                    icon = MiuixIcons.FileDownloads,
+                    icon = ImageVector.vectorResource(R.drawable.ic_file_down),
                     iconTint = ChipGreen,
                 )
             }
@@ -390,7 +360,7 @@ fun SettingsScreen(onBack: () -> Unit) {
             item(key = "data") {
             SettingsGroup(title = stringResource(R.string.settings_backup_group)) {
                 SettingRow(
-                    icon = MiuixIcons.Share,
+                    icon = ImageVector.vectorResource(R.drawable.ic_share),
                     iconTint = ChipAmber,
                     title = stringResource(R.string.settings_export),
                     summary = stringResource(R.string.settings_export_summary),
@@ -410,7 +380,7 @@ fun SettingsScreen(onBack: () -> Unit) {
                 )
                 RowDivider()
                 SettingRow(
-                    icon = MiuixIcons.Import,
+                    icon = ImageVector.vectorResource(R.drawable.ic_import),
                     iconTint = ChipSand,
                     title = stringResource(R.string.settings_import),
                     summary = stringResource(R.string.settings_import_summary),
@@ -418,7 +388,7 @@ fun SettingsScreen(onBack: () -> Unit) {
                 )
                 RowDivider()
                 SettingRow(
-                    icon = MiuixIcons.Delete,
+                    icon = ImageVector.vectorResource(R.drawable.ic_delete),
                     iconTint = ChipOrange,
                     title = stringResource(R.string.settings_cache_cleanup),
                     summary = stringResource(R.string.settings_cache_summary),
@@ -427,11 +397,20 @@ fun SettingsScreen(onBack: () -> Unit) {
             }
             }
 
-            // ── 关于 ──
+            // ── 关于：纯信息（版本 + 链接），更新行为偏好独立成组 ──
             item(key = "about") {
             SettingsGroup(title = stringResource(R.string.settings_about_group)) {
+
                 SettingRow(
-                    icon = io.candy.tick.ui.common.ExternalLinkIcon,
+                    title = stringResource(R.string.settings_current_version_title),
+                    value = state.localVersion,
+                    icon = ImageVector.vectorResource(R.drawable.ic_info),
+                    iconTint = ChipSlate,
+                    valueMonospace = true,
+                )
+                RowDivider()
+                SettingRow(
+                    icon = ImageVector.vectorResource(R.drawable.ic_external_link),
                     iconTint = ChipPeriwinkle,
                     title = stringResource(R.string.settings_github_repo),
                     value = "JeffioZ/CandyTick",
@@ -439,7 +418,7 @@ fun SettingsScreen(onBack: () -> Unit) {
                 )
                 RowDivider()
                 SettingRow(
-                    icon = MiuixIcons.File,
+                    icon = ImageVector.vectorResource(R.drawable.ic_file),
                     iconTint = ChipSlate,
                     title = stringResource(R.string.settings_license),
                     value = "GPL-3.0",
@@ -448,7 +427,7 @@ fun SettingsScreen(onBack: () -> Unit) {
                 RowDivider()
                 SettingRow(
                     // Report（错误报告）：与「当前版本」的 Info 区分，崩溃日志语义更准
-                    icon = MiuixIcons.Report,
+                    icon = ImageVector.vectorResource(R.drawable.ic_report),
                     iconTint = ChipOrange,
                     title = stringResource(R.string.settings_crash_log),
                     summary = stringResource(R.string.settings_crash_log_summary),

@@ -33,9 +33,9 @@ import kotlin.math.abs
 import kotlin.math.roundToInt
 import top.yukonga.miuix.kmp.basic.Icon
 import top.yukonga.miuix.kmp.theme.MiuixTheme
-import top.yukonga.miuix.kmp.icon.MiuixIcons
-import top.yukonga.miuix.kmp.icon.extended.Delete
-import top.yukonga.miuix.kmp.icon.extended.Pin
+import androidx.compose.ui.res.vectorResource
+import androidx.compose.ui.graphics.vector.ImageVector
+import io.candy.tick.R
 
 /**
  * 卡片双向滑动操作：右滑删除（红容器 + 垃圾桶，过阈值删除 + Snackbar 撤销）、
@@ -92,7 +92,7 @@ fun SwipeToDelete(
             contentAlignment = if (movingRight) Alignment.CenterStart else Alignment.CenterEnd,
         ) {
             Icon(
-                imageVector = if (movingRight) MiuixIcons.Delete else MiuixIcons.Pin,
+                imageVector = if (movingRight) ImageVector.vectorResource(R.drawable.ic_delete) else ImageVector.vectorResource(R.drawable.ic_pin),
                 contentDescription = null,
                 tint = onContainer,
                 modifier = Modifier

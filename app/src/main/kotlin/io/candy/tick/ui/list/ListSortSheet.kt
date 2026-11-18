@@ -9,10 +9,10 @@ import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.dp
 import io.candy.tick.R
 import top.yukonga.miuix.kmp.basic.Icon
-import top.yukonga.miuix.kmp.icon.MiuixIcons
-import top.yukonga.miuix.kmp.icon.basic.Check
 import top.yukonga.miuix.kmp.theme.MiuixTheme
 import top.yukonga.miuix.kmp.window.WindowBottomSheet
+import androidx.compose.ui.res.vectorResource
+import androidx.compose.ui.graphics.vector.ImageVector
 
 /** 排序选择底部弹层 */
 @Composable
@@ -72,7 +72,7 @@ private fun SortRow(label: String, selected: Boolean, onClick: () -> Unit) {
         endActions = {
             if (selected) {
                 Icon(
-                    imageVector = MiuixIcons.Basic.Check,
+                    imageVector = ImageVector.vectorResource(R.drawable.ic_check),
                     contentDescription = null,
                     tint = MiuixTheme.colorScheme.primaryVariant,
                     modifier = Modifier.size(20.dp), // intrinsic 26dp，统一选中标记 20dp
