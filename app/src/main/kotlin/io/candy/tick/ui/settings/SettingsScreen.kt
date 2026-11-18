@@ -554,7 +554,12 @@ fun SettingsScreen(onBack: () -> Unit) {
         show = showCacheCleanup,
         state = cacheState,
         onScan = vm::scanCache,
-        onClean = vm::cleanCache,
+        onClean = { repoApks, updateApks, crashLog ->
+            val freed = vm.cleanCache(repoApks, updateApks, crashLog)
+            // 崩溃日志被清后立即刷新 ✓ 标记（不等 ON_RESUME）
+            crashLogPresent = crashLogExists()
+            freed
+        },
         onDismiss = {
             showCacheCleanup = false
             vm.resetCacheState()

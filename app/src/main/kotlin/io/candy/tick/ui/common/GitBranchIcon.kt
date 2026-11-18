@@ -54,7 +54,10 @@ val GitBranchIcon: ImageVector = ImageVector.Builder(
  * 外部链接字形（「在浏览器打开 / 前往仓库页」）。
  * miuix 图标库的 Link 是锁链，语义是「关联」而非「跳转网页」——
  * 此处按同一设计语言自绘 external-link 经典拓扑（feather/octicons 同款）：
- * 方框右上角开口，箭头自框内射向右上。1400 网格、圆端粗笔画 117。
+ * 完整方框（左上角闭合），右上边收短留出开口，箭头 45° 穿出指向右上。
+ * 几何防粘连：箭头头（y200）与框上边（y330）的 x 区间不重叠；
+ * 斜线在框上边高度处已越过其右端（x880），从开口区穿出不与线相交。
+ * 元素密度高于 GitBranch，笔画收细到 96（≈7%）防黑块。
  * tint 由调用方注入。
  */
 val ExternalLinkIcon: ImageVector = ImageVector.Builder(
@@ -64,19 +67,19 @@ val ExternalLinkIcon: ImageVector = ImageVector.Builder(
     viewportWidth = 1400f,
     viewportHeight = 1400f,
 ).apply {
-    // 框：上边左段 / 左 / 下 / 右下段（右上角留给箭头穿出）
+    // 框：上边（右端收短留出箭头开口）/ 左 / 下 / 右下段，一笔连成（左上角闭合）
     addPath(
-        pathData = addPathNodes("M420,350 L930,350 M250,520 L250,1050 L1050,1050 L1050,690"),
+        pathData = addPathNodes("M880,330 L280,330 L280,1070 L1070,1070 L1070,720"),
         stroke = SolidColor(Color.Black),
-        strokeLineWidth = 117f,
+        strokeLineWidth = 96f,
         strokeLineCap = StrokeCap.Round,
         strokeLineJoin = StrokeJoin.Round,
     )
-    // 斜箭头 + L 形箭头头（射出框右上角）
+    // 斜箭头（45°，尾在框内、头在框外）+ L 形箭头头
     addPath(
-        pathData = addPathNodes("M640,760 L1120,280 M790,280 L1120,280 L1120,610"),
+        pathData = addPathNodes("M620,760 L1180,200 M1010,200 L1180,200 L1180,370"),
         stroke = SolidColor(Color.Black),
-        strokeLineWidth = 117f,
+        strokeLineWidth = 96f,
         strokeLineCap = StrokeCap.Round,
         strokeLineJoin = StrokeJoin.Round,
     )
