@@ -9,12 +9,15 @@ import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyListScope
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.background
+import top.yukonga.miuix.kmp.icon.extended.Close
+import top.yukonga.miuix.kmp.icon.extended.File
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.LaunchedEffect
@@ -77,16 +80,24 @@ private fun ReleaseFooter(state: DetailViewModel.UiState, onLoadMore: () -> Unit
         ) {
             io.candy.tick.ui.common.LoadingDots(dotSize = 5.dp)
         }
-        state.releasesFailed -> TextButton(
-            text = stringResource(R.string.load_failed_retry),
-            onClick = onLoadMore,
+        state.releasesFailed -> io.candy.tick.ui.common.StatusPage(
+            icon = top.yukonga.miuix.kmp.icon.MiuixIcons.Close,
+            isError = true,
+            title = stringResource(R.string.load_failed),
+            subtitle = stringResource(R.string.status_error_subtitle),
+            actionLabel = stringResource(R.string.retry),
+            onAction = onLoadMore,
+            modifier = Modifier
+                .fillMaxWidth()
+                .height(320.dp),
         )
         !state.releasesEnd && state.releases.isNotEmpty() -> LaunchedEffect(state.releases.size) { onLoadMore() }
-        state.releases.isEmpty() -> Text(
-            text = stringResource(R.string.detail_no_releases),
-            style = MiuixTheme.textStyles.footnote1,
-            color = scheme.onBackgroundVariant,
-            modifier = Modifier.padding(vertical = 10.dp),
+        state.releases.isEmpty() -> io.candy.tick.ui.common.StatusPage(
+            icon = top.yukonga.miuix.kmp.icon.MiuixIcons.File,
+            title = stringResource(R.string.detail_no_releases),
+            modifier = Modifier
+                .fillMaxWidth()
+                .height(320.dp),
         )
     }
 }

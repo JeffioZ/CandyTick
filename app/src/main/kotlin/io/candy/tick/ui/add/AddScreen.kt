@@ -12,6 +12,7 @@ import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.text.KeyboardActions
 import androidx.compose.foundation.text.KeyboardOptions
+import top.yukonga.miuix.kmp.icon.basic.Search
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
@@ -150,10 +151,13 @@ fun AddScreen(
             } else if (state.searched && !state.searching && state.results.isEmpty() &&
                 state.preview is AddViewModel.PreviewState.Idle
             ) {
-                Text(
-                    text = stringResource(R.string.add_search_empty),
-                    style = MiuixTheme.textStyles.footnote1,
-                    color = MiuixTheme.colorScheme.onBackgroundVariant,
+                io.candy.tick.ui.common.StatusPage(
+                    icon = top.yukonga.miuix.kmp.icon.MiuixIcons.Basic.Search,
+                    compact = true,
+                    title = stringResource(R.string.add_search_empty),
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(vertical = 24.dp),
                 )
             }
 

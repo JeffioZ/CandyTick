@@ -13,7 +13,6 @@ import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxWidth
-import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.lazy.LazyColumn
@@ -258,23 +257,16 @@ fun ListScreen(
                         ErrorBanner(error = error, onRetry = vm::refresh)
                     }
                     if (state.query.isNotBlank() && state.items.isEmpty() && !state.refreshing) {
-                        // 搜索无结果：提示 + 快捷清除
-                        Column(
-                            modifier = Modifier.weight(1f).fillMaxWidth(),
-                            horizontalAlignment = Alignment.CenterHorizontally,
-                            verticalArrangement = Arrangement.Center,
-                        ) {
-                            Text(
-                                text = stringResource(R.string.search_no_results, state.query),
-                                style = MiuixTheme.textStyles.body2,
-                                color = scheme.onBackgroundVariant,
-                            )
-                            Spacer(Modifier.height(12.dp))
-                            top.yukonga.miuix.kmp.basic.TextButton(
-                                text = stringResource(R.string.search_clear),
-                                onClick = { vm.setQuery("") },
-                            )
-                        }
+                        // 搜索无结果：统一空态组件
+                        io.candy.tick.ui.common.StatusPage(
+                            icon = MiuixIcons.Basic.Search,
+                            title = stringResource(R.string.search_no_results, state.query),
+                            actionLabel = stringResource(R.string.search_clear),
+                            onAction = { vm.setQuery("") },
+                            modifier = Modifier
+                                .weight(1f)
+                                .fillMaxWidth(),
+                        )
                     } else if (state.isEmpty) {
                         EmptyState(onAdd = onAdd, modifier = Modifier.weight(1f))
                     } else {

@@ -19,6 +19,7 @@ import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.RoundedCornerShape
+import top.yukonga.miuix.kmp.icon.extended.Close
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
@@ -132,9 +133,17 @@ internal fun BranchPickerSheet(
                 ) {
                     io.candy.tick.ui.common.LoadingDots(dotSize = 5.dp)
                 }
-                state.branchesFailed -> TextButton(
-                    text = stringResource(R.string.branch_load_failed),
-                    onClick = onLoadBranches,
+                state.branchesFailed -> io.candy.tick.ui.common.StatusPage(
+                    icon = top.yukonga.miuix.kmp.icon.MiuixIcons.Close,
+                    isError = true,
+                    compact = true,
+                    title = stringResource(R.string.load_failed),
+                    subtitle = stringResource(R.string.status_error_subtitle),
+                    actionLabel = stringResource(R.string.retry),
+                    onAction = onLoadBranches,
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(vertical = 20.dp),
                 )
             }
         }

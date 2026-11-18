@@ -1,0 +1,90 @@
+package io.candy.tick.ui.common
+
+import androidx.compose.foundation.background
+import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.shape.CircleShape
+import androidx.compose.runtime.Composable
+import androidx.compose.ui.Alignment
+import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clip
+import androidx.compose.ui.graphics.vector.ImageVector
+import androidx.compose.ui.text.style.TextAlign
+import androidx.compose.ui.unit.dp
+import top.yukonga.miuix.kmp.basic.Icon
+import top.yukonga.miuix.kmp.basic.Text
+import top.yukonga.miuix.kmp.basic.TextButton
+import top.yukonga.miuix.kmp.theme.MiuixTheme
+
+/**
+ * 统一的空态 / 错误态页面组件：圆底图标 + 主文案 + 可选副文案 + 可选操作。
+ * 全应用的「没有内容」时刻共用同一结构——居中呈现，不再缩在角落。
+ *
+ * 布局由调用方给：LazyColumn 里用 fillParentMaxHeight(0.45f)，
+ * 普通容器里用 weight(1f)，弹层等紧凑场景用 [compact] + 固定纵向留白。
+ *
+ * @param icon 状态图标（空态传 File / 搜索传 Search 等；错误态通常传 Close）
+ * @param isError 错误态着色（errorContainer 圆底 + 红 ✓）；否则中性圆底
+ * @param compact 紧凑档：弹层 / 半屏场景用（40dp 圆、小间距）
+ */
+@Composable
+fun StatusPage(
+    icon: ImageVector?,
+    title: String,
+    modifier: Modifier = Modifier,
+    isError: Boolean = false,
+    compact: Boolean = false,
+    subtitle: String? = null,
+    actionLabel: String? = null,
+    onAction: (() -> Unit)? = null,
+) {
+    val scheme = MiuixTheme.colorScheme
+    val circle = if (compact) 40.dp else 48.dp
+    val iconSize = if (compact) 18.dp else 22.dp
+    Column(
+        modifier = modifier,
+        horizontalAlignment = Alignment.CenterHorizontally,
+        verticalArrangement = Arrangement.Center,
+    ) {
+        if (icon != null) {
+            Box(
+                modifier = Modifier
+                    .size(circle)
+                    .clip(CircleShape)
+                    .background(if (isError) scheme.errorContainer else scheme.secondaryVariant),
+                contentAlignment = Alignment.Center,
+            ) {
+                Icon(
+                    imageVector = icon,
+                    contentDescription = null,
+                    tint = if (isError) scheme.onErrorContainer else scheme.onBackgroundVariant,
+                    modifier = Modifier.size(iconSize),
+                )
+            }
+            Spacer(Modifier.height(if (compact) 10.dp else 14.dp))
+        }
+        Text(
+            text = title,
+            style = MiuixTheme.textStyles.title4,
+            color = scheme.onBackground,
+            textAlign = TextAlign.Center,
+        )
+        if (subtitle != null) {
+            Spacer(Modifier.height(4.dp))
+            Text(
+                text = subtitle,
+                style = MiuixTheme.textStyles.body2,
+                color = scheme.onBackgroundVariant,
+                textAlign = TextAlign.Center,
+            )
+        }
+        if (actionLabel != null && onAction != null) {
+            Spacer(Modifier.height(if (compact) 8.dp else 12.dp))
+            TextButton(text = actionLabel, onClick = onAction)
+        }
+    }
+}

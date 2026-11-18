@@ -147,6 +147,7 @@
     <string name="detail_unlinked">已解除关联</string>
     <string name="toast_copied">已复制到剪贴板</string>
     <string name="load_failed">加载失败</string>
+    <string name="status_error_subtitle">网络或接口出了点问题，稍后再试试</string>
     <string name="load_failed_retry">加载失败 · 重试</string>
     <string name="list_end">— 已到底 —</string>
     <string name="asset_recommended">推荐</string>

@@ -157,6 +157,7 @@
     <string name="detail_unlinked">Unlinked</string>
     <string name="toast_copied">Copied to clipboard</string>
     <string name="load_failed">Load failed</string>
+    <string name="status_error_subtitle">Network or API hiccup — give it another moment</string>
     <string name="load_failed_retry">Load failed · retry</string>
     <string name="list_end">— the end —</string>
     <string name="asset_recommended">Recommended</string>
