@@ -1,27 +1,27 @@
 <?xml version="1.0" encoding="utf-8"?>
-<!-- 回声前景 · 奶油砖：呼吸感优化 + 色阶调优（深绿系） -->
+<!-- 回声前景 · 深夜绿砖：呼吸感优化（73% 安全区填充）+ 色阶调优（Mint300/400 亮薄荷，深底高对比） -->
 <vector xmlns:android="http://schemas.android.com/apk/res/android"
     android:width="108dp"
     android:height="108dp"
     android:viewportWidth="108"
     android:viewportHeight="108">
 
-    <!-- 外涟漪：柔和深绿 -->
+    <!-- 外涟漪：Mint300 柔和 -->
     <path
         android:pathData="M54,54 m-22,0 a22,22 0 1,1 44,0 a22,22 0 1,1 -44,0"
         android:fillColor="#00000000"
-        android:strokeColor="#6612825C"
+        android:strokeColor="#668BDEBB"
         android:strokeWidth="4.5" />
 
-    <!-- 内涟漪：Mint700 -->
+    <!-- 内涟漪：Mint400 -->
     <path
         android:pathData="M54,54 m-16,0 a16,16 0 1,1 32,0 a16,16 0 1,1 -32,0"
         android:fillColor="#00000000"
-        android:strokeColor="#12825C"
+        android:strokeColor="#55CFA0"
         android:strokeWidth="6.5" />
 
-    <!-- 糖珠：Mint700 实色 -->
+    <!-- 糖珠：Mint400 实色 -->
     <path
         android:pathData="M54,54 m-9,0 a9,9 0 1,1 18,0 a9,9 0 1,1 -18,0"
-        android:fillColor="#12825C" />
+        android:fillColor="#55CFA0" />
 </vector>
