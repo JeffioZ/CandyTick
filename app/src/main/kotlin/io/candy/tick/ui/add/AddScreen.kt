@@ -123,8 +123,9 @@ fun AddScreen(
 
             when (val preview = state.preview) {
                 is AddViewModel.PreviewState.Loading -> androidx.compose.foundation.layout.Box(
-                    modifier = Modifier.height(20.dp),
-                    contentAlignment = Alignment.CenterStart,
+                    // 预览加载：占位结果区居中（与空态/错误态同一视线位置，结果将出现在哪就等在哪）
+                    modifier = Modifier.weight(1f).fillMaxWidth(),
+                    contentAlignment = Alignment.Center,
                 ) {
                     io.candy.tick.ui.common.LoadingDots(dotSize = 5.dp)
                 }
@@ -142,8 +143,9 @@ fun AddScreen(
             }
 
             if (state.searching) androidx.compose.foundation.layout.Box(
-                modifier = Modifier.height(20.dp),
-                contentAlignment = Alignment.CenterStart,
+                // 搜索等待：旧结果已清空，dots 居中于结果区（避免左上小点+大片空白的失衡构图）
+                modifier = Modifier.weight(1f).fillMaxWidth(),
+                contentAlignment = Alignment.Center,
             ) {
                 io.candy.tick.ui.common.LoadingDots(dotSize = 5.dp)
             }

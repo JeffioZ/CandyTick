@@ -224,6 +224,7 @@ internal fun BranchRow(label: String, selected: Boolean, onClick: () -> Unit) {
                     imageVector = MiuixIcons.Basic.Check,
                     contentDescription = null,
                     tint = MiuixTheme.colorScheme.primaryVariant,
+                    modifier = Modifier.size(20.dp), // intrinsic 26dp，统一选中标记 20dp
                 )
             }
         },
@@ -242,6 +243,7 @@ internal fun HeaderCard(
     onLinkSuggestion: () -> Unit,
     onDownloadUpdate: () -> Unit,
     onInstallUpdate: () -> Unit,
+    onCancelDownload: () -> Unit = {},
 ) {
     val repo = state.repo ?: return
     val snapshot = state.snapshot
@@ -351,11 +353,27 @@ internal fun HeaderCard(
                                     progress = p,
                                     modifier = Modifier.fillMaxWidth(),
                                 )
-                                Text(
-                                    text = stringResource(R.string.download_progress_percent, (p * 100).toInt()),
-                                    style = MiuixTheme.textStyles.footnote2,
-                                    color = scheme.onBackgroundVariant,
-                                )
+                                Row(verticalAlignment = Alignment.CenterVertically) {
+                                    Text(
+                                        text = stringResource(R.string.download_progress_percent, (p * 100).toInt()),
+                                        style = MiuixTheme.textStyles.footnote2,
+                                        color = scheme.onBackgroundVariant,
+                                        modifier = Modifier.weight(1f),
+                                    )
+                                    // 取消（与 ReleaseCard 进度同款文字链）
+                                    Text(
+                                        text = stringResource(R.string.cancel),
+                                        style = MiuixTheme.textStyles.footnote1,
+                                        color = scheme.primaryVariant,
+                                        modifier = Modifier
+                                            .clickable(
+                                                interactionSource = remember { androidx.compose.foundation.interaction.MutableInteractionSource() },
+                                                indication = null,
+                                                onClick = onCancelDownload,
+                                            )
+                                            .padding(horizontal = 8.dp, vertical = 4.dp),
+                                    )
+                                }
                             }
                             "install" -> PrimaryButton(
                                 text = stringResource(R.string.install_apk),

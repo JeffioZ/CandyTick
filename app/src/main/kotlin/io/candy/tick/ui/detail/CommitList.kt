@@ -69,7 +69,7 @@ private fun CommitFooter(state: DetailViewModel.UiState, onLoadMore: () -> Unit)
     val scheme = MiuixTheme.colorScheme
     when {
         state.commitsLoading -> androidx.compose.foundation.layout.Box(
-            modifier = Modifier.fillMaxWidth().padding(vertical = 10.dp),
+            modifier = Modifier.fillMaxWidth().padding(vertical = 8.dp),
             contentAlignment = Alignment.Center,
         ) {
             io.candy.tick.ui.common.LoadingDots(dotSize = 5.dp)

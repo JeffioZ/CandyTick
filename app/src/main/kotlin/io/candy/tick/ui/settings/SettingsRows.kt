@@ -183,6 +183,7 @@ internal fun OptionRow(label: String, selected: Boolean, onClick: () -> Unit) {
                     imageVector = MiuixIcons.Basic.Check,
                     contentDescription = null,
                     tint = MiuixTheme.colorScheme.primaryVariant,
+                    modifier = Modifier.size(20.dp), // intrinsic 26dp，统一选中标记 20dp
                 )
             }
         },

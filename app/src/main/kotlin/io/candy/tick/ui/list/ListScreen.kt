@@ -1,7 +1,10 @@
 package io.candy.tick.ui.list
 
 import androidx.compose.foundation.background
+import androidx.compose.foundation.clickable
+import androidx.compose.foundation.layout.size
 import androidx.compose.ui.draw.alpha
+import kotlinx.coroutines.launch
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.focus.focusRequester
 import io.candy.tick.data.SyncStatus
@@ -90,6 +93,7 @@ fun ListScreen(
     val scheme = MiuixTheme.colorScheme
     // 瞬时反馈走全局 FeedbackHost（撤销动作由胶囊承载）
     val listState = androidx.compose.foundation.lazy.rememberLazyListState()
+    val scope = androidx.compose.runtime.rememberCoroutineScope()
     // 重排锚点：抑制期内保持「用户原来看哪还看哪」——修复 LazyColumn 锚定取整误差
     // （重排项插到首见项之上时露出 1px 边 + 跨视口闪烁）
     var scrollAnchor by remember { mutableStateOf<Pair<Long, Int>?>(null) }
@@ -160,6 +164,14 @@ fun ListScreen(
                                 text = stringResource(R.string.app_name),
                                 style = MiuixTheme.textStyles.title4,
                                 color = scheme.onBackground,
+                                // 点标题回顶部（与详情页同款交互）：无 ripple，滚动动画即反馈；
+                                // 前置 padding 扩热区至 ~48dp
+                                modifier = Modifier
+                                    .padding(vertical = 12.dp)
+                                    .clickable(
+                                        interactionSource = remember { androidx.compose.foundation.interaction.MutableInteractionSource() },
+                                        indication = null,
+                                    ) { scope.launch { listState.animateScrollToItem(0) } },
                             )
                             Spacer(Modifier.width(6.dp))
                             // 自动同步活体：标题右侧三点轻跳 → 完成符（信息由悬浮胶囊承担）
@@ -185,6 +197,8 @@ fun ListScreen(
                                     if (showSearch) R.string.close_search else R.string.action_search,
                                 ),
                                 tint = scheme.onBackground,
+                                // Basic 包 intrinsic 尺寸混乱（Search 20 / Close 24），显式 24dp 与 extended 家族对齐
+                                modifier = Modifier.size(24.dp),
                             )
                         }
                         IconButton(onClick = { showSortSheet = true }) {
@@ -192,6 +206,8 @@ fun ListScreen(
                                 imageVector = MiuixIcons.Basic.ArrowUpDown,
                                 contentDescription = stringResource(R.string.sort_title),
                                 tint = scheme.onBackground,
+                                // intrinsic 10x16dp 窄条，显式 24dp（Fit 等比居中不变形）
+                                modifier = Modifier.size(24.dp),
                             )
                         }
                         IconButton(onClick = onOpenSettings) {
@@ -316,10 +332,18 @@ fun ListScreen(
                                 )
                             }
                         }
-                        // 到底提示
+                        // 到底提示（本地过滤时不显示：列表随输入实时增删，
+                        // 终点标记会反复闪现变成噪音；浏览态才给出终点确认）
                         if (state.items.isNotEmpty() && state.query.isBlank()) {
                             item(key = "list-end") {
-                                io.candy.tick.ui.common.FooterText(text = stringResource(R.string.list_end))
+                                io.candy.tick.ui.common.FooterText(
+                                    text = stringResource(R.string.list_end),
+                                    // 与卡片同款淡入淡出：搜索→浏览切换时终点标记不跳现
+                                    modifier = Modifier.animateItem(
+                                        fadeInSpec = androidx.compose.animation.core.tween(150),
+                                        fadeOutSpec = androidx.compose.animation.core.tween(150),
+                                    ),
+                                )
                             }
                         }
                         }

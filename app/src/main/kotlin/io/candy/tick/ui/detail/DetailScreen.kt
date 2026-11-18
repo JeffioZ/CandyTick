@@ -74,6 +74,8 @@ fun DetailScreen(repoId: Long, onBack: () -> Unit) {
     var showRemoveDialog by remember { mutableStateOf(false) }
     val context = LocalContext.current
     val scope = androidx.compose.runtime.rememberCoroutineScope()
+    // 列表状态提升：点标题回顶部需要驱动滚动动画（真实滚动让折叠顶栏自动展开）
+    val detailListState = androidx.compose.foundation.lazy.rememberLazyListState()
     // 瞬时反馈走全局 FeedbackHost
     val doneMsg = stringResource(R.string.install_done)
     val failedMsg = stringResource(R.string.install_failed_format)
@@ -126,7 +128,15 @@ fun DetailScreen(repoId: Long, onBack: () -> Unit) {
                                 color = scheme.onBackground,
                                 maxLines = 1,
                                 overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis,
-                                modifier = Modifier.widthIn(max = 180.dp),
+                                modifier = Modifier
+                                    .widthIn(max = 180.dp)
+                                    // 点标题回顶部（GitHub app 惯例单击，双击有判定延迟且不可发现）：
+                                    // 无 ripple，滚动动画本身即因果反馈；前置 padding 扩热区至 ~48dp
+                                    .padding(vertical = 12.dp)
+                                    .clickable(
+                                        interactionSource = remember { androidx.compose.foundation.interaction.MutableInteractionSource() },
+                                        indication = null,
+                                    ) { scope.launch { detailListState.animateScrollToItem(0) } },
                             )
                         }
                     },
@@ -151,8 +161,8 @@ fun DetailScreen(repoId: Long, onBack: () -> Unit) {
                                 tint = scheme.onBackground,
                             )
                         }
-                        // 切换浏览分支（仅影响提交视图；居中排布）
-                        IconButton(onClick = {
+                        // 切换浏览分支（仅提交视图有分支语义；Release tab 隐藏，避免点了无效果的控件）
+                        if (state.tab == DetailViewModel.DetailTab.COMMITS) IconButton(onClick = {
                             showBranchSheet = true
                             vm.loadBranches()
                         }) {
@@ -186,6 +196,7 @@ fun DetailScreen(repoId: Long, onBack: () -> Unit) {
             modifier = Modifier.padding(padding),
         ) {
             LazyColumn(
+                state = detailListState,
                 modifier = Modifier.fillMaxSize(),
                 contentPadding = PaddingValues(start = 16.dp, end = 16.dp, top = 4.dp, bottom = 48.dp),
                 verticalArrangement = Arrangement.spacedBy(10.dp),
@@ -205,6 +216,7 @@ fun DetailScreen(repoId: Long, onBack: () -> Unit) {
                         },
                         onDownloadUpdate = vm::downloadUpdate,
                         onInstallUpdate = { repo?.let(vm::installDownloaded) },
+                        onCancelDownload = vm::cancelDownload,
                     )
                 }
                 state.banner?.let { error ->
@@ -294,6 +306,7 @@ fun DetailScreen(repoId: Long, onBack: () -> Unit) {
                         onRetry = vm::retryDownload,
                         onInstallDownloaded = { repo?.let(vm::installDownloaded) },
                         onDeleteDownloaded = vm::deleteDownloaded,
+                        onCancelDownload = vm::cancelDownload,
                     )
                 }
             }
