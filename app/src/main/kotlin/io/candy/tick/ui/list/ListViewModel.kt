@@ -310,7 +310,9 @@ class ListViewModel(
         viewModelScope.launch {
             cards.value = cards.value + (id to CardExtras(loading = true))
             val commits = runCatching { repository.commits(id, 1) }.getOrNull()
-            val release = runCatching { repository.releases(id, 1) }.getOrNull()?.firstOrNull()
+            // 与 SyncWorker tag 选取同口径：跳过无安装包资产的 release（桌面专用 nightly 等）
+            val release = runCatching { repository.releases(id, 1) }.getOrNull()
+                ?.firstOrNull { it.apkAssets.isNotEmpty() }
             cards.value = cards.value + (id to CardExtras(commits, release, loading = false))
         }
     }

@@ -15,7 +15,6 @@ class CacheManager(private val context: Context) {
         val crashLogBytes: Long,
     ) {
         val totalBytes: Long get() = repoApkBytes + updateApkBytes + crashLogBytes
-        fun isEmpty() = totalBytes == 0L
     }
 
     private val apksRoot: File get() = File(context.filesDir, "apks")
@@ -29,9 +28,6 @@ class CacheManager(private val context: Context) {
         updateApkBytes = dirSize(updatesDir),
         crashLogBytes = crashLogFile.takeIf { it.exists() }?.length() ?: 0L,
     )
-
-    /** 估算大小（设置行 value 显示） */
-    fun quickSize(): Long = dirSize(apksRoot) + dirSize(updatesDir)
 
     /**
      * 清理选中的缓存类别。返回实际释放的字节数。

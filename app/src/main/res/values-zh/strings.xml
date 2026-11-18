@@ -126,6 +126,7 @@
     <string name="detail_releases">版本发布</string>
     <string name="detail_no_commits">暂无提交</string>
     <string name="detail_no_releases">该仓库还没有发布过版本</string>
+    <string name="detail_select_asset_hint">请选择要下载的安装包</string>
     <string name="detail_no_apk">这个版本没有 APK</string>
     <string name="detail_stars">★ %1$s</string>
     <string name="detail_forks">Fork %1$s</string>

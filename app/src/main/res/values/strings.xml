@@ -136,6 +136,7 @@
     <string name="detail_releases">Releases</string>
     <string name="detail_no_commits">No commits</string>
     <string name="detail_no_releases">No releases published</string>
+    <string name="detail_select_asset_hint">Choose an APK to download</string>
     <string name="detail_no_apk">No APK file in this release</string>
     <string name="detail_stars">★ %1$s</string>
     <string name="detail_forks">Fork %1$s</string>

@@ -558,7 +558,10 @@ fun SettingsScreen(onBack: () -> Unit) {
         state = cacheState,
         onScan = vm::scanCache,
         onClean = vm::cleanCache,
-        onDismiss = { showCacheCleanup = false },
+        onDismiss = {
+            showCacheCleanup = false
+            vm.resetCacheState()
+        },
     )
 }
 

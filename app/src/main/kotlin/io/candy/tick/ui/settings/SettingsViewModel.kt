@@ -163,14 +163,10 @@ class SettingsViewModel(
     private val _cacheState = MutableStateFlow(CacheState())
     val cacheState: StateFlow<CacheState> = _cacheState.asStateFlow()
 
-    /** 进入设置页时粗算（行 value 用） */
-    fun quickCacheSize(): Long = cacheManager.quickSize()
-
     /** 打开清理浮层：实时扫描各类大小 */
     fun scanCache() {
         viewModelScope.launch {
             _cacheState.value = CacheState(scanning = true)
-            val info = io.candy.tick.data.CacheManager.CacheInfo(0, 0, 0) // placeholder
             val scan = cacheManager.scan()
             _cacheState.value = CacheState(
                 repoApkBytes = scan.repoApkBytes,
@@ -201,6 +197,11 @@ class SettingsViewModel(
         }
         _cacheState.value = _cacheState.value.copy(cleaning = false)
         return freed
+    }
+
+    /** 浮层关闭后清空扫描数据：下次打开不闪旧值 */
+    fun resetCacheState() {
+        _cacheState.value = CacheState()
     }
 
     // ---- 备份 ----

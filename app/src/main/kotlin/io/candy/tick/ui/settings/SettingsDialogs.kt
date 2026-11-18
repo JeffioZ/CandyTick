@@ -174,12 +174,12 @@ private fun CacheCleanupRow(
         summary = if (enabled) formatBytes(sizeBytes) else stringResource(R.string.settings_cache_none),
         onClick = if (enabled) { { onChecked(!checked) } } else null,
         endActions = {
-            if (enabled) {
-                top.yukonga.miuix.kmp.basic.Switch(
-                    checked = checked,
-                    onCheckedChange = onChecked,
-                )
-            }
+            // 大小为 0 也保留 Switch（灰显）：行结构稳定不闪隐
+            top.yukonga.miuix.kmp.basic.Switch(
+                checked = checked && enabled,
+                onCheckedChange = onChecked,
+                enabled = enabled,
+            )
         },
         insideMargin = androidx.compose.foundation.layout.PaddingValues(
             start = 0.dp, end = 0.dp, top = 10.dp, bottom = 10.dp,
@@ -189,7 +189,7 @@ private fun CacheCleanupRow(
 
 /** 字节数格式化：1.2 MB / 345 KB / 0 B */
 private fun formatBytes(bytes: Long): String = when {
-    bytes >= 1024 * 1024 -> String.format("%.1f MB", bytes / 1024f / 1024f)
+    bytes >= 1024 * 1024 -> String.format(java.util.Locale.US, "%.1f MB", bytes / 1024f / 1024f)
     bytes >= 1024 -> "${bytes / 1024} KB"
     else -> "$bytes B"
 }

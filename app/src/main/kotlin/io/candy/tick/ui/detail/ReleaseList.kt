@@ -241,11 +241,24 @@ private fun ReleaseCard(
                                 modifier = Modifier.fillMaxWidth(),
                             )
                         }
-                        else -> PrimaryButton(
-                            text = stringResource(R.string.download_apk),
-                            onClick = { selected?.let { onDownload(release, it) } },
-                            modifier = Modifier.fillMaxWidth(),
-                        )
+                        else -> if (selected != null) {
+                            PrimaryButton(
+                                text = stringResource(R.string.download_apk),
+                                onClick = { onDownload(release, selected!!) },
+                                modifier = Modifier.fillMaxWidth(),
+                            )
+                        } else {
+                            // 无默认选中（多候选无法自动区分）：提示先选，不给死按钮
+                            Text(
+                                text = stringResource(R.string.detail_select_asset_hint),
+                                style = MiuixTheme.textStyles.footnote1,
+                                color = scheme.onBackgroundVariant,
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .padding(vertical = 6.dp),
+                                textAlign = androidx.compose.ui.text.style.TextAlign.Center,
+                            )
+                        }
                     }
                 }
             }

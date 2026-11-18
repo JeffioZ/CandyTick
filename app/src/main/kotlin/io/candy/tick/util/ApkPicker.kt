@@ -17,9 +17,14 @@ object ApkPicker {
         "universal" to listOf("universal", "all", "multi"),
     )
 
-    /** release 资产中的 APK 候选（忽略 .aab 与源码归档） */
+    /** release 资产中的 Android 安装包候选（.apk/.apks/.xapk/.apkm，与 GitHubApi 过滤口径一致） */
     fun apkCandidates(assets: List<ApkAsset>): List<ApkAsset> =
-        assets.filter { it.name.endsWith(".apk", ignoreCase = true) }
+        assets.filter { a ->
+            a.name.endsWith(".apk", true) ||
+                a.name.endsWith(".apks", true) ||
+                a.name.endsWith(".xapk", true) ||
+                a.name.endsWith(".apkm", true)
+        }
 
     /**
      * @return selected = 推荐项（null = 无法自动区分）；auto = 是否自动选中
