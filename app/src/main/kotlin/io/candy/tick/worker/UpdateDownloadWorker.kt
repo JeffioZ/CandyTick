@@ -29,7 +29,7 @@ class UpdateDownloadWorker(context: Context, params: WorkerParameters) : Corouti
 
         val file = updater.download(asset) ?: return Result.retry() // 下载失败：静默退避
         return if (updater.canInstallSilently()) {
-            updater.install(file)
+            updater.installSilently(file)
             Result.success()
         } else {
             Notifications.notifySelfUpdateReady(applicationContext, newState.tag)

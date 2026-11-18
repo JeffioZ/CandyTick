@@ -86,8 +86,37 @@ class InstallManager(private val context: Context) {
         }
     }
 
-    /** 提交安装会话（29+；系统确认 / 静默由安装来源与系统决定） */
+    /**
+     * 仓库 APK 安装入口：ACTION_VIEW + content URI——经系统 resolver 路由，
+     * 用户锁定的第三方安装器（InstallerX / Shizuku 系）因此可以接管；
+     * 无处理器或启动失败时回退系统 session 通道。
+     */
     fun installApk(file: File) {
+        val uri = runCatching {
+            androidx.core.content.FileProvider.getUriForFile(
+                context, "${context.packageName}.fileprovider", file,
+            )
+        }.getOrNull()
+        val view = uri?.let {
+            Intent(Intent.ACTION_VIEW)
+                .setDataAndType(it, "application/vnd.android.package-archive")
+                .addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION or Intent.FLAG_ACTIVITY_NEW_TASK)
+        }
+        val resolved = view?.let {
+            runCatching { context.packageManager.queryIntentActivities(it, 0).isNotEmpty() }.getOrDefault(false)
+        } == true
+        if (view != null && resolved) {
+            runCatching { context.startActivity(view) }.onSuccess {
+                // 安装流程已交外部接管（第三方或系统安装器 UI），结果不再回调本应用
+                _results.tryEmit(InstallResult.PendingUserAction)
+                return
+            }
+        }
+        installViaSession(file)
+    }
+
+    /** 系统安装会话（自身更新静默安装 / Intent 通道的回退；29+） */
+    fun installViaSession(file: File) {
         if (!canRequestInstalls()) {
             // 未授权直接提交会 SecurityException：带去授权页 + 提示回来重试
             openInstallPermissionSettings()

@@ -126,7 +126,11 @@ class SelfUpdater(
         }
     }
 
+    /** 用户手动点「安装更新」：走 Intent 通道，用户锁定的第三方安装器（InstallerX/Shizuku 系）可接管 */
     fun install(file: File) = installManager.installApk(file)
+
+    /** 后台 worker 自动安装：保留系统会话（后台 startActivity 受限，且自动流程要求免打扰） */
+    fun installSilently(file: File) = installManager.installViaSession(file)
 
     /** Android 12+ 且自身当前安装来源为本 app → 可静默安装（首次必然手动一次） */
     fun canInstallSilently(): Boolean {
