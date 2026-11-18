@@ -242,10 +242,17 @@ fun ListScreen(
                 Column(modifier = Modifier.fillMaxSize()) {
                     androidx.compose.animation.AnimatedVisibility(
                         visible = showSearch,
-                        enter = androidx.compose.animation.expandVertically() +
-                            androidx.compose.animation.fadeIn(),
-                        exit = androidx.compose.animation.shrinkVertically() +
-                            androidx.compose.animation.fadeOut(),
+                        // 表层档 220：展开/收起高度与透明度同拍（默认 spring 不可控且不在四档体系）
+                        enter = androidx.compose.animation.expandVertically(
+                            animationSpec = androidx.compose.animation.core.tween(220),
+                        ) + androidx.compose.animation.fadeIn(
+                            animationSpec = androidx.compose.animation.core.tween(220),
+                        ),
+                        exit = androidx.compose.animation.shrinkVertically(
+                            animationSpec = androidx.compose.animation.core.tween(220),
+                        ) + androidx.compose.animation.fadeOut(
+                            animationSpec = androidx.compose.animation.core.tween(220),
+                        ),
                     ) {
                         top.yukonga.miuix.kmp.basic.TextField(
                             value = state.query,

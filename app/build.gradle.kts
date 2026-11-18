@@ -46,6 +46,10 @@ android {
     buildTypes {
         release {
             isMinifyEnabled = true
+            // 真机双架构；x86/x86_64 仅供模拟器，release 不带（debug 不受限）
+            ndk {
+                abiFilters += listOf("arm64-v8a", "armeabi-v7a")
+            }
             signingConfig = signingConfigs.getByName("release")
             proguardFiles(
                 getDefaultProguardFile("proguard-android-optimize.txt"),
@@ -61,6 +65,14 @@ android {
 
     buildFeatures {
         compose = true
+    }
+
+    androidResources {
+        // 应用内只维护中英两语，裁掉依赖库携带的其他语言资源
+        localeFilters += listOf("zh", "en")
+        // OkHttp 公共域名后缀库（132KB）：不用 Cookie 纯冗余；OkHttp 惰性加载缺失时静默降级。
+        // jar 内 assets 不走 packaging.resources，须在 aapt 资产合并层忽略（保留 aapt 默认排除串）
+        ignoreAssetsPattern = "!.svn:!.git:!.ds_store:!*.scc:.*:<dir>_*:!CVS:!thumbs.db:!picasa.ini:!*~:!PublicSuffixDatabase.list"
     }
 }
 

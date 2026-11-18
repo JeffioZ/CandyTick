@@ -1,5 +1,6 @@
 package io.candy.tick.ui.common
 
+import androidx.compose.animation.togetherWith
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
@@ -91,70 +92,90 @@ fun UpdateSheet(
                 .padding(top = 4.dp, bottom = 16.dp),
             verticalArrangement = Arrangement.spacedBy(10.dp),
         ) {
-            when (val s = state) {
-                is SelfUpdater.State.NewVersion -> {
-                    // 醒目版本 tag：一眼看到升到什么
-                    Text(
-                        text = s.tag,
-                        style = MonoTokenStyle.copy(fontWeight = FontWeight.Bold),
-                        color = MiuixTheme.colorScheme.primaryVariant,
-                    )
-                    s.notes?.let { notes ->
-                        // 更新说明取自 release body（已剥 markdown）；长文限高可滚
-                        Text(
-                            text = notes,
-                            style = MiuixTheme.textStyles.body2,
-                            color = MiuixTheme.colorScheme.onBackgroundVariant,
-                            modifier = Modifier
-                                .heightIn(max = 280.dp)
-                                .verticalScroll(rememberScrollState()),
-                        )
-                    }
-                    PrimaryButton(
-                        text = stringResource(R.string.settings_download_update),
-                        onClick = {
-                            scope.launch {
-                                val file = s.asset?.let { selfUpdater.download(it) }
-                                // 与仓库 APK 同一行为：下载完成按开关自动进安装
-                                if (file != null && autoInstall) selfUpdater.install(file)
+            // 三相柔切换（与仓库下载四相同款 180 档）：新版 → 进度 → 安装不硬跳
+            val phase = when (state) {
+                is SelfUpdater.State.NewVersion -> "new"
+                is SelfUpdater.State.Downloading -> "dl"
+                is SelfUpdater.State.Downloaded -> "done"
+                else -> "idle"
+            }
+            androidx.compose.animation.AnimatedContent(
+                targetState = phase,
+                modifier = Modifier.fillMaxWidth(),
+                transitionSpec = {
+                    (androidx.compose.animation.fadeIn(androidx.compose.animation.core.tween(180)) +
+                        androidx.compose.animation.slideInVertically(
+                            animationSpec = androidx.compose.animation.core.tween(180),
+                        ) { it / 6 }) togetherWith
+                        androidx.compose.animation.fadeOut(androidx.compose.animation.core.tween(180))
+                },
+                label = "updatePhase",
+            ) { ph ->
+                Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
+                    when (ph) {
+                        "new" -> (state as? SelfUpdater.State.NewVersion)?.let { s ->
+                            // 醒目版本 tag：一眼看到升到什么
+                            Text(
+                                text = s.tag,
+                                style = MonoTokenStyle.copy(fontWeight = FontWeight.Bold),
+                                color = MiuixTheme.colorScheme.primaryVariant,
+                            )
+                            s.notes?.let { notes ->
+                                // 更新说明取自 release body（已剥 markdown）；长文限高可滚
+                                Text(
+                                    text = notes,
+                                    style = MiuixTheme.textStyles.body2,
+                                    color = MiuixTheme.colorScheme.onBackgroundVariant,
+                                    modifier = Modifier
+                                        .heightIn(max = 280.dp)
+                                        .verticalScroll(rememberScrollState()),
+                                )
                             }
-                        },
-                        modifier = Modifier.fillMaxWidth(),
-                    )
-                }
-                is SelfUpdater.State.Downloading -> {
-                    val p by androidx.compose.animation.core.animateFloatAsState(
-                        targetValue = s.progress,
-                        animationSpec = androidx.compose.animation.core.tween(300),
-                        label = "updateDl",
-                    )
-                    LinearProgressIndicator(
-                        progress = p,
-                        modifier = Modifier.fillMaxWidth(),
-                    )
-                    Row(verticalAlignment = Alignment.CenterVertically) {
-                        Text(
-                            text = stringResource(R.string.download_progress_percent, (p * 100).toInt()),
-                            style = MiuixTheme.textStyles.footnote2,
-                            color = MiuixTheme.colorScheme.onBackgroundVariant,
-                        )
+                            PrimaryButton(
+                                text = stringResource(R.string.settings_download_update),
+                                onClick = {
+                                    scope.launch {
+                                        val file = s.asset?.let { selfUpdater.download(it) }
+                                        // 与仓库 APK 同一行为：下载完成按开关自动进安装
+                                        if (file != null && autoInstall) selfUpdater.install(file)
+                                    }
+                                },
+                                modifier = Modifier.fillMaxWidth(),
+                            )
+                        }
+                        "dl" -> (state as? SelfUpdater.State.Downloading)?.let { st ->
+                            val p by androidx.compose.animation.core.animateFloatAsState(
+                                targetValue = st.progress,
+                                animationSpec = androidx.compose.animation.core.tween(300),
+                                label = "updateDl",
+                            )
+                            LinearProgressIndicator(
+                                progress = p,
+                                modifier = Modifier.fillMaxWidth(),
+                            )
+                            Text(
+                                text = stringResource(R.string.download_progress_percent, (p * 100).toInt()),
+                                style = MiuixTheme.textStyles.footnote2,
+                                color = MiuixTheme.colorScheme.onBackgroundVariant,
+                            )
+                        }
+                        "done" -> (state as? SelfUpdater.State.Downloaded)?.let { st ->
+                            Text(
+                                text = st.tag,
+                                style = MonoTokenStyle.copy(fontWeight = FontWeight.Bold),
+                                color = MiuixTheme.colorScheme.primaryVariant,
+                            )
+                            PrimaryButton(
+                                text = stringResource(R.string.settings_install_update),
+                                onClick = { selfUpdater.install(st.file) },
+                                modifier = Modifier.fillMaxWidth(),
+                            )
+                        }
+                        else -> {
+                            // 关闭竞态兜底（state 已流转到弹窗外相）
+                            Spacer(Modifier.height(8.dp))
+                        }
                     }
-                }
-                is SelfUpdater.State.Downloaded -> {
-                    Text(
-                        text = s.tag,
-                        style = MonoTokenStyle.copy(fontWeight = FontWeight.Bold),
-                        color = MiuixTheme.colorScheme.primaryVariant,
-                    )
-                    PrimaryButton(
-                        text = stringResource(R.string.settings_install_update),
-                        onClick = { selfUpdater.install(s.file) },
-                        modifier = Modifier.fillMaxWidth(),
-                    )
-                }
-                else -> {
-                    // 关闭竞态兜底（state 已流转到弹窗外相）
-                    Spacer(Modifier.height(8.dp))
                 }
             }
         }

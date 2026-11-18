@@ -3,6 +3,7 @@ package io.candy.tick.ui.common
 import android.content.Intent
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.layout.Box
+import androidx.compose.ui.Alignment
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.fillMaxWidth
@@ -19,6 +20,8 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.withContext
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.platform.LocalConfiguration
 import androidx.compose.ui.platform.LocalContext
@@ -49,27 +52,35 @@ fun AppPickerSheet(
 ) {
     val context = LocalContext.current
     var query by remember { mutableStateOf("") }
-    // sheet 关闭即清搜索词：消灭幽灵草稿（与 Token / 分支弹层同一治理原则）
+    // 应用列表在 IO 线程加载（几百个应用的 label/icon 查询曾阻塞组合主线程）
+    var apps by remember { mutableStateOf<List<AppOption>>(emptyList()) }
+    var appsLoading by remember { mutableStateOf(false) }
+    // sheet 关闭即清搜索词与列表：消灭幽灵草稿（与 Token / 分支弹层同一治理原则）
     LaunchedEffect(show) {
-        if (!show && query.isNotEmpty()) query = ""
-    }
-    val apps = remember(show) {
-        if (!show) return@remember emptyList()
-        runCatching {
-            val pm = context.packageManager
-            val intent = Intent(Intent.ACTION_MAIN).addCategory(Intent.CATEGORY_LAUNCHER)
-            pm.queryIntentActivities(intent, 0)
-                .map { ri ->
-                    AppOption(
-                        packageName = ri.activityInfo.packageName,
-                        label = ri.loadLabel(pm).toString(),
-                        icon = runCatching { ri.activityInfo.loadIcon(pm) }.getOrNull(),
-                    )
-                }
-                .distinctBy { it.packageName }
-                .filterNot { it.packageName == context.packageName }
-                .sortedBy { it.label.lowercase() }
-        }.getOrDefault(emptyList())
+        if (show) {
+            appsLoading = true
+            apps = withContext(Dispatchers.IO) {
+                runCatching {
+                    val pm = context.packageManager
+                    val intent = Intent(Intent.ACTION_MAIN).addCategory(Intent.CATEGORY_LAUNCHER)
+                    pm.queryIntentActivities(intent, 0)
+                        .map { ri ->
+                            AppOption(
+                                packageName = ri.activityInfo.packageName,
+                                label = ri.loadLabel(pm).toString(),
+                                icon = runCatching { ri.activityInfo.loadIcon(pm) }.getOrNull(),
+                            )
+                        }
+                        .distinctBy { it.packageName }
+                        .filterNot { it.packageName == context.packageName }
+                        .sortedBy { it.label.lowercase() }
+                }.getOrDefault(emptyList())
+            }
+            appsLoading = false
+        } else {
+            if (query.isNotEmpty()) query = ""
+            apps = emptyList()
+        }
     }
     val keyword = query.trim()
     val filtered = if (keyword.isEmpty()) apps else apps.filter {
@@ -89,6 +100,17 @@ fun AppPickerSheet(
                 .fillMaxWidth()
                 .heightIn(max = maxSheetHeight),
         ) {
+            if (appsLoading) {
+                // 加载位：与分支弹层同款（独立等待位 = 居中 dots）
+                Box(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(vertical = 24.dp),
+                    contentAlignment = Alignment.Center,
+                ) {
+                    LoadingDots(dotSize = 5.dp)
+                }
+            }
             if (apps.size > 15) {
                 TextField(
                     value = query,
