@@ -147,7 +147,7 @@
     <string name="load_failed">加载失败</string>
     <string name="status_error_subtitle">网络或接口出了点问题，稍后再试试</string>
     <string name="list_end">— 已到底 —</string>
-    <string name="release_view_on_github">在 GitHub 查看完整发布</string>
+    <string name="release_view_on_github">查看完整更新说明</string>
     <string name="release_current">当前</string>
     <string name="asset_recommended">推荐</string>
     <string name="download_apk">下载安装包</string>

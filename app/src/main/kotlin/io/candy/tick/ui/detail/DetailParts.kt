@@ -422,23 +422,30 @@ internal fun HeaderCard(
                         color = scheme.onBackgroundVariant,
                         modifier = Modifier.weight(1f),
                     )
-                    IconButton(onClick = onChangeLinked) {
+                    // 动作图标对：36dp 触控钮（IconButton 默认 48dp 会把行撑得过高、
+                    // 两钮中心距过远显稀疏；36dp 与 footnote 行高协调，触控仍达标）
+                    IconButton(
+                        onClick = onChangeLinked,
+                        modifier = Modifier.size(36.dp),
+                    ) {
                         Icon(
                             // Link 锁链 =「关联」本命语义（换关联 = 重新建链）
                             imageVector = ImageVector.vectorResource(R.drawable.ic_link),
                             contentDescription = stringResource(R.string.detail_link_change),
                             tint = scheme.onBackgroundVariant,
-                            modifier = Modifier.size(18.dp),
+                            modifier = Modifier.size(16.dp),
                         )
                     }
-                    Spacer(Modifier.width(8.dp))
-                    IconButton(onClick = onUnlink) {
+                    IconButton(
+                        onClick = onUnlink,
+                        modifier = Modifier.size(36.dp),
+                    ) {
                         Icon(
                             // unlink 断链 = 解除关联（minus 减号不表意）
                             imageVector = ImageVector.vectorResource(R.drawable.ic_unlink),
                             contentDescription = stringResource(R.string.detail_unlink),
                             tint = scheme.onBackgroundVariant,
-                            modifier = Modifier.size(18.dp),
+                            modifier = Modifier.size(16.dp),
                         )
                     }
                 }

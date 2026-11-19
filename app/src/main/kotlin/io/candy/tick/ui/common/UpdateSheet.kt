@@ -124,15 +124,35 @@ fun UpdateSheet(
                                 color = MiuixTheme.colorScheme.primaryVariant,
                             )
                             s.notes?.let { notes ->
-                                // 更新说明取自 release body（已剥 markdown）；长文限高可滚
-                                Text(
-                                    text = notes,
-                                    style = MiuixTheme.textStyles.body2,
-                                    color = MiuixTheme.colorScheme.onBackgroundVariant,
+                                // 更新说明：与版本历史展开区同款——链接可点（plain 后的裸 URL
+                                // 由 annotated 再标注；remember 缓存防重组重算）
+                                val scheme = MiuixTheme.colorScheme
+                                val sheetCtx = androidx.compose.ui.platform.LocalContext.current
+                                val notesText = remember(notes, scheme.primaryVariant) {
+                                    io.candy.tick.util.ReleaseNotes.annotated(
+                                        md = notes,
+                                        linkColor = scheme.primaryVariant,
+                                    )
+                                }
+                                androidx.compose.foundation.text.ClickableText(
+                                    text = notesText,
+                                    style = MiuixTheme.textStyles.body2.copy(color = scheme.onBackgroundVariant),
                                     modifier = Modifier
                                         .heightIn(max = 280.dp)
                                         .verticalScroll(rememberScrollState()),
-                                )
+                                ) { offset ->
+                                    notesText.getStringAnnotations("URL", offset, offset)
+                                        .firstOrNull()?.item?.let { url ->
+                                            runCatching {
+                                                sheetCtx.startActivity(
+                                                    android.content.Intent(
+                                                        android.content.Intent.ACTION_VIEW,
+                                                        android.net.Uri.parse(url),
+                                                    ),
+                                                )
+                                            }
+                                        }
+                                }
                             }
                             PrimaryButton(
                                 text = stringResource(R.string.settings_download_update),

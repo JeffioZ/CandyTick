@@ -18,6 +18,7 @@ import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyListScope
 import androidx.compose.foundation.shape.CircleShape
+import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.background
 import androidx.compose.animation.animateContentSize
 import androidx.compose.animation.togetherWith
@@ -136,7 +137,8 @@ private fun ReleaseCard(
     val selected = state.selectedAssets[release.tagName] ?: autoPick
     // 更新日志展开态：body 有内容才可展开（chevron 提示）
     val hasNotes = release.body.isNotBlank()
-    var notesExpanded by remember(release.tagName) { mutableStateOf(false) }
+    // rememberSaveable：列表项滚出屏销毁后回来保持展开态（remember 会丢）
+    var notesExpanded by androidx.compose.runtime.saveable.rememberSaveable(release.tagName) { mutableStateOf(false) }
     Card(modifier = Modifier.fillMaxWidth()) {
         Column(modifier = Modifier.padding(horizontal = 16.dp, vertical = 8.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
             Row(
@@ -144,7 +146,8 @@ private fun ReleaseCard(
                 modifier = if (hasNotes) {
                     Modifier
                         .fillMaxWidth()
-                        // tag 行点击展开/收起更新日志（下载/按钮各行不受影响）
+                        // clip 在 clickable 前：按压色块圆角化（与首页触发行同款 10dp）
+                        .clip(RoundedCornerShape(10.dp))
                         .clickable { notesExpanded = !notesExpanded }
                 } else {
                     Modifier.fillMaxWidth()
@@ -216,37 +219,74 @@ private fun ReleaseCard(
                     ),
                 ) {
                     Column {
-                        Text(
-                            text = io.candy.tick.util.ReleaseNotes.plain(release.body),
-                            style = MiuixTheme.textStyles.body2,
-                            color = scheme.onBackgroundVariant,
+                        val linkCtx = androidx.compose.ui.platform.LocalContext.current
+                        // ClickableText + 自定义 URL span：经典稳定路径（LinkAnnotation 在
+                        // Miuix Text 包装下闪退），命中 span 即开浏览器
+                        val noteStyle = MiuixTheme.textStyles.body2.copy(color = scheme.onBackgroundVariant)
+                        // remember：长 body 的正则解析+AnnotatedString 构建只跑一次
+                        // （此前每次重组都重建，展开动画期间每帧重算——长日志卡顿主因）
+                        val notesText = remember(release.tagName, release.body, scheme.primaryVariant) {
+                            io.candy.tick.util.ReleaseNotes.annotated(
+                                md = release.body,
+                                linkColor = scheme.primaryVariant,
+                            )
+                        }
+                        androidx.compose.foundation.text.ClickableText(
+                            text = notesText,
+                            style = noteStyle,
                             modifier = Modifier
                                 .heightIn(max = 260.dp)
                                 .verticalScroll(rememberScrollState()),
-                        )
-                        Spacer(Modifier.height(6.dp))
-                        // 尾部跳转：GitHub 该 release 页（diff/资产全貌）
-                        val ctx = androidx.compose.ui.platform.LocalContext.current
-                        Text(
-                            text = stringResource(R.string.release_view_on_github),
-                            style = MiuixTheme.textStyles.footnote1,
-                            color = scheme.primaryVariant,
-                            modifier = Modifier
-                                .clickable(
-                                            interactionSource = remember { androidx.compose.foundation.interaction.MutableInteractionSource() },
-                                            indication = null,
-                                        ) {
+                        ) { offset ->
+                            notesText.getStringAnnotations("URL", offset, offset)
+                                .firstOrNull()?.item?.let { url ->
                                     runCatching {
-                                        ctx.startActivity(
+                                        linkCtx.startActivity(
                                             android.content.Intent(
                                                 android.content.Intent.ACTION_VIEW,
-                                                android.net.Uri.parse("$htmlBase/releases/tag/${release.tagName}"),
+                                                android.net.Uri.parse(url),
                                             ),
                                         )
                                     }
                                 }
-                                .padding(vertical = 4.dp),
-                        )
+                        }
+                        Spacer(Modifier.height(6.dp))
+                        // 尾部跳转：GitHub 该 release 页——与 Token 帮助链接同款（图标+下划线+薄荷）
+                        val ctx = androidx.compose.ui.platform.LocalContext.current
+                        androidx.compose.foundation.layout.Row(
+                            verticalAlignment = Alignment.CenterVertically,
+                            modifier = Modifier.padding(vertical = 4.dp),
+                        ) {
+                            Icon(
+                                imageVector = ImageVector.vectorResource(R.drawable.ic_external_link),
+                                contentDescription = null,
+                                tint = scheme.primaryVariant,
+                                modifier = Modifier.size(13.dp),
+                            )
+                            Spacer(Modifier.width(4.dp))
+                            Text(
+                                text = stringResource(R.string.release_view_on_github),
+                                style = MiuixTheme.textStyles.footnote1.copy(
+                                    textDecoration = androidx.compose.ui.text.style.TextDecoration.Underline,
+                                ),
+                                color = scheme.primaryVariant,
+                                modifier = Modifier
+                                    .clickable(
+                                        interactionSource = remember { androidx.compose.foundation.interaction.MutableInteractionSource() },
+                                        indication = null,
+                                    ) {
+                                        runCatching {
+                                            ctx.startActivity(
+                                                android.content.Intent(
+                                                    android.content.Intent.ACTION_VIEW,
+                                                    android.net.Uri.parse("$htmlBase/releases/tag/${release.tagName}"),
+                                                ),
+                                            )
+                                        }
+                                    }
+                                    .padding(vertical = 2.dp),
+                            )
+                        }
                     }
                 }
             }
@@ -432,30 +472,38 @@ private fun AssetRow(
             modifier = Modifier.size(20.dp),
             contentAlignment = Alignment.Center,
         ) {
-            // 单向动画：新相淡入 120ms、旧相瞬时消失——任何时刻只有一个可见相，
-            // 无 Crossfade 的半透明叠加（重影=抖动），零布局变化
-            // 单选框图形对（Windows 风格）：空心圆 ↔ 圆圈带勾，单向动画（新相淡入旧相瞬灭）
-            androidx.compose.animation.AnimatedContent(
-                targetState = selected,
-                transitionSpec = {
-                    if (targetState) {
-                        androidx.compose.animation.fadeIn(androidx.compose.animation.core.tween(120)) togetherWith
-                            androidx.compose.animation.fadeOut(androidx.compose.animation.core.tween(0))
-                    } else {
-                        androidx.compose.animation.fadeIn(androidx.compose.animation.core.tween(0)) togetherWith
-                            androidx.compose.animation.fadeOut(androidx.compose.animation.core.tween(120))
-                    }
-                },
-                label = "assetRadio",
-            ) { sel ->
+            // 单选框（Windows 风格）：圆圈恒定 + 勾按需淡入淡出——两图形大部分重叠，
+            // 整体交叉切换会让圆圈先消失再出现（闪烁感），只动差异部分（勾）才稳
+            val radioTint by androidx.compose.animation.animateColorAsState(
+                targetValue = if (selected) scheme.primaryVariant
+                else scheme.onBackgroundVariant.copy(alpha = 0.45f),
+                animationSpec = androidx.compose.animation.core.tween(150),
+                label = "radioTint",
+            )
+            Box(modifier = Modifier.size(20.dp), contentAlignment = Alignment.Center) {
                 Icon(
-                    imageVector = ImageVector.vectorResource(
-                        if (sel) R.drawable.ic_radio_on else R.drawable.ic_radio_off
-                    ),
-                    contentDescription = if (sel) "selected" else null,
-                    tint = if (sel) scheme.primaryVariant else scheme.onBackgroundVariant.copy(alpha = 0.45f),
+                    imageVector = ImageVector.vectorResource(R.drawable.ic_radio_off),
+                    contentDescription = if (selected) "selected" else null,
+                    tint = radioTint,
                     modifier = Modifier.size(20.dp),
                 )
+                androidx.compose.animation.AnimatedVisibility(
+                    visible = selected,
+                    enter = androidx.compose.animation.fadeIn(
+                        androidx.compose.animation.core.tween(120),
+                    ),
+                    exit = androidx.compose.animation.fadeOut(
+                        androidx.compose.animation.core.tween(120),
+                    ),
+                ) {
+                    // 只叠勾（circle-check 的差异部分），圆圈底层恒定不动
+                    Icon(
+                        imageVector = ImageVector.vectorResource(R.drawable.ic_check),
+                        contentDescription = null,
+                        tint = scheme.primaryVariant,
+                        modifier = Modifier.size(20.dp),
+                    )
+                }
             }
         }
         Spacer(Modifier.width(8.dp))
