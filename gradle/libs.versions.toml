@@ -11,7 +11,6 @@ work = "2.12.0"
 okhttp = "5.5.1"
 kotlinxSerialization = "1.13.0"
 miuix = "0.9.4"
-backdrop = "2.0.1" # 液态玻璃增强（Kyant0），施工第 9 步启用
 
 [libraries]
 androidx-core-ktx = { group = "androidx.core", name = "core-ktx", version.ref = "coreKtx" }
@@ -36,8 +35,6 @@ miuix-icons = { group = "top.yukonga.miuix.kmp", name = "miuix-icons", version.r
 okhttp = { group = "com.squareup.okhttp3", name = "okhttp", version.ref = "okhttp" }
 kotlinx-serialization-json = { group = "org.jetbrains.kotlinx", name = "kotlinx-serialization-json", version.ref = "kotlinxSerialization" }
 
-
-backdrop = { group = "io.github.kyant0", name = "backdrop", version.ref = "backdrop" }
 
 [plugins]
 android-application = { id = "com.android.application", version.ref = "agp" }

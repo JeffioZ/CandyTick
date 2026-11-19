@@ -37,25 +37,36 @@ jobs:
             "${{ secrets.KEY_ALIAS }}" \
             "${{ secrets.KEY_PASSWORD }}" > keystore.properties
 
-      - name: Build debug (validation)
-        run: ./gradlew assembleDebug --no-daemon
-
+      # 发版唯一构建：release 本身即完整验证（不再跑 debug 双构建）
       - name: Build release APK
         run: ./gradlew assembleRelease --no-daemon
+
+      - name: Extract release notes from CHANGELOG
+        run: |
+          TAG="${GITHUB_REF#refs/tags/}"
+          VERSION="${TAG#v}"
+          # 提取该版本段落（## [X.Y.Z] 到下一个 ## 前），去掉段落标题行
+          # index 匹配而非正则：规避 awk 对 \[ 转义的平台差异
+          awk -v ver="$VERSION" '
+            index($0, "## [") == 1 { p = (index($0, "## [" ver "]") == 1) }
+            p
+          ' CHANGELOG.md | tail -n +2 | sed -e '/./,$!d' > release_notes.md
+          echo "--- notes for $VERSION ---"
+          cat release_notes.md
+
+      - name: Clean up secrets
+        run: |
+          rm -f candytick-release.keystore keystore.properties
 
       - name: Rename APK
         run: |
           TAG="${GITHUB_REF#refs/tags/}"
           cp app/build/outputs/apk/release/app-release.apk "candytick-${TAG}.apk"
 
-      - name: Clean up secrets
-        run: |
-          rm -f candytick-release.keystore keystore.properties
-
       - name: Create GitHub Release
         uses: softprops/action-gh-release@v2
         with:
           files: candytick-*.apk
-          generate_release_notes: true
+          body_path: release_notes.md
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
