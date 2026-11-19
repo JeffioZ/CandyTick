@@ -51,6 +51,7 @@ fun RepoCard(
     expanded: Boolean,
     isChanged: Boolean = false,
     updatable: Boolean = false,
+    versionEpoch: Int = 0, // ON_RESUME 递增：安装后版本行重算
     onToggle: () -> Unit,
     onClick: () -> Unit,
     modifier: Modifier = Modifier,
@@ -174,7 +175,7 @@ fun RepoCard(
                     Column {
                         Spacer(Modifier.height(2.dp))
                         // 卡中卡信息面板：展开内容有容器底，与折叠态主信息分层
-                        ExpandedDetails(item = item, extras = extras)
+                        ExpandedDetails(item = item, extras = extras, versionEpoch = versionEpoch)
                         // 卡底留白放展开块内：收起时随动画移除，折叠态底部与顶对称（8dp）
                         Spacer(Modifier.height(8.dp))
                     }
@@ -184,7 +185,11 @@ fun RepoCard(
 }
 
 @Composable
-private fun ExpandedDetails(item: ListViewModel.RepoListItem, extras: ListViewModel.CardExtras?) {
+private fun ExpandedDetails(
+    item: ListViewModel.RepoListItem,
+    extras: ListViewModel.CardExtras?,
+    versionEpoch: Int = 0,
+) {
     val scheme = MiuixTheme.colorScheme
     Column(
         modifier = Modifier
@@ -227,7 +232,7 @@ private fun ExpandedDetails(item: ListViewModel.RepoListItem, extras: ListViewMo
 
         // 版本行：最新 release vs 本机版本（与详情页头部共用组件，口径一致）
         val release = extras?.latestRelease
-        if (release != null) VersionStatusLine(repo = item.repo, remoteTag = release.tagName)
+        if (release != null) VersionStatusLine(repo = item.repo, remoteTag = release.tagName, installEpoch = versionEpoch)
     }
 }
 

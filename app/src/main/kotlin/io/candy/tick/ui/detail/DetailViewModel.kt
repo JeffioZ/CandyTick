@@ -79,6 +79,7 @@ class DetailViewModel(
         val branches: List<String> = emptyList(), // 分支选择器数据
         val branchesLoading: Boolean = false,
         val branchesFailed: Boolean = false,
+        val installEpoch: Int = 0, // ON_RESUME 递增：安装完成后破除版本对比的重组跳过
     )
 
     sealed interface Event {
@@ -345,6 +346,11 @@ class DetailViewModel(
 
     fun retryDownload(release: ReleaseRecord, asset: ApkAsset) = downloadAsset(release, asset, fromHeader = true)
 
+    /** 从安装器返回（ON_RESUME）：本机版本可能已变，递增 epoch 触发全部版本对比重算 */
+    fun onAppResume() {
+        _state.update { it.copy(installEpoch = it.installEpoch + 1) }
+    }
+
     /**
      * 头部「下载更新」入口：只精确匹配最新 tag 的 release（盲下列表第一条可能拿到
      * 比已装更旧的版本）；列表未加载到或无 APK 资产时切到版本页签让用户直视。
@@ -363,7 +369,9 @@ class DetailViewModel(
             tab.value = DetailTab.RELEASES // 该 release 无 APK 资产
             return
         }
-        downloadAsset(release, asset)
+        // fromHeader 必传：头部入口的进度只在头部显示（此前漏传 → 点下载无进度条，
+        // 下载完自动拉起安装，用户看到的是「没进度直接安装」）
+        downloadAsset(release, asset, fromHeader = true)
     }
 
     /** 下载保留复用：已下载过的文件直接安装 */

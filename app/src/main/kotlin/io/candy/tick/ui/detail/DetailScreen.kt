@@ -64,6 +64,15 @@ fun DetailScreen(repoId: Long, onBack: () -> Unit) {
             context = app,
         )
     }
+    // 从安装器返回（ON_RESUME）：本机版本可能已变（装完新 APK），通知 VM 重算版本对比
+    val lifecycleOwner = androidx.compose.ui.platform.LocalLifecycleOwner.current
+    androidx.compose.runtime.DisposableEffect(lifecycleOwner) {
+        val observer = androidx.lifecycle.LifecycleEventObserver { _, event ->
+            if (event == androidx.lifecycle.Lifecycle.Event.ON_RESUME) vm.onAppResume()
+        }
+        lifecycleOwner.lifecycle.addObserver(observer)
+        onDispose { lifecycleOwner.lifecycle.removeObserver(observer) }
+    }
     val state by vm.state.collectAsStateWithLifecycle()
     val scheme = MiuixTheme.colorScheme
     val pullState = rememberPullToRefreshState()

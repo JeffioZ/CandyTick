@@ -312,7 +312,7 @@ internal fun HeaderCard(
                 Spacer(Modifier.height(8.dp))
                 SectionDivider()
                 Spacer(Modifier.height(6.dp))
-                VersionStatusLine(repo = repo, remoteTag = tag)
+                VersionStatusLine(repo = repo, remoteTag = tag, installEpoch = state.installEpoch)
 
                 // 更新入口（有新版时头部直接行动）：下载 → 进度 → 安装
                 val hasUpdate = io.candy.tick.ui.common.updateAvailable(context, repo, tag)

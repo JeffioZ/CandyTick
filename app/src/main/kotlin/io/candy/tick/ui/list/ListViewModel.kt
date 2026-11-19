@@ -62,6 +62,7 @@ class ListViewModel(
         val expanded: Set<Long> = emptySet(),
         val changedIds: Set<Long> = emptySet(), // 有新活动的仓库（刷新后对比）
         val updatableIds: Set<Long> = emptySet(), // 有可比新版的仓库（折叠卡直显标识）
+        val versionEpoch: Int = 0, // ON_RESUME 递增：破除版本行/对比的重组跳过
         val cards: Map<Long, CardExtras> = emptyMap(),
     ) {
         val isEmpty: Boolean get() = items.isEmpty() && !refreshing && query.isBlank()
@@ -93,8 +94,11 @@ class ListViewModel(
     private val part1 = combine(repository.state, sortMode, refreshing, banner, query) { s, sort, refr, ban, q ->
         Part1(s.repos, s.snapshots, sort, refr, ban, q)
     }
-    private val part2 = combine(repoErrors, expanded, cards, changedRepos) { errs, exp, crds, chg ->
-        Part2(errs, exp, crds, chg)
+    // ON_RESUME 递增：安装完成后重算 updatableIds/版本行（本机版本读 PM 非响应式）
+    private val resumeTick = MutableStateFlow(0)
+
+    private val part2 = combine(repoErrors, expanded, cards, changedRepos, resumeTick) { errs, exp, crds, chg, tick ->
+        Part2(errs, exp, crds, changed = chg, versionEpoch = tick)
     }
 
     // 快照变更监听：无论来源（下拉/SyncWorker/打开即同步），有新提交或新 release 就标
@@ -185,6 +189,7 @@ class ListViewModel(
             query = p1.query,
             banner = p1.banner,
             expanded = p2.expanded,
+            versionEpoch = p2.versionEpoch,
             changedIds = p2.changed,
             // 有可比新版的仓库集（与排序比较器共用同一份 PM 查询结果，零重复 IPC）
             updatableIds = upd.filterValues { it }.keys,
@@ -218,6 +223,7 @@ class ListViewModel(
         val errors: Map<Long, SourceError>,
         val expanded: Set<Long>,
         val cards: Map<Long, CardExtras>,
+        val versionEpoch: Int = 0,
         val changed: Set<Long>,
     )
 
@@ -319,6 +325,11 @@ class ListViewModel(
 
     fun setQuery(text: String) {
         query.value = text
+    }
+
+    /** 从安装器返回（ON_RESUME）：递增 epoch 重算「有新版」标识与版本行 */
+    fun onAppResume() {
+        resumeTick.value++
     }
 
     fun toggleExpand(id: Long) {

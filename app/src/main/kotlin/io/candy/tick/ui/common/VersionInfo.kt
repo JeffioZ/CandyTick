@@ -29,7 +29,9 @@ fun updateAvailable(context: Context, repo: TrackedRepo, remoteTag: String): Boo
  * 首页卡片展开与详情页头部共用，保证两处口径一致。
  */
 @Composable
-fun VersionStatusLine(repo: TrackedRepo, remoteTag: String) {
+fun VersionStatusLine(repo: TrackedRepo, remoteTag: String, installEpoch: Int = 0) {
+    // installEpoch 仅供重组（参数变化破除 skip）：本机版本读 PackageManager 非响应式，
+    // 安装完成后需要外部信号强制重算（ON_RESUME 递增）
     val scheme = MiuixTheme.colorScheme
     val context = LocalContext.current
     val local = localVersionName(context, repo)

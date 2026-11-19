@@ -61,6 +61,15 @@ fun ListScreen(
 ) {
     val app = LocalContext.current.applicationContext as CandyTickApp
     val vm: ListViewModel = viewModel { ListViewModel(app.container.repoRepository, app) }
+    // 从安装器返回（ON_RESUME）：本机版本可能已变（装完新 APK），通知 VM 重算版本对比
+    val lifecycleOwner = androidx.compose.ui.platform.LocalLifecycleOwner.current
+    androidx.compose.runtime.DisposableEffect(lifecycleOwner) {
+        val observer = androidx.lifecycle.LifecycleEventObserver { _, event ->
+            if (event == androidx.lifecycle.Lifecycle.Event.ON_RESUME) vm.onAppResume()
+        }
+        lifecycleOwner.lifecycle.addObserver(observer)
+        onDispose { lifecycleOwner.lifecycle.removeObserver(observer) }
+    }
     val state by vm.state.collectAsStateWithLifecycle()
     val syncStatus by vm.syncStatus.collectAsStateWithLifecycle()
     // 结果转变检测（Running→Done，或冷启动 10s 内的新鲜 Done）——顶栏完成符与胶囊共用
@@ -332,6 +341,7 @@ fun ListScreen(
                                     expanded = item.repo.id in state.expanded,
                                     isChanged = item.repo.id in state.changedIds,
                                     updatable = item.repo.id in state.updatableIds,
+                                    versionEpoch = state.versionEpoch,
                                     onToggle = { vm.toggleExpand(item.repo.id) },
                                     onClick = {
                                         vm.clearChanged(item.repo.id)
