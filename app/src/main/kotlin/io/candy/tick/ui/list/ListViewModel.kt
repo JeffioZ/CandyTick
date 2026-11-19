@@ -86,6 +86,10 @@ class ListViewModel(
     private val changedRepos = MutableStateFlow<Set<Long>>(emptySet())
     private val cards = MutableStateFlow<Map<Long, CardExtras>>(emptyMap())
 
+    // 展开时 stale 重拉的会话级节流：拉过一次不再因「有新版」重复拉（配额敏感）；
+    // 新活动（changed）或新一轮刷新会重新解锁
+    private val silentLoaded = MutableStateFlow<Set<Long>>(emptySet())
+
     private val part1 = combine(repository.state, sortMode, refreshing, banner, query) { s, sort, refr, ban, q ->
         Part1(s.repos, s.snapshots, sort, refr, ban, q)
     }
@@ -284,6 +288,7 @@ class ListViewModel(
         viewModelScope.launch {
             refreshing.value = true
             banner.value = null
+            silentLoaded.value = emptySet() // 新一轮刷新：解锁展开时的 stale 重拉节流
             suppressPlacementTemporarily() // 刷新重排瞬时落位
             val errors = repository.refreshAll()
             repoErrors.value = errors
@@ -295,6 +300,10 @@ class ListViewModel(
             }
             refreshing.value = false
             suppressPlacementTemporarily() // 弱网下刷新可超过首个抑制窗：落位点再压一次
+            // 刷新后已展开的卡原地静默重拉：展开内容与快照同步（缓存只拉一次的旧值不再滞留）
+            expanded.value.forEach { id ->
+                if (cards.value[id]?.commits != null) loadCard(id, silent = true)
+            }
         }
     }
 
@@ -317,21 +326,36 @@ class ListViewModel(
         if (!next.add(id)) next.remove(id)
         expanded.value = next
         if (id in next) {
-            // 展开查看即视为已读：清除「有更新」标记
+            // 展开查看即视为已读：清除「有更新」标记（先记后清，供缓存过期判断）
+            val hadChanges = id in changedRepos.value
             changedRepos.value = changedRepos.value - id
             val cached = cards.value[id]
-            if (cached?.commits == null && cached?.loading != true) loadCard(id)
+            when {
+                cached?.commits == null && cached?.loading != true -> loadCard(id)
+                // 缓存过期：快照层提示过新活动/新版（如 SyncWorker 后台刷完回前台），
+                // 展开必须重拉——否则提示与展开内容不符（展开的还是旧提交/旧版本）
+                hadChanges ||
+                    (id in state.value.updatableIds && id !in silentLoaded.value) ->
+                    loadCard(id, silent = true)
+            }
         }
     }
 
-    private fun loadCard(id: Long) {
+    private fun loadCard(id: Long, silent: Boolean = false) {
         viewModelScope.launch {
-            cards.value = cards.value + (id to CardExtras(loading = true))
+            if (!silent) cards.value = cards.value + (id to CardExtras(loading = true))
             val commits = runCatching { repository.commits(id, 1) }.getOrNull()
             // 与 SyncWorker tag 选取同口径：跳过无安装包资产的 release（桌面专用 nightly 等）
             val release = runCatching { repository.releases(id, 1) }.getOrNull()
                 ?.firstOrNull { it.apkAssets.isNotEmpty() }
-            cards.value = cards.value + (id to CardExtras(commits, release, loading = false))
+            cards.value = cards.value + (id to if (silent) {
+                // 静默重拉：失败逐字段保留旧值（不闪 loading、不丢已展示内容）
+                val old = cards.value[id] ?: CardExtras()
+                silentLoaded.value = silentLoaded.value + id
+                CardExtras(commits ?: old.commits, release ?: old.latestRelease, loading = false)
+            } else {
+                CardExtras(commits, release, loading = false)
+            })
         }
     }
 

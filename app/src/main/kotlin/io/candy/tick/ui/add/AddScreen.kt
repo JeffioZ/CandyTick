@@ -178,22 +178,19 @@ fun AddScreen(
                                 animationSpec = androidx.compose.animation.core.tween(220),
                             ) { it / 10 },
                         ) {
-                        Card(
-                            modifier = Modifier
-                                .fillMaxWidth()
-                                .animateItem(
-                                    fadeInSpec = androidx.compose.animation.core.tween(150),
-                                    fadeOutSpec = androidx.compose.animation.core.tween(150),
-                                ),
-                            cornerRadius = 16.dp,
-                            // 按压下沉：HyperOS 卡片惯例（Miuix Card 默认无反馈）
-                            pressFeedbackType = top.yukonga.miuix.kmp.utils.PressFeedbackType.Sink,
+                        io.candy.tick.ui.common.PressableCard(
                             onClick = {
                                 // 进入预览=输入阶段结束：收键盘，整屏让位预览卡
                                 // （skill: focus-not-obscured，预览按钮不被键盘遮挡）
                                 keyboardController?.hide()
                                 vm.pickResult(info)
                             },
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .animateItem(
+                                    fadeInSpec = androidx.compose.animation.core.tween(150),
+                                    fadeOutSpec = androidx.compose.animation.core.tween(150),
+                                ),
                         ) {
                             Column(modifier = Modifier.padding(horizontal = 16.dp, vertical = 8.dp)) {
                                 Row(verticalAlignment = Alignment.CenterVertically) {

@@ -17,7 +17,6 @@ import androidx.compose.ui.unit.dp
 import io.candy.tick.R
 import io.candy.tick.ui.common.RelTimeText
 import io.candy.tick.ui.theme.MonoTokenStyle
-import top.yukonga.miuix.kmp.basic.Card
 import top.yukonga.miuix.kmp.basic.Text
 import top.yukonga.miuix.kmp.theme.MiuixTheme
 import androidx.compose.ui.res.vectorResource
@@ -37,10 +36,7 @@ fun LazyListScope.commitList(
             fadeInSpec = androidx.compose.animation.core.tween(150),
             fadeOutSpec = androidx.compose.animation.core.tween(150),
         )
-        Card(
-            modifier = itemMod,
-            // 按压下沉：HyperOS 卡片惯例（Miuix Card 默认无反馈，需显式开启）
-            pressFeedbackType = top.yukonga.miuix.kmp.utils.PressFeedbackType.Sink,
+        io.candy.tick.ui.common.PressableCard(
             // 点击跳 GitHub 查 diff/详情（GitHub app 同款延伸）
             onClick = {
                 runCatching {
@@ -52,6 +48,7 @@ fun LazyListScope.commitList(
                     )
                 }
             },
+            modifier = itemMod,
         ) {
             Column(modifier = Modifier.padding(horizontal = 16.dp, vertical = 8.dp)) {
                 Row(verticalAlignment = Alignment.CenterVertically) {

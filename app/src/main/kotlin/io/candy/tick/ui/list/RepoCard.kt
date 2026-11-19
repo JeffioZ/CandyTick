@@ -36,7 +36,6 @@ import io.candy.tick.ui.common.toImageBitmap
 import io.candy.tick.ui.theme.AvatarPalette
 import io.candy.tick.ui.theme.MonoTokenStyle
 import kotlin.math.abs
-import top.yukonga.miuix.kmp.basic.Card
 import top.yukonga.miuix.kmp.basic.Icon
 import top.yukonga.miuix.kmp.basic.Text
 import top.yukonga.miuix.kmp.theme.MiuixTheme
@@ -57,13 +56,7 @@ fun RepoCard(
     modifier: Modifier = Modifier,
 ) {
     val scheme = MiuixTheme.colorScheme
-    Card(
-        modifier = modifier.fillMaxWidth(),
-        cornerRadius = 16.dp,
-        // 按压下沉：HyperOS 卡片惯例（Miuix Card 默认无反馈）
-        pressFeedbackType = top.yukonga.miuix.kmp.utils.PressFeedbackType.Sink,
-        onClick = onClick,
-    ) {
+    io.candy.tick.ui.common.PressableCard(onClick = onClick, modifier = modifier.fillMaxWidth()) {
         Column(modifier = Modifier.padding(start = 16.dp, end = 16.dp, top = 8.dp)) {
                 Row(verticalAlignment = Alignment.CenterVertically) {
                     RepoIcon(repo = item.repo)
