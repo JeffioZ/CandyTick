@@ -4,8 +4,8 @@
 
 # CandyTick
 
-**还在维护吗？** —— 看看 GitHub 仓库是否还在更新
-*Still ticking? — GitHub repo health at a glance*
+**GitHub 仓库维护状态追踪与新版本安装**
+*Track repo health & updates*
 
 [![License](https://img.shields.io/badge/License-GPL--3.0-blue)](LICENSE)
 [![Release](https://img.shields.io/github/v/release/JeffioZ/CandyTick)](https://github.com/JeffioZ/CandyTick/releases)
