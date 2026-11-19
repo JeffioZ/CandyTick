@@ -4,7 +4,8 @@
 
 # CandyTick
 
-**Still ticking?** — A vital-signs monitor for GitHub repositories
+**Still ticking?** — GitHub repo health at a glance
+*还在维护吗？—— 看看仓库是否还在更新*
 
 [![License](https://img.shields.io/badge/License-GPL--3.0-blue)](LICENSE)
 [![Release](https://img.shields.io/github/v/release/JeffioZ/CandyTick)](https://github.com/JeffioZ/CandyTick/releases)
@@ -25,19 +26,19 @@ Track GitHub repositories and their maintenance status; download and install new
 
 ## Features
 
-- Maintenance status based on the latest commit on the default branch: Active / Fair / Low activity / Likely abandoned; archived repositories marked separately
-- Commit history and release history, paginated in the detail view; the commit view can browse any branch
-- Optional link to an installed app for version comparison; the title follows the app name (and tracks renames); high-confidence auto-linking by app label or package name
-- Version comparison covers real-world formats: x.y.z, CalVer + git hash (26.11.caccb78), pre-releases (2.2.2-rc0), and more — when a version can't be compared, it says so instead of guessing
-- One-tap update download in the detail view: download (cancellable) → progress → install; auto-install after download is optional
-- Multi-APK releases: recommended by device ABI, manually selectable; package formats include apk / apks / xapk / apkm; downloads are kept so a failed install does not require re-downloading
-- Periodic background sync with new-release notifications; sync can be restricted to Wi-Fi or charging
-- List: search, sorting, swipe-to-pin, swipe-to-delete (with particle dissolve and undo); update badges
-- Light and dark themes: follow system or set manually; English / 简体中文 in-app
-- Works anonymously; an optional GitHub token raises the rate limit (60/h → 5,000/h)
-- Subscriptions can be exported and merged back in (including linked apps and pins)
-- Cache cleanup: downloaded packages and crash logs, with sizes per category and one-tap clearing
-- In-app updates: manual check, auto check, Wi-Fi-only auto download, and silent install on Android 12+ when CandyTick is the install source
+- Maintenance status by latest commit: Active / Fair / Low activity / Likely abandoned; archived repos marked separately
+- Commit history and release history; commits can be browsed on any branch
+- Link an installed app for version comparison, with the title following the app name; matching installed apps are recognized automatically
+- Version comparison covers common formats (x.y.z, CalVer, pre-release); if a version can't be compared, it says so
+- Download → progress → install in one flow, cancellable; optional auto-install after download
+- Recommends the right package for your device when multiple are offered; supports apk / apks / xapk / apkm
+- Background sync with new-release notifications; can be restricted to Wi-Fi
+- Search, sorting, pinning, delete with undo
+- Light & dark themes; English / 简体中文
+- No account needed; an optional GitHub token raises the rate limit (60 → 5,000 req/h)
+- Subscriptions can be exported and merged back in
+- Cache cleanup: downloaded packages and crash logs
+- In-app updates: check, auto download, silent install
 
 ## Building
 
@@ -53,4 +54,4 @@ Kotlin · Compose + [Miuix](https://github.com/compose-miuix-ui/miuix) · Naviga
 
 ## License
 
-[GPL-3.0](LICENSE) · Version comparison and APK selection are informed by [Obtainium](https://github.com/ImranR98/Obtainium) · UI icon set from [Lucide](https://lucide.dev) (ISC)
+[GPL-3.0](LICENSE) · Version comparison and APK selection are informed by [Obtainium](https://github.com/ImranR98/Obtainium) · UI icons from [Lucide](https://lucide.dev) (ISC)
