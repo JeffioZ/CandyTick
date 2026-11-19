@@ -138,6 +138,9 @@ fun AddScreen(
             androidx.compose.foundation.layout.Box(
                 modifier = Modifier.weight(1f).fillMaxWidth(),
             ) {
+                // 结果揭示批次号：新搜索（列表重建）与「返回搜索结果」各自触发一轮入场动画；
+                // 返回时不重建列表（零测量成本），仅重置 item 动画——与新搜索出结果的观感一致
+                var resultsReveal by remember { androidx.compose.runtime.mutableIntStateOf(0) }
                 when {
                     state.searching -> androidx.compose.foundation.layout.Box(
                         // 搜索等待：dots 居中于结果区（避免左上小点+大片空白的失衡构图）
@@ -164,7 +167,7 @@ fun AddScreen(
                     items(state.results, key = { it.githubId }) { info ->
                         // 与首页 RepoCard 同款语言：头像 + title4 名称 + body2 路径 + 统计
                         // 出现动画 fade+上滑 220（纯 fade 感知弱；新搜索全新 key 全卡组合整批播放）
-                        val cardAppear = remember(info.githubId) {
+                        val cardAppear = remember(info.githubId, resultsReveal) {
                             androidx.compose.animation.core.MutableTransitionState(false).apply { targetState = true }
                         }
                         androidx.compose.animation.AnimatedVisibility(
@@ -279,10 +282,13 @@ fun AddScreen(
                     ) + androidx.compose.animation.slideInVertically(
                         animationSpec = androidx.compose.animation.core.tween(150),
                     ) { it / 16 },
-                    // 退场快于进场（skill: exit-faster-than-enter）：揭走即见原列表
+                    // 退场=沿进场原路退回（下移+淡出）：返回动作有方向感；
+                    // 列表静止显现（零重建保滚动位），揭走本身即返回动画
                     exit = androidx.compose.animation.fadeOut(
-                        androidx.compose.animation.core.tween(120),
-                    ),
+                        androidx.compose.animation.core.tween(150),
+                    ) + androidx.compose.animation.slideOutVertically(
+                        animationSpec = androidx.compose.animation.core.tween(150),
+                    ) { it / 8 },
                     modifier = Modifier.matchParentSize(),
                 ) {
                     Column(
@@ -319,8 +325,12 @@ fun AddScreen(
                                 is AddViewModel.PreviewState.Loaded -> androidx.compose.foundation.layout.Column {
                                     // 从搜索结果进入的预览：顶部留明确退路（skill: back-behavior）
                                     if (state.results.isNotEmpty()) {
-                                        BackToResultsButton(onClick = vm::dismissPreview)
-                                        Spacer(Modifier.height(6.dp))
+                                        // 上=外层 spacedBy(12)+按钮 pad5，下=pad5+Spacer12：视觉 17/17 对称
+                                        BackToResultsButton(onClick = {
+                                            resultsReveal++
+                                            vm.dismissPreview()
+                                        })
+                                        Spacer(Modifier.height(12.dp))
                                     }
                                     PreviewCard(
                                         state = state,
@@ -516,7 +526,7 @@ private fun PreviewCard(
                 )
                 Spacer(Modifier.width(8.dp))
                 Text(
-                    text = state.linkedLabel?.let {
+                    text = preview.linkedLabel?.let {
                         stringResource(R.string.add_linked_app_named, it)
                     } ?: stringResource(R.string.add_link_app_optional),
                     style = MiuixTheme.textStyles.footnote1,

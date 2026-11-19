@@ -28,7 +28,14 @@ class AddViewModel(
     sealed interface PreviewState {
         data object Idle : PreviewState
         data object Loading : PreviewState
-        data class Loaded(val info: RepoInfo) : PreviewState
+
+        /** linkedPackage/linkedLabel 归属预览对象本身：切换预览不串台（页面级会残留上个仓库的关联） */
+        data class Loaded(
+            val info: RepoInfo,
+            val linkedPackage: String? = null,
+            val linkedLabel: String? = null,
+        ) : PreviewState
+
         data class Failed(val error: SourceError) : PreviewState
     }
 
@@ -41,8 +48,6 @@ class AddViewModel(
         val searched: Boolean = false, // 已完成过一次搜索（区分「还没搜」与「无结果」）
         val results: List<RepoInfo> = emptyList(),
         val searchFailed: Boolean = false,
-        val linkedPackage: String? = null,
-        val linkedLabel: String? = null,
         val adding: Boolean = false,
     )
 
@@ -130,11 +135,26 @@ class AddViewModel(
         fetchingKey = "${info.owner}/${info.repo}"
         // 搜索结果与 addPreview 返回同构（同一 GhRepo.toInfo 转换）：点击即用已知数据直出预览，
         // 不为已有信息闪 loading（skill: tap-feedback-speed <100ms）；duplicate 本地库同步判定；
-        // 网络拉取仅静默校准（改名跟随/最新统计），失败不打断已展示内容
-        val dup = repository.state.value.repos.any { it.id == info.githubId }
-        _state.update { it.copy(preview = PreviewState.Loaded(info), duplicate = dup) }
+        // 已订阅仓库的现有关联一并直出（此前 linked 页面级残留 + 异步才补，先「未关联」再跳变）
+        val tracked = repository.state.value.repos.find { it.id == info.githubId }
+        val linkedPkg = tracked?.linkedPackage
+        _state.update {
+            it.copy(
+                preview = PreviewState.Loaded(
+                    info = info,
+                    linkedPackage = linkedPkg,
+                    linkedLabel = linkedPkg?.let(::appLabel),
+                ),
+                duplicate = tracked != null,
+            )
+        }
         fetchPreview(info.owner, info.repo, silent = true)
     }
+
+    private fun appLabel(pkg: String): String? = runCatching {
+        val pm = appContext.packageManager
+        pm.getApplicationLabel(pm.getApplicationInfo(pkg, 0)).toString()
+    }.getOrNull() ?: pkg
 
     private fun fetchPreview(owner: String, repo: String, silent: Boolean = false) {
         val key = "$owner/$repo"
@@ -148,16 +168,26 @@ class AddViewModel(
                         val dup = repository.state.value.repos.any { it.id == result.info.githubId }
                         // 页面已被重置（fetchingKey 变更）则丢弃过期结果
                         if (fetchingKey == key) {
-                            _state.update { it.copy(preview = PreviewState.Loaded(result.info), duplicate = dup) }
-                            // 高置信自动关联（Obtainium 式静默体验）：仅本地查询，零下载零残留；
-                            // 用户已手动选过（linkedLabel 非空）则不覆盖
-                            if (!userClearedLink &&
-                                _state.value.linkedPackage == null && _state.value.linkedLabel == null
-                            ) {
-                                val m = io.candy.tick.util.AppMatcher.bestAutoMatch(
+                            // 保留既有/用户手选的关联；无关联且未清除过 → 高置信自动关联
+                            // （Obtainium 式静默体验：仅本地查询零下载；PM 全量查询有成本，
+                            // 不可在直出主线程跑，随网络校准异步完成）
+                            val auto = if (!userClearedLink) {
+                                io.candy.tick.util.AppMatcher.bestAutoMatch(
                                     appContext, result.info.owner, result.info.repo,
                                 )
-                                if (m != null) setLinkedApp(m.packageName, m.label)
+                            } else null
+                            // 合并在 update 内做：bestAutoMatch 的几十 ms 里用户可能已在选择器
+                            // 手选应用，快照直接覆盖会吞掉手选——手选（非空）永远优先
+                            _state.update {
+                                val cur = it.preview as? PreviewState.Loaded
+                                it.copy(
+                                    preview = PreviewState.Loaded(
+                                        info = result.info,
+                                        linkedPackage = cur?.linkedPackage ?: auto?.packageName,
+                                        linkedLabel = cur?.linkedLabel ?: auto?.label,
+                                    ),
+                                    duplicate = dup,
+                                )
                             }
                         }
                     }
@@ -173,7 +203,10 @@ class AddViewModel(
 
     fun setLinkedApp(packageName: String?, label: String?) {
         if (packageName == null) userClearedLink = true // 主动清除 = 退出自动关联
-        _state.update { it.copy(linkedPackage = packageName, linkedLabel = label) }
+        _state.update { s ->
+            val p = s.preview as? PreviewState.Loaded ?: return@update s
+            s.copy(preview = p.copy(linkedPackage = packageName, linkedLabel = label))
+        }
     }
 
     /** 每次进入添加页调用：清空上一次的输入 / 预览 / 卡死标志 */
@@ -190,8 +223,8 @@ class AddViewModel(
             _state.update { it.copy(adding = true) }
             when (val result = repository.addRepo(preview.info.owner, preview.info.repo)) {
                 is RepoRepository.AddResult.Added -> {
-                    _state.value.linkedPackage?.let { pkg ->
-                        repository.setLinkedPackage(result.repo.id, pkg, newLabel = _state.value.linkedLabel)
+                    preview.linkedPackage?.let { pkg ->
+                        repository.setLinkedPackage(result.repo.id, pkg, newLabel = preview.linkedLabel)
                     }
                     _state.update { it.copy(adding = false) } // 成功也要复位（导航后 VM 仍存活）
                     _events.send(Event.Added(result.repo.id))

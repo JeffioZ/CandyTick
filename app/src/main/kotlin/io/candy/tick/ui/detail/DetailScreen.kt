@@ -217,47 +217,51 @@ fun DetailScreen(repoId: Long, onBack: () -> Unit) {
                 verticalArrangement = Arrangement.spacedBy(10.dp),
             ) {
                 item {
-                    HeaderCard(
-                        state = state,
-                        onChangeLinked = { showAppPicker = true },
-                        onUnlink = {
-                            scope.launch {
-                                vm.setLinkedApp(null)
-                                // 不出胶囊：头卡关联行当场消失，视觉已确认
-                            }
-                        },
-                        onLinkSuggestion = {
-                            state.linkSuggestion?.let { (pkg, label) -> vm.setLinkedApp(pkg, newLabel = label) }
-                        },
-                        onDownloadUpdate = vm::downloadUpdate,
-                        onInstallUpdate = { repo?.let(vm::installDownloaded) },
-                        onCancelDownload = vm::cancelDownload,
-                    )
-                }
-                // 错误横幅出现/消失过渡（220 表层档）：刷新失败/恢复不再硬跳
-                item(key = "banner") {
-                    androidx.compose.animation.AnimatedVisibility(
-                        visible = state.banner != null,
-                        enter = androidx.compose.animation.expandVertically(
-                            animationSpec = androidx.compose.animation.core.tween(220),
-                        ) + androidx.compose.animation.fadeIn(
-                            animationSpec = androidx.compose.animation.core.tween(220),
-                        ),
-                        exit = androidx.compose.animation.shrinkVertically(
-                            animationSpec = androidx.compose.animation.core.tween(220),
-                        ) + androidx.compose.animation.fadeOut(
-                            animationSpec = androidx.compose.animation.core.tween(220),
-                        ),
+                    // 头卡组（头卡 + 错误横幅）：banner 隐藏时 0 高度收在组内——
+                    // 若作独立 item，spacedBy 会在其前后各记一次，tab 上方凭空多 10dp
+                    androidx.compose.foundation.layout.Column(
+                        verticalArrangement = Arrangement.spacedBy(10.dp),
                     ) {
-                        state.banner?.let { error ->
-                        Card(modifier = Modifier.fillMaxWidth()) {
-                            Text(
-                                text = sourceErrorText(error),
-                                style = MiuixTheme.textStyles.footnote1,
-                                color = scheme.onErrorContainer,
-                                modifier = Modifier.padding(16.dp),
-                            )
-                        }
+                        HeaderCard(
+                            state = state,
+                            onChangeLinked = { showAppPicker = true },
+                            onUnlink = {
+                                scope.launch {
+                                    vm.setLinkedApp(null)
+                                    // 不出胶囊：头卡关联行当场消失，视觉已确认
+                                }
+                            },
+                            onLinkSuggestion = {
+                                state.linkSuggestion?.let { (pkg, label) -> vm.setLinkedApp(pkg, newLabel = label) }
+                            },
+                            onDownloadUpdate = vm::downloadUpdate,
+                            onInstallUpdate = { repo?.let(vm::installDownloaded) },
+                            onCancelDownload = vm::cancelDownload,
+                        )
+                        // 错误横幅出现/消失过渡（220 表层档）：刷新失败/恢复不再硬跳
+                        androidx.compose.animation.AnimatedVisibility(
+                            visible = state.banner != null,
+                            enter = androidx.compose.animation.expandVertically(
+                                animationSpec = androidx.compose.animation.core.tween(220),
+                            ) + androidx.compose.animation.fadeIn(
+                                animationSpec = androidx.compose.animation.core.tween(220),
+                            ),
+                            exit = androidx.compose.animation.shrinkVertically(
+                                animationSpec = androidx.compose.animation.core.tween(220),
+                            ) + androidx.compose.animation.fadeOut(
+                                animationSpec = androidx.compose.animation.core.tween(220),
+                            ),
+                        ) {
+                            state.banner?.let { error ->
+                                Card(modifier = Modifier.fillMaxWidth()) {
+                                    Text(
+                                        text = sourceErrorText(error),
+                                        style = MiuixTheme.textStyles.footnote1,
+                                        color = scheme.onErrorContainer,
+                                        modifier = Modifier.padding(16.dp),
+                                    )
+                                }
+                            }
                         }
                     }
                 }
@@ -272,9 +276,10 @@ fun DetailScreen(repoId: Long, onBack: () -> Unit) {
                     androidx.compose.foundation.layout.Box(
                         modifier = Modifier
                             .fillMaxWidth()
-                            // 上下对称：上=头卡底8+item距10+top0=18，下=bottom8+列表top10=18
+                            // 上下对称：上=top8+item距10=18，下=bottom8+item距10=18
+                            // （contentPadding top 作用在头卡上方，与此处无关）
                             .padding(horizontal = 16.dp)
-                            .padding(top = 0.dp, bottom = 8.dp)
+                            .padding(top = 8.dp, bottom = 8.dp)
                             .clip(segShape)
                             .background(scheme.secondaryVariant)
                             .height(44.dp)
