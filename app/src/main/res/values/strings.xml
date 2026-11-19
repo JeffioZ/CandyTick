@@ -162,7 +162,6 @@
     <string name="release_current">Current</string>
     <string name="asset_recommended">Recommended</string>
     <string name="download_apk">Download</string>
-    <string name="retry_download">Retry download</string>
     <string name="download_failed_reason">Download failed · %1$s</string>
     <string name="download_progress_percent">%1$d%%</string>
 

@@ -411,8 +411,25 @@ private fun ReleaseCard(
                                 )
                             }
                         }
-                        "failed" -> Column {
+                        "failed" -> Row(
+                            verticalAlignment = Alignment.CenterVertically,
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                // 行内错误条（行内色块家族统一参数：圆角12/icon16/gap8/padding h12 v10）：
+                                // 与 progress 相「状态 + 右侧行动链」对仗；错误与重试同条
+                                // （skill: error-recovery，恢复路径紧邻错误；全宽大按钮改轻量链）
+                                .clip(RoundedCornerShape(12.dp))
+                                .background(scheme.errorContainer)
+                                .padding(horizontal = 12.dp, vertical = 10.dp),
+                        ) {
                             val failed = dl as? DetailViewModel.DownloadState.Failed
+                            Icon(
+                                imageVector = ImageVector.vectorResource(R.drawable.ic_info),
+                                contentDescription = null,
+                                tint = scheme.onErrorContainer,
+                                modifier = Modifier.size(16.dp),
+                            )
+                            Spacer(Modifier.width(8.dp))
                             Text(
                                 text = stringResource(
                                     R.string.download_failed_reason,
@@ -422,13 +439,27 @@ private fun ReleaseCard(
                                             ?: f.message
                                     } ?: stringResource(R.string.err_network),
                                 ),
-                                style = MiuixTheme.textStyles.footnote2,
+                                style = MiuixTheme.textStyles.footnote1,
                                 color = scheme.onErrorContainer,
+                                maxLines = 2,
+                                overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis,
+                                modifier = Modifier.weight(1f),
                             )
-                            PrimaryButton(
-                                text = stringResource(R.string.retry_download),
-                                onClick = { selected?.let { onRetry(release, it) } },
-                                modifier = Modifier.fillMaxWidth(),
+                            Spacer(Modifier.width(8.dp))
+                            // 重试链：下划线表可点（红底上保持条内单色）
+                            Text(
+                                text = stringResource(R.string.retry),
+                                style = MiuixTheme.textStyles.footnote1.copy(
+                                    textDecoration = androidx.compose.ui.text.style.TextDecoration.Underline,
+                                ),
+                                color = scheme.onErrorContainer,
+                                modifier = Modifier
+                                    .clickable(
+                                        interactionSource = remember { MutableInteractionSource() },
+                                        indication = null,
+                                        onClick = { selected?.let { onRetry(release, it) } },
+                                    )
+                                    .padding(horizontal = 8.dp, vertical = 4.dp),
                             )
                         }
                         else -> if (selected != null) {
