@@ -30,6 +30,7 @@ import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.receiveAsFlow
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.delay
+import kotlinx.coroutines.async
 import kotlinx.coroutines.launch
 
 enum class SortMode { LAST_PUSH, ADDED, STATUS, NAME, NAME_DESC, UPDATABLE }
@@ -355,10 +356,18 @@ class ListViewModel(
     private fun loadCard(id: Long, silent: Boolean = false) {
         viewModelScope.launch {
             if (!silent) cards.value = cards.value + (id to CardExtras(loading = true))
-            val commits = runCatching { repository.commits(id, 1) }.getOrNull()
-            // 与 SyncWorker tag 选取同口径：跳过无安装包资产的 release（桌面专用 nightly 等）
-            val release = runCatching { repository.releases(id, 1) }.getOrNull()
-                ?.firstOrNull { it.apkAssets.isNotEmpty() }
+            // 两请求并行（此前串行 2×RTT，展开等待翻倍——比详情页并行加载还慢的根源）；
+            // 请求数不变（依旧 commits+releases 各一次），配额零增量
+            val commitsDeferred = async {
+                runCatching { repository.commits(id, 1) }.getOrNull()
+            }
+            val releaseDeferred = async {
+                // 与 SyncWorker tag 选取同口径：跳过无安装包资产的 release（桌面专用 nightly 等）
+                runCatching { repository.releases(id, 1) }.getOrNull()
+                    ?.firstOrNull { it.apkAssets.isNotEmpty() }
+            }
+            val commits = commitsDeferred.await()
+            val release = releaseDeferred.await()
             cards.value = cards.value + (id to if (silent) {
                 // 静默重拉：失败逐字段保留旧值（不闪 loading、不丢已展示内容）
                 val old = cards.value[id] ?: CardExtras()

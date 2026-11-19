@@ -4,12 +4,15 @@ import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.shape.CircleShape
+import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -94,13 +97,36 @@ fun StatusPage(
 /** 列表终点提示（「已到底」）：全应用列表共用，footnote2 弱化 + 居中 */
 @Composable
 fun FooterText(text: String, modifier: Modifier = Modifier) {
-    Text(
-        text = text,
-        style = MiuixTheme.textStyles.footnote2,
-        color = MiuixTheme.colorScheme.onBackgroundVariant,
-        textAlign = TextAlign.Center,
+    // 列表终点标记：文字两侧短线（dividerLine 与卡内分隔线同源）——印刷式「线·文·线」
+    // 终点语言；保持最弱层级（footnote2 + 分隔线色）不与内容争夺注意力
+    val scheme = MiuixTheme.colorScheme
+    Row(
+        verticalAlignment = Alignment.CenterVertically,
+        horizontalArrangement = Arrangement.Center,
         modifier = modifier
             .fillMaxWidth()
             .padding(vertical = 8.dp),
-    )
+    ) {
+        Box(
+            Modifier
+                .width(24.dp)
+                .height(1.5.dp)
+                .clip(RoundedCornerShape(1.dp))
+                .background(scheme.dividerLine),
+        )
+        Spacer(Modifier.width(10.dp))
+        Text(
+            text = text,
+            style = MiuixTheme.textStyles.footnote2,
+            color = scheme.onBackgroundVariant,
+        )
+        Spacer(Modifier.width(10.dp))
+        Box(
+            Modifier
+                .width(24.dp)
+                .height(1.5.dp)
+                .clip(RoundedCornerShape(1.dp))
+                .background(scheme.dividerLine),
+        )
+    }
 }

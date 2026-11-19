@@ -7,7 +7,7 @@ import java.time.Duration
 sealed interface SyncStatus {
     data object Idle : SyncStatus
     data class Running(val done: Int, val total: Int) : SyncStatus
-    data class Done(val changed: Int, val failed: Int, val at: Long = System.currentTimeMillis()) : SyncStatus
+    data class Done(val changed: Int, val failed: Int, val total: Int = 0, val at: Long = System.currentTimeMillis()) : SyncStatus
 }
 
 /** 快照「有新活动」判定：pushedAt 推进 >1 分钟，或 release tag 变化（首页圆点与同步结果共用，口径一致） */

@@ -71,6 +71,7 @@
     <string name="sync_result_updated">Synced · %1$d repos updated</string>
     <string name="sync_result_failed_suffix"> · %1$d failed</string>
     <string name="sync_result_all_failed">Sync failed · %1$d repos</string>
+    <string name="sync_result_partial_failed">%1$d repos failed to sync</string>
     <plurals name="rel_minutes">
         <item quantity="one">%d min ago</item>
         <item quantity="other">%d mins ago</item>
@@ -157,7 +158,7 @@
     <string name="toast_copied">Copied to clipboard</string>
     <string name="load_failed">Load failed</string>
     <string name="status_error_subtitle">Network or API hiccup — try again in a moment</string>
-    <string name="list_end">— the end —</string>
+    <string name="list_end">the end</string>
     <string name="release_view_on_github">View full release notes</string>
     <string name="release_current">Current</string>
     <string name="asset_recommended">Recommended</string>

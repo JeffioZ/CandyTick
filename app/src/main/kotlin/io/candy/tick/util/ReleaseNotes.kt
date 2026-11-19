@@ -37,11 +37,19 @@ object ReleaseNotes {
     private fun String.preClean(): String = this
         .let { txt -> emoji.entries.fold(txt) { acc, (k, v) -> acc.replace(":$k:", v) } }
         .replace(Regex("<!--[\\s\\S]*?-->"), "") // HTML 注释（release 模板常见残留）
+        .replace(Regex("(?i)<br\\s*/?>"), "\\n") // <br> → 换行（其余标签承接下行）
+        .replace(Regex("</?[a-zA-Z][^>]*>"), "") // HTML 标签（<a id="x"> 语言锚点等）
+        .replace(Regex("!\\[([^]]*)]\\([^)]*\\)"), "$1") // 图片 → alt 文本
+        // 锚点/相对链接（[English](#english) 语言切换行等）：非 http 的链接只留文本
+        .replace(Regex("\\[([^]]+)]\\((?!https?://)[^)\\s]*\\)"), "$1")
         .replace(Regex("#{1,6} "), "")
         .replace("**", "")
-        .replace(Regex("^[-*] ", RegexOption.MULTILINE), "· ")
+        // 列表符 → ·（含缩进嵌套：子列表保留缩进层级）
+        .replace(Regex("(?m)^(\\s*)[-*] "), "$1· ")
+        .replace(Regex("(?m)^[-=]{3,}\\s*$"), "") // 独立分隔线（0.9.4 起的节分隔 ---）
+        .replace(Regex("(?m)^```[^\\n]*$"), "") // 代码围栏行（含语言标记，孤行噪音）
         .replace("`", "")
-        .replace(Regex("\n{3,}"), "\n\n")
+        .replace(Regex("\\n{3,}"), "\\n\\n")
         .trim()
 
     /** 纯文本版（自更新弹窗等无链接场景）：链接剥成「文本 (URL)」 */

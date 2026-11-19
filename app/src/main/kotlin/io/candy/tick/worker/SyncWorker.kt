@@ -97,7 +97,7 @@ class SyncWorker(context: Context, params: WorkerParameters) : CoroutineWorker(c
         // tag 变化的仓库可能与 pushedAt 推进重合，取两者较大值（并集近似）并封顶总数
         val changedCount = maxOf(snapshotChanged, tagChanged.get()).coerceAtMost(total)
         // 空仓库（无订阅）不进入信号链：保持 Idle，不弹「已是最新」
-        if (total > 0) syncStatus.value = SyncStatus.Done(changed = changedCount, failed = errors.size)
+        if (total > 0) syncStatus.value = SyncStatus.Done(changed = changedCount, failed = errors.size, total = total)
 
         // 4) 自身更新（检查默认开；自动下载按设置入队）
         if (settings.selfUpdateCheck) {

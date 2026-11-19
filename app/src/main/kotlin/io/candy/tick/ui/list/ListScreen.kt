@@ -83,10 +83,16 @@ fun ListScreen(
     // 卡片圆点缺席已说明无更新，静默即无变化
     androidx.compose.runtime.LaunchedEffect(syncResult) {
         syncResult?.let { d ->
-            val allFailed = d.failed > 0 && d.changed == 0
+            // 三分位：全挂（failed>=total）才叫「同步失败」；部分失败无更新如实报数——
+            // 此前 failed>0 && changed==0 即判 allFailed，5 中 1 失败也弹红色全挂文案
+            val allFailed = d.total > 0 && d.failed >= d.total
             when {
                 allFailed -> io.candy.tick.ui.common.Feedback.show(
                     text = app.getString(R.string.sync_result_all_failed, d.failed),
+                    isError = true,
+                )
+                d.failed > 0 && d.changed == 0 -> io.candy.tick.ui.common.Feedback.show(
+                    text = app.getString(R.string.sync_result_partial_failed, d.failed),
                     isError = true,
                 )
                 d.changed > 0 -> io.candy.tick.ui.common.Feedback.show(
