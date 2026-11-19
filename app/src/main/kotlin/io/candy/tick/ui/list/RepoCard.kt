@@ -175,7 +175,7 @@ private fun ExpandedDetails(item: ListViewModel.RepoListItem, extras: ListViewMo
     Column(
         modifier = Modifier
             .fillMaxWidth()
-            .padding(horizontal = 8.dp) // 展开子系统统一边距：与时间行/箭头对齐且左右对称
+            // 全宽（与按压色块同宽同圆角）：「按哪里、展开哪里」的视觉逻辑一致
             .clip(RoundedCornerShape(10.dp))
             .background(scheme.secondaryVariant)
             .padding(horizontal = 12.dp, vertical = 10.dp),

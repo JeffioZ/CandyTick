@@ -314,25 +314,9 @@ fun SettingsScreen(onBack: () -> Unit) {
             }
 
 
-            // ── 应用更新：检查行动 + 自动化偏好（行为归组、信息归关于）──
+            // ── 自动更新：纯偏好开关（检查行动已并入「关于」的版本行）──
             item(key = "appupdate") {
             SettingsGroup(title = stringResource(R.string.settings_app_updates)) {
-                SettingRow(
-                    icon = ImageVector.vectorResource(R.drawable.ic_update),
-                    iconTint = ChipMint,
-                    title = stringResource(R.string.settings_check_update),
-                    value = checkStateValue(state.selfUpdate),
-                    valueMonospace = state.selfUpdate is SelfUpdater.State.NewVersion,
-                    onClick = {
-                        // 已下载/下载中：直接重开弹窗（重复检查会覆盖已下载文件，浪费流量）
-                        when (state.selfUpdate) {
-                            is SelfUpdater.State.Downloaded, is SelfUpdater.State.Downloading -> Unit
-                            else -> vm.checkUpdate()
-                        }
-                        io.candy.tick.ui.common.UpdateSheetController.manualRequest = true
-                    },
-                )
-                RowDivider()
                 SwitchRow(
                     title = stringResource(R.string.settings_self_update_check),
                     checked = state.settings.selfUpdateCheck,
@@ -406,11 +390,24 @@ fun SettingsScreen(onBack: () -> Unit) {
             SettingsGroup(title = stringResource(R.string.settings_about_group)) {
 
                 SettingRow(
+                    // 版本行 = 检查更新入口（微信/Telegram/Shizuku 同款惯例）：
+                    // value 随检查状态变化，发现新版由全局 UpdateSheet 弹出
                     title = stringResource(R.string.settings_current_version_title),
-                    value = state.localVersion,
+                    value = versionRowValue(state.selfUpdate, state.localVersion),
                     icon = ImageVector.vectorResource(R.drawable.ic_info),
                     iconTint = ChipSlate,
-                    valueMonospace = true,
+                    valueMonospace = state.selfUpdate is SelfUpdater.State.NewVersion ||
+                        state.selfUpdate is SelfUpdater.State.Downloaded,
+                    onClick = {
+                        // 已下载/下载中：直接重开弹窗（重复检查会覆盖已下载文件）
+                        when (state.selfUpdate) {
+                            is SelfUpdater.State.Downloaded, is SelfUpdater.State.Downloading -> Unit
+                            // 检查中：无操作（防重复请求烧限额），「正在检查…」已是反馈
+                            is SelfUpdater.State.Checking -> return@SettingRow
+                            else -> vm.checkUpdate()
+                        }
+                        io.candy.tick.ui.common.UpdateSheetController.manualRequest = true
+                    },
                 )
                 RowDivider()
                 SettingRow(
@@ -567,13 +564,19 @@ private fun themeModeLabel(mode: ThemeMode): String = stringResource(
     },
 )
 
+/** 版本行 value：版本号常驻（用户始终可见），检查状态作前/后缀 */
 @Composable
-private fun checkStateValue(update: SelfUpdater.State): String = when (update) {
-    is SelfUpdater.State.Checking -> stringResource(R.string.loading)
-    is SelfUpdater.State.UpToDate -> stringResource(R.string.settings_up_to_date)
-    is SelfUpdater.State.NewVersion -> update.tag
-    is SelfUpdater.State.Failed -> stringResource(R.string.settings_update_failed)
-    else -> ""
+private fun versionRowValue(update: SelfUpdater.State, localVersion: String): String {
+    val upToDate = stringResource(R.string.settings_up_to_date)
+    val failed = stringResource(R.string.settings_update_failed)
+    return when (update) {
+        is SelfUpdater.State.Checking -> stringResource(R.string.settings_checking)
+        is SelfUpdater.State.UpToDate -> "$upToDate · $localVersion"
+        is SelfUpdater.State.NewVersion -> update.tag
+        is SelfUpdater.State.Downloaded -> update.tag
+        is SelfUpdater.State.Failed -> "$failed · $localVersion"
+        else -> localVersion
+    }
 }
 
 /** 权限状态文案：1=已授权 0=未授权 2=无需授予 */

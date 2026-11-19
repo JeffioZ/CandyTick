@@ -31,8 +31,6 @@ fun LazyListScope.commitList(
     items(count = state.commits.size, key = { state.commits[it].sha + it }) { index ->
         val commit = state.commits[index]
         Card(modifier = Modifier.fillMaxWidth()) {
-            // 整卡内容可复制（sha/作者/消息；无点击手势，与选择不冲突）
-            androidx.compose.foundation.text.selection.SelectionContainer {
             Column(modifier = Modifier.padding(horizontal = 16.dp, vertical = 8.dp)) {
                 Row(verticalAlignment = Alignment.CenterVertically) {
                     Text(
@@ -58,7 +56,6 @@ fun LazyListScope.commitList(
                     style = MiuixTheme.textStyles.body1,
                     color = MiuixTheme.colorScheme.onBackground,
                 )
-            }
             }
         }
     }

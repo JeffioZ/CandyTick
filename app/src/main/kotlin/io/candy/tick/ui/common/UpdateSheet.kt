@@ -70,6 +70,9 @@ fun UpdateSheet(
             ) {
                 UpdateSheetController.manualRequest = false
                 show = true
+            } else if (s is SelfUpdater.State.UpToDate || s is SelfUpdater.State.Failed) {
+                // 终态消费：检查完成无新版/失败即请求完结——残留会在后台下载态误弹窗
+                UpdateSheetController.manualRequest = false
             }
         } else if (s is SelfUpdater.State.NewVersion && s.tag != dismissedTag) {
             show = true // 自动检查发现新版：每版本自动弹一次

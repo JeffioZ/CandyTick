@@ -152,6 +152,7 @@
     <string name="retry_download">重试下载</string>
     <string name="download_failed_reason">下载失败 · %1$s</string>
     <string name="download_progress_percent">%1$d%%</string>
+
     <string name="cancel">取消</string>
     <string name="install_apk">安装</string>
     <string name="install_done">安装成功</string>
@@ -217,12 +218,12 @@
     <string name="perm_not_granted">未授权</string>
     <string name="perm_not_required">无需授予</string>
     <string name="detail_need_install_permission">请先在系统设置授予「安装未知应用」权限，再重试</string>
-    <string name="settings_app_updates">应用更新</string>
+    <string name="settings_app_updates">自动更新</string>
     <string name="settings_current_version_title">当前版本</string>
     <string name="settings_update_found">发现新版本</string>
-    <string name="settings_check_update">立即检查</string>
     <string name="settings_self_update_check">自动检查更新</string>
     <string name="settings_self_update_download">自动下载（仅 Wi-Fi）</string>
+    <string name="settings_checking">正在检查…</string>
     <string name="settings_up_to_date">已是最新</string>
     <string name="settings_download_update">下载并安装</string>
     <string name="settings_install_update">安装已下载的更新</string>

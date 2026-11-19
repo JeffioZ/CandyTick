@@ -125,13 +125,11 @@ private fun ReleaseCard(
     Card(modifier = Modifier.fillMaxWidth()) {
         Column(modifier = Modifier.padding(horizontal = 16.dp, vertical = 8.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
             Row(verticalAlignment = Alignment.CenterVertically) {
-                androidx.compose.foundation.text.selection.SelectionContainer {
-                    Text(
-                        text = release.tagName,
-                        style = MonoTokenStyle.copy(fontWeight = androidx.compose.ui.text.font.FontWeight.Bold),
-                        color = scheme.primaryVariant,
-                    )
-                }
+                Text(
+                    text = release.tagName,
+                    style = MonoTokenStyle.copy(fontWeight = androidx.compose.ui.text.font.FontWeight.Bold),
+                    color = scheme.primaryVariant,
+                )
                 Spacer(Modifier.width(10.dp))
                 RelTimeText(
                     date = release.publishedAt,
@@ -140,13 +138,11 @@ private fun ReleaseCard(
                 )
             }
             release.name?.takeIf { it.isNotBlank() && it != release.tagName }?.let {
-                androidx.compose.foundation.text.selection.SelectionContainer {
-                    Text(
-                        text = it,
-                        style = MiuixTheme.textStyles.body2,
-                        color = scheme.onBackground,
-                    )
-                }
+                Text(
+                    text = it,
+                    style = MiuixTheme.textStyles.body2,
+                    color = scheme.onBackground,
+                )
             }
 
             if (candidates.isEmpty()) {
@@ -322,10 +318,21 @@ private fun AssetRow(
             modifier = Modifier.size(20.dp),
             contentAlignment = Alignment.Center,
         ) {
-            // 选中态柔切换（150 微反馈档）：✓ 与空心圈交叉淡入
-            androidx.compose.animation.Crossfade(
+            // 单向动画：新相淡入 120ms、旧相瞬时消失——任何时刻只有一个可见相，
+            // 无 Crossfade 的半透明叠加（重影=抖动），零布局变化
+            androidx.compose.animation.AnimatedContent(
                 targetState = selected,
-                animationSpec = androidx.compose.animation.core.tween(150),
+                transitionSpec = {
+                    if (targetState) {
+                        // 选中：✓ 淡入、圈瞬灭
+                        androidx.compose.animation.fadeIn(androidx.compose.animation.core.tween(120)) togetherWith
+                            androidx.compose.animation.fadeOut(androidx.compose.animation.core.tween(0))
+                    } else {
+                        // 取消：圈瞬现、✓ 快速淡出
+                        androidx.compose.animation.fadeIn(androidx.compose.animation.core.tween(0)) togetherWith
+                            androidx.compose.animation.fadeOut(androidx.compose.animation.core.tween(120))
+                    }
+                },
                 label = "assetCheck",
             ) { sel ->
                 if (sel) {
