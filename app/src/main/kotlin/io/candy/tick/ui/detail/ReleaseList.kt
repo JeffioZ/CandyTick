@@ -232,10 +232,13 @@ private fun ReleaseCard(
                         val noteStyle = MiuixTheme.textStyles.body2.copy(color = scheme.onBackgroundVariant)
                         // remember：长 body 的正则解析+AnnotatedString 构建只跑一次
                         // （此前每次重组都重建，展开动画期间每帧重算——长日志卡顿主因）
-                        val notesText = remember(release.tagName, release.body, scheme.primaryVariant) {
+                        // repoSlug 供 #123 issue 引用转可点链接
+                        val repoSlug = state.repo?.let { "${it.owner}/${it.repo}" }
+                        val notesText = remember(release.tagName, release.body, scheme.primaryVariant, repoSlug) {
                             io.candy.tick.util.ReleaseNotes.annotated(
                                 md = release.body,
                                 linkColor = scheme.primaryVariant,
+                                repoSlug = repoSlug,
                             )
                         }
                         androidx.compose.foundation.text.ClickableText(

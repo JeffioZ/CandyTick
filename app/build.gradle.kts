@@ -90,6 +90,11 @@ dependencies {
     debugImplementation(libs.compose.ui.tooling)
 
     implementation(libs.miuix.ui)
+    // 更新日志 Markdown 解析（GFM 表格/删除线/自动链接）——ReleaseNotes 渲染内核
+    implementation(libs.commonmark)
+    implementation(libs.commonmark.gfm.tables)
+    implementation(libs.commonmark.gfm.strikethrough)
+    implementation(libs.commonmark.autolink)
     implementation(libs.miuix.icons)
 
     implementation(libs.androidx.navigation3.runtime)

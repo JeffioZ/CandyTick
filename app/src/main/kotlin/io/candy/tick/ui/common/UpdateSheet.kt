@@ -128,10 +128,13 @@ fun UpdateSheet(
                                 // 由 annotated 再标注；remember 缓存防重组重算）
                                 val scheme = MiuixTheme.colorScheme
                                 val sheetCtx = androidx.compose.ui.platform.LocalContext.current
-                                val notesText = remember(notes, scheme.primaryVariant) {
+                                // 自身更新日志的 #123 指向 CandyTick 仓库 issue
+                                val selfSlug = io.candy.tick.data.SelfUpdater.APP_OWNER + '/' + io.candy.tick.data.SelfUpdater.APP_REPO
+                                val notesText = remember(notes, scheme.primaryVariant, selfSlug) {
                                     io.candy.tick.util.ReleaseNotes.annotated(
                                         md = notes,
                                         linkColor = scheme.primaryVariant,
+                                        repoSlug = selfSlug,
                                     )
                                 }
                                 androidx.compose.foundation.text.ClickableText(
