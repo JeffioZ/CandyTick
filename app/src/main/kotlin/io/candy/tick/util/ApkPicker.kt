@@ -38,13 +38,13 @@ object ApkPicker {
         for (abi in supportedAbis) {
             val aliases = ALIASES[abi] ?: continue
             val hit = candidates.firstOrNull { apk ->
-                aliases.any { apk.name.contains(it, ignoreCase = true) }
+                aliases.any { matchesAlias(apk.name, it) }
             }
             if (hit != null) return hit to true
         }
         // 2) universal 兜底
         val universal = candidates.firstOrNull { apk ->
-            ALIASES.getValue("universal").any { apk.name.contains(it, ignoreCase = true) }
+            ALIASES.getValue("universal").any { matchesAlias(apk.name, it) }
         }
         if (universal != null) return universal to true
         // 3) 任意支持的 ABI（不在前序命中说明标记混乱，尽力一搏）
@@ -54,4 +54,18 @@ object ApkPicker {
         }
         return null to false // 列表手选
     }
+
+    /**
+     * 别名匹配：裸 "arm" 要求词边界（Swarm/alarm 之类子串误命中会选错包）；
+     * 其余别名含完整标记（arm64-v8a/armhf…）直接子串匹配即可
+     */
+    private fun matchesAlias(apkName: String, alias: String): Boolean =
+        if (alias == "arm") {
+            armWord.containsMatchIn(apkName)
+        } else {
+            apkName.contains(alias, ignoreCase = true)
+        }
+
+    // 词边界含数字："arm64" 里的 arm 不算（否则 v7 设备会误选 arm64-only 包），独立 arm 才命中
+    private val armWord = Regex("(?<![a-zA-Z0-9])arm(?![a-zA-Z0-9])", RegexOption.IGNORE_CASE)
 }

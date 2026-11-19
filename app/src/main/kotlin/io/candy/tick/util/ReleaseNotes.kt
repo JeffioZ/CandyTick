@@ -80,6 +80,9 @@ object ReleaseNotes {
 
     private val brTag = Regex("(?i)<br\\s*/?>")
 
+    /** 超长 body 截断阈值（实测订阅仓库 9k–40k：全量渲染 40k 字符的展开构建达百 ms 级） */
+    private const val MAX_BODY_CHARS = 9000
+
     fun annotated(
         md: String,
         linkColor: androidx.compose.ui.graphics.Color,
@@ -87,8 +90,15 @@ object ReleaseNotes {
     ): androidx.compose.ui.text.AnnotatedString {
         val emojiMd = emoji.entries.fold(md) { acc, (k, v) -> acc.replace(":$k:", v) }
         val r = Renderer(linkColor, repoSlug)
-        r.blocks(parser.parse(emojiMd), indent = "")
+        r.blocks(parser.parse(truncate(emojiMd)), indent = "")
         return r.build()
+    }
+
+    /** 段落边界截断（完整 changelog 永远在 GitHub：卡片里已有跳转链接） */
+    private fun truncate(md: String): String {
+        if (md.length <= MAX_BODY_CHARS) return md
+        val cut = md.lastIndexOf("\n\n", MAX_BODY_CHARS)
+        return md.substring(0, if (cut > MAX_BODY_CHARS / 2) cut else MAX_BODY_CHARS) + "\n\n…"
     }
 
     /** 节点子树内是否含 CJK 字符（CJK 区块：汉字/扩展/通用标点全兼容范围） */
