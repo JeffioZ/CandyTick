@@ -147,13 +147,10 @@ class SettingsViewModel(
 
     data class CacheState(
         val scanning: Boolean = false,
-        val repoApkBytes: Long = 0,
-        val updateApkBytes: Long = 0,
+        val apkBytes: Long = 0, // 仓库 + 自身更新安装包合计（浮层一行展示）
         val crashLogBytes: Long = 0,
         val cleaning: Boolean = false,
-    ) {
-        val totalBytes: Long get() = repoApkBytes + updateApkBytes + crashLogBytes
-    }
+    )
 
     private val _cacheState = MutableStateFlow(CacheState())
     val cacheState: StateFlow<CacheState> = _cacheState.asStateFlow()
@@ -164,8 +161,7 @@ class SettingsViewModel(
             _cacheState.value = CacheState(scanning = true)
             val scan = cacheManager.scan()
             _cacheState.value = CacheState(
-                repoApkBytes = scan.repoApkBytes,
-                updateApkBytes = scan.updateApkBytes,
+                apkBytes = scan.repoApkBytes + scan.updateApkBytes,
                 crashLogBytes = scan.crashLogBytes,
             )
         }
@@ -175,19 +171,17 @@ class SettingsViewModel(
      * 执行清理。返回释放的字节数（挂起直到完成——调用方用 loading 阻断动画包裹）。
      * 同步清空 downloadedApk 记录（UI 状态自动变更）+ SelfUpdater 状态复位。
      */
-    suspend fun cleanCache(repoApks: Boolean, updateApks: Boolean, crashLog: Boolean): Long {
+    suspend fun cleanCache(apks: Boolean, crashLog: Boolean): Long {
         _cacheState.value = _cacheState.value.copy(cleaning = true)
-        val freed = cacheManager.clean(repoApks, updateApks, crashLog)
-        // 清空已下载记录 → 详情页/卡片「已下载」UI 自动变回「下载」按钮
-        if (repoApks) {
+        val freed = cacheManager.clean(apks, apks, crashLog)
+        if (apks) {
+            // 清空已下载记录 → 详情页/卡片「已下载」UI 自动变回「下载」按钮
             repository.state.value.repos.forEach { repo ->
                 if (repo.downloadedApk != null) {
                     repository.setDownloadedApk(repo.id, null)
                 }
             }
-        }
-        // 自身更新状态复位 → 「安装已下载的更新」变回可下载
-        if (updateApks) {
+            // 自身更新状态复位 → 「安装已下载的更新」变回可下载
             selfUpdater.resetState()
         }
         _cacheState.value = _cacheState.value.copy(cleaning = false)

@@ -236,8 +236,7 @@
     <string name="settings_license">开源许可</string>
         <string name="settings_cache_summary">清理已下载的安装包与日志，释放存储空间</string>
     <string name="settings_cache_cleanup">清理缓存</string>
-    <string name="settings_cache_repo_apk">已下载的仓库安装包</string>
-    <string name="settings_cache_update_apk">自身更新安装包</string>
+    <string name="settings_cache_apk">已下载的安装包</string>
     <string name="settings_cache_crash_log">崩溃日志</string>
     <string name="settings_cache_cleaning">正在清理…</string>
     <string name="settings_cache_clean_action">清理选中项</string>

@@ -246,8 +246,7 @@
     <string name="settings_license">License</string>
         <string name="settings_cache_summary">Clear downloaded APKs and logs to free up space</string>
     <string name="settings_cache_cleanup">Clear cache</string>
-    <string name="settings_cache_repo_apk">Downloaded repo APKs</string>
-    <string name="settings_cache_update_apk">App update APKs</string>
+    <string name="settings_cache_apk">Downloaded APKs</string>
     <string name="settings_cache_crash_log">Crash log</string>
     <string name="settings_cache_cleaning">Cleaning…</string>
     <string name="settings_cache_clean_action">Clear selected</string>

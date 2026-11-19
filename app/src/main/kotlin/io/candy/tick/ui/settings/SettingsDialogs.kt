@@ -48,18 +48,17 @@ internal fun CacheCleanupSheet(
     show: Boolean,
     state: SettingsViewModel.CacheState,
     onScan: () -> Unit,
-    onClean: suspend (Boolean, Boolean, Boolean) -> Long,
+    onClean: suspend (Boolean, Boolean) -> Long,
     onDismiss: () -> Unit,
 ) {
     val scheme = MiuixTheme.colorScheme
     val scope = androidx.compose.runtime.rememberCoroutineScope()
-    var cleanRepo by remember { mutableStateOf(true) }
-    var cleanUpdate by remember { mutableStateOf(true) }
+    var cleanApk by remember { mutableStateOf(true) }
     var cleanCrash by remember { mutableStateOf(true) }
 
     androidx.compose.runtime.LaunchedEffect(show) {
         if (show) {
-            cleanRepo = true; cleanUpdate = true; cleanCrash = true
+            cleanApk = true; cleanCrash = true
             onScan()
         }
     }
@@ -85,16 +84,10 @@ internal fun CacheCleanupSheet(
             } else {
                 // 逐类列出
                 CacheCleanupRow(
-                    label = stringResource(R.string.settings_cache_repo_apk),
-                    sizeBytes = state.repoApkBytes,
-                    checked = cleanRepo,
-                    onChecked = { cleanRepo = it },
-                )
-                CacheCleanupRow(
-                    label = stringResource(R.string.settings_cache_update_apk),
-                    sizeBytes = state.updateApkBytes,
-                    checked = cleanUpdate,
-                    onChecked = { cleanUpdate = it },
+                    label = stringResource(R.string.settings_cache_apk),
+                    sizeBytes = state.apkBytes,
+                    checked = cleanApk,
+                    onChecked = { cleanApk = it },
                 )
                 CacheCleanupRow(
                     label = stringResource(R.string.settings_cache_crash_log),
@@ -123,8 +116,7 @@ internal fun CacheCleanupSheet(
                         }
                     }
                 } else {
-                    val selectedBytes = (if (cleanRepo) state.repoApkBytes else 0L) +
-                        (if (cleanUpdate) state.updateApkBytes else 0L) +
+                    val selectedBytes = (if (cleanApk) state.apkBytes else 0L) +
                         (if (cleanCrash) state.crashLogBytes else 0L)
                     val hasSelection = selectedBytes > 0
                     val ctx = androidx.compose.ui.platform.LocalContext.current
@@ -139,7 +131,7 @@ internal fun CacheCleanupSheet(
                         enabled = hasSelection,
                         onClick = {
                             scope.launch {
-                                val freed = onClean(cleanRepo, cleanUpdate, cleanCrash)
+                                val freed = onClean(cleanApk, cleanCrash)
                                 io.candy.tick.ui.common.Feedback.show(
                                     text = ctx.getString(R.string.settings_cache_freed, formatBytes(freed)),
                                 )
