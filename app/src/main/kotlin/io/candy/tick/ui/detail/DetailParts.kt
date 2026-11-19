@@ -46,7 +46,6 @@ import top.yukonga.miuix.kmp.basic.Card
 import top.yukonga.miuix.kmp.basic.Icon
 import top.yukonga.miuix.kmp.basic.IconButton
 import top.yukonga.miuix.kmp.basic.Text
-import top.yukonga.miuix.kmp.basic.TextButton
 import top.yukonga.miuix.kmp.theme.MiuixTheme
 import androidx.compose.ui.res.vectorResource
 import androidx.compose.ui.graphics.vector.ImageVector
@@ -390,7 +389,8 @@ internal fun HeaderCard(
             // ── 关联分区（始终存在，固定卡底）；前置 8dp 与上方版本区呼吸对称 ──
             Spacer(Modifier.height(8.dp))
             SectionDivider()
-            Spacer(Modifier.height(8.dp))
+            // 关联区紧凑：4 + 32dp 行高——与卡底间距收窄（此前 8+36 视觉上下皆空 18）
+            Spacer(Modifier.height(4.dp))
             // 关联本机应用（可修改 / 解除）
             val linkedLabel = repo.linkedPackage?.let { pkg ->
                 runCatching {
@@ -399,7 +399,24 @@ internal fun HeaderCard(
                     ).toString()
                 }.getOrNull() ?: pkg
             }
-            if (linkedLabel != null) {
+            // 关联区三态柔切换（180 转场档）：关联/解除/建议出现不再硬跳
+            androidx.compose.animation.AnimatedContent(
+                targetState = when {
+                    linkedLabel != null -> "linked"
+                    state.linkSuggestion != null -> "suggest"
+                    else -> "none"
+                },
+                transitionSpec = {
+                    (androidx.compose.animation.fadeIn(androidx.compose.animation.core.tween(180)) +
+                        androidx.compose.animation.slideInVertically(
+                            animationSpec = androidx.compose.animation.core.tween(180),
+                        ) { it / 8 }) togetherWith
+                        androidx.compose.animation.fadeOut(androidx.compose.animation.core.tween(180))
+                },
+                label = "linkPhase",
+            ) { phase ->
+                Column {
+            if (phase == "linked" && linkedLabel != null) {
                 Row(verticalAlignment = Alignment.CenterVertically) {
                     val appBitmap = remember(repo.linkedPackage) {
                         repo.linkedPackage?.let { pkg ->
@@ -407,13 +424,7 @@ internal fun HeaderCard(
                         }
                     }
                     appBitmap?.let {
-                        androidx.compose.foundation.Image(
-                            bitmap = it,
-                            contentDescription = null,
-                            modifier = Modifier
-                                .size(22.dp)
-                                .clip(RoundedCornerShape(6.dp)),
-                        )
+                        io.candy.tick.ui.common.AppIconImage(bitmap = it, size = 22.dp, corner = 6.dp)
                         Spacer(Modifier.width(8.dp))
                     }
                     Text(
@@ -426,30 +437,30 @@ internal fun HeaderCard(
                     // 两钮中心距过远显稀疏；36dp 与 footnote 行高协调，触控仍达标）
                     IconButton(
                         onClick = onChangeLinked,
-                        modifier = Modifier.size(36.dp),
+                        modifier = Modifier.size(32.dp),
                     ) {
                         Icon(
                             // Link 锁链 =「关联」本命语义（换关联 = 重新建链）
                             imageVector = ImageVector.vectorResource(R.drawable.ic_link),
                             contentDescription = stringResource(R.string.detail_link_change),
                             tint = scheme.onBackgroundVariant,
-                            modifier = Modifier.size(16.dp),
+                            modifier = Modifier.size(14.dp),
                         )
                     }
                     IconButton(
                         onClick = onUnlink,
-                        modifier = Modifier.size(36.dp),
+                        modifier = Modifier.size(32.dp),
                     ) {
                         Icon(
                             // unlink 断链 = 解除关联（minus 减号不表意）
                             imageVector = ImageVector.vectorResource(R.drawable.ic_unlink),
                             contentDescription = stringResource(R.string.detail_unlink),
                             tint = scheme.onBackgroundVariant,
-                            modifier = Modifier.size(16.dp),
+                            modifier = Modifier.size(14.dp),
                         )
                     }
                 }
-            } else if (state.linkSuggestion != null) {
+            } else if (phase == "suggest" && state.linkSuggestion != null) {
                 // 关联建议：整行点按即关联（胶囊提示条 + 本机应用小图标）
                 val suggested = state.linkSuggestion
                 val appIcon = remember(suggested?.first) {
@@ -470,13 +481,7 @@ internal fun HeaderCard(
                     verticalAlignment = Alignment.CenterVertically,
                 ) {
                     if (appIcon != null) {
-                        androidx.compose.foundation.Image(
-                            bitmap = appIcon,
-                            contentDescription = null,
-                            modifier = Modifier
-                                .size(26.dp)
-                                .clip(RoundedCornerShape(7.dp)),
-                        )
+                        io.candy.tick.ui.common.AppIconImage(bitmap = appIcon, size = 26.dp, corner = 7.dp)
                     }
                     Spacer(Modifier.width(10.dp))
                     Text(
@@ -495,17 +500,58 @@ internal fun HeaderCard(
                         modifier = Modifier.size(18.dp),
                     )
                     Spacer(Modifier.width(6.dp))
-                    IconButton(onClick = onChangeLinked) {
+                    // 「其他应用」入口：32dp/14dp——与 linked 态动作钮同规格（此前默认 48dp 撑高行）
+                    IconButton(
+                        onClick = onChangeLinked,
+                        modifier = Modifier.size(32.dp),
+                    ) {
                         Icon(
                             imageVector = ImageVector.vectorResource(R.drawable.ic_more),
                             contentDescription = stringResource(R.string.detail_link_app_other),
                             tint = scheme.onBackgroundVariant,
-                            modifier = Modifier.size(18.dp),
+                            modifier = Modifier.size(14.dp),
                         )
                     }
                 }
             } else {
-                TextButton(text = stringResource(R.string.detail_link_app), onClick = onChangeLinked)
+                // 未关联（也无建议）：选项行式入口——link 图标前缀 + chevron 尾缀表可点
+                // （skill: input-affordance），无底色不抢 suggest 态的薄荷行动语义
+                // （skill: primary-action 次要操作从属）；与 linked 态同一行语言
+                Row(
+                    verticalAlignment = Alignment.CenterVertically,
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .clip(RoundedCornerShape(10.dp))
+                        .clickable(
+                            interactionSource = remember { androidx.compose.foundation.interaction.MutableInteractionSource() },
+                            indication = null,
+                            onClick = onChangeLinked,
+                        )
+                        // v10 计入命中：行高 ~40dp 达标（触控缓冲带不越出关联区）
+                        .padding(horizontal = 8.dp, vertical = 10.dp),
+                ) {
+                    Icon(
+                        imageVector = ImageVector.vectorResource(R.drawable.ic_link),
+                        contentDescription = null,
+                        tint = scheme.onBackgroundVariant,
+                        modifier = Modifier.size(14.dp),
+                    )
+                    Spacer(Modifier.width(8.dp))
+                    Text(
+                        text = stringResource(R.string.detail_link_app),
+                        style = MiuixTheme.textStyles.footnote1,
+                        color = scheme.onBackgroundVariant,
+                        modifier = Modifier.weight(1f),
+                    )
+                    Icon(
+                        imageVector = ImageVector.vectorResource(R.drawable.ic_chevron_right),
+                        contentDescription = null,
+                        tint = scheme.onBackgroundVariant,
+                        modifier = Modifier.size(14.dp),
+                    )
+                }
+            }
+                }
             }
         }
     }

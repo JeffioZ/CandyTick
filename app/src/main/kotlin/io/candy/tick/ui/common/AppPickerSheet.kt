@@ -130,12 +130,10 @@ fun AppPickerSheet(
                         summary = app.packageName,
                         startAction = {
                             app.icon?.let {
-                                Image(
+                                AppIconImage(
                                     bitmap = remember(app.packageName) { it.toImageBitmap() },
-                                    contentDescription = null,
-                                    modifier = Modifier
-                                        .size(36.dp)
-                                        .clip(RoundedCornerShape(9.dp)),
+                                    size = 36.dp,
+                                    corner = 9.dp,
                                 )
                             } ?: Box(modifier = Modifier.size(36.dp))
                         },

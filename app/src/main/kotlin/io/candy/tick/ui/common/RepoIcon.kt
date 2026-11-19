@@ -35,11 +35,7 @@ fun RepoIconBlock(repo: TrackedRepo, size: Dp = 48.dp, corner: Dp = 12.dp) {
             runCatching { context.packageManager.getApplicationIcon(linked).toImageBitmap() }.getOrNull()
         }
         if (bitmap != null) {
-            Image(
-                bitmap = bitmap,
-                contentDescription = null,
-                modifier = Modifier.size(size).clip(RoundedCornerShape(corner)),
-            )
+            AppIconImage(bitmap = bitmap, size = size, corner = corner)
             return
         }
     }

@@ -51,6 +51,7 @@ fun RepoCard(
     extras: ListViewModel.CardExtras?,
     expanded: Boolean,
     isChanged: Boolean = false,
+    updatable: Boolean = false,
     onToggle: () -> Unit,
     onClick: () -> Unit,
     modifier: Modifier = Modifier,
@@ -84,7 +85,8 @@ fun RepoCard(
                         Icon(
                             imageVector = ImageVector.vectorResource(R.drawable.ic_pin),
                             contentDescription = stringResource(R.string.pinned_a11y),
-                            tint = scheme.onBackgroundVariant,
+                            // 薄荷 accent：置顶是用户主动状态（与灰色被动信息区分）
+                            tint = scheme.primaryVariant,
                             modifier = Modifier.size(12.dp),
                         )
                         Spacer(Modifier.width(6.dp))
@@ -92,10 +94,13 @@ fun RepoCard(
                     if (item.error != null) InaccessibleBadge() else StatusBadge(item.status)
                 }
 
-                Spacer(Modifier.height(6.dp))
+                // 2+10 = 展开面板上方 10+2 一致（12dp）：上下呼吸对称
+                Spacer(Modifier.height(2.dp))
                 Row(
                     modifier = Modifier
                         .fillMaxWidth()
+                        // 色块外上下留 3dp：按压色块不贴上方内容、不贴下方面板/卡边（对称空隙）
+                        .padding(vertical = 3.dp)
                         // clip 在 clickable 前：ripple 随之圆角化（直角矩形按压效果生硬）
                         .clip(RoundedCornerShape(10.dp))
                         // clickable 在 padding 之前：留白计入命中区（~40dp 达标），
@@ -105,7 +110,7 @@ fun RepoCard(
                         ) { onToggle() }
                         // 内容边距 8（ripple 全宽）：文字不贴按压色块边缘；与面板边距统一对称
                         .padding(horizontal = 8.dp)
-                        .padding(vertical = 10.dp),
+                        .padding(vertical = 7.dp),
                     verticalAlignment = Alignment.CenterVertically,
                 ) {
                     item.snapshot?.pushedAt?.let { pushed ->
@@ -126,6 +131,19 @@ fun RepoCard(
                         )
                     }
                     Spacer(Modifier.weight(1f))
+                    // 「有新版」直显标识（薄荷胶囊）：有可比新版时折叠态即可见，无需展开/进详情
+                    if (updatable) {
+                        Text(
+                            text = stringResource(R.string.card_updatable),
+                            style = MiuixTheme.textStyles.footnote2,
+                            color = scheme.primaryVariant,
+                            modifier = Modifier
+                                .clip(RoundedCornerShape(7.dp))
+                                .background(scheme.primaryContainer)
+                                .padding(horizontal = 6.dp, vertical = 1.dp),
+                        )
+                        Spacer(Modifier.width(6.dp))
+                    }
                     // 普通 ⌄/⌃ 箭头，交叉淡入淡出（不旋转，无「转圈」感）
                     androidx.compose.animation.Crossfade(
                         targetState = expanded,
@@ -230,13 +248,7 @@ private fun RepoIcon(repo: TrackedRepo) {
             runCatching { context.packageManager.getApplicationIcon(linked).toImageBitmap() }.getOrNull()
         }
         if (bitmap != null) {
-            Image(
-                bitmap = bitmap,
-                contentDescription = null,
-                modifier = Modifier
-                    .size(48.dp)
-                    .clip(RoundedCornerShape(12.dp)),
-            )
+            io.candy.tick.ui.common.AppIconImage(bitmap = bitmap, size = 48.dp, corner = 12.dp)
             return
         }
     }

@@ -35,6 +35,7 @@
     <string name="empty_subtitle">Track a repository and see if it is still alive</string>
     <string name="empty_cta">Add your first repository</string>
     <string name="banner_old_data_kept">Showing saved data</string>
+    <string name="card_updatable">Update</string>
     <string name="card_last_push">pushed %1$s</string>
     <string name="card_details_failed">Couldn\'t load details</string>
 
@@ -131,8 +132,8 @@
     <string name="add_linked_app_named">Linked: %1$s · change</string>
     <string name="add_guide_title">Paste a repository link, or search by keyword</string>
     <string name="add_guide_formats">github.com/owner/repo or owner/repo</string>
+    <string name="add_back_to_results">Back to results</string>
     <string name="add_open_existing">Open the existing repo</string>
-    <string name="add_duplicate">Already in your list</string>
     <string name="add_confirm">Add repository</string>
 
     <!-- 详情页 -->
@@ -141,7 +142,7 @@
     <string name="detail_no_commits">No commits yet</string>
     <string name="detail_no_releases">No releases yet</string>
     <string name="detail_select_asset_hint">Select a package to download</string>
-    <string name="detail_no_apk">No installable package in this release</string>
+    <string name="detail_no_apk">No APK provided</string>
     <string name="detail_stars">★ %1$s</string>
     <string name="detail_forks">Fork %1$s</string>
     <string name="detail_issues">Issue %1$s</string>
@@ -172,7 +173,7 @@
     <string name="install_signature_mismatch">Signature mismatch — uninstall the existing app first (common when mixing F-Droid and GitHub builds)</string>
 
     <!-- 通知 -->
-    <string name="notif_channel_release">New versions</string>
+    <string name="notif_channel_release">Repo new versions</string>
     <string name="notif_channel_update">CandyTick updates</string>
     <string name="notif_new_release">New version %1$s available</string>
     <string name="notif_update_ready_title">CandyTick update</string>

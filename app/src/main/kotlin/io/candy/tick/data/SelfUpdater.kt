@@ -44,9 +44,6 @@ class SelfUpdater(
 
     private val updateDir: File = File(context.filesDir, "updates")
 
-    /** 清理逻辑已提取到 util/ReleaseNotes（版本历史展开共用） */
-    private fun plainNotes(md: String): String = io.candy.tick.util.ReleaseNotes.plain(md)
-
     /** @return true = 有可比对新版本（可触发自动下载） */
     suspend fun check(): Boolean {
         _state.value = State.Checking
@@ -61,12 +58,16 @@ class SelfUpdater(
                 }
                 else -> {
                     val cmp = VersionCompare.compare(latest.tagName, local)
-                    // 更新说明取 Release 正文（body），轻量清理 Markdown 符号；空则退回标题
-                    val notes = latest.body.takeIf { it.isNotBlank() }?.let { plainNotes(it) }
-                        ?.let { n ->
-                            // 首行若与版本号重复（正文常以 ## vX 开头）剔除
-                            val lines = n.lineSequence()
-                            if (lines.first() == latest.tagName) lines.drop(1).joinToString("\n") else n
+                    // 更新说明存原始 body（仅剔首行与版本号重复的标题）——emoji/markdown
+                    // 清理与链接标注由 UI 层 ReleaseNotes.annotated 处理，与详情页展开区同源同能
+                    val notes = latest.body.takeIf { it.isNotBlank() }
+                        ?.let { b ->
+                            val lines = b.lineSequence()
+                            if (lines.first().trimStart('#', ' ') == latest.tagName) {
+                                lines.drop(1).joinToString("\n")
+                            } else {
+                                b
+                            }
                         }
                         ?: latest.name?.takeIf { it.isNotBlank() }
                     when {

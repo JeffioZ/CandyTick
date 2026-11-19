@@ -1,6 +1,6 @@
 package io.candy.tick.ui.nav
 
-import androidx.compose.animation.core.FastOutSlowInEasing
+import androidx.compose.animation.core.LinearOutSlowInEasing
 import androidx.compose.animation.core.tween
 import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
@@ -40,9 +40,10 @@ fun AppNavHost(container: AppContainer) {
     NavDisplay(
         backStack = backStack,
         onBack = { backStack.removeLastOrNull() },
-        // 系统式水平推移：新页从右滑入（30% 行程 + 淡入），旧页向左让位（25% + 淡出）
+        // 对称水平推移（25% 行程等距）：轻快落位感——不对称行程+双向 fade 的旧组合
+        // 中间帧两页半透明叠加（背景透出=「漂」感）；对称等速 + 减速曲线是系统 Activity 手感
         transitionSpec = {
-            (slideInHorizontally(initialOffsetX = { it / 3 }, animationSpec = navSpec()) +
+            (slideInHorizontally(initialOffsetX = { it / 4 }, animationSpec = navSpec()) +
                 fadeIn(navSpec())) togetherWith
                 (slideOutHorizontally(targetOffsetX = { -it / 4 }, animationSpec = navSpec()) +
                     fadeOut(navSpec()))
@@ -79,11 +80,11 @@ fun AppNavHost(container: AppContainer) {
     )
 }
 
-/** 系统标准「快出慢入」曲线，300ms（Material 动效推荐区间） */
-private fun <T> navSpec() = tween<T>(durationMillis = 300, easing = FastOutSlowInEasing)
+/** 减速曲线（页面「落位」感），260ms——比旧 300ms 轻快，比组件动效（220 档）长半档 */
+private fun <T> navSpec() = tween<T>(durationMillis = 260, easing = LinearOutSlowInEasing)
 
 private fun popTransform() =
     (slideInHorizontally(initialOffsetX = { -it / 4 }, animationSpec = navSpec()) +
         fadeIn(navSpec())) togetherWith
-        (slideOutHorizontally(targetOffsetX = { it / 3 }, animationSpec = navSpec()) +
+        (slideOutHorizontally(targetOffsetX = { it / 4 }, animationSpec = navSpec()) +
             fadeOut(navSpec()))

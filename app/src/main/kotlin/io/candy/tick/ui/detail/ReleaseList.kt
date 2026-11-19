@@ -64,7 +64,13 @@ fun LazyListScope.releaseList(
 ) {
     items(count = state.releases.size, key = { state.releases[it].tagName + it }) { index ->
         val release = state.releases[index]
+        // tab 切换/分页加载时卡片淡入（150 微反馈档，与首页/提交列表同语言）
+        val itemMod = Modifier.fillMaxWidth().animateItem(
+            fadeInSpec = androidx.compose.animation.core.tween(150),
+            fadeOutSpec = androidx.compose.animation.core.tween(150),
+        )
         ReleaseCard(
+            modifier = itemMod,
             release = release,
             state = state,
             localVersion = localVersion,
@@ -118,6 +124,7 @@ private fun ReleaseFooter(state: DetailViewModel.UiState, onLoadMore: () -> Unit
 
 @Composable
 private fun ReleaseCard(
+    modifier: Modifier = Modifier,
     release: ReleaseRecord,
     state: DetailViewModel.UiState,
     localVersion: String?,
@@ -139,7 +146,7 @@ private fun ReleaseCard(
     val hasNotes = release.body.isNotBlank()
     // rememberSaveable：列表项滚出屏销毁后回来保持展开态（remember 会丢）
     var notesExpanded by androidx.compose.runtime.saveable.rememberSaveable(release.tagName) { mutableStateOf(false) }
-    Card(modifier = Modifier.fillMaxWidth()) {
+    Card(modifier = modifier.fillMaxWidth()) {
         Column(modifier = Modifier.padding(horizontal = 16.dp, vertical = 8.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
             Row(
                 verticalAlignment = Alignment.CenterVertically,

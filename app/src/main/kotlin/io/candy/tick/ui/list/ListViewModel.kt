@@ -61,6 +61,7 @@ class ListViewModel(
         val banner: SourceError? = null,
         val expanded: Set<Long> = emptySet(),
         val changedIds: Set<Long> = emptySet(), // 有新活动的仓库（刷新后对比）
+        val updatableIds: Set<Long> = emptySet(), // 有可比新版的仓库（折叠卡直显标识）
         val cards: Map<Long, CardExtras> = emptyMap(),
     ) {
         val isEmpty: Boolean get() = items.isEmpty() && !refreshing && query.isBlank()
@@ -172,14 +173,17 @@ class ListViewModel(
     }
 
     val state: StateFlow<UiState> = combine(part1, part2) { p1, p2 ->
+        val (items, upd) = buildItems(p1.repos, p1.snapshots, p2.errors, p1.sort, p1.query)
         UiState(
-            items = buildItems(p1.repos, p1.snapshots, p2.errors, p1.sort, p1.query),
+            items = items,
             refreshing = p1.refreshing,
             sortMode = p1.sort,
             query = p1.query,
             banner = p1.banner,
             expanded = p2.expanded,
             changedIds = p2.changed,
+            // 有可比新版的仓库集（与排序比较器共用同一份 PM 查询结果，零重复 IPC）
+            updatableIds = upd.filterValues { it }.keys,
             cards = p2.cards,
         )
     }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), initialUiState())
@@ -193,7 +197,7 @@ class ListViewModel(
         // 排序与真实首发射一致（sortMode 初始化自持久化设置）：避免首帧按默认排序、
         // 下一帧重排造成的「列表突然变一下」
         return UiState(
-            items = buildItems(loaded.repos, loaded.snapshots, emptyMap(), sortMode.value, ""),
+            items = buildItems(loaded.repos, loaded.snapshots, emptyMap(), sortMode.value, "").first,
         )
     }
 
@@ -219,7 +223,7 @@ class ListViewModel(
         errors: Map<Long, SourceError>,
         sort: SortMode,
         query: String,
-    ): List<RepoListItem> {
+    ): Pair<List<RepoListItem>, Map<Long, Boolean>> {
         val q = query.trim().lowercase()
         val source = if (q.isBlank()) repos else repos.filter { tracked ->
             tracked.repo.lowercase().contains(q) ||
@@ -227,12 +231,8 @@ class ListViewModel(
                 tracked.noteName?.lowercase()?.contains(q) == true
         }
         val items = source.map { RepoListItem(it, snapshots[it.id], errors[it.id]) }
-        // 「可更新」预计算：比较器内直查 Map，避免每次比较都跑 PackageManager IPC（O(n·log n) → O(n)）
-        val upd = if (sort == SortMode.UPDATABLE) {
-            items.associate { it.repo.id to it.hasUpdate(context) }
-        } else {
-            emptyMap()
-        }
+        // 「可更新」预计算：排序比较器与折叠卡标识共用（O(n) 次 PM 查询，Map 直查）
+        val upd = items.associate { it.repo.id to it.hasUpdate(context) }
         val base = when (sort) {
                 SortMode.LAST_PUSH -> compareByDescending<RepoListItem> { it.snapshot?.pushedAt?.toEpochMilli() ?: Long.MIN_VALUE }
                 SortMode.STATUS -> compareBy { it.status }
@@ -245,7 +245,7 @@ class ListViewModel(
                     .thenByDescending { it.snapshot?.pushedAt?.toEpochMilli() ?: Long.MIN_VALUE }
             }
         // 置顶组永远最前（组内沿用当前排序 + 最近置顶在前）；搜索时按纯排序避免困惑
-        return if (q.isBlank()) {
+        val sorted = if (q.isBlank()) {
             items.sortedWith(
                     compareByDescending<RepoListItem> { it.repo.pinnedAt != null }
                         .thenByDescending { it.repo.pinnedAt?.toEpochMilli() ?: 0L }
@@ -254,6 +254,7 @@ class ListViewModel(
         } else {
             items.sortedWith(base)
         }
+        return sorted to upd
     }
 
     /** 关联本机应用 + latestReleaseTag 严格更新（宁可不比） */

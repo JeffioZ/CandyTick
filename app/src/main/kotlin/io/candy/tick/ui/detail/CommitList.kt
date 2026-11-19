@@ -32,8 +32,13 @@ fun LazyListScope.commitList(
     items(count = state.commits.size, key = { state.commits[it].sha + it }) { index ->
         val commit = state.commits[index]
         val context = androidx.compose.ui.platform.LocalContext.current
+        // tab 切换/分页加载时卡片淡入（150 微反馈档，与首页列表同语言）
+        val itemMod = Modifier.fillMaxWidth().animateItem(
+            fadeInSpec = androidx.compose.animation.core.tween(150),
+            fadeOutSpec = androidx.compose.animation.core.tween(150),
+        )
         Card(
-            modifier = Modifier.fillMaxWidth(),
+            modifier = itemMod,
             // 按压下沉：HyperOS 卡片惯例（Miuix Card 默认无反馈，需显式开启）
             pressFeedbackType = top.yukonga.miuix.kmp.utils.PressFeedbackType.Sink,
             // 点击跳 GitHub 查 diff/详情（GitHub app 同款延伸）

@@ -35,6 +35,7 @@
     <string name="empty_subtitle">订阅一个仓库，看看它是否还活着</string>
     <string name="empty_cta">添加第一个仓库</string>
     <string name="banner_old_data_kept">显示的是缓存数据</string>
+    <string name="card_updatable">有新版</string>
     <string name="card_last_push">%1$s有提交</string>
     <string name="card_details_failed">详情加载失败</string>
 
@@ -121,8 +122,8 @@
     <string name="add_linked_app_named">已关联：%1$s · 更改</string>
     <string name="add_guide_title">粘贴仓库链接，或输入关键词搜索</string>
     <string name="add_guide_formats">支持 github.com/owner/repo 或 owner/repo</string>
+    <string name="add_back_to_results">返回搜索结果</string>
     <string name="add_open_existing">打开已订阅的仓库</string>
-    <string name="add_duplicate">已在列表中</string>
     <string name="add_confirm">添加仓库</string>
 
     <!-- 详情页 -->
@@ -131,7 +132,7 @@
     <string name="detail_no_commits">暂无提交记录</string>
     <string name="detail_no_releases">暂无发布版本</string>
     <string name="detail_select_asset_hint">选择要下载的安装包</string>
-    <string name="detail_no_apk">这个版本没有安装包</string>
+    <string name="detail_no_apk">未提供安装包</string>
     <string name="detail_stars">★ %1$s</string>
     <string name="detail_forks">Fork %1$s</string>
     <string name="detail_issues">Issue %1$s</string>
@@ -162,8 +163,8 @@
     <string name="install_signature_mismatch">签名不一致，请先卸载原有应用再安装（常见于 F-Droid 与 GitHub 渠道混装）</string>
 
     <!-- 通知 -->
-    <string name="notif_channel_release">新版本</string>
-    <string name="notif_channel_update">CandyTick 更新</string>
+    <string name="notif_channel_release">仓库新版本</string>
+    <string name="notif_channel_update">应用更新</string>
     <string name="notif_new_release">新版本 %1$s 可用</string>
     <string name="notif_update_ready_title">CandyTick 更新</string>
     <string name="notif_update_ready">新版本 %1$s 已下载 · 点击安装</string>

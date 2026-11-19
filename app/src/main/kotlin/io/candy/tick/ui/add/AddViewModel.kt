@@ -60,7 +60,13 @@ class AddViewModel(
     private var parseJob: kotlinx.coroutines.Job? = null
 
     fun onInput(text: String) {
-        _state.update { it.copy(input = text, searchFailed = false, searched = false) }
+        _state.update {
+            it.copy(
+                input = text, searchFailed = false, searched = false,
+                // 输入已变，旧预览与输入不匹配 → 失效（URL 粘贴场景随后立即重新 Loading）
+                preview = PreviewState.Idle,
+            )
+        }
         parseJob?.cancel()
         val parsed = UrlParser.parse(text)
         if (parsed == null) {
@@ -100,7 +106,9 @@ class AddViewModel(
         if (UrlParser.parse(text) != null) return
         if (text.isBlank()) return
         viewModelScope.launch {
-            _state.update { it.copy(searching = true, searchFailed = false, results = emptyList()) }
+            _state.update {
+                it.copy(searching = true, searchFailed = false, results = emptyList(), preview = PreviewState.Idle)
+            }
             val results = runCatching { repository.search(text) }.getOrNull()
             _state.update {
                 if (results == null) {
@@ -112,15 +120,27 @@ class AddViewModel(
         }
     }
 
-    fun pickResult(info: RepoInfo) {
-        fetchingKey = "${info.owner}/${info.repo}"
-        fetchPreview(info.owner, info.repo)
+    /** 预览态返回搜索结果（results 保留时的退路） */
+    fun dismissPreview() {
+        fetchingKey = null
+        _state.update { it.copy(preview = PreviewState.Idle, duplicate = false) }
     }
 
-    private fun fetchPreview(owner: String, repo: String) {
+    fun pickResult(info: RepoInfo) {
+        fetchingKey = "${info.owner}/${info.repo}"
+        // 搜索结果与 addPreview 返回同构（同一 GhRepo.toInfo 转换）：点击即用已知数据直出预览，
+        // 不为已有信息闪 loading（skill: tap-feedback-speed <100ms）；duplicate 本地库同步判定；
+        // 网络拉取仅静默校准（改名跟随/最新统计），失败不打断已展示内容
+        val dup = repository.state.value.repos.any { it.id == info.githubId }
+        _state.update { it.copy(preview = PreviewState.Loaded(info), duplicate = dup) }
+        fetchPreview(info.owner, info.repo, silent = true)
+    }
+
+    private fun fetchPreview(owner: String, repo: String, silent: Boolean = false) {
         val key = "$owner/$repo"
         viewModelScope.launch {
-            _state.update { it.copy(preview = PreviewState.Loading, duplicate = false, results = emptyList()) }
+            // 保留 results：预览态可「返回搜索结果」重选（此前清空导致无退路）
+            if (!silent) _state.update { it.copy(preview = PreviewState.Loading, duplicate = false) }
             try {
                 when (val result = repository.addPreview(owner, repo)) {
                     is RepoInfoResult.NotModified -> Unit // 预览无 etag，不会走到
@@ -143,7 +163,8 @@ class AddViewModel(
                     }
                 }
             } catch (e: SourceException) {
-                if (fetchingKey == key) {
+                // 静默校准失败：已直出的本地数据不受影响（仅 URL 粘贴路径亮错误态）
+                if (!silent && fetchingKey == key) {
                     _state.update { it.copy(preview = PreviewState.Failed(e.error)) }
                 }
             }

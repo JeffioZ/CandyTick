@@ -213,7 +213,7 @@ fun DetailScreen(repoId: Long, onBack: () -> Unit) {
             LazyColumn(
                 state = detailListState,
                 modifier = Modifier.fillMaxSize(),
-                contentPadding = PaddingValues(start = 16.dp, end = 16.dp, top = 4.dp, bottom = 48.dp),
+                contentPadding = PaddingValues(start = 16.dp, end = 16.dp, top = 10.dp, bottom = 48.dp),
                 verticalArrangement = Arrangement.spacedBy(10.dp),
             ) {
                 item {
@@ -234,8 +234,22 @@ fun DetailScreen(repoId: Long, onBack: () -> Unit) {
                         onCancelDownload = vm::cancelDownload,
                     )
                 }
-                state.banner?.let { error ->
-                    item {
+                // 错误横幅出现/消失过渡（220 表层档）：刷新失败/恢复不再硬跳
+                item(key = "banner") {
+                    androidx.compose.animation.AnimatedVisibility(
+                        visible = state.banner != null,
+                        enter = androidx.compose.animation.expandVertically(
+                            animationSpec = androidx.compose.animation.core.tween(220),
+                        ) + androidx.compose.animation.fadeIn(
+                            animationSpec = androidx.compose.animation.core.tween(220),
+                        ),
+                        exit = androidx.compose.animation.shrinkVertically(
+                            animationSpec = androidx.compose.animation.core.tween(220),
+                        ) + androidx.compose.animation.fadeOut(
+                            animationSpec = androidx.compose.animation.core.tween(220),
+                        ),
+                    ) {
+                        state.banner?.let { error ->
                         Card(modifier = Modifier.fillMaxWidth()) {
                             Text(
                                 text = sourceErrorText(error),
@@ -243,6 +257,7 @@ fun DetailScreen(repoId: Long, onBack: () -> Unit) {
                                 color = scheme.onErrorContainer,
                                 modifier = Modifier.padding(16.dp),
                             )
+                        }
                         }
                     }
                 }
@@ -257,7 +272,9 @@ fun DetailScreen(repoId: Long, onBack: () -> Unit) {
                     androidx.compose.foundation.layout.Box(
                         modifier = Modifier
                             .fillMaxWidth()
-                            .padding(horizontal = 16.dp, vertical = 8.dp)
+                            // 上下对称：上=头卡底8+item距10+top0=18，下=bottom8+列表top10=18
+                            .padding(horizontal = 16.dp)
+                            .padding(top = 0.dp, bottom = 8.dp)
                             .clip(segShape)
                             .background(scheme.secondaryVariant)
                             .height(44.dp)
