@@ -62,6 +62,8 @@ fun SwipeToDelete(
     val dissolve = remember { Animatable(1f) }
     val scheme = MiuixTheme.colorScheme
     val haptic = LocalHapticFeedback.current
+    // 减弱动态（系统动画=0）：删除消散瞬时完成（reduced-motion 尊重）
+    val motionEnabled by rememberUpdatedState(io.candy.tick.ui.common.rememberMotionEnabled())
     // 手势块持有创建时的闭包（key 不变不重启）：不桥接最新值的话，
     // togglePin 会拿到置顶前的旧条目快照，导致「无法取消置顶」
     val currentOnDelete by rememberUpdatedState(onDelete)
@@ -124,9 +126,14 @@ fun SwipeToDelete(
                             scope.launch {
                                 when {
                                     offsetX.value > commitThreshold -> {
-                                        kotlinx.coroutines.coroutineScope {
-                                            launch { offsetX.animateTo(0f, tween(220)) }
-                                            launch { dissolve.animateTo(0f, tween(300)) }
+                                        if (motionEnabled) {
+                                            kotlinx.coroutines.coroutineScope {
+                                                launch { offsetX.animateTo(0f, tween(220)) }
+                                                launch { dissolve.animateTo(0f, tween(300)) }
+                                            }
+                                        } else {
+                                            offsetX.snapTo(0f)
+                                            dissolve.snapTo(0f)
                                         }
                                         currentOnDelete()
                                         dissolve.snapTo(1f)

@@ -162,15 +162,30 @@ fun DetailScreen(repoId: Long, onBack: () -> Unit) {
                             )
                         }
                         // 切换浏览分支（仅提交视图有分支语义；Release tab 隐藏，避免点了无效果的控件）
-                        if (state.tab == DetailViewModel.DetailTab.COMMITS) IconButton(onClick = {
-                            showBranchSheet = true
-                            vm.loadBranches()
-                        }) {
+                        // 宽度+透明度过渡：tab 切换时图标个数不再突跳
+                        androidx.compose.animation.AnimatedVisibility(
+                            visible = state.tab == DetailViewModel.DetailTab.COMMITS,
+                            enter = androidx.compose.animation.fadeIn(
+                                androidx.compose.animation.core.tween(180),
+                            ) + androidx.compose.animation.expandHorizontally(
+                                animationSpec = androidx.compose.animation.core.tween(180),
+                            ),
+                            exit = androidx.compose.animation.fadeOut(
+                                androidx.compose.animation.core.tween(180),
+                            ) + androidx.compose.animation.shrinkHorizontally(
+                                animationSpec = androidx.compose.animation.core.tween(180),
+                            ),
+                        ) {
+                            IconButton(onClick = {
+                                showBranchSheet = true
+                                vm.loadBranches()
+                            }) {
                             Icon(
                                 imageVector = ImageVector.vectorResource(R.drawable.ic_git_branch),
                                 contentDescription = stringResource(R.string.branch_picker_title),
-                                tint = scheme.onBackground,
-                            )
+                                    tint = scheme.onBackground,
+                                )
+                            }
                         }
                         // 移除订阅（destructive → 确认对话框；底部文字按钮已移除）
                         IconButton(onClick = { showRemoveDialog = true }) {

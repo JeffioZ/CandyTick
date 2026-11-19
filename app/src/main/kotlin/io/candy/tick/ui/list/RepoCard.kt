@@ -93,11 +93,15 @@ fun RepoCard(
                 Row(
                     modifier = Modifier
                         .fillMaxWidth()
+                        // clip 在 clickable 前：ripple 随之圆角化（直角矩形按压效果生硬）
+                        .clip(RoundedCornerShape(10.dp))
                         // clickable 在 padding 之前：留白计入命中区（~40dp 达标），
                         // 且点击缓冲带不再穿透到卡片 onClick（误进详情）
                         .clickable(
                             interactionSource = remember { MutableInteractionSource() },
                         ) { onToggle() }
+                        // 内容边距 8（ripple 全宽）：文字不贴按压色块边缘；与面板边距统一对称
+                        .padding(horizontal = 8.dp)
                         .padding(vertical = 10.dp),
                     verticalAlignment = Alignment.CenterVertically,
                 ) {
@@ -139,9 +143,23 @@ fun RepoCard(
                     }
                 }
 
-                androidx.compose.animation.AnimatedVisibility(visible = expanded) {
+                // 展开收起钉 220 表层档：高度与透明度同拍（默认 spring 时长不可控且在体系外）
+                androidx.compose.animation.AnimatedVisibility(
+                    visible = expanded,
+                    enter = androidx.compose.animation.expandVertically(
+                        animationSpec = androidx.compose.animation.core.tween(220),
+                    ) + androidx.compose.animation.fadeIn(
+                        animationSpec = androidx.compose.animation.core.tween(220),
+                    ),
+                    exit = androidx.compose.animation.shrinkVertically(
+                        animationSpec = androidx.compose.animation.core.tween(220),
+                    ) + androidx.compose.animation.fadeOut(
+                        animationSpec = androidx.compose.animation.core.tween(220),
+                    ),
+                ) {
                     Column {
                         Spacer(Modifier.height(2.dp))
+                        // 卡中卡信息面板：展开内容有容器底，与折叠态主信息分层
                         ExpandedDetails(item = item, extras = extras)
                         // 卡底留白放展开块内：收起时随动画移除，折叠态底部与顶对称（8dp）
                         Spacer(Modifier.height(8.dp))
@@ -154,7 +172,15 @@ fun RepoCard(
 @Composable
 private fun ExpandedDetails(item: ListViewModel.RepoListItem, extras: ListViewModel.CardExtras?) {
     val scheme = MiuixTheme.colorScheme
-    Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
+    Column(
+        modifier = Modifier
+            .fillMaxWidth()
+            .padding(horizontal = 8.dp) // 展开子系统统一边距：与时间行/箭头对齐且左右对称
+            .clip(RoundedCornerShape(10.dp))
+            .background(scheme.secondaryVariant)
+            .padding(horizontal = 12.dp, vertical = 10.dp),
+        verticalArrangement = Arrangement.spacedBy(6.dp),
+    ) {
         when {
             extras == null || extras.loading -> androidx.compose.foundation.layout.Box(
                 modifier = Modifier.height(16.dp), // 与替换后的提交行等高，加载→内容不跳

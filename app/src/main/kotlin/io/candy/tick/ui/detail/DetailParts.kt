@@ -249,6 +249,10 @@ internal fun HeaderCard(
     Card(modifier = Modifier.fillMaxWidth()) {
         // 双层间距体系：跨组 8dp（Spacer）、组内 6dp——头卡多组累加，组距收紧一档防松散
         Column(modifier = Modifier.padding(horizontal = 16.dp, vertical = 8.dp)) {
+            // 信息区统一可复制（标题/路径/描述/统计）：单容器——同容器内点击别处自动清除选择，
+            // 多独立容器互不协调会导致「点另一处复制条不消失」
+            androidx.compose.foundation.text.selection.SelectionContainer {
+                Column {
             Row(verticalAlignment = Alignment.CenterVertically) {
                 RepoIconBlock(repo = repo, size = 56.dp, corner = 14.dp)
                 Spacer(Modifier.width(12.dp))
@@ -308,12 +312,16 @@ internal fun HeaderCard(
                 }
             }
 
+                }
+            }
             // ── 版本分区（有 tag 时显示分隔线 + 版本行 + 操作按钮）──
             snapshot?.latestReleaseTag?.let { tag ->
                 Spacer(Modifier.height(8.dp))
                 SectionDivider()
                 Spacer(Modifier.height(6.dp))
-                VersionStatusLine(repo = repo, remoteTag = tag)
+                androidx.compose.foundation.text.selection.SelectionContainer {
+                    VersionStatusLine(repo = repo, remoteTag = tag)
+                }
 
                 // 更新入口（有新版时头部直接行动）：下载 → 进度 → 安装
                 val hasUpdate = io.candy.tick.ui.common.updateAvailable(context, repo, tag)
@@ -390,6 +398,7 @@ internal fun HeaderCard(
             // ── 关联分区（始终存在，固定卡底）；前置 8dp 与上方版本区呼吸对称 ──
             Spacer(Modifier.height(8.dp))
             SectionDivider()
+            Spacer(Modifier.height(8.dp))
             // 关联本机应用（可修改 / 解除）
             val linkedLabel = repo.linkedPackage?.let { pkg ->
                 runCatching {
@@ -433,8 +442,8 @@ internal fun HeaderCard(
                     Spacer(Modifier.width(8.dp))
                     IconButton(onClick = onUnlink) {
                         Icon(
-                            // Remove 减号 = 移除关联（Blocklist 禁止圈是「拉黑」语义，偏威胁性）
-                            imageVector = ImageVector.vectorResource(R.drawable.ic_minus),
+                            // unlink 断链 = 解除关联（minus 减号不表意）
+                            imageVector = ImageVector.vectorResource(R.drawable.ic_unlink),
                             contentDescription = stringResource(R.string.detail_unlink),
                             tint = scheme.onBackgroundVariant,
                             modifier = Modifier.size(18.dp),

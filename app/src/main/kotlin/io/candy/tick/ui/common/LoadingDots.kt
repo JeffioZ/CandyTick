@@ -40,6 +40,25 @@ fun LoadingDots(
     dotSize: Dp = 4.dp, // 行内伴随 4dp；独立等待位点用 5dp（用户正盯着它等）
 ) {
     val busyLabel = stringResource(R.string.loading)
+    // 减弱动态（系统动画时长=0）：三点静态化（持续运动是前庭不适主因）
+    if (!rememberMotionEnabled()) {
+        Row(
+            modifier = modifier.semantics { contentDescription = busyLabel },
+            horizontalArrangement = Arrangement.spacedBy(3.dp),
+            verticalAlignment = Alignment.CenterVertically,
+        ) {
+            repeat(3) {
+                Box(
+                    modifier = Modifier
+                        .size(dotSize)
+                        .alpha(0.8f)
+                        .clip(CircleShape)
+                        .background(color),
+                )
+            }
+        }
+        return
+    }
     val t by rememberInfiniteTransition(label = "loadingDots").animateFloat(
         initialValue = 0f,
         targetValue = 1f,

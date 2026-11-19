@@ -125,11 +125,13 @@ private fun ReleaseCard(
     Card(modifier = Modifier.fillMaxWidth()) {
         Column(modifier = Modifier.padding(horizontal = 16.dp, vertical = 8.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
             Row(verticalAlignment = Alignment.CenterVertically) {
-                Text(
-                    text = release.tagName,
-                    style = MonoTokenStyle.copy(fontWeight = androidx.compose.ui.text.font.FontWeight.Bold),
-                    color = scheme.primaryVariant,
-                )
+                androidx.compose.foundation.text.selection.SelectionContainer {
+                    Text(
+                        text = release.tagName,
+                        style = MonoTokenStyle.copy(fontWeight = androidx.compose.ui.text.font.FontWeight.Bold),
+                        color = scheme.primaryVariant,
+                    )
+                }
                 Spacer(Modifier.width(10.dp))
                 RelTimeText(
                     date = release.publishedAt,
@@ -138,11 +140,13 @@ private fun ReleaseCard(
                 )
             }
             release.name?.takeIf { it.isNotBlank() && it != release.tagName }?.let {
-                Text(
-                    text = it,
-                    style = MiuixTheme.textStyles.body2,
-                    color = scheme.onBackground,
-                )
+                androidx.compose.foundation.text.selection.SelectionContainer {
+                    Text(
+                        text = it,
+                        style = MiuixTheme.textStyles.body2,
+                        color = scheme.onBackground,
+                    )
+                }
             }
 
             if (candidates.isEmpty()) {
@@ -318,30 +322,44 @@ private fun AssetRow(
             modifier = Modifier.size(20.dp),
             contentAlignment = Alignment.Center,
         ) {
-            if (selected) {
-                top.yukonga.miuix.kmp.basic.Icon(
-                    imageVector = ImageVector.vectorResource(R.drawable.ic_check),
-                    contentDescription = "selected",
-                    tint = scheme.primaryVariant,
-                    modifier = Modifier.size(20.dp), // intrinsic 26dp，统一选中标记 20dp
-                )
-            } else {
-                // 未选中空心圈：给出「这里可选」的可点暗示（无它整行像纯文本）
-                androidx.compose.foundation.layout.Box(
-                    modifier = Modifier
-                        .size(16.dp)
-                        .clip(CircleShape)
-                        .border(1.5.dp, scheme.onBackgroundVariant.copy(alpha = 0.35f), CircleShape),
-                )
+            // 选中态柔切换（150 微反馈档）：✓ 与空心圈交叉淡入
+            androidx.compose.animation.Crossfade(
+                targetState = selected,
+                animationSpec = androidx.compose.animation.core.tween(150),
+                label = "assetCheck",
+            ) { sel ->
+                if (sel) {
+                    top.yukonga.miuix.kmp.basic.Icon(
+                        imageVector = ImageVector.vectorResource(R.drawable.ic_check),
+                        contentDescription = "selected",
+                        tint = scheme.primaryVariant,
+                        modifier = Modifier.size(20.dp), // intrinsic 26dp，统一选中标记 20dp
+                    )
+                } else {
+                    // 未选中空心圈：给出「这里可选」的可点暗示（无它整行像纯文本）
+                    androidx.compose.foundation.layout.Box(
+                        modifier = Modifier
+                            .size(16.dp)
+                            .clip(CircleShape)
+                            .border(1.5.dp, scheme.onBackgroundVariant.copy(alpha = 0.35f), CircleShape),
+                    )
+                }
             }
         }
         Spacer(Modifier.width(8.dp))
+        val nameColor by androidx.compose.animation.animateColorAsState(
+            targetValue = if (selected) scheme.onBackground else scheme.onBackgroundVariant,
+            animationSpec = androidx.compose.animation.core.tween(150),
+            label = "assetName",
+        )
         Text(
             text = asset.name,
             style = MonoTokenStyle,
-            color = if (selected) scheme.onBackground else scheme.onBackgroundVariant,
+            color = nameColor,
             modifier = Modifier.weight(1f),
         )
+        // 推荐胶囊：瞬时显隐——任何动画（宽度/淡出占位）都会引起文件名布局跳变（抖动感），
+        // 视觉柔和不抖的职责交给 ✓ 的 Crossfade 与文字色渐变，标签一次到位
         if (recommended) {
             Row(
                 modifier = Modifier
