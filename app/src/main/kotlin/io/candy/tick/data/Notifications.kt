@@ -45,10 +45,15 @@ object Notifications {
             ContextCompat.checkSelfPermission(context, Manifest.permission.POST_NOTIFICATIONS) ==
             PackageManager.PERMISSION_GRANTED
 
+    // 通知点击导航目标（MainActivity 解析后直达对应页面）
+    const val EXTRA_NAV_REPO = "nav_repo_id" // 仓库新版本 → 该仓库详情页
+    const val EXTRA_NAV_SETTINGS = "nav_settings" // 自更新就绪 → 设置页
+
     fun notifyRepoNewVersion(context: Context, repoName: String, tag: String, repoId: Long) {
         if (!canNotify(context)) return
         ensureChannels(context)
         val intent = Intent(context, MainActivity::class.java)
+            .putExtra(EXTRA_NAV_REPO, repoId)
         val pending = PendingIntent.getActivity(
             context,
             repoId.hashCode(),
@@ -72,6 +77,7 @@ object Notifications {
         if (!canNotify(context)) return
         ensureChannels(context)
         val intent = Intent(context, MainActivity::class.java)
+            .putExtra(EXTRA_NAV_SETTINGS, true)
         val pending = PendingIntent.getActivity(
             context,
             4242,

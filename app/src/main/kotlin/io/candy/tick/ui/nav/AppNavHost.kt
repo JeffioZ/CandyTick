@@ -39,8 +39,34 @@ data object RouteSettings : NavKey
 data class RouteDetail(val repoId: Long) : NavKey
 
 @Composable
-fun AppNavHost(container: AppContainer) {
-    val backStack = rememberNavBackStack(RouteHome)
+fun AppNavHost(
+    container: AppContainer,
+    pendingRepoId: Long? = null, // 通知点击目标：仓库新版本 → 详情页
+    pendingSettings: Boolean = false, // 自更新通知 → 设置页
+    onNavConsumed: () -> Unit = {},
+) {
+    // 冷启动：初始栈直达目标（返回语义：目标 → 首页 → 桌面）
+    val backStack = rememberNavBackStack(
+        *buildList {
+            add(RouteHome)
+            pendingRepoId?.let { add(RouteDetail(it)) }
+            if (pendingSettings) add(RouteSettings)
+        }.toTypedArray(),
+    )
+    // 消费通知目标（热启动压栈；冷启动初始栈已含 → 栈顶去重天然跳过）
+    androidx.compose.runtime.LaunchedEffect(pendingRepoId, pendingSettings) {
+        when {
+            pendingSettings -> {
+                if (backStack.lastOrNull() != RouteSettings) backStack.add(RouteSettings)
+                onNavConsumed()
+            }
+            pendingRepoId != null -> {
+                val target = RouteDetail(pendingRepoId)
+                if (backStack.lastOrNull() != target) backStack.add(target)
+                onNavConsumed()
+            }
+        }
+    }
     fun close(key: NavKey) {
         backStack.remove(key)
     }
