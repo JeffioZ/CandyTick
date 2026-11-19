@@ -7,6 +7,8 @@ import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.heightIn
+import top.yukonga.miuix.kmp.basic.Icon
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxWidth
@@ -41,10 +43,16 @@ import top.yukonga.miuix.kmp.basic.Text
 import top.yukonga.miuix.kmp.theme.MiuixTheme
 import androidx.compose.ui.res.vectorResource
 import androidx.compose.ui.graphics.vector.ImageVector
+import androidx.compose.foundation.verticalScroll
+import androidx.compose.foundation.rememberScrollState
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.setValue
 
 /** Release 历史 + APK 资产（多 APK 自动推荐 + 手选；下载 → 安装） */
 fun LazyListScope.releaseList(
     state: DetailViewModel.UiState,
+    localVersion: String?,
+    htmlBase: String,
     onLoadMore: () -> Unit,
     onSelectAsset: (String, ApkAsset) -> Unit,
     onDownload: (ReleaseRecord, ApkAsset) -> Unit,
@@ -58,6 +66,8 @@ fun LazyListScope.releaseList(
         ReleaseCard(
             release = release,
             state = state,
+            localVersion = localVersion,
+            htmlBase = htmlBase,
             onSelectAsset = onSelectAsset,
             onDownload = onDownload,
             onRetry = onRetry,
@@ -109,6 +119,8 @@ private fun ReleaseFooter(state: DetailViewModel.UiState, onLoadMore: () -> Unit
 private fun ReleaseCard(
     release: ReleaseRecord,
     state: DetailViewModel.UiState,
+    localVersion: String?,
+    htmlBase: String,
     onSelectAsset: (String, ApkAsset) -> Unit,
     onDownload: (ReleaseRecord, ApkAsset) -> Unit,
     onRetry: (ReleaseRecord, ApkAsset) -> Unit,
@@ -122,9 +134,22 @@ private fun ReleaseCard(
         ApkPicker.pick(release.apkAssets, Build.SUPPORTED_ABIS.toList())
     }
     val selected = state.selectedAssets[release.tagName] ?: autoPick
+    // 更新日志展开态：body 有内容才可展开（chevron 提示）
+    val hasNotes = release.body.isNotBlank()
+    var notesExpanded by remember(release.tagName) { mutableStateOf(false) }
     Card(modifier = Modifier.fillMaxWidth()) {
         Column(modifier = Modifier.padding(horizontal = 16.dp, vertical = 8.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
-            Row(verticalAlignment = Alignment.CenterVertically) {
+            Row(
+                verticalAlignment = Alignment.CenterVertically,
+                modifier = if (hasNotes) {
+                    Modifier
+                        .fillMaxWidth()
+                        // tag 行点击展开/收起更新日志（下载/按钮各行不受影响）
+                        .clickable { notesExpanded = !notesExpanded }
+                } else {
+                    Modifier.fillMaxWidth()
+                },
+            ) {
                 Text(
                     text = release.tagName,
                     style = MonoTokenStyle.copy(fontWeight = androidx.compose.ui.text.font.FontWeight.Bold),
@@ -136,11 +161,100 @@ private fun ReleaseCard(
                     color = scheme.onBackgroundVariant,
                     style = MiuixTheme.textStyles.footnote2,
                 )
+                Spacer(Modifier.weight(1f))
+                // 「当前」徽章：tag 规范化后等于本机已装版本（去 v/V 前缀；
+                // 花式 tag 不匹配则不显示——宁缺勿错）。中性色：与推荐的薄荷（建议）区分，这是事实
+                if (localVersion != null && release.tagName.removePrefix("v").removePrefix("V") == localVersion) {
+                    Row(
+                        modifier = Modifier
+                            .clip(CircleShape)
+                            .background(scheme.secondaryVariant)
+                            .padding(horizontal = 8.dp, vertical = 2.dp),
+                    ) {
+                        Text(
+                            text = stringResource(R.string.release_current),
+                            color = scheme.onBackgroundVariant,
+                            style = MiuixTheme.textStyles.footnote2,
+                        )
+                    }
+                    Spacer(Modifier.width(8.dp))
+                }
+                // 更新日志 chevron：有 body 时提示 tag 行可展开
+                if (hasNotes) {
+                    androidx.compose.animation.Crossfade(
+                        targetState = notesExpanded,
+                        animationSpec = androidx.compose.animation.core.tween(150),
+                        label = "notesChevron",
+                    ) { exp ->
+                        Icon(
+                            imageVector = if (exp) {
+                                ImageVector.vectorResource(R.drawable.ic_chevron_up)
+                            } else {
+                                ImageVector.vectorResource(R.drawable.ic_chevron_down)
+                            },
+                            contentDescription = null,
+                            tint = scheme.onBackgroundVariant,
+                            modifier = Modifier.size(18.dp),
+                        )
+                    }
+                }
+            }
+
+            // 更新日志展开区（220 展开档与首页卡一致）：纯文本限高可滚 + GitHub 链接
+            if (hasNotes) {
+                androidx.compose.animation.AnimatedVisibility(
+                    visible = notesExpanded,
+                    enter = androidx.compose.animation.expandVertically(
+                        animationSpec = androidx.compose.animation.core.tween(220),
+                    ) + androidx.compose.animation.fadeIn(
+                        animationSpec = androidx.compose.animation.core.tween(220),
+                    ),
+                    exit = androidx.compose.animation.shrinkVertically(
+                        animationSpec = androidx.compose.animation.core.tween(220),
+                    ) + androidx.compose.animation.fadeOut(
+                        animationSpec = androidx.compose.animation.core.tween(220),
+                    ),
+                ) {
+                    Column {
+                        Text(
+                            text = io.candy.tick.util.ReleaseNotes.plain(release.body),
+                            style = MiuixTheme.textStyles.body2,
+                            color = scheme.onBackgroundVariant,
+                            modifier = Modifier
+                                .heightIn(max = 260.dp)
+                                .verticalScroll(rememberScrollState()),
+                        )
+                        Spacer(Modifier.height(6.dp))
+                        // 尾部跳转：GitHub 该 release 页（diff/资产全貌）
+                        val ctx = androidx.compose.ui.platform.LocalContext.current
+                        Text(
+                            text = stringResource(R.string.release_view_on_github),
+                            style = MiuixTheme.textStyles.footnote1,
+                            color = scheme.primaryVariant,
+                            modifier = Modifier
+                                .clickable(
+                                            interactionSource = remember { androidx.compose.foundation.interaction.MutableInteractionSource() },
+                                            indication = null,
+                                        ) {
+                                    runCatching {
+                                        ctx.startActivity(
+                                            android.content.Intent(
+                                                android.content.Intent.ACTION_VIEW,
+                                                android.net.Uri.parse("$htmlBase/releases/tag/${release.tagName}"),
+                                            ),
+                                        )
+                                    }
+                                }
+                                .padding(vertical = 4.dp),
+                        )
+                    }
+                }
             }
             release.name?.takeIf { it.isNotBlank() && it != release.tagName }?.let {
+                // 与提交消息 body1 同级：都是人写给人看的内容主体（此前 body2 与镜像卡差异）
                 Text(
                     text = it,
-                    style = MiuixTheme.textStyles.body2,
+                    style = MiuixTheme.textStyles.body1,
                     color = scheme.onBackground,
                 )
             }
@@ -320,37 +434,28 @@ private fun AssetRow(
         ) {
             // 单向动画：新相淡入 120ms、旧相瞬时消失——任何时刻只有一个可见相，
             // 无 Crossfade 的半透明叠加（重影=抖动），零布局变化
+            // 单选框图形对（Windows 风格）：空心圆 ↔ 圆圈带勾，单向动画（新相淡入旧相瞬灭）
             androidx.compose.animation.AnimatedContent(
                 targetState = selected,
                 transitionSpec = {
                     if (targetState) {
-                        // 选中：✓ 淡入、圈瞬灭
                         androidx.compose.animation.fadeIn(androidx.compose.animation.core.tween(120)) togetherWith
                             androidx.compose.animation.fadeOut(androidx.compose.animation.core.tween(0))
                     } else {
-                        // 取消：圈瞬现、✓ 快速淡出
                         androidx.compose.animation.fadeIn(androidx.compose.animation.core.tween(0)) togetherWith
                             androidx.compose.animation.fadeOut(androidx.compose.animation.core.tween(120))
                     }
                 },
-                label = "assetCheck",
+                label = "assetRadio",
             ) { sel ->
-                if (sel) {
-                    top.yukonga.miuix.kmp.basic.Icon(
-                        imageVector = ImageVector.vectorResource(R.drawable.ic_check),
-                        contentDescription = "selected",
-                        tint = scheme.primaryVariant,
-                        modifier = Modifier.size(20.dp), // intrinsic 26dp，统一选中标记 20dp
-                    )
-                } else {
-                    // 未选中空心圈：给出「这里可选」的可点暗示（无它整行像纯文本）
-                    androidx.compose.foundation.layout.Box(
-                        modifier = Modifier
-                            .size(16.dp)
-                            .clip(CircleShape)
-                            .border(1.5.dp, scheme.onBackgroundVariant.copy(alpha = 0.35f), CircleShape),
-                    )
-                }
+                Icon(
+                    imageVector = ImageVector.vectorResource(
+                        if (sel) R.drawable.ic_radio_on else R.drawable.ic_radio_off
+                    ),
+                    contentDescription = if (sel) "selected" else null,
+                    tint = if (sel) scheme.primaryVariant else scheme.onBackgroundVariant.copy(alpha = 0.45f),
+                    modifier = Modifier.size(20.dp),
+                )
             }
         }
         Spacer(Modifier.width(8.dp))

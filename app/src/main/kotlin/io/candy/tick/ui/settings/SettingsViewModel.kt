@@ -76,10 +76,6 @@ class SettingsViewModel(
         mutateSettings(transform = { s: Settings -> s.copy(wifiOnly = enabled) }, reschedule = true)
     }
 
-    fun setChargingOnly(enabled: Boolean) {
-        mutateSettings(transform = { s: Settings -> s.copy(chargingOnly = enabled) }, reschedule = true)
-    }
-
     fun setNotifications(enabled: Boolean) {
         mutateSettings(transform = { s: Settings -> s.copy(notificationsEnabled = enabled) })
     }

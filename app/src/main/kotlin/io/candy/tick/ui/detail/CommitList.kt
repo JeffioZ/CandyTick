@@ -26,11 +26,28 @@ import androidx.compose.ui.graphics.vector.ImageVector
 /** 提交历史分页（到底自动加载；失败行内重试；尽头「已到底」） */
 fun LazyListScope.commitList(
     state: DetailViewModel.UiState,
+    htmlBase: String,
     onLoadMore: () -> Unit,
 ) {
     items(count = state.commits.size, key = { state.commits[it].sha + it }) { index ->
         val commit = state.commits[index]
-        Card(modifier = Modifier.fillMaxWidth()) {
+        val context = androidx.compose.ui.platform.LocalContext.current
+        Card(
+            modifier = Modifier.fillMaxWidth(),
+            // 按压下沉：HyperOS 卡片惯例（Miuix Card 默认无反馈，需显式开启）
+            pressFeedbackType = top.yukonga.miuix.kmp.utils.PressFeedbackType.Sink,
+            // 点击跳 GitHub 查 diff/详情（GitHub app 同款延伸）
+            onClick = {
+                runCatching {
+                    context.startActivity(
+                        android.content.Intent(
+                            android.content.Intent.ACTION_VIEW,
+                            android.net.Uri.parse("$htmlBase/commit/${commit.sha}"),
+                        ),
+                    )
+                }
+            },
+        ) {
             Column(modifier = Modifier.padding(horizontal = 16.dp, vertical = 8.dp)) {
                 Row(verticalAlignment = Alignment.CenterVertically) {
                     Text(

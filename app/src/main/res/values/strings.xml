@@ -137,10 +137,10 @@
 
     <!-- 详情页 -->
     <string name="detail_commits">Commits</string>
-    <string name="detail_releases">Releases</string>
-    <string name="detail_no_commits">No commits</string>
-    <string name="detail_no_releases">No releases published</string>
-    <string name="detail_select_asset_hint">Choose a package to download</string>
+    <string name="detail_releases">Version history</string>
+    <string name="detail_no_commits">No commits yet</string>
+    <string name="detail_no_releases">No releases yet</string>
+    <string name="detail_select_asset_hint">Select a package to download</string>
     <string name="detail_no_apk">No installable package in this release</string>
     <string name="detail_stars">★ %1$s</string>
     <string name="detail_forks">Fork %1$s</string>
@@ -157,6 +157,8 @@
     <string name="load_failed">Load failed</string>
     <string name="status_error_subtitle">Network or API hiccup — try again in a moment</string>
     <string name="list_end">— the end —</string>
+    <string name="release_view_on_github">View full release on GitHub</string>
+    <string name="release_current">Current</string>
     <string name="asset_recommended">Recommended</string>
     <string name="download_apk">Download</string>
     <string name="retry_download">Retry download</string>
@@ -196,7 +198,6 @@
     <string name="settings_sync_and_notify">Sync &amp; notifications</string>
     <string name="settings_sync_frequency">Frequency</string>
     <string name="settings_sync_wifi_only">Wi-Fi only sync</string>
-    <string name="settings_sync_charging_only">Sync while charging</string>
     <string name="settings_token_row">GitHub token</string>
     <string name="settings_token_hint_short">Optional · 60 → 5,000 req/h</string>
     <string name="token_set">Set</string>
@@ -220,16 +221,15 @@
     <string name="settings_notifications">New version notifications</string>
 
     <!-- 权限 -->
-        <string name="settings_permission_group">Permissions</string>
-    <string name="settings_perm_install_unknown">Install unknown apps</string>
+        <string name="settings_perm_install_unknown">Install unknown apps</string>
     <string name="settings_perm_install_summary">Needed to install APKs and app updates</string>
     <string name="settings_perm_notifications">Notification permission</string>
     <string name="perm_granted">Granted</string>
     <string name="perm_not_granted">Not granted</string>
     <string name="perm_not_required">Not required</string>
-    <string name="detail_need_install_permission">Grant "install unknown apps" in system settings, then retry</string>
+    <string name="detail_need_install_permission">Grant "install unknown apps" in system settings first, then retry</string>
     <string name="settings_app_updates">Auto-update</string>
-    <string name="settings_current_version_title">Current version</string>
+    <string name="settings_current_version_title">Check for updates</string>
     <string name="settings_update_found">Update available</string>
     <string name="settings_self_update_check">Auto check for updates</string>
     <string name="settings_self_update_download">Auto download (Wi-Fi only)</string>

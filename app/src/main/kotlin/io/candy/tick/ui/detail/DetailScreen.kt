@@ -310,11 +310,21 @@ fun DetailScreen(repoId: Long, onBack: () -> Unit) {
                         }
                     }
                 }
+                // 提交跳转基址 + 本机已装版本（Screen 层算一次：列表卡不重复查 pm）
+                val htmlBase = state.snapshot?.htmlUrl?.substringBefore("/tree/")
+                    ?: "https://github.com/${repo?.owner}/${repo?.repo}"
+                val localVersion = repo?.linkedPackage?.let { pkg ->
+                    runCatching {
+                        context.packageManager.getPackageInfo(pkg, 0).versionName
+                    }.getOrNull()
+                }
                 if (state.tab == DetailViewModel.DetailTab.COMMITS) {
-                    commitList(state = state, onLoadMore = vm::loadCommits)
+                    commitList(state = state, htmlBase = htmlBase, onLoadMore = vm::loadCommits)
                 } else {
                     releaseList(
                         state = state,
+                        localVersion = localVersion,
+                        htmlBase = htmlBase,
                         onLoadMore = vm::loadReleases,
                         onSelectAsset = vm::selectAsset,
                         onDownload = vm::downloadAsset,

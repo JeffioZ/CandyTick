@@ -59,6 +59,8 @@ fun RepoCard(
     Card(
         modifier = modifier.fillMaxWidth(),
         cornerRadius = 16.dp,
+        // 按压下沉：HyperOS 卡片惯例（Miuix Card 默认无反馈）
+        pressFeedbackType = top.yukonga.miuix.kmp.utils.PressFeedbackType.Sink,
         onClick = onClick,
     ) {
         Column(modifier = Modifier.padding(start = 16.dp, end = 16.dp, top = 8.dp)) {
@@ -73,7 +75,8 @@ fun RepoCard(
                         )
                         Text(
                             text = "${item.repo.owner}/${item.repo.repo}",
-                            style = MiuixTheme.textStyles.body2,
+                            // 等宽标识符家族（与详情头卡路径/tag/sha 一致）
+                            style = io.candy.tick.ui.theme.MonoTokenStyle,
                             color = scheme.onBackgroundVariant,
                         )
                     }

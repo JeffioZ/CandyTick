@@ -187,6 +187,8 @@ fun AddScreen(
                         Card(
                             modifier = Modifier.fillMaxWidth(),
                             cornerRadius = 16.dp,
+                            // 按压下沉：HyperOS 卡片惯例（Miuix Card 默认无反馈）
+                            pressFeedbackType = top.yukonga.miuix.kmp.utils.PressFeedbackType.Sink,
                             onClick = { vm.pickResult(info) },
                         ) {
                             Column(modifier = Modifier.padding(horizontal = 16.dp, vertical = 8.dp)) {
@@ -201,7 +203,7 @@ fun AddScreen(
                                         )
                                         Text(
                                             text = "${info.owner}/${info.repo}",
-                                            style = MiuixTheme.textStyles.body2,
+                                            style = io.candy.tick.ui.theme.MonoTokenStyle,
                                             color = MiuixTheme.colorScheme.onBackgroundVariant,
                                         )
                                     }
@@ -295,7 +297,7 @@ private fun PreviewCard(
                     )
                     Text(
                         text = "${info.owner}/${info.repo}",
-                        style = MiuixTheme.textStyles.body2,
+                        style = io.candy.tick.ui.theme.MonoTokenStyle,
                         color = scheme.onBackgroundVariant,
                     )
                 }

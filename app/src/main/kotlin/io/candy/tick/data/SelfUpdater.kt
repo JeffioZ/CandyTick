@@ -44,13 +44,8 @@ class SelfUpdater(
 
     private val updateDir: File = File(context.filesDir, "updates")
 
-    /** 轻量 Markdown 清理：剥标题井号/加粗星号/列表符号，压缩空行——正文在 UI 限 4 行展示 */
-    private fun plainNotes(md: String): String = md
-        .replace(Regex("#{1,6} "), "")
-        .replace("**", "")
-        .replace(Regex("^[-*] ", RegexOption.MULTILINE), "\u00b7 ")
-        .replace(Regex("\n{3,}"), "\n\n")
-        .trim()
+    /** 清理逻辑已提取到 util/ReleaseNotes（版本历史展开共用） */
+    private fun plainNotes(md: String): String = io.candy.tick.util.ReleaseNotes.plain(md)
 
     /** @return true = 有可比对新版本（可触发自动下载） */
     suspend fun check(): Boolean {

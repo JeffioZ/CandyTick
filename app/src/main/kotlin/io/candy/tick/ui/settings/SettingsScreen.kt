@@ -246,14 +246,7 @@ fun SettingsScreen(onBack: () -> Unit) {
                     iconTint = ChipSky,
                     onChange = vm::setWifiOnly,
                 )
-                RowDivider()
-                SwitchRow(
-                    title = stringResource(R.string.settings_sync_charging_only),
-                    checked = state.settings.chargingOnly,
-                    icon = ImageVector.vectorResource(R.drawable.ic_alarm),
-                    iconTint = ChipAmber,
-                    onChange = vm::setChargingOnly,
-                )
+
                 RowDivider()
                 SettingRow(
                     title = stringResource(R.string.settings_token_row),
@@ -276,21 +269,8 @@ fun SettingsScreen(onBack: () -> Unit) {
                     iconTint = ChipPink,
                     onChange = vm::setNotifications,
                 )
-            }
-            }
-
-            // ── 权限 ──
-            item(key = "permissions") {
-            SettingsGroup(title = stringResource(R.string.settings_permission_group)) {
-                SettingRow(
-                    icon = ImageVector.vectorResource(R.drawable.ic_unlock),
-                    iconTint = ChipGreen,
-                    title = stringResource(R.string.settings_perm_install_unknown),
-                    summary = stringResource(R.string.settings_perm_install_summary),
-                    value = permText(if (installPermGranted) 1 else 0),
-                    onClick = { app.container.installManager.openInstallPermissionSettings() },
-                )
                 RowDivider()
+                // 通知权限 = 通知开关的先决条件：组尾附加（开关主体在前，不打断节奏）
                 SettingRow(
                     icon = ImageVector.vectorResource(R.drawable.ic_email),
                     iconTint = ChipViolet,
@@ -312,7 +292,6 @@ fun SettingsScreen(onBack: () -> Unit) {
                 )
             }
             }
-
 
             // ── 自动更新：纯偏好开关（检查行动已并入「关于」的版本行）──
             item(key = "appupdate") {
@@ -340,6 +319,16 @@ fun SettingsScreen(onBack: () -> Unit) {
                     summary = stringResource(R.string.settings_auto_install_summary),
                     icon = ImageVector.vectorResource(R.drawable.ic_file_down),
                     iconTint = ChipGreen,
+                )
+                RowDivider()
+                // 安装权限 = 安装功能的先决条件：与自动安装成对呈现
+                SettingRow(
+                    icon = ImageVector.vectorResource(R.drawable.ic_unlock),
+                    iconTint = ChipGreen,
+                    title = stringResource(R.string.settings_perm_install_unknown),
+                    summary = stringResource(R.string.settings_perm_install_summary),
+                    value = permText(if (installPermGranted) 1 else 0),
+                    onClick = { app.container.installManager.openInstallPermissionSettings() },
                 )
             }
             }
@@ -546,7 +535,6 @@ fun SettingsScreen(onBack: () -> Unit) {
         },
     )
 }
-
 
 @Composable
 private fun languageLabel(tag: String): String = when (tag) {

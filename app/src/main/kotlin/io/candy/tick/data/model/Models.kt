@@ -91,7 +91,6 @@ data class Settings(
     val themeMode: ThemeMode = ThemeMode.SYSTEM,
     val syncFrequency: SyncFrequency = SyncFrequency.ON_OPEN,
     val wifiOnly: Boolean = false,
-    val chargingOnly: Boolean = false,
     val githubToken: String? = null,
     val notificationsEnabled: Boolean = true,
     val selfUpdateCheck: Boolean = true, // 自身更新：自动检查（默认开）

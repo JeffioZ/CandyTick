@@ -127,10 +127,10 @@
 
     <!-- 详情页 -->
     <string name="detail_commits">提交历史</string>
-    <string name="detail_releases">版本发布</string>
-    <string name="detail_no_commits">暂无提交</string>
-    <string name="detail_no_releases">该仓库还没有发布过版本</string>
-    <string name="detail_select_asset_hint">请选择要下载的安装包</string>
+    <string name="detail_releases">版本历史</string>
+    <string name="detail_no_commits">暂无提交记录</string>
+    <string name="detail_no_releases">暂无发布版本</string>
+    <string name="detail_select_asset_hint">选择要下载的安装包</string>
     <string name="detail_no_apk">这个版本没有安装包</string>
     <string name="detail_stars">★ %1$s</string>
     <string name="detail_forks">Fork %1$s</string>
@@ -147,6 +147,8 @@
     <string name="load_failed">加载失败</string>
     <string name="status_error_subtitle">网络或接口出了点问题，稍后再试试</string>
     <string name="list_end">— 已到底 —</string>
+    <string name="release_view_on_github">在 GitHub 查看完整发布</string>
+    <string name="release_current">当前</string>
     <string name="asset_recommended">推荐</string>
     <string name="download_apk">下载安装包</string>
     <string name="retry_download">重试下载</string>
@@ -186,7 +188,6 @@
     <string name="settings_sync_and_notify">同步与通知</string>
     <string name="settings_sync_frequency">同步频率</string>
     <string name="settings_sync_wifi_only">仅 Wi-Fi 同步</string>
-    <string name="settings_sync_charging_only">仅充电时同步</string>
     <string name="settings_token_row">GitHub Token</string>
     <string name="settings_token_hint_short">可选 · 限额 60 → 5,000 次/小时</string>
     <string name="token_set">已设置</string>
@@ -210,16 +211,15 @@
     <string name="settings_notifications">新版本通知</string>
 
     <!-- 权限 -->
-        <string name="settings_permission_group">权限</string>
-    <string name="settings_perm_install_unknown">安装未知应用</string>
+        <string name="settings_perm_install_unknown">安装未知应用</string>
     <string name="settings_perm_install_summary">安装应用与更新需要此权限</string>
     <string name="settings_perm_notifications">通知权限</string>
     <string name="perm_granted">已授权</string>
     <string name="perm_not_granted">未授权</string>
     <string name="perm_not_required">无需授予</string>
-    <string name="detail_need_install_permission">请先在系统设置授予「安装未知应用」权限，再重试</string>
+    <string name="detail_need_install_permission">先在系统设置授予「安装未知应用」权限，再重试</string>
     <string name="settings_app_updates">自动更新</string>
-    <string name="settings_current_version_title">当前版本</string>
+    <string name="settings_current_version_title">检查更新</string>
     <string name="settings_update_found">发现新版本</string>
     <string name="settings_self_update_check">自动检查更新</string>
     <string name="settings_self_update_download">自动下载（仅 Wi-Fi）</string>

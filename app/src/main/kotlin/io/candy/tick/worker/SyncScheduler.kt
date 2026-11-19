@@ -25,7 +25,6 @@ class SyncScheduler(private val context: Context) {
             .setRequiredNetworkType(NetworkType.CONNECTED)
             .apply {
                 if (settings.wifiOnly) setRequiredNetworkType(NetworkType.UNMETERED)
-                if (settings.chargingOnly) setRequiresCharging(true)
             }
             .build()
         val request = PeriodicWorkRequestBuilder<SyncWorker>(settings.syncFrequency.hours.toLong(), TimeUnit.HOURS)
