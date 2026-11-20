@@ -20,6 +20,9 @@ object Notifications {
     const val CHANNEL_NEW_RELEASE = "new_release"
     const val CHANNEL_SELF_UPDATE = "self_update"
 
+    private const val GROUP_REPO_UPDATES = "repo_updates" // 多仓库同轮发版折叠为一组
+    private const val SUMMARY_ID = 1001 // 组摘要固定 id：每轮覆盖更新
+
     fun ensureChannels(context: Context) {
         if (Build.VERSION.SDK_INT < 26) return
         val manager = context.getSystemService(Context.NOTIFICATION_SERVICE) as NotificationManager
@@ -28,14 +31,19 @@ object Notifications {
                 CHANNEL_NEW_RELEASE,
                 context.getString(R.string.notif_channel_release),
                 NotificationManager.IMPORTANCE_DEFAULT,
-            ),
+            ).apply {
+                // 系统设置（长按渠道）里的说明：用户管理通知前的预期管理
+                description = context.getString(R.string.notif_channel_release_desc)
+            },
         )
         manager.createNotificationChannel(
             NotificationChannel(
                 CHANNEL_SELF_UPDATE,
                 context.getString(R.string.notif_channel_update),
                 NotificationManager.IMPORTANCE_LOW, // 低优先级：不打扰
-            ),
+            ).apply {
+                description = context.getString(R.string.notif_channel_update_desc)
+            },
         )
     }
 
@@ -66,9 +74,35 @@ object Notifications {
             .setContentText(context.getString(R.string.notif_new_release, tag))
             .setContentIntent(pending)
             .setAutoCancel(true)
+            .setGroup(GROUP_REPO_UPDATES) // 多仓库同轮发版折叠（≥2 条时摘要汇总）
             .build()
         runCatching {
             NotificationManagerCompat.from(context).notify(repoId.hashCode(), notification)
+        }
+    }
+
+    /** 组摘要：一轮同步 ≥2 个仓库发版时折叠展示「N 个仓库有新版本」（点击回首页） */
+    fun notifyRepoUpdatesSummary(context: Context, count: Int) {
+        if (count < 2 || !canNotify(context)) return
+        ensureChannels(context)
+        val intent = Intent(context, MainActivity::class.java) // 无目标 extra：回首页自览
+        val pending = PendingIntent.getActivity(
+            context,
+            SUMMARY_ID,
+            intent,
+            PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE,
+        )
+        val notification = NotificationCompat.Builder(context, CHANNEL_NEW_RELEASE)
+            .setSmallIcon(R.drawable.ic_notification)
+            .setContentTitle(context.getString(R.string.app_name))
+            .setContentText(context.getString(R.string.notif_updates_summary, count))
+            .setContentIntent(pending)
+            .setAutoCancel(true)
+            .setGroup(GROUP_REPO_UPDATES)
+            .setGroupSummary(true)
+            .build()
+        runCatching {
+            NotificationManagerCompat.from(context).notify(SUMMARY_ID, notification)
         }
     }
 

@@ -83,6 +83,10 @@ class SyncWorker(context: Context, params: WorkerParameters) : CoroutineWorker(c
                 }
             }.awaitAll()
         }
+        // 组摘要：本轮 ≥2 个仓库发版时折叠为一组（点摘要回首页，子通知各自直达详情）
+        if (tagChanged.get() >= 2 && settings.notificationsEnabled) {
+            Notifications.notifyRepoUpdatesSummary(applicationContext, tagChanged.get())
+        }
 
         // 3) 结果：有更新数与首页圆点同口径（SnapshotDiff 共享判定）
         val after = container.appStateStore.state.value.snapshots

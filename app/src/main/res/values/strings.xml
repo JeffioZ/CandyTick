@@ -174,8 +174,11 @@
 
     <!-- 通知 -->
     <string name="notif_channel_release">Repo new versions</string>
+    <string name="notif_channel_release_desc">Notifies when a subscribed repo publishes a release</string>
     <string name="notif_channel_update">CandyTick updates</string>
+    <string name="notif_channel_update_desc">Notifies when an app update is ready to install</string>
     <string name="notif_new_release">New version %1$s available</string>
+    <string name="notif_updates_summary">%1$d repos have new versions</string>
     <string name="notif_update_ready_title">CandyTick update</string>
     <string name="notif_update_ready">Version %1$s downloaded · tap to install</string>
 

@@ -164,8 +164,11 @@
 
     <!-- 通知 -->
     <string name="notif_channel_release">仓库新版本</string>
+    <string name="notif_channel_release_desc">订阅的仓库发布新版本时提醒</string>
     <string name="notif_channel_update">应用更新</string>
+    <string name="notif_channel_update_desc">应用自身更新下载完成后提醒安装</string>
     <string name="notif_new_release">新版本 %1$s 可用</string>
+    <string name="notif_updates_summary">%1$d 个仓库有新版本</string>
     <string name="notif_update_ready_title">CandyTick 更新</string>
     <string name="notif_update_ready">新版本 %1$s 已下载 · 点击安装</string>
 
