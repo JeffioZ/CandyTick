@@ -28,13 +28,15 @@
 
 - 维护状态：按最近提交时间分为 活跃 / 一般 / 低活跃 / 疑似弃坑，归档仓库单独标记
 - 提交历史与版本历史，提交可切换分支查看
+- 更新日志完整 Markdown 渲染：表格、代码块、粗体等均支持，链接与 Issue 编号可直接点开
 - 关联本机应用后自动比对版本，标题跟随应用名；能自动识别已装的对应应用
 - 版本比较支持常见格式（x.y.z、日期式、预发布版），比不了的会直接说明
 - 下载 → 进度 → 安装一步到位，可取消；可开启下载完自动安装
 - 多安装包时自动推荐适合设备的版本，支持 apk / apks / xapk / apkm
-- 后台定期同步，有新版本时通知；可限制仅 Wi-Fi
+- 后台定期同步，有新版本时通知（点击直达对应仓库），可限制仅 Wi-Fi
 - 搜索、排序、置顶、删除（可撤销）
 - 深浅色主题；中英双语
+- 适配平板与折叠屏（内容列限宽，横竖屏自由）
 - 无需注册，可选 GitHub Token 提高限额（60 → 5000 次/小时）
 - 订阅可导出、合并导入
 - 缓存清理：已下载的安装包与崩溃日志
@@ -50,7 +52,7 @@ gradlew assembleDebug
 
 ## 技术栈
 
-Kotlin · Compose + [Miuix](https://github.com/compose-miuix-ui/miuix) · Navigation 3 · OkHttp · WorkManager · 单 JSON 状态文件（无 Room / 无 KSP）
+Kotlin · Compose + [Miuix](https://github.com/compose-miuix-ui/miuix) · Navigation 3 · OkHttp · WorkManager · [commonmark-java](https://github.com/commonmark/commonmark-java)（Markdown 解析）· 单 JSON 状态文件（无 Room / 无 KSP）
 
 ## 许可
 
