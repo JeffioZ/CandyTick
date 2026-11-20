@@ -207,7 +207,7 @@ fun ListScreen(
                         ) {
                             IconButton(onClick = vm::collapseAll) {
                                 Icon(
-                                    imageVector = ImageVector.vectorResource(R.drawable.ic_chevrons_up),
+                                    imageVector = ImageVector.vectorResource(R.drawable.ic_collapse_all),
                                     contentDescription = stringResource(R.string.collapse_all),
                                     tint = scheme.onBackground,
                                     modifier = Modifier.size(24.dp), // 顶栏动作图标统一 24dp
