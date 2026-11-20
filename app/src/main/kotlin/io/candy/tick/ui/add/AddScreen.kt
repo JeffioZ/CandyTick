@@ -520,20 +520,9 @@ private fun PreviewCard(
                         }.getOrNull()
                     }
                 }
-                val (linkPressSrc, linkPressColor) = io.candy.tick.ui.common.rememberRowPressTint()
-                Row(
-                    verticalAlignment = Alignment.CenterVertically,
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .clip(RoundedCornerShape(8.dp))
-                        .background(linkPressColor, RoundedCornerShape(8.dp))
-                        .clickable(
-                            interactionSource = linkPressSrc,
-                            indication = null,
-                            onClick = onLinkApp,
-                        )
-                        .padding(vertical = 4.dp),
-                ) {
+                // 与详情页 linked 态逐参数同构：应用图标 + 灰字 + ic_link 钮(32dp/14dp)——
+                // 行为一致（动作在钮上，行本身不可点），跨页零学习成本
+                Row(verticalAlignment = Alignment.CenterVertically) {
                     appBitmap?.let {
                         io.candy.tick.ui.common.AppIconImage(bitmap = it, size = 22.dp, corner = 6.dp)
                         Spacer(Modifier.width(8.dp))
@@ -544,39 +533,54 @@ private fun PreviewCard(
                         color = scheme.onBackgroundVariant,
                         modifier = Modifier.weight(1f),
                     )
-                    Text(
-                        text = stringResource(R.string.detail_link_change_short),
-                        style = MiuixTheme.textStyles.footnote1,
-                        color = scheme.primaryVariant,
-                    )
+                    top.yukonga.miuix.kmp.basic.IconButton(
+                        onClick = onLinkApp,
+                        modifier = Modifier.size(32.dp),
+                    ) {
+                        Icon(
+                            imageVector = ImageVector.vectorResource(R.drawable.ic_link),
+                            contentDescription = stringResource(R.string.detail_link_change),
+                            tint = scheme.onBackgroundVariant,
+                            modifier = Modifier.size(14.dp),
+                        )
+                    }
                 }
             } else {
-                // 未关联：薄荷 CTA 胶囊（行动引导，与详情页建议条同语义同参数）
+                // 未关联：与详情页 none 态逐参数同构的选项行（link 图标 + chevron + 按压染色）——
+                // 薄荷语义收敛为「高置信建议」专用（详情 suggest 态），通用入口一律低调；
+                // 单卡聚焦场景里行式入口可发现性充分，跨页同构优先
+                val (nonePressSrc, nonePressColor) = io.candy.tick.ui.common.rememberRowPressTint()
                 Row(
                     verticalAlignment = Alignment.CenterVertically,
                     modifier = Modifier
                         .fillMaxWidth()
-                        .clip(RoundedCornerShape(12.dp))
-                        .background(scheme.tertiaryContainer)
+                        .clip(RoundedCornerShape(10.dp))
+                        .background(nonePressColor, RoundedCornerShape(10.dp))
                         .clickable(
-                            interactionSource = remember { androidx.compose.foundation.interaction.MutableInteractionSource() },
+                            interactionSource = nonePressSrc,
                             indication = null,
                             onClick = onLinkApp,
                         )
-                        .padding(horizontal = 12.dp, vertical = 10.dp),
+                        .padding(horizontal = 8.dp, vertical = 10.dp),
                 ) {
                     Icon(
                         imageVector = ImageVector.vectorResource(R.drawable.ic_link),
                         contentDescription = null,
-                        tint = scheme.onPrimaryContainer,
-                        modifier = Modifier.size(16.dp),
+                        tint = scheme.onBackgroundVariant,
+                        modifier = Modifier.size(14.dp),
                     )
                     Spacer(Modifier.width(8.dp))
                     Text(
-                        text = stringResource(R.string.add_link_app_optional),
+                        text = stringResource(R.string.detail_link_app),
                         style = MiuixTheme.textStyles.footnote1,
-                        color = scheme.onPrimaryContainer,
+                        color = scheme.onBackgroundVariant,
                         modifier = Modifier.weight(1f),
+                    )
+                    Icon(
+                        imageVector = ImageVector.vectorResource(R.drawable.ic_chevron_right),
+                        contentDescription = null,
+                        tint = scheme.onBackgroundVariant,
+                        modifier = Modifier.size(14.dp),
                     )
                 }
             }

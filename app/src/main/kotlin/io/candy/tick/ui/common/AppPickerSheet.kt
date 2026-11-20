@@ -92,7 +92,7 @@ fun AppPickerSheet(
     // show 直通（勿用 if 包裹）：退场动画依赖组件持续组合
     WindowBottomSheet(
         show = show,
-        title = stringResource(R.string.add_link_app_optional),
+        title = stringResource(R.string.detail_link_app),
         onDismissRequest = onDismiss,
     ) {
         Column(

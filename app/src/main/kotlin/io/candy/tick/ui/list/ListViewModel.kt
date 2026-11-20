@@ -333,6 +333,11 @@ class ListViewModel(
         resumeTick.value++
     }
 
+    /** 一键收起全部展开卡（批量收起各自播放收起动画） */
+    fun collapseAll() {
+        expanded.value = emptySet()
+    }
+
     fun toggleExpand(id: Long) {
         val next = expanded.value.toMutableSet()
         if (!next.add(id)) next.remove(id)

@@ -50,6 +50,7 @@ import top.yukonga.miuix.kmp.basic.Text
 import top.yukonga.miuix.kmp.basic.rememberPullToRefreshState
 import top.yukonga.miuix.kmp.basic.rememberTopAppBarState
 import top.yukonga.miuix.kmp.theme.MiuixTheme
+import androidx.compose.foundation.layout.wrapContentWidth
 import androidx.compose.ui.res.vectorResource
 import androidx.compose.ui.graphics.vector.ImageVector
 
@@ -321,6 +322,18 @@ fun ListScreen(
                             ),
                             verticalArrangement = Arrangement.spacedBy(8.dp),
                         ) {
+                        // 一键收起：展开 ≥2 张时列表顶部出现（显式入口可发现；单张/无展开零占用）
+                        if (state.expanded.size >= 2) {
+                            item(key = "collapse-all") {
+                                io.candy.tick.ui.common.LinkText(
+                                    text = stringResource(R.string.collapse_all, state.expanded.size),
+                                    onClick = vm::collapseAll,
+                                    modifier = Modifier
+                                        .fillMaxWidth()
+                                        .wrapContentWidth(androidx.compose.ui.Alignment.CenterHorizontally),
+                                )
+                            }
+                        }
                         items(state.items, key = { it.repo.id }) { item ->
                             SwipeToDelete(
                                 onDelete = { vm.remove(item) },

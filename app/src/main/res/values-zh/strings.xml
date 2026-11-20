@@ -36,6 +36,7 @@
     <string name="empty_cta">添加第一个仓库</string>
     <string name="banner_old_data_kept">显示的是缓存数据</string>
     <string name="card_updatable">有新版</string>
+    <string name="collapse_all">收起全部 · %1$d</string>
     <string name="card_last_push">%1$s有提交</string>
     <string name="card_details_failed">详情加载失败</string>
 
@@ -119,7 +120,6 @@
     <string name="add_stars">★ %1$s</string>
     <string name="add_license">许可证：%1$s</string>
     <string name="picker_search_app">搜索应用</string>
-    <string name="add_link_app_optional">关联本机应用（可选）</string>
     <string name="add_guide_title">粘贴仓库链接，或输入关键词搜索</string>
     <string name="add_guide_formats">支持 github.com/owner/repo 或 owner/repo</string>
     <string name="add_back_to_results">返回搜索结果</string>
@@ -142,7 +142,6 @@
     <string name="detail_auto_linked">已自动关联：%1$s</string>
     <string name="detail_linked_app">已关联：%1$s</string>
     <string name="detail_link_change">更改关联应用</string>
-    <string name="detail_link_change_short">更改</string>
     <string name="detail_unlink">解除关联</string>
     <string name="detail_delete_download">删除下载的安装包</string>
     <string name="toast_copied">已复制到剪贴板</string>
