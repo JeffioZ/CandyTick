@@ -25,7 +25,7 @@ Track GitHub repositories and their maintenance status; download and install new
 
 ## Features
 
-- Maintenance status by latest commit: Active / Fair / Low activity / Likely abandoned; archived repos marked separately
+- Maintenance status graded by latest commit: Active / Fair / Low activity / Likely abandoned; archived repos marked separately
 - Commit history and release history; commits can be browsed on any branch
 - Release notes rendered as full Markdown: tables, code blocks, bold, and clickable links / issue references
 - Link an installed app for version comparison, with the title following the app name; matching installed apps are recognized automatically
@@ -34,11 +34,10 @@ Track GitHub repositories and their maintenance status; download and install new
 - Recommends the right package for your device when multiple are offered; supports apk / apks / xapk / apkm
 - Background sync with new-release notifications (tap to open the repo); can be restricted to Wi-Fi
 - Search, sorting, pinning, delete with undo
-- Light & dark themes; English / 简体中文
-- Tablet and foldable friendly (bounded content column, free orientation)
+- Light & dark themes, English / 简体中文; tablet and foldable friendly (bounded content column, free orientation)
 - No account needed; an optional GitHub token raises the rate limit (60 → 5,000 req/h)
 - Subscriptions can be exported and merged back in
-- Cache cleanup: downloaded packages and crash logs
+- Clean up downloaded packages and crash logs
 - In-app updates: check, auto download, silent install
 
 ## Building
