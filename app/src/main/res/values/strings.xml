@@ -54,7 +54,7 @@
     <string name="version_latest_only">latest %1$s</string>
     <string name="version_incomparable">release %1$s · cannot compare versions</string>
     <string name="version_incomparable_full">release %1$s · installed %2$s · cannot compare</string>
-    <string name="version_line">%1$s · installed %2$s</string>
+    <string name="version_line">Up to date · %1$s</string>
     <string name="version_update_available">Update available: %1$s</string>
 
     <!-- 四类失败 -->

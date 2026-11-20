@@ -41,7 +41,7 @@ fun VersionStatusLine(repo: TrackedRepo, remoteTag: String, installEpoch: Int = 
         local == null -> stringResource(R.string.version_latest_only, remoteTag)
         cmp == null -> stringResource(R.string.version_incomparable_full, remoteTag, local)
         highlight -> stringResource(R.string.version_update_available, remoteTag)
-        else -> stringResource(R.string.version_line, remoteTag, local)
+        else -> stringResource(R.string.version_line, remoteTag)
     }
     Text(
         text = text,
