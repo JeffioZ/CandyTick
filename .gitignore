@@ -22,7 +22,8 @@ captures/
 Thumbs.db
 
 # Internal docs (local only, excluded from official commits)
-docs/
+docs/*
+!docs/fastlane/
 
 # Kotlin workspace (K2)
 .kotlin/

@@ -18,11 +18,10 @@ Track GitHub repositories and their maintenance status; download and install new
 
 </div>
 
-<!-- Screenshot placeholder: add 2-4 images, then uncomment
 <p align="center">
   <img src="docs/fastlane/metadata/android/en-US/images/phoneScreenshots/1.png" width="270" />
+  <img src="docs/fastlane/metadata/android/en-US/images/phoneScreenshots/2.png" width="270" />
 </p>
--->
 
 ## Features
 

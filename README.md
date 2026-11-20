@@ -18,11 +18,10 @@
 
 </div>
 
-<!-- 截图占位：补充 2~4 张后取消注释
 <p align="center">
   <img src="docs/fastlane/metadata/android/zh-CN/images/phoneScreenshots/1.png" width="270" />
+  <img src="docs/fastlane/metadata/android/zh-CN/images/phoneScreenshots/2.png" width="270" />
 </p>
--->
 
 ## 功能
 
