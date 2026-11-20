@@ -379,9 +379,9 @@ fun ListScreen(
                                 )
                             }
                         }
-                        // 到底提示（本地过滤时不显示：列表随输入实时增删，
-                        // 终点标记会反复闪现变成噪音；浏览态才给出终点确认）
-                        if (state.items.isNotEmpty() && state.query.isBlank()) {
+                        // 到底提示：有内容就显示（含搜索过滤态）——闪现顾虑已被
+                        // footer 的 animateItem 淡入淡出兜住；过滤后滚到底同样需要终点确认
+                        if (state.items.isNotEmpty()) {
                             item(key = "list-end") {
                                 io.candy.tick.ui.common.FooterText(
                                     text = stringResource(R.string.list_end),
