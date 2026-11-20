@@ -118,7 +118,8 @@ internal fun CacheCleanupSheet(
                     val selectedBytes = (if (cleanApk) state.apkBytes else 0L) +
                         (if (cleanCrash) state.crashLogBytes else 0L)
                     val hasSelection = selectedBytes > 0
-                    val ctx = androidx.compose.ui.platform.LocalContext.current
+                    // 模板在组合期取（configuration-aware，语言切换即时生效），释放量在事件期格式化
+                    val freedTemplate = stringResource(R.string.settings_cache_freed)
                     PrimaryButton(
                         // 带选中总量：行动前量级一目了然
                         text = stringResource(R.string.settings_cache_clean_action) +
@@ -132,7 +133,7 @@ internal fun CacheCleanupSheet(
                             scope.launch {
                                 val freed = onClean(cleanApk, cleanCrash)
                                 io.candy.tick.ui.common.Feedback.show(
-                                    text = ctx.getString(R.string.settings_cache_freed, formatBytes(freed)),
+                                    text = String.format(java.util.Locale.US, freedTemplate, formatBytes(freed)),
                                 )
                                 onDismiss()
                             }
@@ -245,7 +246,7 @@ internal fun TokenDialog(
     val scheme = MiuixTheme.colorScheme
     val context = LocalContext.current
     // 弹窗打开即聚焦输入（唯一目的就是贴 Token）；show=false 不请求
-    val tokenFocus = androidx.compose.ui.focus.FocusRequester()
+    val tokenFocus = remember { androidx.compose.ui.focus.FocusRequester() }
     androidx.compose.runtime.LaunchedEffect(show) {
         if (show) {
             kotlinx.coroutines.delay(150)

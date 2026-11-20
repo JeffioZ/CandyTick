@@ -75,11 +75,12 @@ internal fun BranchPickerSheet(
     androidx.compose.runtime.LaunchedEffect(show) {
         if (!show && query.isNotEmpty()) query = ""
     }
-    // 打开即聚焦（等一帧弹层动画稳定，与添加页同模式）：搜索类 sheet 点开就能输
-    val branchFocus = androidx.compose.ui.focus.FocusRequester()
+    // 打开即聚焦：搜索框仅在分支 >15 个时组合，且分支请求未回时固定延迟会打空
+    // （FocusRequester 未挂载 → runCatching 静默失败）；改为列表就绪后请求
+    val branchFocus = remember { androidx.compose.ui.focus.FocusRequester() }
     val keyboard = androidx.compose.ui.platform.LocalSoftwareKeyboardController.current
-    androidx.compose.runtime.LaunchedEffect(show) {
-        if (show) {
+    androidx.compose.runtime.LaunchedEffect(show, state.branches.size > 15) {
+        if (show && state.branches.size > 15) {
             kotlinx.coroutines.delay(100)
             runCatching { branchFocus.requestFocus() }
         }
@@ -339,7 +340,11 @@ internal fun HeaderCard(
                 VersionStatusLine(repo = repo, remoteTag = tag, installEpoch = state.installEpoch)
 
                 // 更新入口（有新版时头部直接行动）：下载 → 进度 → 安装
-                val hasUpdate = io.candy.tick.ui.common.updateAvailable(context, repo, tag)
+                // PM 查询必须 remember：HeaderCard 随下载进度 tick 高频重组，
+                // 裸读 getPackageInfo = 每帧 Binder IPC（key 含 installEpoch，装完返回仍会重算）
+                val hasUpdate = remember(repo, tag, state.installEpoch) {
+                    io.candy.tick.ui.common.updateAvailable(context, repo, tag)
+                }
                 val downloadedMatches = repo.downloadedApk?.version == tag
                 val updatePhase = when {
                     state.download is DetailViewModel.DownloadState.Active &&
@@ -482,7 +487,7 @@ internal fun HeaderCard(
             Spacer(Modifier.height(4.dp))
             // 关联本机应用（可修改 / 解除）
             val linkedLabel = repo.linkedPackage?.let {
-                io.candy.tick.ui.common.installedAppLabel(context, it)
+                io.candy.tick.util.labelOf(context, it) ?: it
             }
             // 关联区三态柔切换（180 转场档）：关联/解除/建议出现不再硬跳
             androidx.compose.animation.AnimatedContent(

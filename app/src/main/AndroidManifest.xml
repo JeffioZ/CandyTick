@@ -2,9 +2,18 @@
 <manifest xmlns:android="http://schemas.android.com/apk/res/android">
 
     <uses-permission android:name="android.permission.INTERNET" />
-    <uses-permission android:name="android.permission.QUERY_ALL_PACKAGES" />
     <uses-permission android:name="android.permission.REQUEST_INSTALL_PACKAGES" />
     <uses-permission android:name="android.permission.POST_NOTIFICATIONS" />
+
+    <!-- 包可见性（Android 11+）：声明「可启动应用」意图即可见全部 launcher 应用——
+         AppMatcher 关联 / AppPickerSheet 选择器 / 关联包名查询都落在这一集合内。
+         替代 QUERY_ALL_PACKAGES（Play 受限权限；lint 门禁要求按平台姿势声明） -->
+    <queries>
+        <intent>
+            <action android:name="android.intent.action.MAIN" />
+            <category android:name="android.intent.category.LAUNCHER" />
+        </intent>
+    </queries>
 
     <application
         android:name=".CandyTickApp"

@@ -1,5 +1,6 @@
 package io.candy.tick.ui.add
 
+import androidx.compose.runtime.Immutable
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import io.candy.tick.data.RepoInfo
@@ -25,6 +26,8 @@ class AddViewModel(
     private val appContext = context.applicationContext
     private var userClearedLink = false // 用户主动清除过关联：本会话不再自动关联
 
+    // @Immutable：AnimatedContent targetState 与 PreviewCard 参数的稳定判定依赖此承诺
+    @Immutable
     sealed interface PreviewState {
         data object Idle : PreviewState
         data object Loading : PreviewState
@@ -39,6 +42,7 @@ class AddViewModel(
         data class Failed(val error: SourceError) : PreviewState
     }
 
+    @Immutable
     data class UiState(
         val input: String = "",
         val parseError: Boolean = false, // 无法识别的 GitHub 链接
@@ -152,7 +156,7 @@ class AddViewModel(
     }
 
     private fun appLabel(pkg: String): String? =
-        io.candy.tick.ui.common.installedAppLabel(appContext, pkg)
+        io.candy.tick.util.labelOf(appContext, pkg) ?: pkg
 
     private fun fetchPreview(owner: String, repo: String, silent: Boolean = false) {
         val key = "$owner/$repo"

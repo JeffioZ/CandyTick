@@ -21,11 +21,11 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.drawscope.Stroke
-import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.dp
 import io.candy.tick.R
 import io.candy.tick.ui.common.PrimaryButton
+import io.candy.tick.ui.common.rememberMotionEnabled
 import io.candy.tick.ui.theme.DarkPrimary
 import io.candy.tick.ui.theme.LightPrimary
 import io.candy.tick.ui.theme.LocalDarkTheme
@@ -73,14 +73,8 @@ internal fun EmptyState(onAdd: () -> Unit, modifier: Modifier = Modifier) {
 /** 回声「ping」：糖珠 + 两圈涟漪扩散（Canvas 直绘，零中间合成层；仅空态非滚动路径，尊重系统动画时长缩放） */
 @Composable
 private fun EchoPing(mint: Color) {
-    val context = LocalContext.current
-    val animationsOn = remember {
-        android.provider.Settings.Global.getFloat(
-            context.contentResolver,
-            android.provider.Settings.Global.ANIMATOR_DURATION_SCALE,
-            1f,
-        ) != 0f
-    }
+    // 与 LoadingDots 同一开关（rememberMotionEnabled）：动画时长缩放=0 时涟漪静态化
+    val animationsOn = rememberMotionEnabled()
     val progress by if (animationsOn) {
         rememberInfiniteTransition(label = "echoPing").animateFloat(
             initialValue = 0f,

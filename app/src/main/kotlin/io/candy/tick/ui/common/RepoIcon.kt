@@ -54,13 +54,6 @@ fun rememberAppIcon(packageName: String?): androidx.compose.ui.graphics.ImageBit
     }
 }
 
-/** 已安装应用的市场标签（PM 查询失败回退包名）——全 App 唯一来源 */
-fun installedAppLabel(context: android.content.Context, packageName: String): String =
-    runCatching {
-        val pm = context.packageManager
-        pm.getApplicationLabel(pm.getApplicationInfo(packageName, 0)).toString()
-    }.getOrNull() ?: packageName
-
 /** TrackedRepo 便利重载 */
 @Composable
 fun RepoIconBlock(repo: TrackedRepo, size: Dp = 48.dp, corner: Dp = 12.dp) =

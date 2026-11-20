@@ -54,15 +54,9 @@ fun AppPickerSheet(
 ) {
     val context = LocalContext.current
     var query by remember { mutableStateOf("") }
-    // 打开即聚焦（等一帧弹层动画稳定，与添加页同模式）：搜索类 sheet 点开就能输
-    val pickerFocus = androidx.compose.ui.focus.FocusRequester()
-    val keyboard = androidx.compose.ui.platform.LocalSoftwareKeyboardController.current
-    LaunchedEffect(show) {
-        if (show) {
-            kotlinx.coroutines.delay(100)
-            runCatching { pickerFocus.requestFocus() }
-        }
-    }
+    // 打开即聚焦：搜索框仅在列表 >15 项时组合，且列表 IO 加载常超 100ms——
+    // 固定延迟会打在尚未挂载的 FocusRequester 上静默失败；请求挪到列表就绪后（见下）
+    val pickerFocus = remember { androidx.compose.ui.focus.FocusRequester() }
     // 应用列表在 IO 线程加载（几百个应用的 label/icon 查询曾阻塞组合主线程）
     var apps by remember { mutableStateOf<List<AppOption>>(emptyList()) }
     var appsLoading by remember { mutableStateOf(false) }
@@ -91,6 +85,13 @@ fun AppPickerSheet(
         } else {
             if (query.isNotEmpty()) query = ""
             apps = emptyList()
+        }
+    }
+    // 列表就绪且需要搜索框（>15 项）才请求聚焦：此刻 TextField 已组合挂载，requestFocus 生效
+    LaunchedEffect(show, apps.size > 15) {
+        if (show && apps.size > 15) {
+            kotlinx.coroutines.delay(100)
+            runCatching { pickerFocus.requestFocus() }
         }
     }
     val keyword = query.trim()

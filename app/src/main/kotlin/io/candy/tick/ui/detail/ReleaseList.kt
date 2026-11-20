@@ -389,7 +389,10 @@ private fun ReleaseCard(
                                         // 大小参考（asset 带 size 时）：大文件不再「不知要等多久」
                                         selected?.takeIf { it.size > 0 }?.let { a ->
                                             val totalMb = a.size / (1024f * 1024f)
-                                            " · %.1f/%.0f MB".format(totalMb * animatedProgress, totalMb)
+                                            String.format(
+                                                java.util.Locale.US, " · %.1f/%.0f MB",
+                                                totalMb * animatedProgress, totalMb,
+                                            )
                                         } ?: ""
                                         ),
                                     style = MiuixTheme.textStyles.footnote2,

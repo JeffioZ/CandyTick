@@ -79,8 +79,7 @@ fun UpdateSheet(
         }
     }
 
-    if (!show) return
-
+    // show 直通（勿用 if 包裹）：退场动画依赖组件持续组合（与全 App 弹层同一约定）
     WindowBottomSheet(
         show = show,
         title = stringResource(R.string.settings_update_found),

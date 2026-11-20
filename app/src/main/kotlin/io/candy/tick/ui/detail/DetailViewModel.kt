@@ -1,10 +1,13 @@
 package io.candy.tick.ui.detail
 
 import android.content.Context
+import androidx.compose.runtime.Immutable
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
+import io.candy.tick.data.COMMITS_PER_PAGE
 import io.candy.tick.data.GitHubApi
 import io.candy.tick.data.InstallManager
+import io.candy.tick.data.RELEASES_PER_PAGE
 import io.candy.tick.data.RepoRepository
 import io.candy.tick.data.SourceError
 import io.candy.tick.data.model.ApkAsset
@@ -33,6 +36,8 @@ class DetailViewModel(
     context: Context,
 ) : ViewModel() {
 
+    // @Immutable：接口级承诺（各实现全 val 只读），download 参数的稳定判定按此类型走
+    @Immutable
     sealed interface DownloadState {
         /** releaseKey=tagName + assetName 双维匹配：防同名资产的失败/进度态跨版本误显示 */
         val releaseKey: String
@@ -59,6 +64,7 @@ class DetailViewModel(
         ) : DownloadState
     }
 
+    @Immutable
     data class UiState(
         val repo: TrackedRepo? = null,
         val snapshot: RepoSnapshot? = null,
@@ -245,7 +251,7 @@ class DetailViewModel(
                             it.copy(
                                 commits = it.commits + data,
                                 commitsLoading = false,
-                                commitsEnd = data.size < 30,
+                                commitsEnd = data.size < COMMITS_PER_PAGE,
                             )
                         }
                     }
@@ -272,7 +278,7 @@ class DetailViewModel(
                             it.copy(
                                 releases = it.releases + data,
                                 releasesLoading = false,
-                                releasesEnd = data.size < 30,
+                                releasesEnd = data.size < RELEASES_PER_PAGE,
                             )
                         }
                     }

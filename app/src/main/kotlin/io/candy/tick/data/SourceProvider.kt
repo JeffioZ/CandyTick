@@ -7,6 +7,10 @@ import java.time.Instant
 
 const val PROVIDER_GITHUB = "github"
 
+/** 列表分页大小（单源：请求参数与 UI 层终止判定共用）：提交 30 / release 10（取够过滤无 APK 资产的 release） */
+const val COMMITS_PER_PAGE = 30
+const val RELEASES_PER_PAGE = 10
+
 /** 信息源抽象（V1 仅 GitHub；预留源扩展位） */
 interface SourceProvider {
     val name: String
@@ -16,7 +20,7 @@ interface SourceProvider {
 
     suspend fun commits(owner: String, repo: String, page: Int = 1, sha: String? = null): List<CommitRecord>
 
-    suspend fun releases(owner: String, repo: String, page: Int = 1, perPage: Int = 30): List<ReleaseRecord>
+    suspend fun releases(owner: String, repo: String, page: Int = 1, perPage: Int = RELEASES_PER_PAGE): List<ReleaseRecord>
 
     /** 分支列表（提交视图的分支切换；无对应能力的源返回空） */
     suspend fun branches(owner: String, repo: String): List<String> = emptyList()

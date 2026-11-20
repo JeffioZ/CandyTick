@@ -5,7 +5,6 @@ import androidx.compose.animation.core.tween
 import androidx.compose.foundation.background
 import androidx.compose.foundation.gestures.detectHorizontalDragGestures
 import androidx.compose.foundation.layout.Box
-import androidx.compose.foundation.layout.BoxWithConstraints
 import androidx.compose.foundation.layout.offset
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
@@ -80,7 +79,8 @@ fun SwipeToDelete(
     val pinActionLabel = stringResource(if (pinned) R.string.action_unpin else R.string.action_pin)
     val removeActionLabel = stringResource(R.string.action_remove)
 
-    BoxWithConstraints(modifier = modifier) {
+    // 无需约束尺寸（触发阈值在 pointerInput 里读 size.width）：普通 Box 即可
+    Box(modifier = modifier) {
         // 单层方向驱动背景：右滑露出删除（图标在左侧露出区），左滑露出置顶（右侧）
         val movingRight = offsetX.value > 0f
         val container = if (movingRight) {

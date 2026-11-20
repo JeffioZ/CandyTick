@@ -69,7 +69,7 @@ fun AddScreen(
     var showAppPicker by remember { mutableStateOf(false) }
     val keyboardController = androidx.compose.ui.platform.LocalSoftwareKeyboardController.current
     // 进页即聚焦：本页唯一目的就是输入（等一帧布局稳定，防未挂载崩溃）
-    val inputFocus = androidx.compose.ui.focus.FocusRequester()
+    val inputFocus = remember { androidx.compose.ui.focus.FocusRequester() }
     androidx.compose.runtime.LaunchedEffect(Unit) {
         kotlinx.coroutines.delay(100)
         runCatching { inputFocus.requestFocus() }
@@ -326,11 +326,9 @@ fun AddScreen(
                         // （浮层自身 fade+slide 已承担进场，双层叠加反而迟滞）；
                         // SizeTransform 显式 180：三态高度不同，默认 spring 是尺寸暗桩
                         androidx.compose.animation.AnimatedContent(
-                            targetState = when (val p = state.preview) {
-                                is AddViewModel.PreviewState.Loaded -> p.info.githubId
-                                is AddViewModel.PreviewState.Failed -> -2L
-                                else -> -1L
-                            },
+                            // 目标态直用 PreviewState：内容切换读 target 而非实时 state——
+                            // 退场帧定格自身快照，不再中途改读新态（此前 Loaded→Failed 过渡两帧同显失败态）
+                            targetState = state.preview,
                             transitionSpec = {
                                 ((androidx.compose.animation.fadeIn(androidx.compose.animation.core.tween(180))) togetherWith
                                     (androidx.compose.animation.fadeOut(androidx.compose.animation.core.tween(180))))
@@ -341,8 +339,8 @@ fun AddScreen(
                                     )
                             },
                             label = "previewPhase",
-                        ) { _ ->
-                            when (val preview = state.preview) {
+                        ) { preview ->
+                            when (preview) {
                                 is AddViewModel.PreviewState.Loading -> PreviewSkeletonCard()
                                 is AddViewModel.PreviewState.Failed -> io.candy.tick.ui.common.StatusPage(
                                     // 与搜索失败/详情列表失败同款同构（「内容区加载失败」类别）；
@@ -368,6 +366,7 @@ fun AddScreen(
                                         Spacer(Modifier.height(12.dp))
                                     }
                                     PreviewCard(
+                                        preview = preview,
                                         state = state,
                                         onLinkApp = { showAppPicker = true },
                                         onConfirm = vm::confirmAdd,
@@ -490,12 +489,14 @@ private fun PreviewSkeletonCard() {
 
 @Composable
 private fun PreviewCard(
+    // 由 AnimatedContent 的 target 快照传入：过渡期退场帧渲染自身数据，
+    // 不回读实时 state（实时值已变会 ClassCastException / 内容跳变）
+    preview: AddViewModel.PreviewState.Loaded,
     state: AddViewModel.UiState,
     onLinkApp: () -> Unit,
     onConfirm: () -> Unit,
     onOpenExisting: () -> Unit,
 ) {
-    val preview = state.preview as AddViewModel.PreviewState.Loaded
     val info = preview.info
     val scheme = MiuixTheme.colorScheme
     Card(modifier = Modifier.fillMaxWidth(), cornerRadius = 16.dp) {

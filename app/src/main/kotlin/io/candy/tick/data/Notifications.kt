@@ -1,6 +1,7 @@
 package io.candy.tick.data
 
 import android.Manifest
+import android.annotation.SuppressLint
 import android.app.NotificationChannel
 import android.app.NotificationManager
 import android.app.PendingIntent
@@ -61,6 +62,9 @@ object Notifications {
     const val EXTRA_NAV_REPO = "nav_repo_id" // 仓库新版本 → 该仓库详情页
     const val EXTRA_NAV_SETTINGS = "nav_settings" // 自更新就绪 → 设置页
 
+    // canNotify() 已在函数头守门（13+ 未授权直接 return），notify 调用另包 runCatching 兜底；
+    // lint 的静态权限分析不识别跨函数守卫，就地标注
+    @SuppressLint("MissingPermission")
     fun notifyRepoNewVersion(context: Context, repoName: String, tag: String, repoId: Long) {
         if (!canNotify(context)) return
         ensureChannels(context)
@@ -86,6 +90,7 @@ object Notifications {
     }
 
     /** 组摘要：一轮同步 ≥2 个仓库发版时折叠展示「N 个仓库有新版本」（点击回首页） */
+    @SuppressLint("MissingPermission")
     fun notifyRepoUpdatesSummary(context: Context, count: Int) {
         if (count < 2 || !canNotify(context)) return
         ensureChannels(context)
@@ -111,6 +116,7 @@ object Notifications {
     }
 
     /** 自身更新下载完成（点击进 App 设置页安装） */
+    @SuppressLint("MissingPermission")
     fun notifySelfUpdateReady(context: Context, tag: String) {
         if (!canNotify(context)) return
         ensureChannels(context)

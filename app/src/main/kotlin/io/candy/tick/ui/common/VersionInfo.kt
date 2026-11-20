@@ -2,6 +2,7 @@ package io.candy.tick.ui.common
 
 import android.content.Context
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.remember
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.stringResource
 import io.candy.tick.R
@@ -34,7 +35,9 @@ fun VersionStatusLine(repo: TrackedRepo, remoteTag: String, installEpoch: Int = 
     // 安装完成后需要外部信号强制重算（ON_RESUME 递增）
     val scheme = MiuixTheme.colorScheme
     val context = LocalContext.current
-    val local = localVersionName(context, repo)
+    // PM 查询记住：本组件在首页展开卡与详情头卡随同步/下载进度高频重组，
+    // 裸读 getPackageInfo = 每帧 Binder IPC（installEpoch 是 ON_RESUME 装完重算信号）
+    val local = remember(repo, remoteTag, installEpoch) { localVersionName(context, repo) }
     val cmp = if (local != null) VersionCompare.compare(remoteTag, local) else null
     val highlight = cmp != null && cmp > 0
     val text = when {

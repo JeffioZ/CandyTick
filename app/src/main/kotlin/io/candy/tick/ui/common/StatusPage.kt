@@ -21,6 +21,8 @@ import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
+import io.candy.tick.R
+import io.candy.tick.data.SourceError
 import top.yukonga.miuix.kmp.basic.Icon
 import top.yukonga.miuix.kmp.basic.Text
 import top.yukonga.miuix.kmp.basic.TextButton
@@ -121,7 +123,7 @@ fun FooterText(text: String, modifier: Modifier = Modifier, count: Int? = null) 
         Text(
             // count 非空时「已到底 · 共 N 项」：滚到底的清点时刻给总数（书末页码心理）
             text = if (count != null) {
-                stringResource(io.candy.tick.R.string.list_end_count, text, count)
+                stringResource(R.string.list_end_count, text, count)
             } else {
                 text
             },
@@ -136,5 +138,45 @@ fun FooterText(text: String, modifier: Modifier = Modifier, count: Int? = null) 
                 .clip(RoundedCornerShape(1.dp))
                 .background(scheme.dividerLine),
         )
+    }
+}
+
+/**
+ * 刷新失败横幅（首页/详情共用）：errorContainer 底 + 具体原因 + 「旧数据保留」副行 + 重试钮。
+ * 恢复出口紧邻错误（skill: error-recovery）；「旧数据保留」如实告知不谎报全挂。
+ * 此前详情页是默认 Card 底 + 红字的另一套皮肤，同语义两皮肤收敛于此。
+ */
+@Composable
+fun ErrorBanner(error: SourceError, onRetry: () -> Unit) {
+    val scheme = MiuixTheme.colorScheme
+    // 错误容器底（浅粉/深红棕）：错误语义即时可读，深浅两模式下边界都清晰
+    Column(
+        modifier = Modifier
+            .fillMaxWidth()
+            .padding(horizontal = 16.dp, vertical = 6.dp)
+            .clip(RoundedCornerShape(16.dp))
+            .background(scheme.errorContainer),
+    ) {
+        Row(
+            modifier = Modifier.padding(horizontal = 14.dp, vertical = 10.dp),
+            verticalAlignment = Alignment.CenterVertically,
+        ) {
+            Column(modifier = Modifier.weight(1f)) {
+                Text(
+                    text = sourceErrorText(error),
+                    style = MiuixTheme.textStyles.footnote1,
+                    color = scheme.onErrorContainer,
+                )
+                Text(
+                    text = stringResource(R.string.banner_old_data_kept),
+                    style = MiuixTheme.textStyles.footnote2,
+                    color = scheme.onBackgroundVariant,
+                )
+            }
+            SecondaryButton(
+                text = stringResource(R.string.retry),
+                onClick = onRetry,
+            )
+        }
     }
 }

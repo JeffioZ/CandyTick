@@ -216,7 +216,7 @@ class RepoRepository(
     suspend fun releases(repoId: Long, page: Int): List<ReleaseRecord> {
         val t = trackedOrNull(repoId) ?: return emptyList()
         // per_page=10：取够多条供调用方过滤（如跳过无 APK 的桌面专用 release）
-        return provider(t.provider).releases(t.owner, t.repo, page, perPage = 10)
+        return provider(t.provider).releases(t.owner, t.repo, page, perPage = RELEASES_PER_PAGE)
     }
 
     suspend fun branches(repoId: Long): List<String> {

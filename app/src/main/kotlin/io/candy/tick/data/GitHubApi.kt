@@ -68,7 +68,7 @@ class GitHubApi(private val tokenProvider: () -> String?) {
         withContext(Dispatchers.IO) {
             val url = apiUrl("repos", owner, repo, "commits")
                 .newBuilder()
-                .addQueryParameter("per_page", PER_PAGE.toString())
+                .addQueryParameter("per_page", COMMITS_PER_PAGE.toString())
                 .addQueryParameter("page", page.toString())
                 .apply { if (sha != null) addQueryParameter("sha", sha) }
                 .build()
@@ -100,11 +100,11 @@ class GitHubApi(private val tokenProvider: () -> String?) {
             }
         }
 
-    suspend fun releases(owner: String, repo: String, page: Int = 1, perPage: Int = PER_PAGE): List<ReleaseRecord> =
+    suspend fun releases(owner: String, repo: String, page: Int = 1, perPage: Int = RELEASES_PER_PAGE): List<ReleaseRecord> =
         withContext(Dispatchers.IO) {
             val url = apiUrl("repos", owner, repo, "releases")
                 .newBuilder()
-                .addQueryParameter("per_page", PER_PAGE.toString())
+                .addQueryParameter("per_page", perPage.toString())
                 .addQueryParameter("page", page.toString())
                 .build()
             val response = executeAuthenticated(request(url, etag = null))
@@ -253,7 +253,6 @@ class GitHubApi(private val tokenProvider: () -> String?) {
     private companion object {
         const val BASE_URL = "https://api.github.com"
         const val TIMEOUT_S = 15L
-        const val PER_PAGE = 30
     }
 }
 
@@ -310,9 +309,6 @@ private data class GhCommitDetail(
 
 @Serializable
 private data class GhBranch(val name: String = "")
-
-@Serializable
-private data class GhReleaseDto(val body: String = "")
 
 @Serializable
 private data class GhPerson(val name: String? = null, val date: String? = null)

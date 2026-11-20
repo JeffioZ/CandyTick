@@ -19,7 +19,6 @@ import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
-import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.dp
@@ -30,10 +29,7 @@ import io.candy.tick.ui.common.OwnerRepoLine
 import io.candy.tick.ui.common.StatusBadge
 import io.candy.tick.ui.common.VersionStatusLine
 import io.candy.tick.ui.common.relTimeString
-import io.candy.tick.ui.common.toImageBitmap
-import io.candy.tick.ui.theme.AvatarPalette
 import io.candy.tick.ui.theme.MonoTokenStyle
-import kotlin.math.abs
 import top.yukonga.miuix.kmp.basic.Icon
 import top.yukonga.miuix.kmp.basic.Text
 import top.yukonga.miuix.kmp.theme.MiuixTheme
@@ -209,11 +205,29 @@ private fun ExpandedDetails(
             ) {
                 io.candy.tick.ui.common.LoadingDots(dotSize = 5.dp)
             }
-            extras.commits == null -> Text(
-                text = stringResource(R.string.card_details_failed),
-                style = MiuixTheme.textStyles.footnote1,
-                color = scheme.onErrorContainer,
-            )
+            // 加载失败行：errorContainer 底 + onErrorContainer 字（token 正确配对，与
+            // 版本卡/头卡失败条同语言）——此前 onErrorContainer 直写在面板灰底上
+            extras.commits == null -> Row(
+                verticalAlignment = Alignment.CenterVertically,
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .clip(RoundedCornerShape(12.dp))
+                    .background(scheme.errorContainer)
+                    .padding(horizontal = 12.dp, vertical = 10.dp),
+            ) {
+                Icon(
+                    imageVector = ImageVector.vectorResource(R.drawable.ic_info),
+                    contentDescription = null,
+                    tint = scheme.onErrorContainer,
+                    modifier = Modifier.size(16.dp),
+                )
+                Spacer(Modifier.width(8.dp))
+                Text(
+                    text = stringResource(R.string.card_details_failed),
+                    style = MiuixTheme.textStyles.footnote1,
+                    color = scheme.onErrorContainer,
+                )
+            }
             else -> extras.commits.take(3).forEach { commit ->
                 Row(verticalAlignment = Alignment.CenterVertically) {
                     Text(
@@ -265,10 +279,4 @@ private fun ExpandedDetails(
             }
         }
     }
-}
-
-private fun avatarGradient(owner: String): Pair<Color, Color> {
-    val palette = AvatarPalette
-    val hash = abs(owner.hashCode())
-    return palette[hash % palette.size]
 }

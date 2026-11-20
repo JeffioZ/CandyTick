@@ -12,10 +12,10 @@ object CountFormat {
         else -> count.toString()
     }
 
-    /** ≥100 或整数值去小数位，否则保留一位 */
+    /** ≥100 或整数值去小数位，否则保留一位（Locale.US：小数点恒为「.」，GitHub 风格） */
     private fun trim(v: Double): String = when {
         v >= 100 -> v.toLong().toString()
         v == v.toLong().toDouble() -> v.toLong().toString()
-        else -> String.format("%.1f", v)
+        else -> String.format(java.util.Locale.US, "%.1f", v)
     }
 }

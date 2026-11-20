@@ -1,12 +1,10 @@
 package io.candy.tick.ui.list
 
-import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.size
 import androidx.compose.ui.hapticfeedback.HapticFeedbackType
 import androidx.compose.ui.draw.alpha
 import kotlinx.coroutines.launch
-import androidx.compose.ui.draw.clip
 import androidx.compose.ui.focus.focusRequester
 import io.candy.tick.data.SyncStatus
 import androidx.compose.foundation.layout.Arrangement
@@ -38,9 +36,7 @@ import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.lifecycle.viewmodel.compose.viewModel
 import io.candy.tick.CandyTickApp
 import io.candy.tick.R
-import io.candy.tick.data.SourceError
-import io.candy.tick.ui.common.SecondaryButton
-import io.candy.tick.ui.common.sourceErrorText
+import io.candy.tick.ui.common.ErrorBanner
 import top.yukonga.miuix.kmp.basic.Icon
 import top.yukonga.miuix.kmp.basic.MiuixScrollBehavior
 import top.yukonga.miuix.kmp.basic.PullToRefresh
@@ -142,7 +138,7 @@ fun ListScreen(
     val pullState = rememberPullToRefreshState()
     var showSortSheet by remember { mutableStateOf(false) }
     var showSearch by remember { mutableStateOf(false) }
-    val searchFocus = androidx.compose.ui.focus.FocusRequester()
+    val searchFocus = remember { androidx.compose.ui.focus.FocusRequester() }
     // 返回键先收起搜索（而非退出应用）——搜索态的标准返回语义
     androidx.activity.compose.BackHandler(enabled = showSearch) {
         vm.setQuery("")
@@ -427,42 +423,6 @@ fun ListScreen(
         },
         onDismiss = { showSortSheet = false },
     )
-}
-
-/** 刷新失败横幅：旧数据保留 + 重试（限流显示恢复时间） */
-@Composable
-private fun ErrorBanner(error: SourceError, onRetry: () -> Unit) {
-    val scheme = MiuixTheme.colorScheme
-    // 错误容器底（浅粉/深红棕）：错误语义即时可读，深浅两模式下边界都清晰
-    Column(
-        modifier = Modifier
-            .fillMaxWidth()
-            .padding(horizontal = 16.dp, vertical = 6.dp)
-            .clip(androidx.compose.foundation.shape.RoundedCornerShape(16.dp))
-            .background(scheme.errorContainer),
-    ) {
-        Row(
-            modifier = Modifier.padding(horizontal = 14.dp, vertical = 10.dp),
-            verticalAlignment = Alignment.CenterVertically,
-        ) {
-            Column(modifier = Modifier.weight(1f)) {
-                Text(
-                    text = sourceErrorText(error),
-                    style = MiuixTheme.textStyles.footnote1,
-                    color = scheme.onErrorContainer,
-                )
-                Text(
-                    text = stringResource(R.string.banner_old_data_kept),
-                    style = MiuixTheme.textStyles.footnote2,
-                    color = scheme.onBackgroundVariant,
-                )
-            }
-            SecondaryButton(
-                text = stringResource(R.string.retry),
-                onClick = onRetry,
-            )
-        }
-    }
 }
 
 /** 结果转变检测：Running→Done，或冷启动 10s 内的新鲜 Done；到位后按内容时长自动清空 */

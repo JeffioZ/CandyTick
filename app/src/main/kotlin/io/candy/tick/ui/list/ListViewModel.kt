@@ -1,6 +1,7 @@
 package io.candy.tick.ui.list
 
 import android.content.Context
+import androidx.compose.runtime.Immutable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.setValue
@@ -40,6 +41,10 @@ class ListViewModel(
     private val context: Context,
 ) : ViewModel() {
 
+    // @Immutable（含 List 字段的值对象承诺只读）：RepoListItem/CardExtras 稳定后，
+    // 下载进度 tick / 搜索输入 / 展开切换等任意 state 变化下，自身参数未变的卡片
+    // 可被 Compose equals 跳过重组——列表主路径的重组收敛点
+    @Immutable
     data class RepoListItem(
         val repo: TrackedRepo,
         val snapshot: RepoSnapshot?,
@@ -48,6 +53,7 @@ class ListViewModel(
         val status: RepoStatus get() = snapshot?.statusAt() ?: RepoStatus.UNKNOWN
     }
 
+    @Immutable
     data class CardExtras(
         val commits: List<CommitRecord>? = null,
         val latestRelease: ReleaseRecord? = null,
@@ -55,6 +61,7 @@ class ListViewModel(
         val refreshing: Boolean = false, // 静默重拉中（旧数据照常显示，展开面板给轻提示）
     )
 
+    @Immutable
     data class UiState(
         val items: List<RepoListItem> = emptyList(),
         val refreshing: Boolean = false,

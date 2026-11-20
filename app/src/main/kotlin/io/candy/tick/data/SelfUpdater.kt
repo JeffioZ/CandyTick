@@ -67,7 +67,8 @@ class SelfUpdater(
         val preDownloaded = _state.value as? State.Downloaded
         _state.value = State.Checking
         return try {
-            val releases = githubApi.releases(APP_OWNER, APP_REPO, 1)
+            // 只用 firstOrNull：perPage=1 足够（此前默认拉整页）
+            val releases = githubApi.releases(APP_OWNER, APP_REPO, 1, perPage = 1)
             val latest = releases.firstOrNull()
             val local = localVersionName()
             when {

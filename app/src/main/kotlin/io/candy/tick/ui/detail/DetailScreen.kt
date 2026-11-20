@@ -36,10 +36,9 @@ import androidx.lifecycle.viewmodel.compose.viewModel
 import io.candy.tick.CandyTickApp
 import io.candy.tick.R
 import io.candy.tick.ui.common.AppPickerSheet
-import io.candy.tick.ui.common.sourceErrorText
+import io.candy.tick.ui.common.ErrorBanner
 import io.candy.tick.data.InstallManager
 import kotlinx.coroutines.launch
-import top.yukonga.miuix.kmp.basic.Card
 import top.yukonga.miuix.kmp.basic.Icon
 import top.yukonga.miuix.kmp.basic.MiuixScrollBehavior
 import top.yukonga.miuix.kmp.basic.PullToRefresh
@@ -274,19 +273,9 @@ fun DetailScreen(repoId: Long, onBack: () -> Unit) {
                             ),
                         ) {
                             state.banner?.let { error ->
-                                // 点横幅=重试刷新（错误恢复出口；此前只有下拉刷新兜底）
-                                Card(
-                                    modifier = Modifier
-                                        .fillMaxWidth()
-                                        .clickable { vm.refresh() },
-                                ) {
-                                    Text(
-                                        text = sourceErrorText(error),
-                                        style = MiuixTheme.textStyles.footnote1,
-                                        color = scheme.onErrorContainer,
-                                        modifier = Modifier.padding(16.dp),
-                                    )
-                                }
+                                // 共用失败横幅（errorContainer 底 + 重试钮，与首页同构；
+                                // 恢复出口紧邻错误，此前是默认卡底红字的另一套皮肤）
+                                ErrorBanner(error = error, onRetry = vm::refresh)
                             }
                         }
                     }
