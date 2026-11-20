@@ -106,7 +106,9 @@ fun FooterText(text: String, modifier: Modifier = Modifier, count: Int? = null) 
         horizontalArrangement = Arrangement.Center,
         modifier = modifier
             .fillMaxWidth()
-            .padding(vertical = 8.dp),
+            // 上 24 / 下 0：上方 = spacedBy(8~10)+24 ≈ 32~34，下方 = 容器终止 32——上下对称
+            // （此前 v8 上下各半：上 16 / 下 40，footer 悬得偏上、底下空一截）
+            .padding(top = 24.dp),
     ) {
         Box(
             Modifier
