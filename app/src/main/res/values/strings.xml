@@ -129,7 +129,6 @@
     <string name="add_parse_error">Unrecognized · use a GitHub link or owner/repo</string>
     <string name="add_search_failed">Search failed</string>
     <string name="add_search_empty">No match — try pasting the full link</string>
-    <string name="add_license">License: %1$s</string>
     <string name="picker_search_app">Search apps</string>
     <string name="picker_no_match">No matching apps</string>
     <string name="clear_input">Clear input</string>

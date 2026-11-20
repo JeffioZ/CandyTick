@@ -32,15 +32,16 @@ import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.dp
 import io.candy.tick.R
+import io.candy.tick.ui.common.OwnerRepoLine
 import io.candy.tick.ui.common.PrimaryButton
 import io.candy.tick.ui.common.RepoIconBlock
+import io.candy.tick.ui.common.SectionDivider
 import io.candy.tick.ui.common.StarCount
 import io.candy.tick.ui.common.StatusBadge
 import io.candy.tick.ui.common.VersionStatusLine
 import io.candy.tick.ui.common.relTimeString
 import io.candy.tick.ui.common.toImageBitmap
 import io.candy.tick.ui.common.updateAvailable
-import io.candy.tick.ui.theme.MonoTokenStyle
 import io.candy.tick.util.CountFormat
 import io.candy.tick.data.model.statusAt
 import top.yukonga.miuix.kmp.basic.BasicComponent
@@ -239,17 +240,6 @@ internal fun RemoveRepoDialog(
     }
 }
 
-/** 卡内分区线：全宽 1dp，配 spacedBy(8) 形成 16dp 呼吸 */
-@Composable
-internal fun SectionDivider() {
-    androidx.compose.foundation.layout.Box(
-        modifier = Modifier
-            .fillMaxWidth()
-            .height(1.dp)
-            .background(MiuixTheme.colorScheme.dividerLine),
-    )
-}
-
 /** 分支选择行：BasicComponent + Check 选中态（与设置页 OptionRow 同款） */
 @Composable
 internal fun BranchRow(label: String, selected: Boolean, onClick: () -> Unit) {
@@ -313,11 +303,7 @@ internal fun HeaderCard(
                             StarCount(count = CountFormat.format(snapshot.stars))
                         }
                     }
-                    Text(
-                        text = "${repo.owner}/${repo.repo}",
-                        style = MonoTokenStyle,
-                        color = scheme.onBackgroundVariant,
-                    )
+                    OwnerRepoLine(owner = repo.owner, repo = repo.repo)
                 }
                 StatusBadge(status = snapshot?.statusAt() ?: io.candy.tick.data.model.RepoStatus.UNKNOWN)
             }

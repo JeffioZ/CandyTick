@@ -26,6 +26,7 @@ import androidx.compose.ui.unit.dp
 import io.candy.tick.R
 import io.candy.tick.data.model.TrackedRepo
 import io.candy.tick.ui.common.InaccessibleBadge
+import io.candy.tick.ui.common.OwnerRepoLine
 import io.candy.tick.ui.common.StatusBadge
 import io.candy.tick.ui.common.VersionStatusLine
 import io.candy.tick.ui.common.relTimeString
@@ -65,12 +66,8 @@ fun RepoCard(
                             style = MiuixTheme.textStyles.title4,
                             color = scheme.onBackground,
                         )
-                        Text(
-                            text = "${item.repo.owner}/${item.repo.repo}",
-                            // 等宽标识符家族（与详情头卡路径/tag/sha 一致）
-                            style = io.candy.tick.ui.theme.MonoTokenStyle,
-                            color = scheme.onBackgroundVariant,
-                        )
+                        // 等宽标识符家族（与详情头卡路径/tag/sha 一致）
+                        io.candy.tick.ui.common.OwnerRepoLine(owner = item.repo.owner, repo = item.repo.repo)
                     }
                     if (item.repo.pinnedAt != null) {
                         Icon(

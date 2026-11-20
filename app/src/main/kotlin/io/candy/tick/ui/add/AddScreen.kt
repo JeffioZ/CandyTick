@@ -3,6 +3,7 @@ package io.candy.tick.ui.add
 import androidx.compose.animation.togetherWith
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
+import io.candy.tick.data.model.statusAt
 import io.candy.tick.util.CountFormat
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
@@ -232,11 +233,7 @@ fun AddScreen(
                                             Spacer(Modifier.width(8.dp))
                                             io.candy.tick.ui.common.StarCount(count = CountFormat.format(info.stars))
                                         }
-                                        Text(
-                                            text = "${info.owner}/${info.repo}",
-                                            style = io.candy.tick.ui.theme.MonoTokenStyle,
-                                            color = MiuixTheme.colorScheme.onBackgroundVariant,
-                                        )
+                                        io.candy.tick.ui.common.OwnerRepoLine(owner = info.owner, repo = info.repo)
                                     }
                                 }
                                 if (!info.description.isNullOrBlank()) {
@@ -428,8 +425,8 @@ private fun PreviewSkeletonCard() {
             Row(verticalAlignment = Alignment.CenterVertically) {
                 androidx.compose.foundation.layout.Box(
                     Modifier
-                        .size(48.dp)
-                        .clip(RoundedCornerShape(12.dp))
+                        .size(56.dp)
+                        .clip(RoundedCornerShape(14.dp))
                         .background(block),
                 )
                 Spacer(Modifier.width(12.dp))
@@ -451,7 +448,7 @@ private fun PreviewSkeletonCard() {
                     )
                 }
             }
-            Spacer(Modifier.height(12.dp))
+            Spacer(Modifier.height(8.dp))
             androidx.compose.foundation.layout.Box(
                 Modifier
                     .fillMaxWidth(0.75f)
@@ -467,7 +464,7 @@ private fun PreviewSkeletonCard() {
                     .clip(RoundedCornerShape(4.dp))
                     .background(block),
             )
-            Spacer(Modifier.height(12.dp))
+            Spacer(Modifier.height(8.dp))
             androidx.compose.foundation.layout.Box(
                 Modifier
                     .fillMaxWidth()
@@ -490,12 +487,15 @@ private fun PreviewCard(
     val info = preview.info
     val scheme = MiuixTheme.colorScheme
     Card(modifier = Modifier.fillMaxWidth(), cornerRadius = 16.dp) {
-        // 与详情页头卡同一语言：身份区 → 信息组（组内 6）→ 操作区；跨组 12 / 垂直 8
+        // 与详情页头卡同一语言：身份区 → 信息组 → 分区线 → 关联/操作区；跨组 8（同档）
         Column(modifier = Modifier.padding(horizontal = 16.dp, vertical = 8.dp)) {
             Row(verticalAlignment = Alignment.CenterVertically) {
+                // 图标 56/14 与详情头卡同档（此前默认 48/12——自称「同一语言」却差一档）
                 io.candy.tick.ui.common.RepoIconBlock(
                     owner = info.owner,
                     linkedPackage = preview.linkedPackage,
+                    size = 56.dp,
+                    corner = 14.dp,
                 )
                 Spacer(Modifier.width(12.dp))
                 Column(modifier = Modifier.weight(1f)) {
@@ -514,31 +514,28 @@ private fun PreviewCard(
                         // star 挪名称旁（与详情头卡同构）；名称截断时 star 恒可见
                         io.candy.tick.ui.common.StarCount(count = CountFormat.format(info.stars))
                     }
-                    Text(
-                        text = "${info.owner}/${info.repo}",
-                        style = io.candy.tick.ui.theme.MonoTokenStyle,
-                        color = scheme.onBackgroundVariant,
-                    )
+                    io.candy.tick.ui.common.OwnerRepoLine(owner = info.owner, repo = info.repo)
                 }
+                // 维护状态徽章（与详情头卡同位：身份行最右）——订阅决策的核心信号；
+                // statusAt 基于 RepoSnapshot，经 toSnapshot() 判定（仅用 archived+pushedAt，无副作用）
+                io.candy.tick.ui.common.StatusBadge(status = info.toSnapshot().statusAt())
             }
 
-            Spacer(Modifier.height(12.dp))
+            Spacer(Modifier.height(8.dp))
+            // 描述与详情头卡同款：body2 灰字 + 3 行截断（长描述不撑爆卡）
             if (!info.description.isNullOrBlank()) {
                 Text(
                     text = info.description,
                     style = MiuixTheme.textStyles.body2,
                     color = scheme.onBackgroundVariant,
+                    maxLines = 3,
+                    overflow = TextOverflow.Ellipsis,
                 )
-                Spacer(Modifier.height(6.dp))
             }
-            // license 保留（订阅决策信息）；star 已挪名称旁
-            Text(
-                text = stringResource(R.string.add_license, info.license ?: "—"),
-                style = MiuixTheme.textStyles.footnote1,
-                color = scheme.onBackgroundVariant,
-            )
-
-            Spacer(Modifier.height(12.dp))
+            Spacer(Modifier.height(8.dp))
+            // 分区线（与详情头卡同款节奏：前 8 / 线 / 后 6）：档案信息 → 关联/订阅操作区
+            io.candy.tick.ui.common.SectionDivider()
+            Spacer(Modifier.height(6.dp))
             // 关联区跨页统一语义：薄荷=行动（未关联的引导入口），已关联=状态信息行
             // （与详情页 linked 态同构：应用图标 + 灰字 + 右侧动作；窄卡用文字动作代替图标钮）
             val linkedLabel = preview.linkedLabel
@@ -609,7 +606,7 @@ private fun PreviewCard(
                 }
             }
 
-            Spacer(Modifier.height(12.dp))
+            Spacer(Modifier.height(8.dp))
             // 主按钮单开关（180 柔切换）：重复订阅 =「打开已订阅的仓库」——
             // 按钮文案自含状态语义（此前红条+按钮三层堆叠，与 CTA 胶囊挤在一起）
             androidx.compose.animation.AnimatedContent(

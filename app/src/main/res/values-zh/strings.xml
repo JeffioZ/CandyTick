@@ -119,7 +119,6 @@
     <string name="add_parse_error">无法识别 · 支持 GitHub 链接或 owner/仓库名</string>
     <string name="add_search_failed">搜索失败</string>
     <string name="add_search_empty">无匹配，试试粘贴完整链接</string>
-    <string name="add_license">许可证：%1$s</string>
     <string name="picker_search_app">搜索应用</string>
     <string name="picker_no_match">没有匹配的应用</string>
     <string name="clear_input">清空输入</string>

@@ -25,6 +25,7 @@ import androidx.compose.ui.unit.dp
 import io.candy.tick.R
 import io.candy.tick.data.model.TrackedRepo
 import io.candy.tick.ui.theme.AvatarPalette
+import io.candy.tick.ui.theme.MonoTokenStyle
 import kotlin.math.abs
 import top.yukonga.miuix.kmp.basic.Icon
 import top.yukonga.miuix.kmp.basic.Text
@@ -93,6 +94,16 @@ fun StarCount(count: String, modifier: Modifier = Modifier) {
             color = tint,
         )
     }
+}
+
+/** owner/repo 等宽标识行（首页卡/搜索卡/预览卡/详情头卡身份区共用）：MonoTokenStyle + 灰字 */
+@Composable
+fun OwnerRepoLine(owner: String, repo: String) {
+    Text(
+        text = "$owner/$repo",
+        style = MonoTokenStyle,
+        color = MiuixTheme.colorScheme.onBackgroundVariant,
+    )
 }
 
 @Composable

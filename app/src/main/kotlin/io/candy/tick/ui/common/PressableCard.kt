@@ -1,10 +1,14 @@
 package io.candy.tick.ui.common
 
+import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.interaction.collectIsPressedAsState
+import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.ColumnScope
 import androidx.compose.foundation.layout.PaddingValues
+import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.height
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.remember
 import androidx.compose.ui.Modifier
@@ -75,4 +79,18 @@ fun rememberRowPressTint(): Pair<MutableInteractionSource, androidx.compose.ui.g
         label = "rowPress",
     ).value
     return src to color
+}
+
+/**
+ * 卡内分区线（详情头卡/添加页预览卡共用）：全宽 1dp dividerLine。
+ * 节奏固定为前 Spacer(8) + 线 + 后 Spacer(6)——标记「档案信息 → 行动区」语义边界。
+ */
+@Composable
+fun SectionDivider() {
+    Box(
+        modifier = Modifier
+            .fillMaxWidth()
+            .height(1.dp)
+            .background(MiuixTheme.colorScheme.dividerLine),
+    )
 }
