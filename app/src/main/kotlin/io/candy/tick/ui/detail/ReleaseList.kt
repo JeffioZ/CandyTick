@@ -446,23 +446,26 @@ private fun ReleaseCard(
                                     .padding(horizontal = 8.dp, vertical = 4.dp),
                             )
                         }
-                        else -> if (selected != null) {
-                            PrimaryButton(
-                                text = stringResource(R.string.download_apk),
-                                onClick = { onDownload(release, selected!!) },
-                                modifier = Modifier.fillMaxWidth(),
-                            )
-                        } else {
-                            // 无默认选中（多候选无法自动区分）：提示先选，不给死按钮
-                            Text(
-                                text = stringResource(R.string.detail_select_asset_hint),
-                                style = MiuixTheme.textStyles.footnote1,
-                                color = scheme.onBackgroundVariant,
-                                modifier = Modifier
-                                    .fillMaxWidth()
-                                    .padding(vertical = 6.dp),
-                                textAlign = androidx.compose.ui.text.style.TextAlign.Center,
-                            )
+                        else -> {
+                            val sel = selected
+                            if (sel != null) {
+                                PrimaryButton(
+                                    text = stringResource(R.string.download_apk),
+                                    onClick = { onDownload(release, sel) },
+                                    modifier = Modifier.fillMaxWidth(),
+                                )
+                            } else {
+                                // 无默认选中（多候选无法自动区分）：提示先选，不给死按钮
+                                Text(
+                                    text = stringResource(R.string.detail_select_asset_hint),
+                                    style = MiuixTheme.textStyles.footnote1,
+                                    color = scheme.onBackgroundVariant,
+                                    modifier = Modifier
+                                        .fillMaxWidth()
+                                        .padding(vertical = 6.dp),
+                                    textAlign = androidx.compose.ui.text.style.TextAlign.Center,
+                                )
+                            }
                         }
                     }
                 }

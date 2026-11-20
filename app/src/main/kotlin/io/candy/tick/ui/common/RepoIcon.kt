@@ -28,18 +28,29 @@ import top.yukonga.miuix.kmp.theme.MiuixTheme
  */
 @Composable
 fun RepoIconBlock(owner: String, linkedPackage: String?, size: Dp = 48.dp, corner: Dp = 12.dp) {
-    val context = LocalContext.current
-    if (linkedPackage != null) {
-        val bitmap = remember(linkedPackage) {
-            runCatching { context.packageManager.getApplicationIcon(linkedPackage).toImageBitmap() }.getOrNull()
-        }
-        if (bitmap != null) {
-            AppIconImage(bitmap = bitmap, size = size, corner = corner)
-            return
-        }
+    rememberAppIcon(linkedPackage)?.let {
+        AppIconImage(bitmap = it, size = size, corner = corner)
+        return
     }
     AvatarBlock(owner = owner, size = size, corner = corner)
 }
+
+/** 已安装应用的图标（remember 缓存，PM 查询失败返回 null）——全 App 唯一来源 */
+@Composable
+fun rememberAppIcon(packageName: String?): androidx.compose.ui.graphics.ImageBitmap? {
+    if (packageName == null) return null
+    val context = LocalContext.current
+    return remember(packageName) {
+        runCatching { context.packageManager.getApplicationIcon(packageName).toImageBitmap() }.getOrNull()
+    }
+}
+
+/** 已安装应用的市场标签（PM 查询失败回退包名）——全 App 唯一来源 */
+fun installedAppLabel(context: android.content.Context, packageName: String): String =
+    runCatching {
+        val pm = context.packageManager
+        pm.getApplicationLabel(pm.getApplicationInfo(packageName, 0)).toString()
+    }.getOrNull() ?: packageName
 
 /** TrackedRepo 便利重载 */
 @Composable

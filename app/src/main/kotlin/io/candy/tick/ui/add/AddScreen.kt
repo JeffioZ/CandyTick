@@ -511,15 +511,9 @@ private fun PreviewCard(
             Spacer(Modifier.height(12.dp))
             // 关联区跨页统一语义：薄荷=行动（未关联的引导入口），已关联=状态信息行
             // （与详情页 linked 态同构：应用图标 + 灰字 + 右侧动作；窄卡用文字动作代替图标钮）
-            if (preview.linkedLabel != null) {
-                val ctx = androidx.compose.ui.platform.LocalContext.current
-                val appBitmap = remember(preview.linkedPackage) {
-                    preview.linkedPackage?.let { pkg ->
-                        runCatching {
-                            ctx.packageManager.getApplicationIcon(pkg).toImageBitmap()
-                        }.getOrNull()
-                    }
-                }
+            val linkedLabel = preview.linkedLabel
+            if (linkedLabel != null) {
+                val appBitmap = io.candy.tick.ui.common.rememberAppIcon(preview.linkedPackage)
                 // 与详情页 linked 态逐参数同构：应用图标 + 灰字 + ic_link 钮(32dp/14dp)——
                 // 行为一致（动作在钮上，行本身不可点），跨页零学习成本
                 Row(verticalAlignment = Alignment.CenterVertically) {
@@ -528,7 +522,7 @@ private fun PreviewCard(
                         Spacer(Modifier.width(8.dp))
                     }
                     Text(
-                        text = stringResource(R.string.detail_linked_app, preview.linkedLabel!!),
+                        text = stringResource(R.string.detail_linked_app, linkedLabel),
                         style = MiuixTheme.textStyles.footnote1,
                         color = scheme.onBackgroundVariant,
                         modifier = Modifier.weight(1f),

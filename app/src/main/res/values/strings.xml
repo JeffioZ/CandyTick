@@ -36,7 +36,7 @@
     <string name="empty_cta">Add your first repository</string>
     <string name="banner_old_data_kept">Showing saved data</string>
     <string name="card_updatable">Update</string>
-    <string name="collapse_all">Collapse all · %1$d</string>
+    <string name="collapse_all">Collapse all</string>
     <string name="card_last_push">pushed %1$s</string>
     <string name="card_details_failed">Couldn\'t load details</string>
 

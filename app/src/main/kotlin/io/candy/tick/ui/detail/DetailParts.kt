@@ -392,12 +392,8 @@ internal fun HeaderCard(
             // 关联区紧凑：4 + 32dp 行高——与卡底间距收窄（此前 8+36 视觉上下皆空 18）
             Spacer(Modifier.height(4.dp))
             // 关联本机应用（可修改 / 解除）
-            val linkedLabel = repo.linkedPackage?.let { pkg ->
-                runCatching {
-                    context.packageManager.getApplicationLabel(
-                        context.packageManager.getApplicationInfo(pkg, 0),
-                    ).toString()
-                }.getOrNull() ?: pkg
+            val linkedLabel = repo.linkedPackage?.let {
+                io.candy.tick.ui.common.installedAppLabel(context, it)
             }
             // 关联区三态柔切换（180 转场档）：关联/解除/建议出现不再硬跳
             androidx.compose.animation.AnimatedContent(
@@ -418,11 +414,7 @@ internal fun HeaderCard(
                 Column {
             if (phase == "linked" && linkedLabel != null) {
                 Row(verticalAlignment = Alignment.CenterVertically) {
-                    val appBitmap = remember(repo.linkedPackage) {
-                        repo.linkedPackage?.let { pkg ->
-                            runCatching { context.packageManager.getApplicationIcon(pkg).toImageBitmap() }.getOrNull()
-                        }
-                    }
+                    val appBitmap = io.candy.tick.ui.common.rememberAppIcon(repo.linkedPackage)
                     appBitmap?.let {
                         io.candy.tick.ui.common.AppIconImage(bitmap = it, size = 22.dp, corner = 6.dp)
                         Spacer(Modifier.width(8.dp))
@@ -463,11 +455,7 @@ internal fun HeaderCard(
             } else if (phase == "suggest" && state.linkSuggestion != null) {
                 // 关联建议：整行点按即关联（胶囊提示条 + 本机应用小图标）
                 val suggested = state.linkSuggestion
-                val appIcon = remember(suggested?.first) {
-                    suggested?.first?.let { pkg ->
-                        runCatching { context.packageManager.getApplicationIcon(pkg).toImageBitmap() }.getOrNull()
-                    }
-                }
+                val appIcon = io.candy.tick.ui.common.rememberAppIcon(suggested?.first)
                 Row(
                     modifier = Modifier
                         .fillMaxWidth()

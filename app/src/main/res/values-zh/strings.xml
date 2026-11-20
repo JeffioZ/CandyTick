@@ -36,7 +36,7 @@
     <string name="empty_cta">添加第一个仓库</string>
     <string name="banner_old_data_kept">显示的是缓存数据</string>
     <string name="card_updatable">有新版</string>
-    <string name="collapse_all">收起全部 · %1$d</string>
+    <string name="collapse_all">收起全部</string>
     <string name="card_last_push">%1$s有提交</string>
     <string name="card_details_failed">详情加载失败</string>
 

@@ -151,10 +151,8 @@ class AddViewModel(
         fetchPreview(info.owner, info.repo, silent = true)
     }
 
-    private fun appLabel(pkg: String): String? = runCatching {
-        val pm = appContext.packageManager
-        pm.getApplicationLabel(pm.getApplicationInfo(pkg, 0)).toString()
-    }.getOrNull() ?: pkg
+    private fun appLabel(pkg: String): String? =
+        io.candy.tick.ui.common.installedAppLabel(appContext, pkg)
 
     private fun fetchPreview(owner: String, repo: String, silent: Boolean = false) {
         val key = "$owner/$repo"
