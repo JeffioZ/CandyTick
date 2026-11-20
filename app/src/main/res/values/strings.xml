@@ -31,8 +31,8 @@
     <string name="remove_confirm_body">Stop tracking %1$s. Downloaded packages will be cleaned up on next launch.</string>
     <string name="action_cancel">Cancel</string>
     <string name="action_remove">Remove</string>
-    <string name="empty_title">still ticking?</string>
-    <string name="empty_subtitle">Track a repository and see if it is still alive</string>
+    <string name="empty_title">No subscriptions yet</string>
+    <string name="empty_subtitle">Subscribing shows commit activity and new releases here</string>
     <string name="empty_cta">Add your first repository</string>
     <string name="banner_old_data_kept">Showing saved data</string>
     <string name="card_updatable">Update</string>
@@ -121,6 +121,7 @@
     <string name="branch_default">Default branch</string>
     <string name="branch_picker_title">Branch</string>
     <string name="branch_search_hint">Search branches</string>
+    <string name="branch_no_match">No matching branches</string>
 
     <!-- 添加页 -->
     <string name="add_input_hint">Paste link or search</string>
@@ -130,6 +131,7 @@
     <string name="add_stars">★ %1$s</string>
     <string name="add_license">License: %1$s</string>
     <string name="picker_search_app">Search apps</string>
+    <string name="picker_no_match">No matching apps</string>
     <string name="clear_input">Clear input</string>
     <string name="add_guide_title">Paste a repository link, or search by keyword</string>
     <string name="add_guide_formats">github.com/owner/repo or owner/repo</string>

@@ -7,7 +7,6 @@ import androidx.compose.animation.core.rememberInfiniteTransition
 import androidx.compose.animation.core.tween
 import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.background
-import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxWidth
@@ -45,8 +44,11 @@ internal fun EmptyState(onAdd: () -> Unit, modifier: Modifier = Modifier) {
             .padding(horizontal = 32.dp)
             .background(scheme.background),
         horizontalAlignment = Alignment.CenterHorizontally,
-        verticalArrangement = Arrangement.Center,
     ) {
+        // 光学居中：上 1 : 下 1.22（下方留白稍多）——整块中心落在内容区约 45%，
+        // 空态设计的通用光学中心（几何居中略偏上），按比例恒定、不随屏幕长短漂移。
+        // 注：上方 spacer 权重越大内容越靠下（此前几轮方向调反的教训）
+        Spacer(Modifier.weight(1f))
         EchoPing(mint = mint)
         Spacer(Modifier.height(12.dp))
         Text(
@@ -64,6 +66,7 @@ internal fun EmptyState(onAdd: () -> Unit, modifier: Modifier = Modifier) {
             text = stringResource(R.string.empty_cta),
             onClick = onAdd,
         )
+        Spacer(Modifier.weight(1.22f))
     }
 }
 

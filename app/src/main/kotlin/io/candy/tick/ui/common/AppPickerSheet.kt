@@ -13,6 +13,8 @@ import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.RoundedCornerShape
+import top.yukonga.miuix.kmp.basic.Text
+import top.yukonga.miuix.kmp.theme.MiuixTheme
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.mutableStateOf
@@ -129,6 +131,18 @@ fun AppPickerSheet(
                     modifier = Modifier
                         .fillMaxWidth()
                         .padding(horizontal = 16.dp),
+                )
+            }
+            // 搜索无结果：轻量居中提示（sheet 语境，不套重型空态组件）
+            if (query.isNotBlank() && filtered.isEmpty()) {
+                Text(
+                    text = stringResource(R.string.picker_no_match),
+                    style = MiuixTheme.textStyles.footnote1,
+                    color = MiuixTheme.colorScheme.onBackgroundVariant,
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(vertical = 32.dp),
+                    textAlign = androidx.compose.ui.text.style.TextAlign.Center,
                 )
             }
             LazyColumn {

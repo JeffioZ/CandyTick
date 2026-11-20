@@ -136,6 +136,18 @@ internal fun BranchPickerSheet(
                     onDismiss()
                 },
             )
+            // 搜索无结果：轻量居中提示（与分支/应用弹层同一处理）
+            if (keyword.isNotEmpty() && filtered.isEmpty()) {
+                Text(
+                    text = stringResource(R.string.branch_no_match),
+                    style = MiuixTheme.textStyles.footnote1,
+                    color = scheme.onBackgroundVariant,
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(vertical = 32.dp),
+                    textAlign = androidx.compose.ui.text.style.TextAlign.Center,
+                )
+            }
             LazyColumn(modifier = Modifier.weight(1f, fill = false)) {
                 items(filtered, key = { it }) { name ->
                     BranchRow(name, name == current) {
