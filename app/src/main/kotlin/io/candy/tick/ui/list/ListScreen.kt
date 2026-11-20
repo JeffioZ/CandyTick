@@ -17,6 +17,7 @@ import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.imePadding
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.lazy.LazyColumn
@@ -165,7 +166,9 @@ fun ListScreen(
 
     Box(modifier = Modifier.fillMaxSize()) {
         Scaffold(
-                 containerColor = androidx.compose.ui.graphics.Color.Transparent,
+            // 键盘弹出（搜索态）时整页收缩到 IME 上方：空态/结果在可见区居中不被遮挡
+            modifier = Modifier.imePadding(),
+            containerColor = androidx.compose.ui.graphics.Color.Transparent,
             topBar = {
                 SmallTopAppBar(
                     title = "", // 标题走 navigationIcon 槽位实现左对齐（内置 title 居中）
@@ -320,6 +323,7 @@ fun ListScreen(
                         io.candy.tick.ui.common.StatusPage(
                             icon = ImageVector.vectorResource(R.drawable.ic_search),
                             title = stringResource(R.string.search_no_results, state.query),
+                            subtitle = stringResource(R.string.search_no_results_hint),
                             actionLabel = stringResource(R.string.search_clear),
                             onAction = { vm.setQuery("") },
                             modifier = Modifier

@@ -118,8 +118,22 @@ fun AddScreen(
                 value = state.input,
                 onValueChange = vm::onInput,
                 label = stringResource(R.string.add_input_hint),
+                // 单行：IME 确定显示「搜索」而非换行；长链接也不会被折行截断
+                singleLine = true,
                 keyboardOptions = KeyboardOptions(imeAction = ImeAction.Search),
                 keyboardActions = KeyboardActions(onSearch = { vm.submit() }),
+                // 非空清空钮：粘贴长链接后想换目标，逐字删除太苦
+                trailingIcon = if (state.input.isNotEmpty()) {
+                    {
+                        IconButton(onClick = { vm.onInput("") }) {
+                            Icon(
+                                imageVector = ImageVector.vectorResource(R.drawable.ic_close),
+                                contentDescription = stringResource(R.string.clear_input),
+                                tint = MiuixTheme.colorScheme.onBackgroundVariant,
+                            )
+                        }
+                    }
+                } else null,
                 modifier = Modifier
                     .fillMaxWidth()
                     .focusRequester(inputFocus),

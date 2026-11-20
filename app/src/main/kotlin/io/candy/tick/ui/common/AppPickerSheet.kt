@@ -52,6 +52,15 @@ fun AppPickerSheet(
 ) {
     val context = LocalContext.current
     var query by remember { mutableStateOf("") }
+    // 打开即聚焦（等一帧弹层动画稳定，与添加页同模式）：搜索类 sheet 点开就能输
+    val pickerFocus = androidx.compose.ui.focus.FocusRequester()
+    val keyboard = androidx.compose.ui.platform.LocalSoftwareKeyboardController.current
+    LaunchedEffect(show) {
+        if (show) {
+            kotlinx.coroutines.delay(100)
+            runCatching { pickerFocus.requestFocus() }
+        }
+    }
     // 应用列表在 IO 线程加载（几百个应用的 label/icon 查询曾阻塞组合主线程）
     var apps by remember { mutableStateOf<List<AppOption>>(emptyList()) }
     var appsLoading by remember { mutableStateOf(false) }

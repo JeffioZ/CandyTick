@@ -276,6 +276,7 @@ internal fun TokenDialog(
             TextField(
                 value = state.tokenInput,
                 onValueChange = onTokenInput,
+                label = stringResource(R.string.token_input_hint),
                 modifier = Modifier
                     .fillMaxWidth()
                     .focusRequester(tokenFocus),

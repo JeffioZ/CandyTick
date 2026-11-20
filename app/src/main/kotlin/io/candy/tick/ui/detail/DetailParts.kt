@@ -27,6 +27,7 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.focus.focusRequester
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.dp
@@ -71,6 +72,15 @@ internal fun BranchPickerSheet(
     androidx.compose.runtime.LaunchedEffect(show) {
         if (!show && query.isNotEmpty()) query = ""
     }
+    // 打开即聚焦（等一帧弹层动画稳定，与添加页同模式）：搜索类 sheet 点开就能输
+    val branchFocus = androidx.compose.ui.focus.FocusRequester()
+    val keyboard = androidx.compose.ui.platform.LocalSoftwareKeyboardController.current
+    androidx.compose.runtime.LaunchedEffect(show) {
+        if (show) {
+            kotlinx.coroutines.delay(100)
+            runCatching { branchFocus.requestFocus() }
+        }
+    }
     val current = state.repo?.branch
     val keyword = query.trim()
     val filtered = if (keyword.isEmpty()) state.branches else state.branches.filter {
@@ -94,9 +104,28 @@ internal fun BranchPickerSheet(
                     onValueChange = { query = it },
                     label = stringResource(R.string.branch_search_hint),
                     singleLine = true,
+                    // 回车收键盘：实时过滤已出结果，Done 不需要别的动作
+                    keyboardOptions = androidx.compose.foundation.text.KeyboardOptions(
+                        imeAction = androidx.compose.ui.text.input.ImeAction.Done,
+                    ),
+                    keyboardActions = androidx.compose.foundation.text.KeyboardActions(
+                        onDone = { keyboard?.hide() },
+                    ),
+                    trailingIcon = if (query.isNotEmpty()) {
+                        {
+                            top.yukonga.miuix.kmp.basic.IconButton(onClick = { query = "" }) {
+                                Icon(
+                                    imageVector = ImageVector.vectorResource(R.drawable.ic_close),
+                                    contentDescription = stringResource(R.string.clear_input),
+                                    tint = MiuixTheme.colorScheme.onBackgroundVariant,
+                                )
+                            }
+                        }
+                    } else null,
                     modifier = Modifier
                         .fillMaxWidth()
-                        .padding(horizontal = 16.dp),
+                        .padding(horizontal = 16.dp)
+                        .focusRequester(branchFocus),
                 )
             }
             BranchRow(

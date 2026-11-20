@@ -130,6 +130,7 @@
     <string name="add_stars">★ %1$s</string>
     <string name="add_license">License: %1$s</string>
     <string name="picker_search_app">Search apps</string>
+    <string name="clear_input">Clear input</string>
     <string name="add_guide_title">Paste a repository link, or search by keyword</string>
     <string name="add_guide_formats">github.com/owner/repo or owner/repo</string>
     <string name="add_back_to_results">Back to results</string>
@@ -186,6 +187,7 @@
     <string name="action_search">Search</string>
     <string name="search_hint">Search</string>
     <string name="search_no_results">No results for \"%1$s\"</string>
+    <string name="search_no_results_hint">Try a shorter keyword or check the spelling</string>
     <string name="close_search">Close search</string>
     <string name="search_clear">Clear search</string>
     <string name="settings_backup_group">Data</string>
@@ -203,6 +205,7 @@
     <string name="settings_sync_wifi_only">Wi-Fi only sync</string>
     <string name="settings_token_row">GitHub token</string>
     <string name="settings_token_hint_short">Optional · 60 → 5,000 req/h</string>
+    <string name="token_input_hint">Paste token</string>
     <string name="token_set">Set</string>
     <string name="token_unset">Not set</string>
     <string name="settings_language">Language</string>
