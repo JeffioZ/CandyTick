@@ -79,12 +79,17 @@ fun LazyListScope.commitList(
         }
     }
     item(key = "commits-footer") {
-        CommitFooter(state = state, onLoadMore = onLoadMore)
+        // fillParentMaxHeight 须在 item{}（LazyItemScope）内取：随屏高自适应的空态/错误态高度
+        CommitFooter(state = state, onLoadMore = onLoadMore, Modifier.fillParentMaxHeight(0.45f))
     }
 }
 
 @Composable
-private fun CommitFooter(state: DetailViewModel.UiState, onLoadMore: () -> Unit) {
+private fun CommitFooter(
+    state: DetailViewModel.UiState,
+    onLoadMore: () -> Unit,
+    pageModifier: Modifier = Modifier, // item{} 注入的 fillParentMaxHeight（空态/错误态用）
+) {
     val scheme = MiuixTheme.colorScheme
     when {
         state.commitsLoading -> androidx.compose.foundation.layout.Box(
@@ -100,17 +105,13 @@ private fun CommitFooter(state: DetailViewModel.UiState, onLoadMore: () -> Unit)
             subtitle = stringResource(R.string.status_error_subtitle),
             actionLabel = stringResource(R.string.retry),
             onAction = onLoadMore,
-            modifier = Modifier
-                .fillMaxWidth()
-                .height(320.dp),
+            modifier = pageModifier.fillMaxWidth(),
         )
         !state.commitsEnd -> LaunchedEffect(state.commits.size) { onLoadMore() }
         state.commits.isEmpty() -> io.candy.tick.ui.common.StatusPage(
             icon = ImageVector.vectorResource(R.drawable.ic_file),
             title = stringResource(R.string.detail_no_commits),
-            modifier = Modifier
-                .fillMaxWidth()
-                .height(320.dp),
+            modifier = pageModifier.fillMaxWidth(),
         )
         // 到底且有内容：终点提示（修复缺失——此前 when 链在此情形什么都不渲染）
         else -> io.candy.tick.ui.common.FooterText(text = stringResource(R.string.list_end))

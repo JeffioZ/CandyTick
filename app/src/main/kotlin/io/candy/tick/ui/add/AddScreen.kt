@@ -40,7 +40,7 @@ import io.candy.tick.ui.common.AppPickerSheet
 import io.candy.tick.ui.common.FooterText
 import io.candy.tick.ui.common.PrimaryButton
 import io.candy.tick.ui.common.sourceErrorText
-import io.candy.tick.ui.list.AvatarBlock
+import io.candy.tick.ui.common.toImageBitmap
 import kotlinx.coroutines.flow.collect
 import top.yukonga.miuix.kmp.basic.Card
 import top.yukonga.miuix.kmp.basic.Icon
@@ -194,7 +194,10 @@ fun AddScreen(
                         ) {
                             Column(modifier = Modifier.padding(horizontal = 16.dp, vertical = 8.dp)) {
                                 Row(verticalAlignment = Alignment.CenterVertically) {
-                                    AvatarBlock(owner = info.owner)
+                                    io.candy.tick.ui.common.RepoIconBlock(
+                                        owner = info.owner,
+                                        linkedPackage = null,
+                                    )
                                     Spacer(Modifier.width(12.dp))
                                     Column(modifier = Modifier.weight(1f)) {
                                         Text(
@@ -359,12 +362,14 @@ fun AddScreen(
 private fun BackToResultsButton(onClick: () -> Unit) {
     // 「← 返回搜索结果」：预览态的明确退路（skill: back-behavior）。
     // 左对齐导航动作；padding 计入命中区，触控带 ~40dp
+    val (pressSrc, pressColor) = io.candy.tick.ui.common.rememberRowPressTint()
     Row(
         verticalAlignment = Alignment.CenterVertically,
         modifier = Modifier
             .clip(RoundedCornerShape(8.dp))
+            .background(pressColor, RoundedCornerShape(8.dp))
             .clickable(
-                interactionSource = remember { androidx.compose.foundation.interaction.MutableInteractionSource() },
+                interactionSource = pressSrc,
                 indication = null,
                 onClick = onClick,
             )
@@ -462,7 +467,10 @@ private fun PreviewCard(
         // 与详情页头卡同一语言：身份区 → 信息组（组内 6）→ 操作区；跨组 12 / 垂直 8
         Column(modifier = Modifier.padding(horizontal = 16.dp, vertical = 8.dp)) {
             Row(verticalAlignment = Alignment.CenterVertically) {
-                AvatarBlock(owner = info.owner)
+                io.candy.tick.ui.common.RepoIconBlock(
+                    owner = info.owner,
+                    linkedPackage = preview.linkedPackage,
+                )
                 Spacer(Modifier.width(12.dp))
                 Column(modifier = Modifier.weight(1f)) {
                     Text(
@@ -501,35 +509,76 @@ private fun PreviewCard(
             }
 
             Spacer(Modifier.height(12.dp))
-            // 关联入口：详情页建议条同款 CTA 胶囊（tertiaryContainer 薄荷底 + 链接图标 + 行动文案）
-            Row(
-                verticalAlignment = Alignment.CenterVertically,
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .clip(RoundedCornerShape(12.dp))
-                    .background(scheme.tertiaryContainer)
-                    .clickable(
-                        interactionSource = remember { androidx.compose.foundation.interaction.MutableInteractionSource() },
-                        indication = null,
-                        onClick = onLinkApp,
+            // 关联区跨页统一语义：薄荷=行动（未关联的引导入口），已关联=状态信息行
+            // （与详情页 linked 态同构：应用图标 + 灰字 + 右侧动作；窄卡用文字动作代替图标钮）
+            if (preview.linkedLabel != null) {
+                val ctx = androidx.compose.ui.platform.LocalContext.current
+                val appBitmap = remember(preview.linkedPackage) {
+                    preview.linkedPackage?.let { pkg ->
+                        runCatching {
+                            ctx.packageManager.getApplicationIcon(pkg).toImageBitmap()
+                        }.getOrNull()
+                    }
+                }
+                val (linkPressSrc, linkPressColor) = io.candy.tick.ui.common.rememberRowPressTint()
+                Row(
+                    verticalAlignment = Alignment.CenterVertically,
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .clip(RoundedCornerShape(8.dp))
+                        .background(linkPressColor, RoundedCornerShape(8.dp))
+                        .clickable(
+                            interactionSource = linkPressSrc,
+                            indication = null,
+                            onClick = onLinkApp,
+                        )
+                        .padding(vertical = 4.dp),
+                ) {
+                    appBitmap?.let {
+                        io.candy.tick.ui.common.AppIconImage(bitmap = it, size = 22.dp, corner = 6.dp)
+                        Spacer(Modifier.width(8.dp))
+                    }
+                    Text(
+                        text = stringResource(R.string.detail_linked_app, preview.linkedLabel!!),
+                        style = MiuixTheme.textStyles.footnote1,
+                        color = scheme.onBackgroundVariant,
+                        modifier = Modifier.weight(1f),
                     )
-                    .padding(horizontal = 12.dp, vertical = 10.dp),
-            ) {
-                Icon(
-                    imageVector = ImageVector.vectorResource(R.drawable.ic_link),
-                    contentDescription = null,
-                    tint = scheme.onPrimaryContainer,
-                    modifier = Modifier.size(16.dp),
-                )
-                Spacer(Modifier.width(8.dp))
-                Text(
-                    text = preview.linkedLabel?.let {
-                        stringResource(R.string.add_linked_app_named, it)
-                    } ?: stringResource(R.string.add_link_app_optional),
-                    style = MiuixTheme.textStyles.footnote1,
-                    color = scheme.onPrimaryContainer,
-                    modifier = Modifier.weight(1f),
-                )
+                    Text(
+                        text = stringResource(R.string.detail_link_change_short),
+                        style = MiuixTheme.textStyles.footnote1,
+                        color = scheme.primaryVariant,
+                    )
+                }
+            } else {
+                // 未关联：薄荷 CTA 胶囊（行动引导，与详情页建议条同语义同参数）
+                Row(
+                    verticalAlignment = Alignment.CenterVertically,
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .clip(RoundedCornerShape(12.dp))
+                        .background(scheme.tertiaryContainer)
+                        .clickable(
+                            interactionSource = remember { androidx.compose.foundation.interaction.MutableInteractionSource() },
+                            indication = null,
+                            onClick = onLinkApp,
+                        )
+                        .padding(horizontal = 12.dp, vertical = 10.dp),
+                ) {
+                    Icon(
+                        imageVector = ImageVector.vectorResource(R.drawable.ic_link),
+                        contentDescription = null,
+                        tint = scheme.onPrimaryContainer,
+                        modifier = Modifier.size(16.dp),
+                    )
+                    Spacer(Modifier.width(8.dp))
+                    Text(
+                        text = stringResource(R.string.add_link_app_optional),
+                        style = MiuixTheme.textStyles.footnote1,
+                        color = scheme.onPrimaryContainer,
+                        modifier = Modifier.weight(1f),
+                    )
+                }
             }
 
             Spacer(Modifier.height(12.dp))

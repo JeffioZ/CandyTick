@@ -344,29 +344,12 @@ internal fun TokenDialog(
                 enabled = state.tokenInput.isNotBlank(),
                 modifier = Modifier.fillMaxWidth(),
             )
-            // 帮助链接（底部辅助位：不插主操作流）
-            Row(
-                modifier = Modifier
-                    .clip(androidx.compose.foundation.shape.RoundedCornerShape(8.dp))
-                    .clickable(onClick = onOpenHelp)
-                    .padding(top = 2.dp, bottom = 6.dp, start = 2.dp, end = 4.dp),
-                verticalAlignment = Alignment.CenterVertically,
-            ) {
-                Icon(
-                    imageVector = ImageVector.vectorResource(R.drawable.ic_external_link),
-                    contentDescription = null,
-                    tint = scheme.primaryVariant,
-                    modifier = Modifier.size(13.dp),
-                )
-                Spacer(Modifier.width(4.dp))
-                Text(
-                    text = stringResource(R.string.token_help_link),
-                    style = MiuixTheme.textStyles.footnote1.copy(
-                        textDecoration = androidx.compose.ui.text.style.TextDecoration.Underline,
-                    ),
-                    color = scheme.primaryVariant,
-                )
-            }
+            // 帮助链接（底部辅助位：不插主操作流；全局文字链组件）
+            io.candy.tick.ui.common.LinkText(
+                text = stringResource(R.string.token_help_link),
+                onClick = onOpenHelp,
+                showIcon = true,
+            )
         }
     }
 }

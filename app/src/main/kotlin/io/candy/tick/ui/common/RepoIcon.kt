@@ -23,32 +23,36 @@ import top.yukonga.miuix.kmp.basic.Text
 import top.yukonga.miuix.kmp.theme.MiuixTheme
 
 /**
- * 卡片/详情共用图标：已关联本机应用 → 真 APP 图标；
- * 未关联 → 首字母块（owner 名 hash 8 色环，135° 渐变统一配方）。
+ * 仓库头像唯一来源（首页卡/搜索卡/预览卡/详情头卡共用）：
+ * 已关联本机应用 → 真 APP 图标；未关联 → 首字母块（owner hash 8 色环，135° 渐变）。
  */
 @Composable
-fun RepoIconBlock(repo: TrackedRepo, size: Dp = 48.dp, corner: Dp = 12.dp) {
+fun RepoIconBlock(owner: String, linkedPackage: String?, size: Dp = 48.dp, corner: Dp = 12.dp) {
     val context = LocalContext.current
-    val linked = repo.linkedPackage
-    if (linked != null) {
-        val bitmap = remember(linked) {
-            runCatching { context.packageManager.getApplicationIcon(linked).toImageBitmap() }.getOrNull()
+    if (linkedPackage != null) {
+        val bitmap = remember(linkedPackage) {
+            runCatching { context.packageManager.getApplicationIcon(linkedPackage).toImageBitmap() }.getOrNull()
         }
         if (bitmap != null) {
             AppIconImage(bitmap = bitmap, size = size, corner = corner)
             return
         }
     }
-    AvatarBlock(owner = repo.owner, size = size)
+    AvatarBlock(owner = owner, size = size, corner = corner)
 }
 
+/** TrackedRepo 便利重载 */
 @Composable
-private fun AvatarBlock(owner: String, size: Dp) {
+fun RepoIconBlock(repo: TrackedRepo, size: Dp = 48.dp, corner: Dp = 12.dp) =
+    RepoIconBlock(owner = repo.owner, linkedPackage = repo.linkedPackage, size = size, corner = corner)
+
+@Composable
+private fun AvatarBlock(owner: String, size: Dp, corner: Dp) {
     val (start, end) = remember(owner) { avatarGradient(owner) }
     Box(
         modifier = Modifier
             .size(size)
-            .clip(RoundedCornerShape(size / 3.2f))
+            .clip(RoundedCornerShape(corner)) // 圆角随调用统一（此前 size/3.2 与外部固定值微差）
             .background(
                 Brush.linearGradient(
                     listOf(start, end),

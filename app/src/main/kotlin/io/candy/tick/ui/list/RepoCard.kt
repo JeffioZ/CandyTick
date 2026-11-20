@@ -60,7 +60,7 @@ fun RepoCard(
     io.candy.tick.ui.common.PressableCard(onClick = onClick, modifier = modifier.fillMaxWidth()) {
         Column(modifier = Modifier.padding(start = 16.dp, end = 16.dp, top = 8.dp)) {
                 Row(verticalAlignment = Alignment.CenterVertically) {
-                    RepoIcon(repo = item.repo)
+                    io.candy.tick.ui.common.RepoIconBlock(repo = item.repo)
                     Spacer(Modifier.width(12.dp))
                     Column(modifier = Modifier.weight(1f)) {
                         Text(
@@ -233,41 +233,6 @@ private fun ExpandedDetails(
         // 版本行：最新 release vs 本机版本（与详情页头部共用组件，口径一致）
         val release = extras?.latestRelease
         if (release != null) VersionStatusLine(repo = item.repo, remoteTag = release.tagName, installEpoch = versionEpoch)
-    }
-}
-
-/** 卡片图标两档：已关联 → 真 APP 图标；未关联 → 首字母块（owner hash 8 色环 135° 渐变） */
-@Composable
-private fun RepoIcon(repo: TrackedRepo) {
-    val context = LocalContext.current
-    val linked = repo.linkedPackage
-    if (linked != null) {
-        val bitmap = remember(linked) {
-            runCatching { context.packageManager.getApplicationIcon(linked).toImageBitmap() }.getOrNull()
-        }
-        if (bitmap != null) {
-            io.candy.tick.ui.common.AppIconImage(bitmap = bitmap, size = 48.dp, corner = 12.dp)
-            return
-        }
-    }
-    AvatarBlock(owner = repo.owner)
-}
-
-@Composable
-internal fun AvatarBlock(owner: String) {
-    val (start, end) = remember(owner) { avatarGradient(owner) }
-    Box(
-        modifier = Modifier
-            .size(48.dp)
-            .clip(RoundedCornerShape(12.dp)) // 与 APP 图标档统一：48×25%，切换无圆角跳变
-            .background(Brush.linearGradient(listOf(start, end), start = androidx.compose.ui.geometry.Offset(0f, 0f), end = androidx.compose.ui.geometry.Offset(Float.POSITIVE_INFINITY, Float.POSITIVE_INFINITY))),
-        contentAlignment = Alignment.Center,
-    ) {
-        Text(
-            text = owner.firstOrNull()?.uppercase() ?: "?",
-            style = MiuixTheme.textStyles.title4.copy(fontWeight = FontWeight.Bold),
-            color = Color.White,
-        )
     }
 }
 

@@ -57,3 +57,22 @@ fun PressableCard(
         content()
     }
 }
+
+/**
+ * 无底信息行的按压反馈（与 PressableCard 同语言：按住染 10% 前景色）。
+ * 调用方：`.background(color, shape)` + `.clickable(src, indication = null, …)` 共用同一 src。
+ */
+@Composable
+fun rememberRowPressTint(): Pair<MutableInteractionSource, androidx.compose.ui.graphics.Color> {
+    val src = remember { MutableInteractionSource() }
+    val pressed = src.collectIsPressedAsState().value
+    val scheme = MiuixTheme.colorScheme
+    val color = androidx.compose.animation.animateColorAsState(
+        targetValue = lerp(
+            scheme.surfaceContainer, scheme.onSurfaceContainer, if (pressed) 0.10f else 0f,
+        ),
+        animationSpec = androidx.compose.animation.core.tween(150),
+        label = "rowPress",
+    ).value
+    return src to color
+}

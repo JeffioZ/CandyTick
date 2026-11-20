@@ -262,7 +262,12 @@ fun DetailScreen(repoId: Long, onBack: () -> Unit) {
                             ),
                         ) {
                             state.banner?.let { error ->
-                                Card(modifier = Modifier.fillMaxWidth()) {
+                                // 点横幅=重试刷新（错误恢复出口；此前只有下拉刷新兜底）
+                                Card(
+                                    modifier = Modifier
+                                        .fillMaxWidth()
+                                        .clickable { vm.refresh() },
+                                ) {
                                     Text(
                                         text = sourceErrorText(error),
                                         style = MiuixTheme.textStyles.footnote1,

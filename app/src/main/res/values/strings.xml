@@ -130,7 +130,6 @@
     <string name="add_license">License: %1$s</string>
     <string name="picker_search_app">Search apps</string>
     <string name="add_link_app_optional">Link installed app (optional)</string>
-    <string name="add_linked_app_named">Linked: %1$s · change</string>
     <string name="add_guide_title">Paste a repository link, or search by keyword</string>
     <string name="add_guide_formats">github.com/owner/repo or owner/repo</string>
     <string name="add_back_to_results">Back to results</string>
@@ -153,6 +152,7 @@
     <string name="detail_auto_linked">Auto-linked: %1$s</string>
     <string name="detail_linked_app">Linked: %1$s</string>
     <string name="detail_link_change">Change linked app</string>
+    <string name="detail_link_change_short">Change</string>
     <string name="detail_unlink">Unlink</string>
     <string name="detail_delete_download">Delete downloaded package</string>
     <string name="toast_copied">Copied to clipboard</string>

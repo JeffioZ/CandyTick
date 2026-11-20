@@ -517,13 +517,15 @@ internal fun HeaderCard(
                 // 未关联（也无建议）：选项行式入口——link 图标前缀 + chevron 尾缀表可点
                 // （skill: input-affordance），无底色不抢 suggest 态的薄荷行动语义
                 // （skill: primary-action 次要操作从属）；与 linked 态同一行语言
+                val (pressSrc, pressColor) = io.candy.tick.ui.common.rememberRowPressTint()
                 Row(
                     verticalAlignment = Alignment.CenterVertically,
                     modifier = Modifier
                         .fillMaxWidth()
                         .clip(RoundedCornerShape(10.dp))
+                        .background(pressColor, RoundedCornerShape(10.dp))
                         .clickable(
-                            interactionSource = remember { androidx.compose.foundation.interaction.MutableInteractionSource() },
+                            interactionSource = pressSrc,
                             indication = null,
                             onClick = onChangeLinked,
                         )

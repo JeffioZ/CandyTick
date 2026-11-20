@@ -53,7 +53,7 @@
     <string name="version_incomparable">发布 %1$s · 无法比较版本</string>
     <string name="version_incomparable_full">发布 %1$s · 本机 %2$s · 无法比较</string>
     <string name="version_line">%1$s · 本机 %2$s</string>
-    <string name="version_update_available">有新版本：%1$s</string>
+    <string name="version_update_available">有新版：%1$s</string>
 
     <!-- 四类失败 -->
     <string name="err_network">网络不可用</string>
@@ -120,7 +120,6 @@
     <string name="add_license">许可证：%1$s</string>
     <string name="picker_search_app">搜索应用</string>
     <string name="add_link_app_optional">关联本机应用（可选）</string>
-    <string name="add_linked_app_named">已关联：%1$s · 更改</string>
     <string name="add_guide_title">粘贴仓库链接，或输入关键词搜索</string>
     <string name="add_guide_formats">支持 github.com/owner/repo 或 owner/repo</string>
     <string name="add_back_to_results">返回搜索结果</string>
@@ -143,6 +142,7 @@
     <string name="detail_auto_linked">已自动关联：%1$s</string>
     <string name="detail_linked_app">已关联：%1$s</string>
     <string name="detail_link_change">更改关联应用</string>
+    <string name="detail_link_change_short">更改</string>
     <string name="detail_unlink">解除关联</string>
     <string name="detail_delete_download">删除下载的安装包</string>
     <string name="toast_copied">已复制到剪贴板</string>

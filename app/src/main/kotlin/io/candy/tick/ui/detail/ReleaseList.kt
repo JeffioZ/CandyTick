@@ -84,12 +84,17 @@ fun LazyListScope.releaseList(
         )
     }
     item(key = "releases-footer") {
-        ReleaseFooter(state = state, onLoadMore = onLoadMore)
+        // fillParentMaxHeight 须在 item{}（LazyItemScope）内取：随屏高自适应的空态/错误态高度
+        ReleaseFooter(state = state, onLoadMore = onLoadMore, Modifier.fillParentMaxHeight(0.45f))
     }
 }
 
 @Composable
-private fun ReleaseFooter(state: DetailViewModel.UiState, onLoadMore: () -> Unit) {
+private fun ReleaseFooter(
+    state: DetailViewModel.UiState,
+    onLoadMore: () -> Unit,
+    pageModifier: Modifier = Modifier, // item{} 注入的 fillParentMaxHeight（空态/错误态用）
+) {
     val scheme = MiuixTheme.colorScheme
     when {
         state.releasesLoading -> androidx.compose.foundation.layout.Box(
@@ -105,17 +110,13 @@ private fun ReleaseFooter(state: DetailViewModel.UiState, onLoadMore: () -> Unit
             subtitle = stringResource(R.string.status_error_subtitle),
             actionLabel = stringResource(R.string.retry),
             onAction = onLoadMore,
-            modifier = Modifier
-                .fillMaxWidth()
-                .height(320.dp),
+            modifier = pageModifier.fillMaxWidth(),
         )
         !state.releasesEnd && state.releases.isNotEmpty() -> LaunchedEffect(state.releases.size) { onLoadMore() }
         state.releases.isEmpty() -> io.candy.tick.ui.common.StatusPage(
             icon = ImageVector.vectorResource(R.drawable.ic_file),
             title = stringResource(R.string.detail_no_releases),
-            modifier = Modifier
-                .fillMaxWidth()
-                .height(320.dp),
+            modifier = pageModifier.fillMaxWidth(),
         )
         // 到底且有内容：终点提示（与 CommitFooter 对称，替代原先挂在 Screen 层的外置 if）
         else -> io.candy.tick.ui.common.FooterText(text = stringResource(R.string.list_end))
@@ -261,42 +262,22 @@ private fun ReleaseCard(
                                 }
                         }
                         Spacer(Modifier.height(6.dp))
-                        // 尾部跳转：GitHub 该 release 页——与 Token 帮助链接同款（图标+下划线+薄荷）
+                        // 尾部跳转：GitHub 该 release 页（全局文字链组件：图标+下划线+薄荷）
                         val ctx = androidx.compose.ui.platform.LocalContext.current
-                        androidx.compose.foundation.layout.Row(
-                            verticalAlignment = Alignment.CenterVertically,
-                            modifier = Modifier.padding(vertical = 4.dp),
-                        ) {
-                            Icon(
-                                imageVector = ImageVector.vectorResource(R.drawable.ic_external_link),
-                                contentDescription = null,
-                                tint = scheme.primaryVariant,
-                                modifier = Modifier.size(13.dp),
-                            )
-                            Spacer(Modifier.width(4.dp))
-                            Text(
-                                text = stringResource(R.string.release_view_on_github),
-                                style = MiuixTheme.textStyles.footnote1.copy(
-                                    textDecoration = androidx.compose.ui.text.style.TextDecoration.Underline,
-                                ),
-                                color = scheme.primaryVariant,
-                                modifier = Modifier
-                                    .clickable(
-                                        interactionSource = remember { androidx.compose.foundation.interaction.MutableInteractionSource() },
-                                        indication = null,
-                                    ) {
-                                        runCatching {
-                                            ctx.startActivity(
-                                                android.content.Intent(
-                                                    android.content.Intent.ACTION_VIEW,
-                                                    android.net.Uri.parse("$htmlBase/releases/tag/${release.tagName}"),
-                                                ),
-                                            )
-                                        }
-                                    }
-                                    .padding(vertical = 2.dp),
-                            )
-                        }
+                        io.candy.tick.ui.common.LinkText(
+                            text = stringResource(R.string.release_view_on_github),
+                            onClick = {
+                                runCatching {
+                                    ctx.startActivity(
+                                        android.content.Intent(
+                                            android.content.Intent.ACTION_VIEW,
+                                            android.net.Uri.parse("$htmlBase/releases/tag/${release.tagName}"),
+                                        ),
+                                    )
+                                }
+                            },
+                            showIcon = true,
+                        )
                     }
                 }
             }
