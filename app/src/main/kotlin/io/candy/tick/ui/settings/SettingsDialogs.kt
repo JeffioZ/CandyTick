@@ -35,7 +35,6 @@ import top.yukonga.miuix.kmp.basic.Icon
 import top.yukonga.miuix.kmp.basic.LinearProgressIndicator
 import top.yukonga.miuix.kmp.basic.Text
 import top.yukonga.miuix.kmp.basic.TextField
-import top.yukonga.miuix.kmp.basic.IconButton
 import top.yukonga.miuix.kmp.theme.MiuixTheme
 import androidx.compose.ui.res.vectorResource
 import androidx.compose.ui.graphics.vector.ImageVector
@@ -290,12 +289,15 @@ internal fun TokenDialog(
                     keyboardType = androidx.compose.ui.text.input.KeyboardType.Password,
                 ),
                 trailingIcon = {
-                    top.yukonga.miuix.kmp.basic.IconButton(onClick = onToggleVisible) {
+                    io.candy.tick.ui.common.PressIconButton(
+                        onClick = onToggleVisible,
+                        contentDescription = stringResource(
+                            if (tokenVisible) R.string.token_hide else R.string.token_show,
+                        ),
+                    ) {
                         Icon(
                             imageVector = if (tokenVisible) ImageVector.vectorResource(R.drawable.ic_hide) else ImageVector.vectorResource(R.drawable.ic_show),
-                            contentDescription = stringResource(
-                                if (tokenVisible) R.string.token_hide else R.string.token_show,
-                            ),
+                            contentDescription = null,
                             tint = scheme.onBackgroundVariant,
                         )
                     }

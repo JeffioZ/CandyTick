@@ -42,7 +42,6 @@ import io.candy.tick.data.SourceError
 import io.candy.tick.ui.common.SecondaryButton
 import io.candy.tick.ui.common.sourceErrorText
 import top.yukonga.miuix.kmp.basic.Icon
-import top.yukonga.miuix.kmp.basic.IconButton
 import top.yukonga.miuix.kmp.basic.MiuixScrollBehavior
 import top.yukonga.miuix.kmp.basic.PullToRefresh
 import top.yukonga.miuix.kmp.basic.Scaffold
@@ -208,19 +207,27 @@ fun ListScreen(
                                 androidx.compose.animation.core.tween(150),
                             ),
                         ) {
-                            IconButton(onClick = vm::collapseAll) {
+                            io.candy.tick.ui.common.PressIconButton(
+                                onClick = vm::collapseAll,
+                                contentDescription = stringResource(R.string.collapse_all),
+                            ) {
                                 Icon(
                                     imageVector = ImageVector.vectorResource(R.drawable.ic_collapse_all),
-                                    contentDescription = stringResource(R.string.collapse_all),
+                                    contentDescription = null,
                                     tint = scheme.onBackground,
                                     modifier = Modifier.size(24.dp), // 顶栏动作图标统一 24dp
                                 )
                             }
                         }
-                        IconButton(onClick = {
-                            if (showSearch) vm.setQuery("")
-                            showSearch = !showSearch
-                        }) {
+                        io.candy.tick.ui.common.PressIconButton(
+                            onClick = {
+                                if (showSearch) vm.setQuery("")
+                                showSearch = !showSearch
+                            },
+                            contentDescription = stringResource(
+                                if (showSearch) R.string.close_search else R.string.action_search,
+                            ),
+                        ) {
                             // 激活态换关闭图标：点一下能收起是可发现的
                             Icon(
                                 imageVector = if (showSearch) {
@@ -228,33 +235,40 @@ fun ListScreen(
                                 } else {
                                     ImageVector.vectorResource(R.drawable.ic_search)
                                 },
-                                contentDescription = stringResource(
-                                    if (showSearch) R.string.close_search else R.string.action_search,
-                                ),
+                                contentDescription = null,
                                 tint = scheme.onBackground,
                                 modifier = Modifier.size(24.dp), // 顶栏动作图标统一 24dp
                             )
                         }
-                        IconButton(onClick = { showSortSheet = true }) {
+                        io.candy.tick.ui.common.PressIconButton(
+                            onClick = { showSortSheet = true },
+                            contentDescription = stringResource(R.string.sort_title),
+                        ) {
                             Icon(
                                 imageVector = ImageVector.vectorResource(R.drawable.ic_sort),
-                                contentDescription = stringResource(R.string.sort_title),
+                                contentDescription = null,
                                 tint = scheme.onBackground,
                                 modifier = Modifier.size(24.dp), // 顶栏动作图标统一 24dp
                             )
                         }
-                        IconButton(onClick = onOpenSettings) {
+                        io.candy.tick.ui.common.PressIconButton(
+                            onClick = onOpenSettings,
+                            contentDescription = stringResource(R.string.settings_title),
+                        ) {
                             Icon(
                                 imageVector = ImageVector.vectorResource(R.drawable.ic_settings),
-                                contentDescription = stringResource(R.string.settings_title),
+                                contentDescription = null,
                                 tint = scheme.onBackground,
                             )
                         }
                         // 主操作：添加仓库（顶栏最右，替代 FAB）
-                        IconButton(onClick = onAdd) {
+                        io.candy.tick.ui.common.PressIconButton(
+                            onClick = onAdd,
+                            contentDescription = stringResource(R.string.add_repo),
+                        ) {
                             Icon(
                                 imageVector = ImageVector.vectorResource(R.drawable.ic_add),
-                                contentDescription = stringResource(R.string.add_repo),
+                                contentDescription = null,
                                 tint = scheme.primaryVariant,
                             )
                         }
@@ -531,8 +545,14 @@ private fun SyncDots(running: Boolean, done: SyncStatus.Done?, modifier: Modifie
         }
         androidx.compose.animation.AnimatedVisibility(
             visible = dotsVisible,
-            enter = androidx.compose.animation.fadeIn(),
-            exit = androidx.compose.animation.fadeOut(),
+            // 150 微反馈档显式 spec：默认参数是 spring(StiffnessMediumLow)——
+            // 与同组件结果符（tween 150）一处两制；对齐后波点与结果符同节奏
+            enter = androidx.compose.animation.fadeIn(
+                androidx.compose.animation.core.tween(150),
+            ),
+            exit = androidx.compose.animation.fadeOut(
+                androidx.compose.animation.core.tween(150),
+            ),
         ) {
             // 复用公共组件（同一波浪语义）；结果出现时淡出
             androidx.compose.foundation.layout.Box(

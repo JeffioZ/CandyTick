@@ -45,7 +45,6 @@ import io.candy.tick.ui.common.toImageBitmap
 import kotlinx.coroutines.flow.collect
 import top.yukonga.miuix.kmp.basic.Card
 import top.yukonga.miuix.kmp.basic.Icon
-import top.yukonga.miuix.kmp.basic.IconButton
 import top.yukonga.miuix.kmp.basic.Scaffold
 import top.yukonga.miuix.kmp.basic.SmallTopAppBar
 import top.yukonga.miuix.kmp.basic.Text
@@ -96,11 +95,14 @@ fun AddScreen(
                 color = androidx.compose.ui.graphics.Color.Transparent,
                 title = stringResource(R.string.add_repo),
                 navigationIcon = {
-                    IconButton(onClick = onClose) {
+                    io.candy.tick.ui.common.PressIconButton(
+                        onClick = onClose,
+                        // 图标旁无文字的控件必须有可访问名称（icon-button a11y）
+                        contentDescription = stringResource(R.string.back),
+                    ) {
                         Icon(
                             imageVector = ImageVector.vectorResource(R.drawable.ic_back),
-                            // 图标旁无文字的控件必须有可访问名称（icon-button a11y）
-                            contentDescription = stringResource(R.string.back),
+                            contentDescription = null,
                             tint = MiuixTheme.colorScheme.onBackground,
                         )
                     }
@@ -127,10 +129,13 @@ fun AddScreen(
                 // 非空清空钮：粘贴长链接后想换目标，逐字删除太苦
                 trailingIcon = if (state.input.isNotEmpty()) {
                     {
-                        IconButton(onClick = { vm.onInput("") }) {
+                        io.candy.tick.ui.common.PressIconButton(
+                            onClick = { vm.onInput("") },
+                            contentDescription = stringResource(R.string.clear_input),
+                        ) {
                             Icon(
                                 imageVector = ImageVector.vectorResource(R.drawable.ic_close),
-                                contentDescription = stringResource(R.string.clear_input),
+                                contentDescription = null,
                                 tint = MiuixTheme.colorScheme.onBackgroundVariant,
                             )
                         }
@@ -318,7 +323,8 @@ fun AddScreen(
                             .verticalScroll(rememberScrollState()),
                     ) {
                         // 浮层内三态（骨架/卡/错误）柔切换；Loaded 不再叠出现动画
-                        // （浮层自身 fade+slide 已承担进场，双层叠加反而迟滞）
+                        // （浮层自身 fade+slide 已承担进场，双层叠加反而迟滞）；
+                        // SizeTransform 显式 180：三态高度不同，默认 spring 是尺寸暗桩
                         androidx.compose.animation.AnimatedContent(
                             targetState = when (val p = state.preview) {
                                 is AddViewModel.PreviewState.Loaded -> p.info.githubId
@@ -326,8 +332,13 @@ fun AddScreen(
                                 else -> -1L
                             },
                             transitionSpec = {
-                                (androidx.compose.animation.fadeIn(androidx.compose.animation.core.tween(180))) togetherWith
-                                    (androidx.compose.animation.fadeOut(androidx.compose.animation.core.tween(180)))
+                                ((androidx.compose.animation.fadeIn(androidx.compose.animation.core.tween(180))) togetherWith
+                                    (androidx.compose.animation.fadeOut(androidx.compose.animation.core.tween(180))))
+                                    .using(
+                                        androidx.compose.animation.SizeTransform(clip = false) { _, _ ->
+                                            androidx.compose.animation.core.tween(180)
+                                        },
+                                    )
                             },
                             label = "previewPhase",
                         ) { _ ->
@@ -555,13 +566,14 @@ private fun PreviewCard(
                         color = scheme.onBackgroundVariant,
                         modifier = Modifier.weight(1f),
                     )
-                    top.yukonga.miuix.kmp.basic.IconButton(
+                    io.candy.tick.ui.common.PressIconButton(
                         onClick = onLinkApp,
-                        modifier = Modifier.size(44.dp),
+                        contentDescription = stringResource(R.string.detail_link_change),
+                        size = 44.dp, // 行内紧凑档：与详情页 linked 态动作钮同规格
                     ) {
                         Icon(
                             imageVector = ImageVector.vectorResource(R.drawable.ic_link),
-                            contentDescription = stringResource(R.string.detail_link_change),
+                            contentDescription = null,
                             tint = scheme.onBackgroundVariant,
                             modifier = Modifier.size(14.dp),
                         )
@@ -609,12 +621,18 @@ private fun PreviewCard(
 
             Spacer(Modifier.height(8.dp))
             // 主按钮单开关（180 柔切换）：重复订阅 =「打开已订阅的仓库」——
-            // 按钮文案自含状态语义（此前红条+按钮三层堆叠，与 CTA 胶囊挤在一起）
+            // 按钮文案自含状态语义（此前红条+按钮三层堆叠，与 CTA 胶囊挤在一起）；
+            // SizeTransform 显式 180：默认 spring 是尺寸动画暗桩（与 fade 同拍收敛）
             androidx.compose.animation.AnimatedContent(
                 targetState = state.duplicate,
                 transitionSpec = {
-                    (androidx.compose.animation.fadeIn(androidx.compose.animation.core.tween(180))) togetherWith
-                        (androidx.compose.animation.fadeOut(androidx.compose.animation.core.tween(180)))
+                    ((androidx.compose.animation.fadeIn(androidx.compose.animation.core.tween(180))) togetherWith
+                        (androidx.compose.animation.fadeOut(androidx.compose.animation.core.tween(180))))
+                        .using(
+                            androidx.compose.animation.SizeTransform(clip = false) { _, _ ->
+                                androidx.compose.animation.core.tween(180)
+                            },
+                        )
                 },
                 label = "addPrimary",
             ) { dup ->

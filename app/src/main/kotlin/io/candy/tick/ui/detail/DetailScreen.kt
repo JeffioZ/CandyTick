@@ -41,7 +41,6 @@ import io.candy.tick.data.InstallManager
 import kotlinx.coroutines.launch
 import top.yukonga.miuix.kmp.basic.Card
 import top.yukonga.miuix.kmp.basic.Icon
-import top.yukonga.miuix.kmp.basic.IconButton
 import top.yukonga.miuix.kmp.basic.MiuixScrollBehavior
 import top.yukonga.miuix.kmp.basic.PullToRefresh
 import top.yukonga.miuix.kmp.basic.Scaffold
@@ -125,11 +124,14 @@ fun DetailScreen(repoId: Long, onBack: () -> Unit) {
                         androidx.compose.foundation.layout.Row(
                             verticalAlignment = Alignment.CenterVertically,
                         ) {
-                            IconButton(onClick = onBack) {
+                            io.candy.tick.ui.common.PressIconButton(
+                                onClick = onBack,
+                                // 图标旁无文字的控件必须有可访问名称（icon-button a11y）
+                                contentDescription = stringResource(R.string.back),
+                            ) {
                                 Icon(
                                     imageVector = ImageVector.vectorResource(R.drawable.ic_back),
-                                    // 图标旁无文字的控件必须有可访问名称（icon-button a11y）
-                                    contentDescription = stringResource(R.string.back),
+                                    contentDescription = null,
                                     tint = scheme.onBackground,
                                 )
                             }
@@ -153,11 +155,11 @@ fun DetailScreen(repoId: Long, onBack: () -> Unit) {
                     },
                     actions = {
                         // 浏览器打开仓库（安卓规范：顶栏动作图标）
-                        IconButton(
+                        io.candy.tick.ui.common.PressIconButton(
                             onClick = {
                                 val url = state.snapshot?.htmlUrl ?: repo?.let {
                                     "https://github.com/${it.owner}/${it.repo}"
-                                } ?: return@IconButton
+                                } ?: return@PressIconButton
                                 runCatching {
                                     context.startActivity(
                                         android.content.Intent(android.content.Intent.ACTION_VIEW, android.net.Uri.parse(url))
@@ -165,10 +167,11 @@ fun DetailScreen(repoId: Long, onBack: () -> Unit) {
                                     )
                                 }
                             },
+                            contentDescription = stringResource(R.string.open_in_browser),
                         ) {
                             Icon(
                                 imageVector = ImageVector.vectorResource(R.drawable.ic_external_link),
-                                contentDescription = stringResource(R.string.open_in_browser),
+                                contentDescription = null,
                                 tint = scheme.onBackground,
                             )
                         }
@@ -187,22 +190,28 @@ fun DetailScreen(repoId: Long, onBack: () -> Unit) {
                                 animationSpec = androidx.compose.animation.core.tween(180),
                             ),
                         ) {
-                            IconButton(onClick = {
-                                showBranchSheet = true
-                                vm.loadBranches()
-                            }) {
-                            Icon(
-                                imageVector = ImageVector.vectorResource(R.drawable.ic_git_branch),
+                            io.candy.tick.ui.common.PressIconButton(
+                                onClick = {
+                                    showBranchSheet = true
+                                    vm.loadBranches()
+                                },
                                 contentDescription = stringResource(R.string.branch_picker_title),
+                            ) {
+                                Icon(
+                                    imageVector = ImageVector.vectorResource(R.drawable.ic_git_branch),
+                                    contentDescription = null,
                                     tint = scheme.onBackground,
                                 )
                             }
                         }
                         // 移除订阅（destructive → 确认对话框；底部文字按钮已移除）
-                        IconButton(onClick = { showRemoveDialog = true }) {
+                        io.candy.tick.ui.common.PressIconButton(
+                            onClick = { showRemoveDialog = true },
+                            contentDescription = stringResource(R.string.detail_remove_repo),
+                        ) {
                             Icon(
                                 imageVector = ImageVector.vectorResource(R.drawable.ic_delete),
-                                contentDescription = stringResource(R.string.detail_remove_repo),
+                                contentDescription = null,
                                 tint = scheme.onBackground,
                             )
                         }

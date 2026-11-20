@@ -49,7 +49,6 @@ import io.candy.tick.data.model.statusAt
 import top.yukonga.miuix.kmp.basic.BasicComponent
 import top.yukonga.miuix.kmp.basic.Card
 import top.yukonga.miuix.kmp.basic.Icon
-import top.yukonga.miuix.kmp.basic.IconButton
 import top.yukonga.miuix.kmp.basic.Text
 import top.yukonga.miuix.kmp.theme.MiuixTheme
 import androidx.compose.ui.res.vectorResource
@@ -100,7 +99,9 @@ internal fun BranchPickerSheet(
             modifier = Modifier
                 .fillMaxWidth()
                 .heightIn(max = maxSheetHeight)
-                .animateContentSize(),
+                // 220 表层档显式 spec：默认 spring 时长不受六档体系控制（自家原则：
+                // 「默认 spring 不可控且在体系外」）；缩放=0 时 tween 瞬时完成自动退化
+                .animateContentSize(androidx.compose.animation.core.tween(220)),
         ) {
             if (state.branches.size > 15) {
                 top.yukonga.miuix.kmp.basic.TextField(
@@ -117,10 +118,13 @@ internal fun BranchPickerSheet(
                     ),
                     trailingIcon = if (query.isNotEmpty()) {
                         {
-                            top.yukonga.miuix.kmp.basic.IconButton(onClick = { query = "" }) {
+                            io.candy.tick.ui.common.PressIconButton(
+                                onClick = { query = "" },
+                                contentDescription = stringResource(R.string.clear_input),
+                            ) {
                                 Icon(
                                     imageVector = ImageVector.vectorResource(R.drawable.ic_close),
-                                    contentDescription = stringResource(R.string.clear_input),
+                                    contentDescription = null,
                                     tint = MiuixTheme.colorScheme.onBackgroundVariant,
                                 )
                             }
@@ -354,11 +358,18 @@ internal fun HeaderCard(
                     androidx.compose.animation.AnimatedContent(
                         targetState = updatePhase,
                         transitionSpec = {
-                            (androidx.compose.animation.fadeIn(androidx.compose.animation.core.tween(180)) +
+                            ((androidx.compose.animation.fadeIn(androidx.compose.animation.core.tween(180)) +
                                 androidx.compose.animation.slideInVertically(
                                     animationSpec = androidx.compose.animation.core.tween(180),
                                 ) { it / 6 }) togetherWith
-                                androidx.compose.animation.fadeOut(androidx.compose.animation.core.tween(180))
+                                androidx.compose.animation.fadeOut(androidx.compose.animation.core.tween(180)))
+                                // 尺寸动画显式 180 同拍：AnimatedContent 默认 SizeTransform 是
+                                // spring 暗桩，与外挂尺寸动画双层打架=切相卡顿根源（单源化）
+                                .using(
+                                    androidx.compose.animation.SizeTransform(clip = false) { _, _ ->
+                                        androidx.compose.animation.core.tween(180)
+                                    },
+                                )
                         },
                         label = "updatePhase",
                     ) { phase ->
@@ -394,6 +405,8 @@ internal fun HeaderCard(
                                     overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis,
                                 )
                                 Spacer(Modifier.width(8.dp))
+                                // 重试链按压多态：8dp 圆角染色（可点信号，与全 App 反馈语言同源）
+                                val (retrySrc, retryTint) = io.candy.tick.ui.common.rememberRowPressTint()
                                 Text(
                                     text = stringResource(R.string.retry),
                                     style = MiuixTheme.textStyles.footnote1.copy(
@@ -401,8 +414,10 @@ internal fun HeaderCard(
                                     ),
                                     color = scheme.onErrorContainer,
                                     modifier = Modifier
+                                        .clip(RoundedCornerShape(8.dp))
+                                        .background(retryTint, RoundedCornerShape(8.dp))
                                         .clickable(
-                                            interactionSource = remember { androidx.compose.foundation.interaction.MutableInteractionSource() },
+                                            interactionSource = retrySrc,
                                             indication = null,
                                             onClick = onDownloadUpdate,
                                         )
@@ -427,14 +442,17 @@ internal fun HeaderCard(
                                         color = scheme.onBackgroundVariant,
                                         modifier = Modifier.weight(1f),
                                     )
-                                    // 取消（与 ReleaseCard 进度同款文字链）
+                                    // 取消（与 ReleaseCard 进度同款文字链；按压染色多态）
+                                    val (cancelSrc, cancelTint) = io.candy.tick.ui.common.rememberRowPressTint()
                                     Text(
                                         text = stringResource(R.string.cancel),
                                         style = MiuixTheme.textStyles.footnote1,
                                         color = scheme.primaryVariant,
                                         modifier = Modifier
+                                            .clip(RoundedCornerShape(8.dp))
+                                            .background(cancelTint, RoundedCornerShape(8.dp))
                                             .clickable(
-                                                interactionSource = remember { androidx.compose.foundation.interaction.MutableInteractionSource() },
+                                                interactionSource = cancelSrc,
                                                 indication = null,
                                                 onClick = onCancelDownload,
                                             )
@@ -474,11 +492,16 @@ internal fun HeaderCard(
                     else -> "none"
                 },
                 transitionSpec = {
-                    (androidx.compose.animation.fadeIn(androidx.compose.animation.core.tween(180)) +
+                    ((androidx.compose.animation.fadeIn(androidx.compose.animation.core.tween(180)) +
                         androidx.compose.animation.slideInVertically(
                             animationSpec = androidx.compose.animation.core.tween(180),
                         ) { it / 8 }) togetherWith
-                        androidx.compose.animation.fadeOut(androidx.compose.animation.core.tween(180))
+                        androidx.compose.animation.fadeOut(androidx.compose.animation.core.tween(180)))
+                        .using(
+                            androidx.compose.animation.SizeTransform(clip = false) { _, _ ->
+                                androidx.compose.animation.core.tween(180)
+                            },
+                        )
                 },
                 label = "linkPhase",
             ) { phase ->
@@ -496,29 +519,30 @@ internal fun HeaderCard(
                         color = scheme.onBackgroundVariant,
                         modifier = Modifier.weight(1f),
                     )
-                    // 动作图标对：44dp 触控（HyperOS 触控下限；Material 指引 48dp）——
-                    // 此前 32dp 低于两档下限，且按钮是行内唯一入口；默认 48 会把行撑得过高，
-                    // 44 折中：行高 +12dp 可接受，图标仍 14dp 与 footnote 协调
-                    IconButton(
+                    // 动作图标对：44dp 行内紧凑档（Miuix IconButton 无按压多态，
+                    // 换 PressIconButton 圆形染色反馈；图标 14dp 与 footnote 协调）
+                    io.candy.tick.ui.common.PressIconButton(
                         onClick = onChangeLinked,
-                        modifier = Modifier.size(44.dp),
+                        contentDescription = stringResource(R.string.detail_link_change),
+                        size = 44.dp,
                     ) {
                         Icon(
                             // Link 锁链 =「关联」本命语义（换关联 = 重新建链）
                             imageVector = ImageVector.vectorResource(R.drawable.ic_link),
-                            contentDescription = stringResource(R.string.detail_link_change),
+                            contentDescription = null,
                             tint = scheme.onBackgroundVariant,
                             modifier = Modifier.size(14.dp),
                         )
                     }
-                    IconButton(
+                    io.candy.tick.ui.common.PressIconButton(
                         onClick = onUnlink,
-                        modifier = Modifier.size(44.dp),
+                        contentDescription = stringResource(R.string.detail_unlink),
+                        size = 44.dp,
                     ) {
                         Icon(
                             // unlink 断链 = 解除关联（minus 减号不表意）
                             imageVector = ImageVector.vectorResource(R.drawable.ic_unlink),
-                            contentDescription = stringResource(R.string.detail_unlink),
+                            contentDescription = null,
                             tint = scheme.onBackgroundVariant,
                             modifier = Modifier.size(14.dp),
                         )
@@ -560,14 +584,15 @@ internal fun HeaderCard(
                         modifier = Modifier.size(18.dp),
                     )
                     Spacer(Modifier.width(6.dp))
-                    // 「其他应用」入口：44dp/14dp——与 linked 态动作钮同规格（触控下限）
-                    IconButton(
+                    // 「其他应用」入口：44dp/14dp——与 linked 态动作钮同规格
+                    io.candy.tick.ui.common.PressIconButton(
                         onClick = onChangeLinked,
-                        modifier = Modifier.size(44.dp),
+                        contentDescription = stringResource(R.string.detail_link_app_other),
+                        size = 44.dp,
                     ) {
                         Icon(
                             imageVector = ImageVector.vectorResource(R.drawable.ic_more),
-                            contentDescription = stringResource(R.string.detail_link_app_other),
+                            contentDescription = null,
                             tint = scheme.onBackgroundVariant,
                             modifier = Modifier.size(14.dp),
                         )

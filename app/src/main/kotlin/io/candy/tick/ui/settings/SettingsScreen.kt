@@ -47,7 +47,6 @@ import io.candy.tick.ui.theme.ChipSlate
 import io.candy.tick.ui.theme.ChipTeal
 import io.candy.tick.ui.theme.ChipViolet
 import top.yukonga.miuix.kmp.basic.Icon
-import top.yukonga.miuix.kmp.basic.IconButton
 import top.yukonga.miuix.kmp.basic.Scaffold
 import top.yukonga.miuix.kmp.basic.SmallTopAppBar
 import top.yukonga.miuix.kmp.theme.MiuixTheme
@@ -192,11 +191,14 @@ fun SettingsScreen(onBack: () -> Unit) {
                 title = stringResource(R.string.settings_title),
                 color = androidx.compose.ui.graphics.Color.Transparent,
                 navigationIcon = {
-                    IconButton(onClick = onBack) {
+                    io.candy.tick.ui.common.PressIconButton(
+                        onClick = onBack,
+                        // 图标旁无文字的控件必须有可访问名称（icon-button a11y）
+                        contentDescription = stringResource(R.string.back),
+                    ) {
                         Icon(
                             imageVector = ImageVector.vectorResource(R.drawable.ic_back),
-                            // 图标旁无文字的控件必须有可访问名称（icon-button a11y）
-                            contentDescription = stringResource(R.string.back),
+                            contentDescription = null,
                             tint = scheme.onBackground,
                         )
                     }

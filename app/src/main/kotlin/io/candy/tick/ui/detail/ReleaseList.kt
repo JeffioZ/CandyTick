@@ -3,7 +3,6 @@ package io.candy.tick.ui.detail
 import android.os.Build
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
-import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -323,16 +322,22 @@ private fun ReleaseCard(
                     mine && dl is DetailViewModel.DownloadState.Failed -> "failed"
                     else -> "download"
                 }
-                // 容器尺寸渐变：消除 downloaded→download 行宽突变（AnimatedContent 交叉淡出不动画尺寸）
+                // 容器尺寸单源化：外挂 animateContentSize 与 AnimatedContent 内置默认 spring
+                // SizeTransform 双层打架 = 切相卡顿根源（取消时高度变化发闷）；收敛为显式
+                // SizeTransform 180 与 fade 同拍；clip=false 容许过渡期两相叠影，由 fade 收尾
                 androidx.compose.animation.AnimatedContent(
                     targetState = actionPhase,
-                    modifier = Modifier.animateContentSize(),
                     transitionSpec = {
-                        (androidx.compose.animation.fadeIn(androidx.compose.animation.core.tween(180)) +
+                        ((androidx.compose.animation.fadeIn(androidx.compose.animation.core.tween(180)) +
                             androidx.compose.animation.slideInVertically(
                                 animationSpec = androidx.compose.animation.core.tween(180),
                             ) { it / 6 }) togetherWith
-                            androidx.compose.animation.fadeOut(androidx.compose.animation.core.tween(180))
+                            androidx.compose.animation.fadeOut(androidx.compose.animation.core.tween(180)))
+                            .using(
+                                androidx.compose.animation.SizeTransform(clip = false) { _, _ ->
+                                    androidx.compose.animation.core.tween(180)
+                                },
+                            )
                     },
                     label = "releaseAction",
                 ) { phase ->
@@ -349,15 +354,16 @@ private fun ReleaseCard(
                                     modifier = Modifier.fillMaxWidth(),
                                 )
                             }
-                            // 44dp/16dp：触控下限（HyperOS 档），与并排主按钮高度更匹配；
+                            // 48dp 圆形染色反馈：Miuix IconButton 无按压多态、44dp 实机偏难点
+                            // （用户反馈「按两次才按到」→升 48 并加按压多态）；
                             // 红色保留——删除已下载安装包是破坏性动作（destructive-emphasis）
-                            top.yukonga.miuix.kmp.basic.IconButton(
+                            io.candy.tick.ui.common.PressIconButton(
                                 onClick = onDeleteDownloaded,
-                                modifier = Modifier.size(44.dp),
+                                contentDescription = stringResource(R.string.detail_delete_download),
                             ) {
                                 top.yukonga.miuix.kmp.basic.Icon(
                                     imageVector = ImageVector.vectorResource(R.drawable.ic_delete),
-                                    contentDescription = stringResource(R.string.detail_delete_download),
+                                    contentDescription = null,
                                     tint = scheme.onErrorContainer,
                                     modifier = Modifier.size(16.dp),
                                 )
@@ -390,14 +396,18 @@ private fun ReleaseCard(
                                     color = scheme.onBackgroundVariant,
                                     modifier = Modifier.weight(1f),
                                 )
-                                // 取消：文字链而非 X 图标（「取消」语义直白；点击后回「下载」相即反馈）
+                                // 取消：文字链而非 X 图标（「取消」语义直白；点击后回「下载」相即反馈）；
+                                // 按压染色多态
+                                val (cancelSrc, cancelTint) = io.candy.tick.ui.common.rememberRowPressTint()
                                 Text(
                                     text = stringResource(R.string.cancel),
                                     style = MiuixTheme.textStyles.footnote1,
                                     color = scheme.primaryVariant,
                                     modifier = Modifier
+                                        .clip(RoundedCornerShape(8.dp))
+                                        .background(cancelTint, RoundedCornerShape(8.dp))
                                         .clickable(
-                                            interactionSource = remember { MutableInteractionSource() },
+                                            interactionSource = cancelSrc,
                                             indication = null,
                                             onClick = onCancelDownload,
                                         )
@@ -440,7 +450,8 @@ private fun ReleaseCard(
                                 modifier = Modifier.weight(1f),
                             )
                             Spacer(Modifier.width(8.dp))
-                            // 重试链：下划线表可点（红底上保持条内单色）
+                            // 重试链：下划线表可点（红底上保持条内单色）；按压染色多态
+                            val (retrySrc, retryTint) = io.candy.tick.ui.common.rememberRowPressTint()
                             Text(
                                 text = stringResource(R.string.retry),
                                 style = MiuixTheme.textStyles.footnote1.copy(
@@ -448,8 +459,10 @@ private fun ReleaseCard(
                                 ),
                                 color = scheme.onErrorContainer,
                                 modifier = Modifier
+                                    .clip(RoundedCornerShape(8.dp))
+                                    .background(retryTint, RoundedCornerShape(8.dp))
                                     .clickable(
-                                        interactionSource = remember { MutableInteractionSource() },
+                                        interactionSource = retrySrc,
                                         indication = null,
                                         onClick = { selected?.let { onRetry(release, it) } },
                                     )
@@ -492,6 +505,8 @@ private fun AssetRow(
     onSelect: () -> Unit,
 ) {
     val scheme = MiuixTheme.colorScheme
+    // 按压染色多态（全行热区；圈/勾选中动画另由 radioTint/nameColor 承担）
+    val (pressSrc, pressColor) = io.candy.tick.ui.common.rememberRowPressTint()
     Row(
         modifier = Modifier
             .fillMaxWidth()
@@ -501,8 +516,10 @@ private fun AssetRow(
                 role = Role.RadioButton
                 this.selected = selected
             }
+            .clip(RoundedCornerShape(10.dp))
+            .background(pressColor, RoundedCornerShape(10.dp))
             .clickable(
-                interactionSource = remember { MutableInteractionSource() },
+                interactionSource = pressSrc,
                 indication = null,
                 onClick = onSelect,
             )

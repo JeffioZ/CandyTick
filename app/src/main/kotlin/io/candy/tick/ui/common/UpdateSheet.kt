@@ -106,11 +106,17 @@ fun UpdateSheet(
                 targetState = phase,
                 modifier = Modifier.fillMaxWidth(),
                 transitionSpec = {
-                    (androidx.compose.animation.fadeIn(androidx.compose.animation.core.tween(180)) +
+                    ((androidx.compose.animation.fadeIn(androidx.compose.animation.core.tween(180)) +
                         androidx.compose.animation.slideInVertically(
                             animationSpec = androidx.compose.animation.core.tween(180),
                         ) { it / 6 }) togetherWith
-                        androidx.compose.animation.fadeOut(androidx.compose.animation.core.tween(180))
+                        androidx.compose.animation.fadeOut(androidx.compose.animation.core.tween(180)))
+                        // 尺寸动画显式 180 同拍（默认 SizeTransform 是 spring 暗桩）
+                        .using(
+                            androidx.compose.animation.SizeTransform(clip = false) { _, _ ->
+                                androidx.compose.animation.core.tween(180)
+                            },
+                        )
                 },
                 label = "updatePhase",
             ) { ph ->

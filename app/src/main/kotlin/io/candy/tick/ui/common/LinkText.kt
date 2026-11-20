@@ -1,7 +1,7 @@
 package io.candy.tick.ui.common
 
+import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
-import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.padding
@@ -35,12 +35,15 @@ fun LinkText(
     modifier: Modifier = Modifier,
     showIcon: Boolean = false,
 ) {
+    // 按压染色多态：与信息行/图标钮同一反馈语言（自绘 clickable 原本零反馈）
+    val (pressSrc, pressColor) = rememberRowPressTint()
     Row(
         verticalAlignment = Alignment.CenterVertically,
         modifier = modifier
             .clip(RoundedCornerShape(10.dp))
+            .background(pressColor, RoundedCornerShape(10.dp))
             .clickable(
-                interactionSource = remember { MutableInteractionSource() },
+                interactionSource = pressSrc,
                 indication = null,
                 onClick = onClick,
             )
