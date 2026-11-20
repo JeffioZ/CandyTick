@@ -54,6 +54,8 @@ class SelfUpdater(
         if (installed) {
             updateDir.listFiles()?.forEach { it.delete() }
             _state.value = State.Idle
+            // 自更新装完同样撤「下载完成」通知（与仓库通知同一类陈旧问题）
+            Notifications.cancelSelfUpdateReady(context)
         }
     }
 

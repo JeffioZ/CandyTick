@@ -87,6 +87,14 @@ class SyncWorker(context: Context, params: WorkerParameters) : CoroutineWorker(c
         if (tagChanged.get() >= 2 && settings.notificationsEnabled) {
             Notifications.notifyRepoUpdatesSummary(applicationContext, tagChanged.get())
         }
+        // 通知对账：装完新版的仓库撤下过期通知（纯本地判定，autoCancel 只在点击时生效）
+        runCatching {
+            Notifications.reconcileRepoNotifications(
+                context = applicationContext,
+                repos = state.repos,
+                tags = container.appStateStore.state.value.snapshots.mapValues { it.value.latestReleaseTag },
+            )
+        }
 
         // 3) 结果：有更新数与首页圆点同口径（SnapshotDiff 共享判定）
         val after = container.appStateStore.state.value.snapshots

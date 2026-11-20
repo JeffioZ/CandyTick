@@ -61,6 +61,16 @@ class CandyTickApp : Application() {
                             container.appStateStore.state.value.settings,
                         )
                     }
+                    // 通知对账（纯本地 PM 读取，不走网络，不受仅 Wi-Fi 开关限制）：
+                    // 不点通知直接进 App 装完新版的仓库，回到前台即撤下过期通知
+                    runCatching {
+                        val st = container.appStateStore.state.value
+                        io.candy.tick.data.Notifications.reconcileRepoNotifications(
+                            this@CandyTickApp,
+                            st.repos,
+                            st.snapshots.mapValues { it.value.latestReleaseTag },
+                        )
+                    }
                 }
             }
 

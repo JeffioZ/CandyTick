@@ -13,6 +13,9 @@ import androidx.core.app.NotificationManagerCompat
 import androidx.core.content.ContextCompat
 import io.candy.tick.MainActivity
 import io.candy.tick.R
+import io.candy.tick.data.model.TrackedRepo
+import io.candy.tick.ui.common.localVersionName
+import io.candy.tick.util.VersionCompare
 
 /** 通知封装：渠道两枚；13+ 运行时权限检查（被拒 → 设置页常驻提醒，不反复弹窗） */
 object Notifications {
@@ -22,6 +25,7 @@ object Notifications {
 
     private const val GROUP_REPO_UPDATES = "repo_updates" // 多仓库同轮发版折叠为一组
     private const val SUMMARY_ID = 1001 // 组摘要固定 id：每轮覆盖更新
+    private const val SELF_UPDATE_ID = 4242 // 自更新就绪通知固定 id
 
     fun ensureChannels(context: Context) {
         if (Build.VERSION.SDK_INT < 26) return
@@ -114,7 +118,7 @@ object Notifications {
             .putExtra(EXTRA_NAV_SETTINGS, true)
         val pending = PendingIntent.getActivity(
             context,
-            4242,
+            SELF_UPDATE_ID,
             intent,
             PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE,
         )
@@ -126,7 +130,53 @@ object Notifications {
             .setAutoCancel(true)
             .build()
         runCatching {
-            NotificationManagerCompat.from(context).notify(4242, notification)
+            NotificationManagerCompat.from(context).notify(SELF_UPDATE_ID, notification)
         }
+    }
+
+    /**
+     * 通知对账：已装版本 ≥ 通知的 tag → 该仓通知使命已完成，主动撤下。
+     * 场景：不点通知、直接进 App 装完新版——autoCancel 只在点击时生效，这里补主动清理。
+     * 判定保守：未关联 / 未安装 / 无法比较 → 保留（信息仍有效，不误撤）。
+     */
+    fun reconcileRepoNotifications(
+        context: Context,
+        repos: List<TrackedRepo>,
+        tags: Map<Long, String?>, // repoId → latestReleaseTag
+    ) {
+        val manager = NotificationManagerCompat.from(context)
+        repos.forEach { repo ->
+            val tag = tags[repo.id] ?: return@forEach
+            val local = localVersionName(context, repo) ?: return@forEach
+            val handled = VersionCompare.compare(tag, local)?.let { it <= 0 } ?: return@forEach
+            if (handled) runCatching { manager.cancel(repo.id.hashCode()) }
+        }
+        // 已退订仓库的残留通知：id 不在现存仓集合 → 撤（退订后不点通知的陈旧场景。
+        // 代价：删除撤销窗口内若恰逢对账会误撤——下次发版会重新通知，无害）
+        val liveIds = repos.map { it.id.hashCode() }.toSet()
+        val active = runCatching { manager.activeNotifications.toList() }.getOrDefault(emptyList())
+        active.forEach {
+            if (it.notification.channelId == CHANNEL_NEW_RELEASE &&
+                it.id != SUMMARY_ID && it.id !in liveIds
+            ) {
+                runCatching { manager.cancel(it.id) }
+            }
+        }
+        // 子通知全撤后摘要成孤儿（「N 个仓库有新版本」却点不出内容），一并清理
+        val childrenActive = active.any {
+            it.notification.channelId == CHANNEL_NEW_RELEASE &&
+                it.id != SUMMARY_ID && it.id != SELF_UPDATE_ID && it.id in liveIds
+        }
+        if (!childrenActive) runCatching { manager.cancel(SUMMARY_ID) }
+    }
+
+    /** 装完即撤单仓通知（安装广播命中本仓关联包名时调用） */
+    fun cancelRepoUpdate(context: Context, repoId: Long) {
+        runCatching { NotificationManagerCompat.from(context).cancel(repoId.hashCode()) }
+    }
+
+    /** 自更新装完撤「下载完成」通知（SelfUpdater 检测到本机已是新版时调用） */
+    fun cancelSelfUpdateReady(context: Context) {
+        runCatching { NotificationManagerCompat.from(context).cancel(SELF_UPDATE_ID) }
     }
 }

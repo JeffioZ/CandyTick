@@ -151,6 +151,9 @@ class DetailViewModel(
                 if (record.packageName == null || record.packageName != pkg) return@collect
                 File(apkDir, record.fileName).delete()
                 repository.setDownloadedApk(repoId, null)
+                // 装完即撤本仓「发现新版」通知：使命已完成（不点通知直接装的场景，
+                // autoCancel 只在点击时生效——此前会一直挂在通知栏）
+                io.candy.tick.data.Notifications.cancelRepoUpdate(context, repoId)
                 // 会话态若挂着 Done 指向同文件，一并归位（版本卡回「下载」相）
                 if (_state.value.download?.releaseKey == record.version) {
                     _state.update { it.copy(download = null) }
