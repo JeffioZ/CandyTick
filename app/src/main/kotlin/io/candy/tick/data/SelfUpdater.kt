@@ -44,8 +44,22 @@ class SelfUpdater(
 
     private val updateDir: File = File(context.filesDir, "updates")
 
+    /** 装后残留清理：进程被替换杀掉收不到广播，下次 check 时按事实清（版本相等=已装上） */
+    private fun cleanupInstalledSelf() {
+        val st = _state.value as? State.Downloaded ?: return
+        val local = runCatching {
+            context.packageManager.getPackageInfo(context.packageName, 0).versionName
+        }.getOrNull() ?: return
+        val installed = io.candy.tick.util.VersionCompare.compare(st.tag, local)?.let { it <= 0 } == true
+        if (installed) {
+            updateDir.listFiles()?.forEach { it.delete() }
+            _state.value = State.Idle
+        }
+    }
+
     /** @return true = 有可比对新版本（可触发自动下载） */
     suspend fun check(): Boolean {
+        cleanupInstalledSelf()
         _state.value = State.Checking
         return try {
             val releases = githubApi.releases(APP_OWNER, APP_REPO, 1)

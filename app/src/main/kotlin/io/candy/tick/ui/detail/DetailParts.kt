@@ -372,6 +372,11 @@ androidx.compose.foundation.layout.Row(
                 val updatePhase = when {
                     state.download is DetailViewModel.DownloadState.Active &&
                         state.download.fromHeader -> "progress"
+                    // 失败相：此前头部无 failed 分支——失败回落"下载"按钮复原 + 错误条只在
+                    // 版本 tab 的卡里（停留提交 tab 时不可见）→ 感知"点了没反应"
+                    // Failed 无 fromHeader 字段：releaseKey==最新 tag 即视为头部入口的失败
+                    state.download is DetailViewModel.DownloadState.Failed &&
+                        state.download.releaseKey == tag -> "failed"
                     hasUpdate && downloadedMatches -> "install"
                     hasUpdate -> "download"
                     else -> null // idle 不渲染（零占位）
@@ -390,6 +395,52 @@ androidx.compose.foundation.layout.Row(
                         label = "updatePhase",
                     ) { phase ->
                         when (phase) {
+                            "failed" -> androidx.compose.foundation.layout.Row(
+                                // 与版本卡 failed 相同款行内错误条：errorContainer 底 +
+                                // 具体原因 + 重试链（skill: error-recovery，出路紧邻错误）
+                                verticalAlignment = Alignment.CenterVertically,
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .clip(RoundedCornerShape(12.dp))
+                                    .background(scheme.errorContainer)
+                                    .padding(horizontal = 12.dp, vertical = 10.dp),
+                            ) {
+                                top.yukonga.miuix.kmp.basic.Icon(
+                                    imageVector = ImageVector.vectorResource(R.drawable.ic_info),
+                                    contentDescription = null,
+                                    tint = scheme.onErrorContainer,
+                                    modifier = Modifier.size(16.dp),
+                                )
+                                Spacer(Modifier.width(8.dp))
+                                Text(
+                                    text = stringResource(
+                                        R.string.download_failed_reason,
+                                        (state.download as? DetailViewModel.DownloadState.Failed)?.let { f ->
+                                            f.error?.let { io.candy.tick.ui.common.sourceErrorText(it) } ?: f.message
+                                        } ?: stringResource(R.string.err_network),
+                                    ),
+                                    style = MiuixTheme.textStyles.footnote1,
+                                    color = scheme.onErrorContainer,
+                                    modifier = Modifier.weight(1f),
+                                    maxLines = 2,
+                                    overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis,
+                                )
+                                Spacer(Modifier.width(8.dp))
+                                Text(
+                                    text = stringResource(R.string.retry),
+                                    style = MiuixTheme.textStyles.footnote1.copy(
+                                        textDecoration = androidx.compose.ui.text.style.TextDecoration.Underline,
+                                    ),
+                                    color = scheme.onErrorContainer,
+                                    modifier = Modifier
+                                        .clickable(
+                                            interactionSource = remember { androidx.compose.foundation.interaction.MutableInteractionSource() },
+                                            indication = null,
+                                            onClick = onDownloadUpdate,
+                                        )
+                                        .padding(horizontal = 8.dp, vertical = 4.dp),
+                                )
+                            }
                             "progress" -> Column {
                                 val active = state.download as? DetailViewModel.DownloadState.Active
                                 val p by androidx.compose.animation.core.animateFloatAsState(

@@ -52,6 +52,7 @@ class ListViewModel(
         val commits: List<CommitRecord>? = null,
         val latestRelease: ReleaseRecord? = null,
         val loading: Boolean = false,
+        val refreshing: Boolean = false, // 静默重拉中（旧数据照常显示，展开面板给轻提示）
     )
 
     data class UiState(
@@ -155,6 +156,16 @@ class ListViewModel(
                     }.keys
                     if (newChanged.isNotEmpty()) {
                         changedRepos.value = changedRepos.value + newChanged
+                        // 展开中的卡当场跟进新数据（此前只有收起再展开才触发，
+                        // 展开时出现「有新版」标记但内容停留旧值的割裂）
+                        newChanged.filter { it in expanded.value }
+                            .filter { cards.value[it]?.commits != null } // 首次加载都没完成的跳过（走正常路径）
+                            .forEach {
+                                // 展开中=正在看：视为已读（数据已自动跟进），changed 标记
+                                // 即刻清——否则要收起再展开才消失（卡在展开态无人清除）
+                                changedRepos.value = changedRepos.value - it
+                                loadCard(it, silent = true)
+                            }
                     }
                 }
                 lastSnapshots = newState.snapshots
@@ -360,7 +371,13 @@ class ListViewModel(
 
     private fun loadCard(id: Long, silent: Boolean = false) {
         viewModelScope.launch {
-            if (!silent) cards.value = cards.value + (id to CardExtras(loading = true))
+            if (silent) {
+                // 静默重拉：旧数据保留，只竖 refreshing 旗（展开面板显示轻提示，
+                // 不再"没反应→数据突然变了"的暗更）
+                cards.value = cards.value + (id to (cards.value[id]?.copy(refreshing = true) ?: CardExtras(refreshing = true)))
+            } else {
+                cards.value = cards.value + (id to CardExtras(loading = true))
+            }
             // 两请求并行（此前串行 2×RTT，展开等待翻倍——比详情页并行加载还慢的根源）；
             // 请求数不变（依旧 commits+releases 各一次），配额零增量
             val commitsDeferred = async {
@@ -377,7 +394,7 @@ class ListViewModel(
                 // 静默重拉：失败逐字段保留旧值（不闪 loading、不丢已展示内容）
                 val old = cards.value[id] ?: CardExtras()
                 silentLoaded.value = silentLoaded.value + id
-                CardExtras(commits ?: old.commits, release ?: old.latestRelease, loading = false)
+                CardExtras(commits ?: old.commits, release ?: old.latestRelease, loading = false, refreshing = false)
             } else {
                 CardExtras(commits, release, loading = false)
             })

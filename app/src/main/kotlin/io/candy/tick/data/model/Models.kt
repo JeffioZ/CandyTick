@@ -43,7 +43,11 @@ data class TrackedRepo(
 )
 
 @Serializable
-data class DownloadedApk(val fileName: String, val version: String)
+data class DownloadedApk(
+    val fileName: String,
+    val version: String,
+    val packageName: String? = null, // APK 包名（装后广播按此精确匹配清理；旧记录 null 兼容）
+)
 
 /** 仓库快照（ETag 随快照存储，条件请求 304 不计配额；latestReleaseTag 供新版本通知与「可更新」排序） */
 @Serializable

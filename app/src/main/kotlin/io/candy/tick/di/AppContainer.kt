@@ -32,7 +32,7 @@ class AppContainer(context: Context) {
         SelfUpdater(context = context, githubApi = githubApi, installManager = installManager)
     }
 
-    val syncScheduler: SyncScheduler by lazy { SyncScheduler(context) }
+    val syncScheduler: SyncScheduler by lazy { SyncScheduler(context, syncStatus) }
     val cacheManager: CacheManager by lazy { CacheManager(context) }
 
     init {

@@ -140,6 +140,23 @@ class DetailViewModel(
                 _events.send(Event.InstallResultEvent(result))
             }
         }
+        // 装后清理（事件驱动）：系统 PACKAGE_REPLACED/ADDED 广播带包名——装完瞬间触发，
+        // 双安装路径通吃（ACTION_VIEW 外部安装器无回调也覆盖）、包名精确匹配零推断；
+        // 此前版本比较推断法对不可比 tag（日期+hash）永远失灵
+        viewModelScope.launch {
+            installManager.packageInstalled.collect { pkg ->
+                val record = _state.value.repo?.downloadedApk ?: return@collect
+                // null（旧记录）无法精确匹配：宁可不清（下次下载新版本时有清旧文件兜底）
+                // 也不能放行——否则系统装任何无关 App 的广播都会误清本仓库的下载文件
+                if (record.packageName == null || record.packageName != pkg) return@collect
+                File(apkDir, record.fileName).delete()
+                repository.setDownloadedApk(repoId, null)
+                // 会话态若挂着 Done 指向同文件，一并归位（版本卡回「下载」相）
+                if (_state.value.download?.releaseKey == record.version) {
+                    _state.update { it.copy(download = null) }
+                }
+            }
+        }
         loadCommits()
         loadReleases()
     }
@@ -291,7 +308,14 @@ class DetailViewModel(
                     // 清理同仓库旧文件（下载保留只留当前）
                     apkDir.listFiles()?.filter { it != file }?.forEach { it.delete() }
                     _state.update { it.copy(download = DownloadState.Done(release.tagName, asset.name, file)) }
-                    repository.setDownloadedApk(repoId, DownloadedApk(asset.name, release.tagName))
+                    // 包名随记录落库：装后广播按包名精确匹配清理（读 archive 同 autoLinkFromApk）
+                    val dlPkg = runCatching {
+                        appContext.packageManager.getPackageArchiveInfo(file.absolutePath, 0)?.packageName
+                    }.getOrNull()
+                    repository.setDownloadedApk(
+                        repoId,
+                        DownloadedApk(asset.name, release.tagName, dlPkg),
+                    )
                     // 下载到手 → 免费读包名自动关联（getPackageArchiveInfo，零依赖）
                     autoLinkFromApk(file)
                     // 自动安装（默认开）：直接触发系统安装流程，确认框由系统兜底

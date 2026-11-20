@@ -109,7 +109,9 @@ fun FeedbackHost() {
                 Row(
                     modifier = Modifier
                         .padding(top = 0.dp)
-                        .shadow(4.dp, RoundedCornerShape(20.dp))
+                        // 2dp 轻阴影（M3 snackbar 档再降一档）：4dp 在浅色下发闷显脏；
+                        // 深色下阴影本就近乎不可见，同值无需分叉
+                        .shadow(2.dp, RoundedCornerShape(20.dp))
                         .clip(RoundedCornerShape(20.dp))
                         .background(container)
                         .padding(start = 14.dp, end = 12.dp, top = 10.dp, bottom = 10.dp),

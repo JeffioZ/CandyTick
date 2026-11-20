@@ -163,17 +163,19 @@ fun AddScreen(
                     ) {
                         io.candy.tick.ui.common.LoadingDots(dotSize = 5.dp)
                     }
-                    state.searchFailed -> androidx.compose.foundation.layout.Column(
-                        modifier = Modifier.fillMaxWidth(),
-                    ) {
-                        Text(
-                            text = stringResource(R.string.add_search_failed),
-                            style = MiuixTheme.textStyles.footnote1,
-                            color = MiuixTheme.colorScheme.onErrorContainer,
-                        )
+                    // 搜索失败：StatusPage 居中（与详情页提交/版本加载失败同款同构——
+                    // 同为「内容区加载失败」类别）——此前左上小红字+重试钮+大片空白的
+                    // 失衡构图与其他态（居中 dots/居中空态）语言不统一
+                    state.searchFailed -> io.candy.tick.ui.common.StatusPage(
+                        icon = ImageVector.vectorResource(R.drawable.ic_close),
+                        isError = true,
+                        title = stringResource(R.string.add_search_failed),
+                        subtitle = stringResource(R.string.status_error_subtitle),
                         // 失败要有出路（skill error-recovery）：重试走同一条提交路径
-                        top.yukonga.miuix.kmp.basic.TextButton(text = stringResource(R.string.retry), onClick = vm::submit)
-                    }
+                        actionLabel = stringResource(R.string.retry),
+                        onAction = vm::submit,
+                        modifier = Modifier.fillMaxSize(),
+                    )
                     state.results.isNotEmpty() -> LazyColumn(
                         modifier = Modifier.fillMaxSize(),
                         // 底部 32：全 App 滚动终止留白统一档（此前无 bottom，footer 贴底）
@@ -340,15 +342,19 @@ androidx.compose.foundation.layout.Row(
                         ) { _ ->
                             when (val preview = state.preview) {
                                 is AddViewModel.PreviewState.Loading -> PreviewSkeletonCard()
-                                is AddViewModel.PreviewState.Failed -> androidx.compose.foundation.layout.Column {
-                                    Text(
-                                        text = sourceErrorText(preview.error),
-                                        style = MiuixTheme.textStyles.body2,
-                                        color = MiuixTheme.colorScheme.onErrorContainer,
-                                    )
+                                is AddViewModel.PreviewState.Failed -> io.candy.tick.ui.common.StatusPage(
+                                    // 与搜索失败/详情列表失败同款同构（「内容区加载失败」类别）；
+                                    // 此前骨架卡变一行裸红字+文字钮，重量骤降悬空
+                                    icon = ImageVector.vectorResource(R.drawable.ic_close),
+                                    isError = true,
+                                    title = sourceErrorText(preview.error),
                                     // 网络抖动类失败：重试不必改输入重来（skill error-recovery）
-                                    top.yukonga.miuix.kmp.basic.TextButton(text = stringResource(R.string.retry), onClick = vm::retryPreview)
-                                }
+                                    actionLabel = stringResource(R.string.retry),
+                                    onAction = vm::retryPreview,
+                                    modifier = Modifier
+                                        .fillMaxWidth()
+                                        .padding(vertical = 24.dp),
+                                )
                                 is AddViewModel.PreviewState.Loaded -> androidx.compose.foundation.layout.Column {
                                     // 从搜索结果进入的预览：顶部留明确退路（skill: back-behavior）
                                     if (state.results.isNotEmpty()) {

@@ -28,6 +28,31 @@ class InstallManager(private val context: Context) {
     private val _results = MutableSharedFlow<InstallResult>(extraBufferCapacity = 16)
     val results: SharedFlow<InstallResult> = _results
 
+    /** 系统装包事件（PACKAGE_REPLACED/ADDED 的包名）：装后清理的唯一事实源 */
+    private val _packageInstalled = kotlinx.coroutines.flow.MutableSharedFlow<String>(extraBufferCapacity = 8)
+    val packageInstalled: kotlinx.coroutines.flow.SharedFlow<String> = _packageInstalled
+
+    init {
+        // 动态注册无需权限：系统装完任何包都会播（含三方安装器走 ACTION_VIEW 的路径）——
+        // 装完瞬间即事件，不依赖回前台轮询或版本比较推断
+        val filter = android.content.IntentFilter().apply {
+            addAction(android.content.Intent.ACTION_PACKAGE_REPLACED)
+            addAction(android.content.Intent.ACTION_PACKAGE_ADDED)
+            // package: scheme 广播不带 MIME type——addDataType 会全部漏收（经典坑）
+            addDataScheme("package")
+        }
+        ContextCompat.registerReceiver(
+            context,
+            object : BroadcastReceiver() {
+                override fun onReceive(ctx: Context, intent: Intent) {
+                    intent.data?.schemeSpecificPart?.let { _packageInstalled.tryEmit(it) }
+                }
+            },
+            filter,
+            ContextCompat.RECEIVER_NOT_EXPORTED,
+        )
+    }
+
     private val receiver = object : BroadcastReceiver() {
         override fun onReceive(ctx: Context, intent: Intent) {
             val status = intent.getIntExtra(PackageInstaller.EXTRA_STATUS, PackageInstaller.STATUS_FAILURE)

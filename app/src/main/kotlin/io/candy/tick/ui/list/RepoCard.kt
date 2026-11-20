@@ -122,8 +122,10 @@ fun RepoCard(
                         )
                     }
                     Spacer(Modifier.weight(1f))
-                    // 「有新版」直显标识（薄荷胶囊）：有可比新版时折叠态即可见，无需展开/进详情
-                    if (updatable) {
+                    // 「发现新版」直显标识（薄荷胶囊）：收起态的唯一新版提示；
+                    // 展开且版本行可见时隐藏（版本行已给完整 tag 对比，两处同说=重复），
+                    // 版本行暂无数据时保留兜底（展开也不至于零提示）
+                    if (updatable && !(expanded && extras?.latestRelease != null)) {
                         Text(
                             text = stringResource(R.string.card_updatable),
                             style = MiuixTheme.textStyles.footnote2,
@@ -158,13 +160,18 @@ fun RepoCard(
                 // 展开收起钉 220 表层档：高度与透明度同拍（默认 spring 时长不可控且在体系外）
                 androidx.compose.animation.AnimatedVisibility(
                     visible = expanded,
+                    // 贴顶收展（expandFrom/shrinkTowards = Top）：内容锚定与卡身衔接的一侧，
+                    // 底边与卡片高度同步生长/收缩——默认贴底时面板与卡底各自运动，
+                    // 收起时"卡中卡"与卡身分离感（两个色块没一起收）
                     enter = androidx.compose.animation.expandVertically(
                         animationSpec = androidx.compose.animation.core.tween(220),
+                        expandFrom = Alignment.Top,
                     ) + androidx.compose.animation.fadeIn(
                         animationSpec = androidx.compose.animation.core.tween(220),
                     ),
                     exit = androidx.compose.animation.shrinkVertically(
                         animationSpec = androidx.compose.animation.core.tween(220),
+                        shrinkTowards = Alignment.Top,
                     ) + androidx.compose.animation.fadeOut(
                         animationSpec = androidx.compose.animation.core.tween(220),
                     ),
@@ -172,7 +179,7 @@ fun RepoCard(
                     Column {
                         Spacer(Modifier.height(2.dp))
                         // 卡中卡信息面板：展开内容有容器底，与折叠态主信息分层
-                        ExpandedDetails(item = item, extras = extras, versionEpoch = versionEpoch)
+                        ExpandedDetails(item = item, extras = extras, versionEpoch = versionEpoch, refreshing = extras?.refreshing == true)
                         // 卡底留白放展开块内：收起时随动画移除，折叠态底部与顶对称（8dp）
                         Spacer(Modifier.height(8.dp))
                     }
@@ -186,6 +193,7 @@ private fun ExpandedDetails(
     item: ListViewModel.RepoListItem,
     extras: ListViewModel.CardExtras?,
     versionEpoch: Int = 0,
+    refreshing: Boolean = false,
 ) {
     val scheme = MiuixTheme.colorScheme
     Column(
@@ -230,6 +238,35 @@ private fun ExpandedDetails(
         // 版本行：最新 release vs 本机版本（与详情页头部共用组件，口径一致）
         val release = extras?.latestRelease
         if (release != null) VersionStatusLine(repo = item.repo, remoteTag = release.tagName, installEpoch = versionEpoch)
+
+        // 静默重拉提示（150 淡入淡出）：旧数据照常显示，只是告知"正在取新数据"——
+        // 此前暗更没有任何反馈（点了没反应，数据过会儿突然变了）
+        androidx.compose.animation.AnimatedVisibility(
+            visible = refreshing,
+            // fade + 高度展开/收缩（贴顶）：此前只有 fade，出现/消失时占位突变 → 卡片高度跳变生硬
+            enter = androidx.compose.animation.expandVertically(
+                animationSpec = androidx.compose.animation.core.tween(150),
+                expandFrom = Alignment.Top,
+            ) + androidx.compose.animation.fadeIn(androidx.compose.animation.core.tween(150)),
+            exit = androidx.compose.animation.shrinkVertically(
+                animationSpec = androidx.compose.animation.core.tween(150),
+                shrinkTowards = Alignment.Top,
+            ) + androidx.compose.animation.fadeOut(androidx.compose.animation.core.tween(150)),
+        ) {
+            androidx.compose.foundation.layout.Row(
+                verticalAlignment = Alignment.CenterVertically,
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = androidx.compose.foundation.layout.Arrangement.Center,
+            ) {
+                io.candy.tick.ui.common.LoadingDots(dotSize = 4.dp)
+                Spacer(Modifier.width(6.dp))
+                Text(
+                    text = stringResource(R.string.card_refreshing),
+                    style = MiuixTheme.textStyles.footnote2,
+                    color = scheme.onBackgroundVariant,
+                )
+            }
+        }
     }
 }
 

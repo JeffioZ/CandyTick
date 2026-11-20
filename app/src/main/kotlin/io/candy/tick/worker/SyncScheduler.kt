@@ -13,7 +13,10 @@ import io.candy.tick.data.model.SyncFrequency
 import java.util.concurrent.TimeUnit
 
 /** 同步调度：周期频率（含「每次打开应用」模式）+ 仅 Wi-Fi / 仅充电约束；设置变更即重排 */
-class SyncScheduler(private val context: Context) {
+class SyncScheduler(
+    private val context: Context,
+    private val syncStatus: kotlinx.coroutines.flow.MutableStateFlow<io.candy.tick.data.SyncStatus>,
+) {
 
     fun apply(settings: Settings) {
         val manager = WorkManager.getInstance(context)
@@ -42,6 +45,10 @@ class SyncScheduler(private val context: Context) {
         val now = System.currentTimeMillis()
         if (now - lastOnOpenSync < ON_OPEN_THROTTLE_MS) return
         lastOnOpenSync = now
+        // 乐观置 Running：enqueue 即点亮顶栏波点——WorkManager 加急作业在 ROM 省电策略/
+        // 网络约束（仅 Wi-Fi）未满足时会排队延迟，此前队列期间无任何 UI 反馈（"没反应"）；
+        // Worker 开跑后覆盖为真实进度，完成设 Done。WorkManager 保证最终执行，无假转风险
+        syncStatus.value = io.candy.tick.data.SyncStatus.Running(0, 1)
         val manager = WorkManager.getInstance(context)
         val request = OneTimeWorkRequestBuilder<SyncWorker>()
             // 与周期同步同规则：用户开了「仅 Wi-Fi 同步」后打开即同步也不走流量
