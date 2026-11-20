@@ -119,7 +119,6 @@
     <string name="add_parse_error">无法识别 · 支持 GitHub 链接或 owner/仓库名</string>
     <string name="add_search_failed">搜索失败</string>
     <string name="add_search_empty">无匹配，试试粘贴完整链接</string>
-    <string name="add_stars">%1$s</string>
     <string name="add_license">许可证：%1$s</string>
     <string name="picker_search_app">搜索应用</string>
     <string name="picker_no_match">没有匹配的应用</string>
@@ -137,9 +136,6 @@
     <string name="detail_no_releases">暂无发布版本</string>
     <string name="detail_select_asset_hint">选择要下载的安装包</string>
     <string name="detail_no_apk">未提供安装包</string>
-    <string name="detail_stars">%1$s</string>
-    <string name="detail_forks">Fork %1$s</string>
-    <string name="detail_issues">Issue %1$s</string>
     <string name="detail_link_app">关联本机应用</string>
     <string name="detail_link_app_other">选择其他应用</string>
     <string name="detail_auto_link_hint">已装「%1$s」 · 点击关联</string>
@@ -163,7 +159,7 @@
     <string name="cancel">取消</string>
     <string name="install_apk">安装</string>
     <string name="install_done">安装成功</string>
-    <string name="install_failed_format">安装失败：%1$s</string>
+    <string name="install_failed_format">安装失败 · %1$s</string>
     <string name="install_signature_mismatch">签名不一致，请先卸载原有应用再安装（常见于 F-Droid 与 GitHub 渠道混装）</string>
 
     <!-- 通知 -->
@@ -171,7 +167,7 @@
     <string name="notif_channel_release_desc">订阅的仓库发布新版本时提醒</string>
     <string name="notif_channel_update">应用更新</string>
     <string name="notif_channel_update_desc">应用自身更新下载完成后提醒安装</string>
-    <string name="notif_new_release">新版本 %1$s 可用</string>
+    <string name="notif_new_release">发现新版 %1$s</string>
     <string name="notif_updates_summary">%1$d 个仓库有新版本</string>
     <string name="notif_update_ready_title">CandyTick 更新</string>
     <string name="notif_update_ready">新版本 %1$s 已下载 · 点击安装</string>

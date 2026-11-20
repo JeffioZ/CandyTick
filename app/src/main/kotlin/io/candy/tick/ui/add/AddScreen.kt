@@ -218,11 +218,31 @@ fun AddScreen(
                                     )
                                     Spacer(Modifier.width(12.dp))
                                     Column(modifier = Modifier.weight(1f)) {
-                                        Text(
-                                            text = info.repo,
-                                            style = MiuixTheme.textStyles.title4,
-                                            color = MiuixTheme.colorScheme.onBackground,
-                                        )
+                                        androidx.compose.foundation.layout.Row(
+                                            verticalAlignment = Alignment.CenterVertically,
+                                        ) {
+                                            Text(
+                                                text = info.repo,
+                                                style = MiuixTheme.textStyles.title4,
+                                                color = MiuixTheme.colorScheme.onBackground,
+                                                maxLines = 1,
+                                                overflow = TextOverflow.Ellipsis,
+                                                modifier = Modifier.weight(1f, fill = false),
+                                            )
+                                            Spacer(Modifier.width(8.dp))
+                                            Icon(
+                                                imageVector = ImageVector.vectorResource(R.drawable.ic_star),
+                                                contentDescription = null,
+                                                tint = MiuixTheme.colorScheme.onBackgroundVariant,
+                                                modifier = Modifier.size(12.dp),
+                                            )
+                                            Spacer(Modifier.width(3.dp))
+                                            Text(
+                                                text = CountFormat.format(info.stars),
+                                                style = MiuixTheme.textStyles.footnote1,
+                                                color = MiuixTheme.colorScheme.onBackgroundVariant,
+                                            )
+                                        }
                                         Text(
                                             text = "${info.owner}/${info.repo}",
                                             style = io.candy.tick.ui.theme.MonoTokenStyle,
@@ -241,22 +261,6 @@ fun AddScreen(
                                     )
                                 }
                                 Spacer(Modifier.height(6.dp))
-androidx.compose.foundation.layout.Row(
-                                    verticalAlignment = Alignment.CenterVertically,
-                                ) {
-                                    Icon(
-                                        imageVector = ImageVector.vectorResource(R.drawable.ic_star),
-                                        contentDescription = null,
-                                        tint = MiuixTheme.colorScheme.onBackgroundVariant,
-                                        modifier = Modifier.size(12.dp),
-                                    )
-                                    Spacer(Modifier.width(3.dp))
-                                    Text(
-                                        text = stringResource(R.string.add_stars, CountFormat.format(info.stars)),
-                                        style = MiuixTheme.textStyles.footnote1,
-                                        color = MiuixTheme.colorScheme.onBackgroundVariant,
-                                    )
-                                }
                             }
                         }
                         }
@@ -506,11 +510,32 @@ private fun PreviewCard(
                 )
                 Spacer(Modifier.width(12.dp))
                 Column(modifier = Modifier.weight(1f)) {
-                    Text(
-                        text = info.repo,
-                        style = MiuixTheme.textStyles.title4,
-                        color = scheme.onBackground,
-                    )
+                    androidx.compose.foundation.layout.Row(
+                        verticalAlignment = Alignment.CenterVertically,
+                    ) {
+                        Text(
+                            text = info.repo,
+                            style = MiuixTheme.textStyles.title4,
+                            color = scheme.onBackground,
+                            maxLines = 1,
+                            overflow = TextOverflow.Ellipsis,
+                            modifier = Modifier.weight(1f, fill = false),
+                        )
+                        Spacer(Modifier.width(8.dp))
+                        // star 挪名称旁（与详情头卡同构）；名称截断时 star 恒可见
+                        Icon(
+                            imageVector = ImageVector.vectorResource(R.drawable.ic_star),
+                            contentDescription = null,
+                            tint = scheme.onBackgroundVariant,
+                            modifier = Modifier.size(12.dp),
+                        )
+                        Spacer(Modifier.width(3.dp))
+                        Text(
+                            text = CountFormat.format(info.stars),
+                            style = MiuixTheme.textStyles.footnote1,
+                            color = scheme.onBackgroundVariant,
+                        )
+                    }
                     Text(
                         text = "${info.owner}/${info.repo}",
                         style = io.candy.tick.ui.theme.MonoTokenStyle,
@@ -528,29 +553,12 @@ private fun PreviewCard(
                 )
                 Spacer(Modifier.height(6.dp))
             }
-            Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
-androidx.compose.foundation.layout.Row(
-                    verticalAlignment = Alignment.CenterVertically,
-                ) {
-                    Icon(
-                        imageVector = ImageVector.vectorResource(R.drawable.ic_star),
-                        contentDescription = null,
-                        tint = scheme.onBackgroundVariant,
-                        modifier = Modifier.size(12.dp),
-                    )
-                    Spacer(Modifier.width(3.dp))
-                    Text(
-                        text = stringResource(R.string.add_stars, CountFormat.format(info.stars)),
-                        style = MiuixTheme.textStyles.footnote1,
-                        color = scheme.onBackgroundVariant,
-                    )
-                }
-                Text(
-                    text = stringResource(R.string.add_license, info.license ?: "—"),
-                    style = MiuixTheme.textStyles.footnote1,
-                    color = scheme.onBackgroundVariant,
-                )
-            }
+            // license 保留（订阅决策信息）；star 已挪名称旁
+            Text(
+                text = stringResource(R.string.add_license, info.license ?: "—"),
+                style = MiuixTheme.textStyles.footnote1,
+                color = scheme.onBackgroundVariant,
+            )
 
             Spacer(Modifier.height(12.dp))
             // 关联区跨页统一语义：薄荷=行动（未关联的引导入口），已关联=状态信息行

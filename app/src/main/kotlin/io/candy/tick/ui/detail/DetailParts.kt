@@ -293,11 +293,36 @@ internal fun HeaderCard(
                 RepoIconBlock(repo = repo, size = 56.dp, corner = 14.dp)
                 Spacer(Modifier.width(12.dp))
                 Column(modifier = Modifier.weight(1f)) {
-                    Text(
-                        text = repo.noteName ?: repo.repo,
-                        style = MiuixTheme.textStyles.title4,
-                        color = scheme.onBackground,
-                    )
+                    androidx.compose.foundation.layout.Row(
+                        verticalAlignment = Alignment.CenterVertically,
+                    ) {
+                        Text(
+                            text = repo.noteName ?: repo.repo,
+                            style = MiuixTheme.textStyles.title4,
+                            color = scheme.onBackground,
+                            maxLines = 1,
+                            overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis,
+                            modifier = Modifier.weight(1f, fill = false),
+                        )
+                        // star 挪名称旁（GitHub 档案页同位）：唯一保留的人气信号；
+                        // 名称 weight+ellipsis——截断时 star 恒可见（截断优先级）。
+                        // 无快照（刚添加未同步）隐藏：此时显示「★0」是假数据
+                        if (snapshot != null) {
+                            Spacer(Modifier.width(8.dp))
+                            Icon(
+                                imageVector = ImageVector.vectorResource(R.drawable.ic_star),
+                                contentDescription = null,
+                                tint = scheme.onBackgroundVariant,
+                                modifier = Modifier.size(12.dp),
+                            )
+                            Spacer(Modifier.width(3.dp))
+                            Text(
+                                text = CountFormat.format(snapshot.stars),
+                                style = MiuixTheme.textStyles.footnote1,
+                                color = scheme.onBackgroundVariant,
+                            )
+                        }
+                    }
                     Text(
                         text = "${repo.owner}/${repo.repo}",
                         style = MonoTokenStyle,
@@ -317,47 +342,9 @@ internal fun HeaderCard(
                     maxLines = 3,
                     overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis,
                 )
-                Spacer(Modifier.height(6.dp))
             }
-            Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
-androidx.compose.foundation.layout.Row(
-                    verticalAlignment = Alignment.CenterVertically,
-                ) {
-                    Icon(
-                        imageVector = ImageVector.vectorResource(R.drawable.ic_star),
-                        contentDescription = null,
-                        tint = scheme.onBackgroundVariant,
-                        modifier = Modifier.size(12.dp),
-                    )
-                    Spacer(Modifier.width(3.dp))
-                    Text(
-                        text = stringResource(R.string.detail_stars, CountFormat.format(snapshot?.stars ?: 0)),
-                        style = MiuixTheme.textStyles.footnote1,
-                        color = scheme.onBackgroundVariant,
-                    )
-                }
-                Text(
-                    text = stringResource(R.string.detail_forks, CountFormat.format(snapshot?.forks ?: 0)),
-                    style = MiuixTheme.textStyles.footnote1,
-                    color = scheme.onBackgroundVariant,
-                )
-                Text(
-                    text = stringResource(R.string.detail_issues, CountFormat.format(snapshot?.openIssues ?: 0)),
-                    style = MiuixTheme.textStyles.footnote1,
-                    color = scheme.onBackgroundVariant,
-                )
-                // push time 替换 license（末位弹性项）：健康监控场景「最近提交」比协议更有价值
-                snapshot?.pushedAt?.let { pushed ->
-                    Text(
-                        text = relTimeString(pushed),
-                        style = MiuixTheme.textStyles.footnote1,
-                        color = scheme.onBackgroundVariant,
-                        maxLines = 1,
-                        overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis,
-                        modifier = Modifier.weight(1f, fill = false),
-                    )
-                }
-            }
+            // 统计行已删（Fork/Issue 是档案页惯性搬运，健康度由活跃徽章承担；
+            // star 挪名称旁，push 时间由首页折叠卡表达）
 
             // ── 版本分区（有 tag 时显示分隔线 + 版本行 + 操作按钮）──
             snapshot?.latestReleaseTag?.let { tag ->
