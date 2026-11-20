@@ -38,7 +38,7 @@ fun LinkText(
     Row(
         verticalAlignment = Alignment.CenterVertically,
         modifier = modifier
-            .clip(RoundedCornerShape(8.dp))
+            .clip(RoundedCornerShape(10.dp))
             .clickable(
                 interactionSource = remember { MutableInteractionSource() },
                 indication = null,

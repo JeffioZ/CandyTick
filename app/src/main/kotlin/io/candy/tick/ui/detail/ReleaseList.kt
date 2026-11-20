@@ -345,11 +345,17 @@ private fun ReleaseCard(
                                     modifier = Modifier.fillMaxWidth(),
                                 )
                             }
-                            top.yukonga.miuix.kmp.basic.IconButton(onClick = onDeleteDownloaded) {
+                            // 32dp/16dp：与卡内其他动钮同规格（默认 48 会把与主按钮并排的行撑高）；
+                            // 红色保留——删除已下载安装包是破坏性动作（destructive-emphasis）
+                            top.yukonga.miuix.kmp.basic.IconButton(
+                                onClick = onDeleteDownloaded,
+                                modifier = Modifier.size(32.dp),
+                            ) {
                                 top.yukonga.miuix.kmp.basic.Icon(
                                     imageVector = ImageVector.vectorResource(R.drawable.ic_delete),
                                     contentDescription = stringResource(R.string.detail_delete_download),
                                     tint = scheme.onErrorContainer,
+                                    modifier = Modifier.size(16.dp),
                                 )
                             }
                         }

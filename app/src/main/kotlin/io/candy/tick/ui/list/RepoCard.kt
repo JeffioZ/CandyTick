@@ -129,7 +129,7 @@ fun RepoCard(
                             style = MiuixTheme.textStyles.footnote2,
                             color = scheme.primaryVariant,
                             modifier = Modifier
-                                .clip(RoundedCornerShape(7.dp))
+                                .clip(RoundedCornerShape(8.dp))
                                 .background(scheme.primaryContainer)
                                 .padding(horizontal = 6.dp, vertical = 1.dp),
                         )
