@@ -238,7 +238,7 @@
     <string name="settings_current_version_title">Check for updates</string>
     <string name="settings_update_found">Update available</string>
     <string name="settings_self_update_check">Auto check for updates</string>
-    <string name="settings_self_update_download">Auto download (Wi-Fi only)</string>
+    <string name="settings_self_update_download">Auto download</string>
     <string name="settings_checking">Checking…</string>
     <string name="settings_up_to_date">Up to date</string>
     <string name="settings_download_update">Download &amp; install</string>

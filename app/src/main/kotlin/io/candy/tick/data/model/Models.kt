@@ -98,8 +98,8 @@ data class Settings(
     val githubToken: String? = null,
     val notificationsEnabled: Boolean = true,
     val selfUpdateCheck: Boolean = true, // 自身更新：自动检查（默认开）
-    val selfUpdateAutoDownload: Boolean = false, // 自身更新：自动下载（默认关，仅 Wi-Fi）
-    val autoInstallDownload: Boolean = true, // 仓库应用：下载完成自动弹出安装确认（默认开）
+    val selfUpdateAutoDownload: Boolean = false, // 自身更新：自动下载（默认关，全网络——包仅 ~4MB）
+    val autoInstallDownload: Boolean = true, // 下载后自动安装：仓库应用 + 自身更新共用（默认开，见设置页说明文案）
     val language: String = "", // 应用内语言（空 = 跟随系统；"zh" / "en"）
     val sortMode: String = "LAST_PUSH", // 首页排序（持久化，重启保留）
 )

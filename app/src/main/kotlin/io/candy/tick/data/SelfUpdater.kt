@@ -62,6 +62,9 @@ class SelfUpdater(
     /** @return true = 有可比对新版本（可触发自动下载） */
     suspend fun check(): Boolean {
         cleanupInstalledSelf()
+        // 先取证：下一行 Checking 会冲掉 Downloaded。同 tag 已下载待装期间，
+        // 每轮同步 hasNew 恒真会反复入队——不保住状态就会重下整包 + 重发通知
+        val preDownloaded = _state.value as? State.Downloaded
         _state.value = State.Checking
         return try {
             val releases = githubApi.releases(APP_OWNER, APP_REPO, 1)
@@ -97,6 +100,13 @@ class SelfUpdater(
                             false
                         }
                         cmp > 0 -> {
+                            // 同 tag 已下载待装：保持 Downloaded 原样返回——
+                            // UpdateDownloadWorker 见非 NewVersion 自然早退，不重下不重发
+                            if (preDownloaded != null && preDownloaded.tag == latest.tagName &&
+                                preDownloaded.file.isFile
+                            ) {
+                                return true
+                            }
                             _state.value = State.NewVersion(
                                 tag = latest.tagName,
                                 notes = notes,

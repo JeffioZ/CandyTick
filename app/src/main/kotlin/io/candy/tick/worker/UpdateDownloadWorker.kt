@@ -8,7 +8,7 @@ import io.candy.tick.data.Notifications
 import io.candy.tick.data.SelfUpdater
 
 /**
- * 自身更新自动下载（一次性，仅 Wi-Fi）：
+ * 自身更新自动下载（一次性，全网络——包仅 ~4MB，开关本身即用户同意）：
  * 下载（下载保留，只留最近一份）→ 12+ 且自身安装来源为本 app 时静默安装，
  * 否则通知栏「新版本已下载 · 点击安装」走系统确认。失败静默退避（retry）。
  */

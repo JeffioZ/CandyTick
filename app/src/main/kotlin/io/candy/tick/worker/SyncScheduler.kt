@@ -7,12 +7,13 @@ import androidx.work.ExistingWorkPolicy
 import androidx.work.NetworkType
 import androidx.work.OneTimeWorkRequestBuilder
 import androidx.work.PeriodicWorkRequestBuilder
+import androidx.work.WorkInfo
 import androidx.work.WorkManager
 import io.candy.tick.data.model.Settings
 import io.candy.tick.data.model.SyncFrequency
 import java.util.concurrent.TimeUnit
 
-/** 同步调度：周期频率（含「每次打开应用」模式）+ 仅 Wi-Fi / 仅充电约束；设置变更即重排 */
+/** 同步调度：周期频率（含「每次打开应用」模式）+ 仅 Wi-Fi 约束（按设置）；设置变更即重排 */
 class SyncScheduler(
     private val context: Context,
     private val syncStatus: kotlinx.coroutines.flow.MutableStateFlow<io.candy.tick.data.SyncStatus>,
@@ -63,15 +64,24 @@ class SyncScheduler(
         manager.enqueueUniqueWork(WORK_SYNC_ON_OPEN, ExistingWorkPolicy.REPLACE, request)
     }
 
-    /** 自身更新自动下载（一次性，仅 Wi-Fi，退避重试） */
+    /** 自身更新自动下载（一次性，全网络，退避重试——包仅 ~4MB，开关本身即用户同意） */
     fun enqueueUpdateDownload() {
         val manager = WorkManager.getInstance(context)
         val request = OneTimeWorkRequestBuilder<UpdateDownloadWorker>()
             .setConstraints(
-                Constraints.Builder().setRequiredNetworkType(NetworkType.UNMETERED).build(),
+                Constraints.Builder().setRequiredNetworkType(NetworkType.CONNECTED).build(),
             )
             .build()
-        manager.enqueueUniqueWork(WORK_UPDATE_DOWNLOAD, ExistingWorkPolicy.KEEP, request)
+        // 手工实现「排队换新 / 运行不动」（一次性策略没有 UPDATE）：KEEP 会让揣着旧规格的
+        // 排队任务永生（旧版 UNMETERED 约束升级后仍焊死在请求上）；REPLACE 会掐断运行中的
+        // 下载重下、取消临安装的任务错过通知。运行中→跳过，其余→REPLACE 换新规格
+        val running = runCatching {
+            manager.getWorkInfosForUniqueWork(WORK_UPDATE_DOWNLOAD).get()
+                .any { it.state == WorkInfo.State.RUNNING }
+        }.getOrDefault(true) // 查询失败宁可不入队（下轮同步自然再来）
+        if (!running) {
+            manager.enqueueUniqueWork(WORK_UPDATE_DOWNLOAD, ExistingWorkPolicy.REPLACE, request)
+        }
     }
 
     @Volatile
