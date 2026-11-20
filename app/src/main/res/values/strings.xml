@@ -54,7 +54,7 @@
     <string name="version_incomparable">release %1$s · cannot compare versions</string>
     <string name="version_incomparable_full">release %1$s · installed %2$s · cannot compare</string>
     <string name="version_line">%1$s · installed %2$s</string>
-    <string name="version_update_available">update available: %1$s</string>
+    <string name="version_update_available">Update available: %1$s</string>
 
     <!-- 四类失败 -->
     <string name="err_network">Network unavailable</string>
@@ -177,7 +177,7 @@
     <!-- 通知 -->
     <string name="notif_channel_release">Repo new versions</string>
     <string name="notif_channel_release_desc">Notifies when a subscribed repo publishes a release</string>
-    <string name="notif_channel_update">CandyTick updates</string>
+    <string name="notif_channel_update">App updates</string>
     <string name="notif_channel_update_desc">Notifies when an app update is ready to install</string>
     <string name="notif_new_release">New version %1$s available</string>
     <string name="notif_updates_summary">%1$d repos have new versions</string>
