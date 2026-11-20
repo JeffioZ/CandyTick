@@ -198,6 +198,7 @@
     <string name="settings_import">Import subscriptions</string>
     <string name="settings_import_summary">Merge from a JSON file; existing data is kept</string>
     <string name="import_result">Imported %1$d repositories</string>
+    <string name="import_no_new">Everything in the backup is already subscribed</string>
     <string name="import_failed">Import failed · not a valid backup file</string>
     <string name="import_from_file">From file</string>
     <string name="import_from_clipboard">From clipboard</string>

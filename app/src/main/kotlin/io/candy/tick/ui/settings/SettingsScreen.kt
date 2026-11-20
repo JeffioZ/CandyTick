@@ -121,10 +121,10 @@ fun SettingsScreen(onBack: () -> Unit) {
         }
         scope.launch {
             val added = vm.importSubscriptions(text)
-            val msg = if (added >= 0) {
-                app.getString(R.string.import_result, added)
-            } else {
-                app.getString(R.string.import_failed)
+            val msg = when {
+                added < 0 -> app.getString(R.string.import_failed)
+                added == 0 -> app.getString(R.string.import_no_new)
+                else -> app.getString(R.string.import_result, added)
             }
             io.candy.tick.ui.common.Feedback.show(text = msg, isError = added < 0)
         }
@@ -134,10 +134,13 @@ fun SettingsScreen(onBack: () -> Unit) {
         ActivityResultContracts.OpenDocument(),
     ) { uri ->
         if (uri != null) {
-            val text = runCatching {
-                context.contentResolver.openInputStream(uri)?.bufferedReader()?.use { it.readText() }
-            }.getOrNull()
-            importFromText(text)
+            // 文件读取在 IO 线程（大备份的 pretty JSON 可达数百 KB，不占主线程）
+            scope.launch(kotlinx.coroutines.Dispatchers.IO) {
+                val text = runCatching {
+                    context.contentResolver.openInputStream(uri)?.bufferedReader()?.use { it.readText() }
+                }.getOrNull()
+                importFromText(text)
+            }
         }
     }
 
@@ -485,7 +488,9 @@ fun SettingsScreen(onBack: () -> Unit) {
         show = showImportDialog,
         onFromFile = {
             showImportDialog = false
-            importLauncher.launch(arrayOf("application/json"))
+            // mime 放宽：第三方渠道下发的 .json 常被标成 text/plain 或 octet-stream，
+            // 单 application/json 会让人在文件选择器里选不到自己的备份
+            importLauncher.launch(arrayOf("application/json", "text/plain", "application/octet-stream"))
         },
         onFromClipboard = {
             showImportDialog = false
