@@ -195,7 +195,8 @@ fun SettingsScreen(onBack: () -> Unit) {
                     IconButton(onClick = onBack) {
                         Icon(
                             imageVector = ImageVector.vectorResource(R.drawable.ic_back),
-                            contentDescription = null,
+                            // 图标旁无文字的控件必须有可访问名称（icon-button a11y）
+                            contentDescription = stringResource(R.string.back),
                             tint = scheme.onBackground,
                         )
                     }

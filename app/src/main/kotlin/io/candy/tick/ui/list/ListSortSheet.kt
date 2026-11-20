@@ -6,6 +6,8 @@ import androidx.compose.foundation.layout.size
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.res.stringResource
+import androidx.compose.ui.semantics.selected
+import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.unit.dp
 import io.candy.tick.R
 import top.yukonga.miuix.kmp.basic.Icon
@@ -67,7 +69,10 @@ internal fun SortSheet(
 private fun SortRow(label: String, selected: Boolean, onClick: () -> Unit) {
     // 与 BranchRow / OptionRow 同款 BasicComponent：自带按压反馈与行规格，弹层选择行统一语言
     top.yukonga.miuix.kmp.basic.BasicComponent(
-        modifier = Modifier.fillMaxWidth(),
+        // selected 语义与 OptionRow 同源：✓ 图标纯视觉，读屏需播报选中态
+        modifier = Modifier
+            .fillMaxWidth()
+            .semantics { this.selected = selected },
         title = label,
         endActions = {
             if (selected) {

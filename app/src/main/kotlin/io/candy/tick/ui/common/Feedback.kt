@@ -145,7 +145,9 @@ fun FeedbackHost() {
                                     m.onAction?.invoke()
                                     visible = false
                                 }
-                                .padding(horizontal = 8.dp, vertical = 6.dp),
+                                // 垂直 12：动作区 ≈44dp 触控下限——「撤销」是滑删唯一救回手段，
+                                // 此前 ~32dp 偏小；胶囊整体高度由内容撑起，视觉不变厚
+                                .padding(horizontal = 8.dp, vertical = 12.dp),
                         )
                     }
                 }

@@ -128,7 +128,8 @@ fun DetailScreen(repoId: Long, onBack: () -> Unit) {
                             IconButton(onClick = onBack) {
                                 Icon(
                                     imageVector = ImageVector.vectorResource(R.drawable.ic_back),
-                                    contentDescription = null,
+                                    // 图标旁无文字的控件必须有可访问名称（icon-button a11y）
+                                    contentDescription = stringResource(R.string.back),
                                     tint = scheme.onBackground,
                                 )
                             }
@@ -340,18 +341,21 @@ fun DetailScreen(repoId: Long, onBack: () -> Unit) {
                                         androidx.compose.foundation.layout.Row(
                                             verticalAlignment = Alignment.CenterVertically,
                                         ) {
+                                            // 未选中档用 onBackgroundVariant：tertiary 色在分段控件
+                                            // secondaryVariant 底上仅 2.75:1（深 3.25:1），不达正文
+                                            // AA 4.5；onBackgroundVariant 实测 5.47:1 / 6.45:1
                                             top.yukonga.miuix.kmp.basic.Icon(
                                                 imageVector = ImageVector.vectorResource(iconRes),
                                                 contentDescription = null,
                                                 tint = if (isSelected) scheme.onSurface
-                                                else scheme.onSurfaceContainerVariant,
+                                                else scheme.onBackgroundVariant,
                                                 modifier = Modifier.size(14.dp),
                                             )
                                             Spacer(Modifier.width(5.dp))
                                             Text(
                                                 text = label,
                                                 color = if (isSelected) scheme.onSurface
-                                                else scheme.onSurfaceContainerVariant,
+                                                else scheme.onBackgroundVariant,
                                                 style = MiuixTheme.textStyles.body2,
                                             )
                                         }

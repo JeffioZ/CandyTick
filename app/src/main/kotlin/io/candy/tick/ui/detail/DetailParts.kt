@@ -30,6 +30,8 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.focus.focusRequester
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.stringResource
+import androidx.compose.ui.semantics.selected
+import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.unit.dp
 import io.candy.tick.R
 import io.candy.tick.ui.common.OwnerRepoLine
@@ -244,7 +246,10 @@ internal fun RemoveRepoDialog(
 @Composable
 internal fun BranchRow(label: String, selected: Boolean, onClick: () -> Unit) {
     top.yukonga.miuix.kmp.basic.BasicComponent(
-        modifier = Modifier.fillMaxWidth(),
+        // selected 语义与 OptionRow 同源：✓ 图标纯视觉，读屏需播报选中态
+        modifier = Modifier
+            .fillMaxWidth()
+            .semantics { this.selected = selected },
         title = label,
         endActions = {
             if (selected) {
@@ -491,11 +496,12 @@ internal fun HeaderCard(
                         color = scheme.onBackgroundVariant,
                         modifier = Modifier.weight(1f),
                     )
-                    // 动作图标对：36dp 触控钮（IconButton 默认 48dp 会把行撑得过高、
-                    // 两钮中心距过远显稀疏；36dp 与 footnote 行高协调，触控仍达标）
+                    // 动作图标对：44dp 触控（HyperOS 触控下限；Material 指引 48dp）——
+                    // 此前 32dp 低于两档下限，且按钮是行内唯一入口；默认 48 会把行撑得过高，
+                    // 44 折中：行高 +12dp 可接受，图标仍 14dp 与 footnote 协调
                     IconButton(
                         onClick = onChangeLinked,
-                        modifier = Modifier.size(32.dp),
+                        modifier = Modifier.size(44.dp),
                     ) {
                         Icon(
                             // Link 锁链 =「关联」本命语义（换关联 = 重新建链）
@@ -507,7 +513,7 @@ internal fun HeaderCard(
                     }
                     IconButton(
                         onClick = onUnlink,
-                        modifier = Modifier.size(32.dp),
+                        modifier = Modifier.size(44.dp),
                     ) {
                         Icon(
                             // unlink 断链 = 解除关联（minus 减号不表意）
@@ -554,10 +560,10 @@ internal fun HeaderCard(
                         modifier = Modifier.size(18.dp),
                     )
                     Spacer(Modifier.width(6.dp))
-                    // 「其他应用」入口：32dp/14dp——与 linked 态动作钮同规格（此前默认 48dp 撑高行）
+                    // 「其他应用」入口：44dp/14dp——与 linked 态动作钮同规格（触控下限）
                     IconButton(
                         onClick = onChangeLinked,
-                        modifier = Modifier.size(32.dp),
+                        modifier = Modifier.size(44.dp),
                     ) {
                         Icon(
                             imageVector = ImageVector.vectorResource(R.drawable.ic_more),

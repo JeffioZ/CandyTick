@@ -19,6 +19,8 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.res.stringResource
+import androidx.compose.ui.semantics.selected
+import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import io.candy.tick.R
@@ -170,11 +172,14 @@ internal fun FrequencyRow(
     }
 }
 
-/** 选择行（底部弹层用）：BasicComponent + Check 图标 */
+/** 选择行（底部弹层用）：BasicComponent + Check 图标 + 选中态语义（TalkBack 播报「已选中」） */
 @Composable
 internal fun OptionRow(label: String, selected: Boolean, onClick: () -> Unit) {
     BasicComponent(
-        modifier = Modifier.fillMaxWidth(),
+        // 库已给 Role/onClick 语义，这里补 selected：✓ 图标是纯视觉，读屏用户原本无法感知选中
+        modifier = Modifier
+            .fillMaxWidth()
+            .semantics { this.selected = selected },
         title = label,
         endActions = {
             if (selected) {

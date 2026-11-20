@@ -99,7 +99,8 @@ fun AddScreen(
                     IconButton(onClick = onClose) {
                         Icon(
                             imageVector = ImageVector.vectorResource(R.drawable.ic_back),
-                            contentDescription = null,
+                            // 图标旁无文字的控件必须有可访问名称（icon-button a11y）
+                            contentDescription = stringResource(R.string.back),
                             tint = MiuixTheme.colorScheme.onBackground,
                         )
                     }
@@ -541,7 +542,7 @@ private fun PreviewCard(
             val linkedLabel = preview.linkedLabel
             if (linkedLabel != null) {
                 val appBitmap = io.candy.tick.ui.common.rememberAppIcon(preview.linkedPackage)
-                // 与详情页 linked 态逐参数同构：应用图标 + 灰字 + ic_link 钮(32dp/14dp)——
+                // 与详情页 linked 态逐参数同构：应用图标 + 灰字 + ic_link 钮(44dp/14dp 触控下限)——
                 // 行为一致（动作在钮上，行本身不可点），跨页零学习成本
                 Row(verticalAlignment = Alignment.CenterVertically) {
                     appBitmap?.let {
@@ -556,7 +557,7 @@ private fun PreviewCard(
                     )
                     top.yukonga.miuix.kmp.basic.IconButton(
                         onClick = onLinkApp,
-                        modifier = Modifier.size(32.dp),
+                        modifier = Modifier.size(44.dp),
                     ) {
                         Icon(
                             imageVector = ImageVector.vectorResource(R.drawable.ic_link),

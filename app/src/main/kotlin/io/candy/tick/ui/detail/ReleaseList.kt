@@ -30,6 +30,10 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.res.stringResource
+import androidx.compose.ui.semantics.Role
+import androidx.compose.ui.semantics.role
+import androidx.compose.ui.semantics.selected
+import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.unit.dp
 import io.candy.tick.R
 import io.candy.tick.data.model.ApkAsset
@@ -345,11 +349,11 @@ private fun ReleaseCard(
                                     modifier = Modifier.fillMaxWidth(),
                                 )
                             }
-                            // 32dp/16dp：与卡内其他动钮同规格（默认 48 会把与主按钮并排的行撑高）；
+                            // 44dp/16dp：触控下限（HyperOS 档），与并排主按钮高度更匹配；
                             // 红色保留——删除已下载安装包是破坏性动作（destructive-emphasis）
                             top.yukonga.miuix.kmp.basic.IconButton(
                                 onClick = onDeleteDownloaded,
-                                modifier = Modifier.size(32.dp),
+                                modifier = Modifier.size(44.dp),
                             ) {
                                 top.yukonga.miuix.kmp.basic.Icon(
                                     imageVector = ImageVector.vectorResource(R.drawable.ic_delete),
@@ -491,6 +495,12 @@ private fun AssetRow(
     Row(
         modifier = Modifier
             .fillMaxWidth()
+            // 单选语义：圈/勾图形纯视觉，读屏以「单选按钮 + 已/未选中」播报
+            // （此前勾上硬编码英文字面量 "selected"，中文读屏也念英文，且会被合并进行标签）
+            .semantics {
+                role = Role.RadioButton
+                this.selected = selected
+            }
             .clickable(
                 interactionSource = remember { MutableInteractionSource() },
                 indication = null,
@@ -514,7 +524,7 @@ private fun AssetRow(
             Box(modifier = Modifier.size(20.dp), contentAlignment = Alignment.Center) {
                 Icon(
                     imageVector = ImageVector.vectorResource(R.drawable.ic_radio_off),
-                    contentDescription = if (selected) "selected" else null,
+                    contentDescription = null, // 纯视觉：选中态由行级语义播报
                     tint = radioTint,
                     modifier = Modifier.size(20.dp),
                 )

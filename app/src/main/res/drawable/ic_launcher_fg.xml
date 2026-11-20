@@ -6,11 +6,12 @@
     android:viewportWidth="108"
     android:viewportHeight="108">
 
-    <!-- 外涟漪：柔和深绿 -->
+    <!-- 外涟漪：柔和深绿（55% alpha：40% 时在奶油底上仅 1.69:1，48dp 缩示外环消隐
+         成「单环+珠」；55% 约 2.2:1 与深色版 2.65:1 感知对齐，渐弱节奏保留） -->
     <path
         android:pathData="M54,54 m-22,0 a22,22 0 1,1 44,0 a22,22 0 1,1 -44,0"
         android:fillColor="#00000000"
-        android:strokeColor="#6612825C"
+        android:strokeColor="#8C12825C"
         android:strokeWidth="4.5" />
 
     <!-- 内涟漪：Mint700 -->
@@ -20,8 +21,8 @@
         android:strokeColor="#12825C"
         android:strokeWidth="6.5" />
 
-    <!-- 糖珠：Mint700 实色 -->
+    <!-- 糖珠：Mint700 实色（8.5：与内环间隙 4.25dp，48dp 缩示不粘连） -->
     <path
-        android:pathData="M54,54 m-9,0 a9,9 0 1,1 18,0 a9,9 0 1,1 -18,0"
+        android:pathData="M54,54 m-8.5,0 a8.5,8.5 0 1,1 17,0 a8.5,8.5 0 1,1 -17,0"
         android:fillColor="#12825C" />
 </vector>

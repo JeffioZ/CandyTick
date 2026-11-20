@@ -25,6 +25,10 @@ import androidx.compose.ui.draw.rotate
 import androidx.compose.ui.hapticfeedback.HapticFeedbackType
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.platform.LocalHapticFeedback
+import androidx.compose.ui.res.stringResource
+import androidx.compose.ui.semantics.CustomAccessibilityAction
+import androidx.compose.ui.semantics.customActions
+import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.unit.IntOffset
 import androidx.compose.ui.unit.dp
 import kotlinx.coroutines.coroutineScope
@@ -72,6 +76,9 @@ fun SwipeToDelete(
     var dragClaimed by remember { mutableStateOf(false) }
     var dragTotal by remember { mutableStateOf(0f) }
     var hapticFired by remember { mutableStateOf(false) }
+    // 读屏动作标签（pinned 变化触发重组，标签随状态切换）
+    val pinActionLabel = stringResource(if (pinned) R.string.action_unpin else R.string.action_pin)
+    val removeActionLabel = stringResource(R.string.action_remove)
 
     BoxWithConstraints(modifier = modifier) {
         // 单层方向驱动背景：右滑露出删除（图标在左侧露出区），左滑露出置顶（右侧）
@@ -112,6 +119,17 @@ fun SwipeToDelete(
                     alpha = d
                     scaleX = 0.6f + 0.4f * d
                     scaleY = 0.6f + 0.4f * d
+                }
+                // 手势的读屏替代（skill: swipe-only 交互必须有非手势路径）：
+                // mergeDescendants 与卡内 clickable 合成一个焦点单元，
+                // 自定义操作把「置顶/解除置顶/移除」挂进 TalkBack 操作菜单，视觉零变化
+                .semantics(mergeDescendants = true) {
+                    customActions = buildList {
+                        currentOnPin?.let { pin ->
+                            add(CustomAccessibilityAction(pinActionLabel) { pin(); true })
+                        }
+                        add(CustomAccessibilityAction(removeActionLabel) { currentOnDelete(); true })
+                    }
                 }
                 .pointerInput(onPin != null) {
                     // 死区门槛：系统 slop（~8dp）后再累计 16dp 才开始动卡——

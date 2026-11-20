@@ -44,7 +44,8 @@ fun LinkText(
                 indication = null,
                 onClick = onClick,
             )
-            .padding(horizontal = 4.dp, vertical = 4.dp),
+            // padding 计入命中区：8/8 使文字链命中 ≈35dp（行内链上限，再大会推开段落节奏）
+            .padding(horizontal = 8.dp, vertical = 8.dp),
     ) {
         if (showIcon) {
             Icon(

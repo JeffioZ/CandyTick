@@ -20,7 +20,9 @@ val Mint800 = Color(0xFF0B5F49)
 val Mint900 = Color(0xFF083F30)
 
 // —— 语义 Token · 浅色主题（3.2）——
-val LightPrimary = Mint600 // 按钮 / FAB / 选中态
+// 主按钮容器：Mint700（白字实测 5.32:1 达 AA）。Mint600 白字仅 3.87:1——按钮字号
+// 15-16sp 属普通文本，够不到大文本豁免线（≥18.66px 加粗），2026-11-21 审计加深一档
+val LightPrimary = Mint700 // 按钮 / Switch 选中态 / 主 CTA
 val LightOnPrimary = Color(0xFFFFFFFF)
 val LightPrimaryVariant = Mint700 // 链接 / 强调文字
 val LightOnPrimaryVariant = LightOnPrimary

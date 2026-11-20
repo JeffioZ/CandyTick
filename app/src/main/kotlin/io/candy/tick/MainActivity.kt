@@ -35,8 +35,31 @@ class MainActivity : ComponentActivity() {
     }
 
     override fun onCreate(savedInstanceState: Bundle?) {
-        installSplashScreen()
+        val splashScreen = installSplashScreen()
         super.onCreate(savedInstanceState)
+        // 开屏退场谢幕（2026-11-21）：App 就绪后系统默认硬切收走开屏——冷启动快时
+        // 图标一闪而过（开屏语义是「遮加载」，显示时长=启动耗时）。这里接管退场：
+        // 图标 1.35× 放大（涟漪散开，「ping 有回应」的谢幕）+ 整屏 300ms 淡出。
+        // 浅色态底色=页面底，整屏淡出不可见、只剩图标谢幕；深色态 102B1F→0D100E
+        // 交叉淡化替代硬切。不拖慢启动就绪，只把可交互顺延 ~300ms（无感级）；
+        // 系统「动画时长缩放=0」时 animator 立即完成 → remove() 即时，自动退化。
+        // 10/11 走 core-splashscreen compat，同一 API 生效。
+        splashScreen.setOnExitAnimationListener { provider ->
+            val duration = 300L // 动效体系 300 档（进度平滑/导航同级）
+            val interpolator = android.view.animation.DecelerateInterpolator()
+            provider.iconView.animate()
+                .scaleX(1.35f)
+                .scaleY(1.35f)
+                .setDuration(duration)
+                .setInterpolator(interpolator)
+                .start()
+            provider.view.animate()
+                .alpha(0f)
+                .setDuration(duration)
+                .setInterpolator(interpolator)
+                .withEndAction { provider.remove() } // 必须remove，否则开屏永驻
+                .start()
+        }
         // 仅真冷启动消费 extra：旋转/后台回收重建会带着原 intent 重走 onCreate，
         // 此时再消费会把用户已离开的通知目标页重新压回栈
         if (savedInstanceState == null) consumeNavIntent(intent)
