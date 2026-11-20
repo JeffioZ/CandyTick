@@ -230,18 +230,7 @@ fun AddScreen(
                                                 modifier = Modifier.weight(1f, fill = false),
                                             )
                                             Spacer(Modifier.width(8.dp))
-                                            Icon(
-                                                imageVector = ImageVector.vectorResource(R.drawable.ic_star),
-                                                contentDescription = null,
-                                                tint = MiuixTheme.colorScheme.onBackgroundVariant,
-                                                modifier = Modifier.size(12.dp),
-                                            )
-                                            Spacer(Modifier.width(3.dp))
-                                            Text(
-                                                text = CountFormat.format(info.stars),
-                                                style = MiuixTheme.textStyles.footnote1,
-                                                color = MiuixTheme.colorScheme.onBackgroundVariant,
-                                            )
+                                            io.candy.tick.ui.common.StarCount(count = CountFormat.format(info.stars))
                                         }
                                         Text(
                                             text = "${info.owner}/${info.repo}",
@@ -523,18 +512,7 @@ private fun PreviewCard(
                         )
                         Spacer(Modifier.width(8.dp))
                         // star 挪名称旁（与详情头卡同构）；名称截断时 star 恒可见
-                        Icon(
-                            imageVector = ImageVector.vectorResource(R.drawable.ic_star),
-                            contentDescription = null,
-                            tint = scheme.onBackgroundVariant,
-                            modifier = Modifier.size(12.dp),
-                        )
-                        Spacer(Modifier.width(3.dp))
-                        Text(
-                            text = CountFormat.format(info.stars),
-                            style = MiuixTheme.textStyles.footnote1,
-                            color = scheme.onBackgroundVariant,
-                        )
+                        io.candy.tick.ui.common.StarCount(count = CountFormat.format(info.stars))
                     }
                     Text(
                         text = "${info.owner}/${info.repo}",

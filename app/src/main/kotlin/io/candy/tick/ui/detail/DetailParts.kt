@@ -34,6 +34,7 @@ import androidx.compose.ui.unit.dp
 import io.candy.tick.R
 import io.candy.tick.ui.common.PrimaryButton
 import io.candy.tick.ui.common.RepoIconBlock
+import io.candy.tick.ui.common.StarCount
 import io.candy.tick.ui.common.StatusBadge
 import io.candy.tick.ui.common.VersionStatusLine
 import io.candy.tick.ui.common.relTimeString
@@ -309,18 +310,7 @@ internal fun HeaderCard(
                         // 无快照（刚添加未同步）隐藏：此时显示「★0」是假数据
                         if (snapshot != null) {
                             Spacer(Modifier.width(8.dp))
-                            Icon(
-                                imageVector = ImageVector.vectorResource(R.drawable.ic_star),
-                                contentDescription = null,
-                                tint = scheme.onBackgroundVariant,
-                                modifier = Modifier.size(12.dp),
-                            )
-                            Spacer(Modifier.width(3.dp))
-                            Text(
-                                text = CountFormat.format(snapshot.stars),
-                                style = MiuixTheme.textStyles.footnote1,
-                                color = scheme.onBackgroundVariant,
-                            )
+                            StarCount(count = CountFormat.format(snapshot.stars))
                         }
                     }
                     Text(

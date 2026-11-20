@@ -3,7 +3,11 @@ package io.candy.tick.ui.common
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.offset
 import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.remember
@@ -12,13 +16,17 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.res.vectorResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
+import io.candy.tick.R
 import io.candy.tick.data.model.TrackedRepo
 import io.candy.tick.ui.theme.AvatarPalette
 import kotlin.math.abs
+import top.yukonga.miuix.kmp.basic.Icon
 import top.yukonga.miuix.kmp.basic.Text
 import top.yukonga.miuix.kmp.theme.MiuixTheme
 
@@ -56,6 +64,36 @@ fun installedAppLabel(context: android.content.Context, packageName: String): St
 @Composable
 fun RepoIconBlock(repo: TrackedRepo, size: Dp = 48.dp, corner: Dp = 12.dp) =
     RepoIconBlock(owner = repo.owner, linkedPackage = repo.linkedPackage, size = size, corner = corner)
+
+/**
+ * star + 计数（详情头卡/搜索卡/预览卡名称行尾共用）：12dp 星标 + 3dp + footnote1 数字。
+ * 整组光学下移 [STAR_OPTICAL_NUDGE]：CenterVertically 对的是标题行盒的几何中心，
+ * 行盒含上下留白而字形墨迹中心略低——纯几何居中会让整组（星+数字）看起来偏高
+ * （Icon Alignment 反模式：几何居中 ≠ 视觉居中）。实机仍觉偏高就调到 1.dp，单点参数。
+ */
+private val STAR_OPTICAL_NUDGE = 0.5.dp
+
+@Composable
+fun StarCount(count: String, modifier: Modifier = Modifier) {
+    val tint = MiuixTheme.colorScheme.onBackgroundVariant
+    Row(
+        verticalAlignment = Alignment.CenterVertically,
+        modifier = modifier.offset(y = STAR_OPTICAL_NUDGE),
+    ) {
+        Icon(
+            imageVector = ImageVector.vectorResource(R.drawable.ic_star),
+            contentDescription = null,
+            tint = tint,
+            modifier = Modifier.size(12.dp),
+        )
+        Spacer(Modifier.width(3.dp))
+        Text(
+            text = count,
+            style = MiuixTheme.textStyles.footnote1,
+            color = tint,
+        )
+    }
+}
 
 @Composable
 private fun AvatarBlock(owner: String, size: Dp, corner: Dp) {
