@@ -7,6 +7,7 @@ import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
@@ -222,7 +223,8 @@ fun DetailScreen(repoId: Long, onBack: () -> Unit) {
             LazyColumn(
                 state = detailListState,
                 modifier = Modifier.fillMaxSize(),
-                contentPadding = PaddingValues(start = 16.dp, end = 16.dp, top = 10.dp, bottom = 48.dp),
+                // 底部 32：全 App 滚动终止留白统一档（footer 元素上下间距见 FooterText v8 + 此 32）
+                contentPadding = PaddingValues(start = 16.dp, end = 16.dp, top = 10.dp, bottom = 32.dp),
                 verticalArrangement = Arrangement.spacedBy(10.dp),
             ) {
                 item {
@@ -282,8 +284,8 @@ fun DetailScreen(repoId: Long, onBack: () -> Unit) {
                 // 页签：分段控件（滑块移动动画）
                 item {
                     val tabItems = listOf(
-                        stringResource(R.string.detail_commits) to DetailViewModel.DetailTab.COMMITS,
-                        stringResource(R.string.detail_releases) to DetailViewModel.DetailTab.RELEASES,
+                        Triple(R.drawable.ic_git_commit, stringResource(R.string.detail_commits), DetailViewModel.DetailTab.COMMITS),
+                        Triple(R.drawable.ic_tag, stringResource(R.string.detail_releases), DetailViewModel.DetailTab.RELEASES),
                     )
                     val selectedIndex = if (state.tab == DetailViewModel.DetailTab.COMMITS) 0 else 1
                     val segShape = androidx.compose.foundation.shape.RoundedCornerShape(19.dp)
@@ -317,7 +319,7 @@ fun DetailScreen(repoId: Long, onBack: () -> Unit) {
                             )
                             // 标签
                             androidx.compose.foundation.layout.Row(modifier = Modifier.fillMaxWidth()) {
-                                tabItems.forEachIndexed { index, (label, tab) ->
+                                tabItems.forEachIndexed { index, (iconRes, label, tab) ->
                                     val isSelected = index == selectedIndex
                                     androidx.compose.foundation.layout.Box(
                                         modifier = Modifier
@@ -334,12 +336,25 @@ fun DetailScreen(repoId: Long, onBack: () -> Unit) {
                                             },
                                         contentAlignment = Alignment.Center,
                                     ) {
-                                        Text(
-                                            text = label,
-                                            color = if (isSelected) scheme.onSurface
-                                            else scheme.onSurfaceContainerVariant,
-                                            style = MiuixTheme.textStyles.body2,
-                                        )
+                                        // 图标前缀（Lucide 单源）：提交=commit 节点、版本=tag，色随文字
+                                        androidx.compose.foundation.layout.Row(
+                                            verticalAlignment = Alignment.CenterVertically,
+                                        ) {
+                                            top.yukonga.miuix.kmp.basic.Icon(
+                                                imageVector = ImageVector.vectorResource(iconRes),
+                                                contentDescription = null,
+                                                tint = if (isSelected) scheme.onSurface
+                                                else scheme.onSurfaceContainerVariant,
+                                                modifier = Modifier.size(14.dp),
+                                            )
+                                            Spacer(Modifier.width(5.dp))
+                                            Text(
+                                                text = label,
+                                                color = if (isSelected) scheme.onSurface
+                                                else scheme.onSurfaceContainerVariant,
+                                                style = MiuixTheme.textStyles.body2,
+                                            )
+                                        }
                                     }
                                 }
                             }

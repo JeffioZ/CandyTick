@@ -517,10 +517,15 @@ private fun SyncDots(running: Boolean, done: SyncStatus.Done?, modifier: Modifie
         ) {
         lastDone?.let { d ->
             val failedOnly = d.failed > 0 && d.changed == 0
-            Text(
-                text = if (failedOnly) "\u2715" else "\u2713",
-                style = MiuixTheme.textStyles.footnote1,
-                color = if (failedOnly) scheme.onErrorContainer else scheme.primaryVariant,
+            // 结果符 Lucide 单源（ic_check/ic_close）——此前是 Unicode 文字字符，
+            // 随设备字体变形且笔画与图标库不一致（与 Feedback 胶囊状态符同批替换）
+            top.yukonga.miuix.kmp.basic.Icon(
+                imageVector = ImageVector.vectorResource(
+                    if (failedOnly) R.drawable.ic_close else R.drawable.ic_check,
+                ),
+                contentDescription = null,
+                tint = if (failedOnly) scheme.onErrorContainer else scheme.primaryVariant,
+                modifier = Modifier.size(14.dp),
             )
         }
         }

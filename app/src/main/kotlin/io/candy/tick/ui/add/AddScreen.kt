@@ -176,6 +176,8 @@ fun AddScreen(
                     }
                     state.results.isNotEmpty() -> LazyColumn(
                         modifier = Modifier.fillMaxSize(),
+                        // 底部 32：全 App 滚动终止留白统一档（此前无 bottom，footer 贴底）
+                        contentPadding = androidx.compose.foundation.layout.PaddingValues(bottom = 32.dp),
                         verticalArrangement = Arrangement.spacedBy(8.dp),
                     ) {
                     items(state.results, key = { it.githubId }) { info ->
@@ -237,11 +239,22 @@ fun AddScreen(
                                     )
                                 }
                                 Spacer(Modifier.height(6.dp))
-                                Text(
-                                    text = stringResource(R.string.add_stars, CountFormat.format(info.stars)),
-                                    style = MiuixTheme.textStyles.footnote1,
-                                    color = MiuixTheme.colorScheme.onBackgroundVariant,
-                                )
+androidx.compose.foundation.layout.Row(
+                                    verticalAlignment = Alignment.CenterVertically,
+                                ) {
+                                    Icon(
+                                        imageVector = ImageVector.vectorResource(R.drawable.ic_star),
+                                        contentDescription = null,
+                                        tint = MiuixTheme.colorScheme.onBackgroundVariant,
+                                        modifier = Modifier.size(12.dp),
+                                    )
+                                    Spacer(Modifier.width(3.dp))
+                                    Text(
+                                        text = stringResource(R.string.add_stars, CountFormat.format(info.stars)),
+                                        style = MiuixTheme.textStyles.footnote1,
+                                        color = MiuixTheme.colorScheme.onBackgroundVariant,
+                                    )
+                                }
                             }
                         }
                         }
@@ -510,11 +523,22 @@ private fun PreviewCard(
                 Spacer(Modifier.height(6.dp))
             }
             Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
-                Text(
-                    text = stringResource(R.string.add_stars, CountFormat.format(info.stars)),
-                    style = MiuixTheme.textStyles.footnote1,
-                    color = scheme.onBackgroundVariant,
-                )
+androidx.compose.foundation.layout.Row(
+                    verticalAlignment = Alignment.CenterVertically,
+                ) {
+                    Icon(
+                        imageVector = ImageVector.vectorResource(R.drawable.ic_star),
+                        contentDescription = null,
+                        tint = scheme.onBackgroundVariant,
+                        modifier = Modifier.size(12.dp),
+                    )
+                    Spacer(Modifier.width(3.dp))
+                    Text(
+                        text = stringResource(R.string.add_stars, CountFormat.format(info.stars)),
+                        style = MiuixTheme.textStyles.footnote1,
+                        color = scheme.onBackgroundVariant,
+                    )
+                }
                 Text(
                     text = stringResource(R.string.add_license, info.license ?: "—"),
                     style = MiuixTheme.textStyles.footnote1,

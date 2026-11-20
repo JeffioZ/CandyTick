@@ -10,6 +10,7 @@ import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.offset
+import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.runtime.Composable
@@ -43,7 +44,10 @@ fun LoadingDots(
     // 减弱动态（系统动画时长=0）：三点静态化（持续运动是前庭不适主因）
     if (!rememberMotionEnabled()) {
         Row(
-            modifier = modifier.semantics { contentDescription = busyLabel },
+            // 与动态分支同 padding（等高）：两分支切换不跳行高
+            modifier = modifier
+                .semantics { contentDescription = busyLabel }
+                .padding(vertical = dotSize * 0.625f),
             horizontalArrangement = Arrangement.spacedBy(3.dp),
             verticalAlignment = Alignment.CenterVertically,
         ) {
@@ -66,7 +70,11 @@ fun LoadingDots(
         label = "loadingT",
     )
     Row(
-        modifier = modifier.semantics { contentDescription = busyLabel },
+        // 垂直余量 = 波动幅度（±0.625×dotSize）：offset 不参与测量，Row 实际高度若只有
+        // 点直径，浮动越界部分会被带 clip 的祖先（卡片圆角）裁掉——首帧点在最大偏移位，最明显
+        modifier = modifier
+            .semantics { contentDescription = busyLabel }
+            .padding(vertical = dotSize * 0.625f),
         horizontalArrangement = Arrangement.spacedBy(3.dp),
         verticalAlignment = Alignment.CenterVertically,
     ) {

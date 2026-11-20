@@ -424,7 +424,17 @@ fun SettingsScreen(onBack: () -> Unit) {
                     iconTint = ChipOrange,
                     title = stringResource(R.string.settings_crash_log),
                     summary = stringResource(R.string.settings_crash_log_summary),
-                    value = if (crashLogPresent) "✓" else "",
+                    // 存在性标记 Lucide 化（与全 App 勾符单源；此前是 Unicode 文字"✓"）
+                    trailing = if (crashLogPresent) {
+                        {
+                            top.yukonga.miuix.kmp.basic.Icon(
+                                imageVector = ImageVector.vectorResource(R.drawable.ic_check),
+                                contentDescription = null,
+                                tint = MiuixTheme.colorScheme.primaryVariant,
+                                modifier = Modifier.size(14.dp),
+                            )
+                        }
+                    } else null,
                     onClick = { shareCrashLog() },
                 )
             }

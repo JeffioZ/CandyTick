@@ -320,11 +320,22 @@ internal fun HeaderCard(
                 Spacer(Modifier.height(6.dp))
             }
             Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
-                Text(
-                    text = stringResource(R.string.detail_stars, CountFormat.format(snapshot?.stars ?: 0)),
-                    style = MiuixTheme.textStyles.footnote1,
-                    color = scheme.onBackgroundVariant,
-                )
+androidx.compose.foundation.layout.Row(
+                    verticalAlignment = Alignment.CenterVertically,
+                ) {
+                    Icon(
+                        imageVector = ImageVector.vectorResource(R.drawable.ic_star),
+                        contentDescription = null,
+                        tint = scheme.onBackgroundVariant,
+                        modifier = Modifier.size(12.dp),
+                    )
+                    Spacer(Modifier.width(3.dp))
+                    Text(
+                        text = stringResource(R.string.detail_stars, CountFormat.format(snapshot?.stars ?: 0)),
+                        style = MiuixTheme.textStyles.footnote1,
+                        color = scheme.onBackgroundVariant,
+                    )
+                }
                 Text(
                     text = stringResource(R.string.detail_forks, CountFormat.format(snapshot?.forks ?: 0)),
                     style = MiuixTheme.textStyles.footnote1,

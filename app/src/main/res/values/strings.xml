@@ -128,7 +128,7 @@
     <string name="add_parse_error">Unrecognized · use a GitHub link or owner/repo</string>
     <string name="add_search_failed">Search failed</string>
     <string name="add_search_empty">No match — try pasting the full link</string>
-    <string name="add_stars">★ %1$s</string>
+    <string name="add_stars">%1$s</string>
     <string name="add_license">License: %1$s</string>
     <string name="picker_search_app">Search apps</string>
     <string name="picker_no_match">No matching apps</string>
@@ -146,7 +146,7 @@
     <string name="detail_no_releases">No releases yet</string>
     <string name="detail_select_asset_hint">Select a package to download</string>
     <string name="detail_no_apk">No APK provided</string>
-    <string name="detail_stars">★ %1$s</string>
+    <string name="detail_stars">%1$s</string>
     <string name="detail_forks">Fork %1$s</string>
     <string name="detail_issues">Issue %1$s</string>
     <string name="detail_link_app">Link installed app</string>

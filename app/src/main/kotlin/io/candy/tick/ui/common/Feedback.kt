@@ -26,6 +26,10 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.shadow
+import androidx.compose.foundation.layout.size
+import androidx.compose.ui.graphics.vector.ImageVector
+import androidx.compose.ui.res.vectorResource
+
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import kotlinx.coroutines.delay
@@ -111,10 +115,14 @@ fun FeedbackHost() {
                         .padding(start = 14.dp, end = 12.dp, top = 10.dp, bottom = 10.dp),
                     verticalAlignment = Alignment.CenterVertically,
                 ) {
-                    Text(
-                        text = if (m.isError) "✕" else "✓",
-                        style = MiuixTheme.textStyles.footnote1,
-                        color = onContainer,
+                    // 状态符 Lucide 单源（与 SyncDots 结果符同库同规格 14dp）
+                    top.yukonga.miuix.kmp.basic.Icon(
+                        imageVector = ImageVector.vectorResource(
+                            if (m.isError) io.candy.tick.R.drawable.ic_close else io.candy.tick.R.drawable.ic_check,
+                        ),
+                        contentDescription = null,
+                        tint = onContainer,
+                        modifier = Modifier.size(14.dp),
                     )
                     Spacer(Modifier.width(6.dp))
                     Text(
