@@ -161,6 +161,7 @@
     <string name="load_failed">Load failed</string>
     <string name="status_error_subtitle">Network or API hiccup — try again in a moment</string>
     <string name="list_end">the end</string>
+    <string name="list_end_count">%1$s · %2$d items</string>
     <string name="release_view_on_github">View full release notes</string>
     <string name="release_current">Current</string>
     <string name="asset_recommended">Recommended</string>

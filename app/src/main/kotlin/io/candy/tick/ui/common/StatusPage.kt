@@ -18,6 +18,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.vector.ImageVector
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import top.yukonga.miuix.kmp.basic.Icon
@@ -96,7 +97,7 @@ fun StatusPage(
 
 /** 列表终点提示（「已到底」）：全应用列表共用，footnote2 弱化 + 居中 */
 @Composable
-fun FooterText(text: String, modifier: Modifier = Modifier) {
+fun FooterText(text: String, modifier: Modifier = Modifier, count: Int? = null) {
     // 列表终点标记：文字两侧短线（dividerLine 与卡内分隔线同源）——印刷式「线·文·线」
     // 终点语言；保持最弱层级（footnote2 + 分隔线色）不与内容争夺注意力
     val scheme = MiuixTheme.colorScheme
@@ -116,7 +117,12 @@ fun FooterText(text: String, modifier: Modifier = Modifier) {
         )
         Spacer(Modifier.width(10.dp))
         Text(
-            text = text,
+            // count 非空时「已到底 · 共 N 项」：滚到底的清点时刻给总数（书末页码心理）
+            text = if (count != null) {
+                stringResource(io.candy.tick.R.string.list_end_count, text, count)
+            } else {
+                text
+            },
             style = MiuixTheme.textStyles.footnote2,
             color = scheme.onBackgroundVariant,
         )

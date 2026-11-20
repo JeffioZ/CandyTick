@@ -385,6 +385,7 @@ fun ListScreen(
                             item(key = "list-end") {
                                 io.candy.tick.ui.common.FooterText(
                                     text = stringResource(R.string.list_end),
+                                    count = state.items.size,
                                     // 与卡片同款淡入淡出：搜索→浏览切换时终点标记不跳现
                                     modifier = Modifier.animateItem(
                                         fadeInSpec = androidx.compose.animation.core.tween(150),

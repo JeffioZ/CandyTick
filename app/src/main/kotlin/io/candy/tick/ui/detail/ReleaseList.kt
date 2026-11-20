@@ -119,7 +119,7 @@ private fun ReleaseFooter(
             modifier = pageModifier.fillMaxWidth(),
         )
         // 到底且有内容：终点提示（与 CommitFooter 对称，替代原先挂在 Screen 层的外置 if）
-        else -> io.candy.tick.ui.common.FooterText(text = stringResource(R.string.list_end))
+        else -> io.candy.tick.ui.common.FooterText(text = stringResource(R.string.list_end), count = state.releases.size)
     }
 }
 

@@ -114,6 +114,6 @@ private fun CommitFooter(
             modifier = pageModifier.fillMaxWidth(),
         )
         // 到底且有内容：终点提示（修复缺失——此前 when 链在此情形什么都不渲染）
-        else -> io.candy.tick.ui.common.FooterText(text = stringResource(R.string.list_end))
+        else -> io.candy.tick.ui.common.FooterText(text = stringResource(R.string.list_end), count = state.commits.size)
     }
 }

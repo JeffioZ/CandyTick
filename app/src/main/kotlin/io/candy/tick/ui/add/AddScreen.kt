@@ -248,7 +248,7 @@ fun AddScreen(
                     }
                         // 到底提示：搜索一次取前 20 条，明示列表不会再增长
                         item(key = "search-end") {
-                            FooterText(text = stringResource(R.string.list_end))
+                            FooterText(text = stringResource(R.string.list_end), count = state.results.size)
                         }
                     }
                     state.searched -> io.candy.tick.ui.common.StatusPage(
