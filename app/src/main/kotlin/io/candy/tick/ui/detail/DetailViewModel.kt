@@ -53,6 +53,10 @@ class DetailViewModel(
         val releasesLoading: Boolean = false,
         val releasesEnd: Boolean = false,
         val releasesFailed: Boolean = false,
+        // page1 重载进行中（仅 refresh 触发）：footer 用它压掉与刷新头重复的小点，
+        // 完成即清。翻页加载（load-more）不走这个标记，小点照常
+        val commitsReloading: Boolean = false,
+        val releasesReloading: Boolean = false,
         val download: RepoDownloadState? = null,
         val selectedAssets: Map<String, ApkAsset> = emptyMap(), // releaseKey(tag) → 手选覆盖
         val branches: List<BranchInfo> = emptyList(), // 分支选择器数据（name + tip 时间）
@@ -91,10 +95,23 @@ class DetailViewModel(
                 _state.update {
                     it.copy(repo = s.repos.find { r -> r.id == repoId }, snapshot = s.snapshots[repoId])
                 }
+                // 关联应用已卸载（可能发生在本 App 未运行时）：关联 = 对已装应用的事实
+                // 链接，失效即自动解除；autoClear 保留 dismissed 记忆——用户重装应用后
+                // auto-match 会自动重绑
+                val linked = _state.value.repo?.linkedPackage
+                if (linked != null &&
+                    runCatching { appContext.packageManager.getPackageInfo(linked, 0) }.isFailure
+                ) {
+                    repository.setLinkedPackage(repoId, null, autoClear = true)
+                    return@collect
+                }
                 if (!autoLinkTried) {
                     val r = _state.value.repo ?: return@collect
                     autoLinkTried = true
-                    if (r.linkedPackage == null) {
+                    // dismissed = 用户解除过：持久记忆（TrackedRepo.autoLinkDismissed），
+                    // 冷启动也不重绑——此前只有 VM 内的 autoLinkTried，杀进程归零后
+                    // 高置信规则重新命中又绑回（miuix demo 实测）
+                    if (r.linkedPackage == null && !r.autoLinkDismissed) {
                         // 高置信自动关联（AppMatcher：标签/包名尾段/owner.repo 段；全机唯一才绑）
                         val auto = withContext(Dispatchers.Default) {
                             io.candy.tick.util.AppMatcher.bestAutoMatch(appContext, r.owner, r.repo)
@@ -179,18 +196,22 @@ class DetailViewModel(
             _state.update {
                 it.copy(
                     commits = emptyList(), commitsEnd = false, commitsFailed = false,
-                    commitsLoading = false,
+                    commitsLoading = false, commitsReloading = false,
                 )
             }
             loadCommits()
         }
     }
 
-    /** 下拉刷新：刷新快照 + 重置提交 / Release 列表（与首页同一语义） */
-    fun refresh() {
-        if (_state.value.refreshing) return
+    /**
+     * 下拉刷新：刷新快照 + 原地重载提交 / Release 列表。
+     * silent（进入详情）：不点亮刷新头——首次进入时区域加载点已是唯一且正确的信号，
+     * 头部圆环 + 区域点同时转是实测「突兀」的来源；有缓存时内容原地保留、静默校准。
+     */
+    fun refresh(silent: Boolean = false) {
+        if (_state.value.refreshing || _state.value.commitsReloading) return
         viewModelScope.launch {
-            _state.update { it.copy(refreshing = true, banner = null) }
+            _state.update { it.copy(refreshing = !silent, banner = null) }
             val error = repository.refreshRepo(repoId)
             if (error == null) {
                 commitsPage = 1
@@ -201,9 +222,11 @@ class DetailViewModel(
                     it.copy(
                         // loading 一并复位：进入即刷新时 init 的在途响应会因 gen 不匹配作废、
                         // 不复位的话下面的 loadCommits/loadReleases 被自家守卫挡回，
-                        // 在途响应又不认领 → 列表永久转圈（进入详情必现窗口）
-                        commits = emptyList(), commitsEnd = false, commitsFailed = false, commitsLoading = false,
-                        releases = emptyList(), releasesEnd = false, releasesFailed = false, releasesLoading = false,
+                        // 在途响应又不认领 → 列表永久转圈（进入详情必现窗口）。
+                        // 列表不清空：旧内容原地保留（整页 loading 是突兀感根源），新数据
+                        // 到达由 page1 整页替换；reloading 压掉 footer 的重复小点
+                        commitsEnd = false, commitsFailed = false, commitsLoading = false, commitsReloading = true,
+                        releasesEnd = false, releasesFailed = false, releasesLoading = false, releasesReloading = true,
                     )
                 }
                 loadCommits()
@@ -224,23 +247,26 @@ class DetailViewModel(
             val gen = commitsGen
             val more = runCatching { repository.commits(repoId, page) }
             if (gen != commitsGen) return@launch // 已切分支/刷新：旧响应作废
-            _state.update {
-                when (val data = more.getOrNull()) {
-                    null -> it.copy(commitsLoading = false, commitsFailed = true)
-                    else -> {
-                        if (data.isEmpty()) {
-                            it.copy(commitsLoading = false, commitsEnd = true)
-                        } else {
-                            commitsPage = page + 1
-                            it.copy(
-                                commits = it.commits + data,
-                                commitsLoading = false,
-                                commitsEnd = data.size < COMMITS_PER_PAGE,
-                            )
+                _state.update {
+                    when (val data = more.getOrNull()) {
+                        null -> it.copy(commitsLoading = false, commitsReloading = false, commitsFailed = true)
+                        else -> {
+                            if (data.isEmpty()) {
+                                it.copy(commitsLoading = false, commitsReloading = false, commitsEnd = true)
+                            } else {
+                                commitsPage = page + 1
+                                it.copy(
+                                    // page1 = 刷新重载：整页替换（旧内容保留期间防追加重复）；
+                                    // page>1 = 翻页追加
+                                    commits = if (page == 1) data else it.commits + data,
+                                    commitsLoading = false,
+                                    commitsReloading = false,
+                                    commitsEnd = data.size < COMMITS_PER_PAGE,
+                                )
+                            }
                         }
                     }
                 }
-            }
         }
     }
 
@@ -255,15 +281,17 @@ class DetailViewModel(
             if (gen != releasesGen) return@launch // 已刷新：旧页响应作废（loading 由新周期接管）
             _state.update {
                 when (val data = more.getOrNull()) {
-                    null -> it.copy(releasesLoading = false, releasesFailed = true)
+                    null -> it.copy(releasesLoading = false, releasesReloading = false, releasesFailed = true)
                     else -> {
                         if (data.isEmpty()) {
-                            it.copy(releasesLoading = false, releasesEnd = true)
+                            it.copy(releasesLoading = false, releasesReloading = false, releasesEnd = true)
                         } else {
                             releasesPage = page + 1
                             it.copy(
-                                releases = it.releases + data,
+                                // page1 = 刷新重载：整页替换；page>1 = 翻页追加
+                                releases = if (page == 1) data else it.releases + data,
                                 releasesLoading = false,
+                                releasesReloading = false,
                                 releasesEnd = data.size < RELEASES_PER_PAGE,
                             )
                         }

@@ -37,6 +37,10 @@ data class TrackedRepo(
     val noteName: String? = null, // 备注名（可空；autoNote=true 时为关联应用名，随改名刷新）
     val autoNote: Boolean = false, // noteName 是否自动来自关联应用（自定义备注永不覆盖）
     val linkedPackage: String? = null, // 关联本机应用包名（可空）
+    // 用户解除过自动关联（冷启动不再重绑）：解除 = 明确「不要绑」，必须持久记忆——
+    // 否则杀进程后 VM 重建、autoLinkTried 归零，高置信规则重新命中又绑回（miuix demo 实测）。
+    // 手动关联/切换关联 = 重新表态，自动清除本标记
+    val autoLinkDismissed: Boolean = false,
     val branch: String? = null, // 浏览分支（可空 = 仓库默认分支；仅影响提交视图）
     val pinnedAt: Instant? = null, // 置顶时间（可空 = 未置顶；置顶组永远排最前）
     val downloadedApk: DownloadedApk? = null, // 「下载保留」重装复用

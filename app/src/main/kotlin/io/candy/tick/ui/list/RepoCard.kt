@@ -37,6 +37,7 @@ import androidx.compose.foundation.layout.width
 import androidx.compose.ui.res.vectorResource
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.graphics.vector.ImageVector
+import io.candy.tick.ui.common.Motion
 
 /** 首页仓库卡片：图标 + 名称 + 徽章 + 相对时间；展开显示提交与版本行 */
 @Composable
@@ -113,11 +114,26 @@ fun RepoCard(
                             )
                             Spacer(Modifier.width(5.dp))
                         }
-                        Text(
-                            text = stringResource(R.string.card_last_push, relTimeString(pushed)),
-                            style = MiuixTheme.textStyles.footnote2,
-                            color = if (isChanged) scheme.primaryVariant else scheme.onBackgroundVariant,
-                        )
+                        // 刷新中：时间原地换为加载反馈（skill: Content Jumping——稳定容器零高度
+                        // 变化）。此前反馈行插在展开面板里：折叠态刷新完全无反馈 + 插行导致
+                        // 卡片高度跳变；头部这一行折叠/展开常驻，原地换字两态通吃
+                        if (extras?.refreshing == true) {
+                            Row(verticalAlignment = Alignment.CenterVertically) {
+                                io.candy.tick.ui.common.LoadingDots(dotSize = 4.dp)
+                                Spacer(Modifier.width(5.dp))
+                                Text(
+                                    text = stringResource(R.string.card_refreshing),
+                                    style = MiuixTheme.textStyles.footnote2,
+                                    color = scheme.onBackgroundVariant,
+                                )
+                            }
+                        } else {
+                            Text(
+                                text = stringResource(R.string.card_last_push, relTimeString(pushed)),
+                                style = MiuixTheme.textStyles.footnote2,
+                                color = if (isChanged) scheme.primaryVariant else scheme.onBackgroundVariant,
+                            )
+                        }
                     }
                     Spacer(Modifier.weight(1f))
                     // 「发现新版」直显标识（薄荷胶囊）：收起态的唯一新版提示；
@@ -138,7 +154,7 @@ fun RepoCard(
                     // 普通 ⌄/⌃ 箭头，交叉淡入淡出（不旋转，无「转圈」感）
                     androidx.compose.animation.Crossfade(
                         targetState = expanded,
-                        animationSpec = androidx.compose.animation.core.tween(150),
+                        animationSpec = androidx.compose.animation.core.tween(Motion.MICRO),
                         label = "expandArrow",
                     ) { exp ->
                         // 显式 18dp 钉死：Lucide chevron viewport 稳定，Crossfade 切换无尺寸跳
@@ -162,16 +178,16 @@ fun RepoCard(
                     // 底边与卡片高度同步生长/收缩——默认贴底时面板与卡底各自运动，
                     // 收起时"卡中卡"与卡身分离感（两个色块没一起收）
                     enter = androidx.compose.animation.expandVertically(
-                        animationSpec = androidx.compose.animation.core.tween(220),
+                        animationSpec = androidx.compose.animation.core.tween(Motion.PANEL),
                         expandFrom = Alignment.Top,
                     ) + androidx.compose.animation.fadeIn(
-                        animationSpec = androidx.compose.animation.core.tween(220),
+                        animationSpec = androidx.compose.animation.core.tween(Motion.PANEL),
                     ),
                     exit = androidx.compose.animation.shrinkVertically(
-                        animationSpec = androidx.compose.animation.core.tween(220),
+                        animationSpec = androidx.compose.animation.core.tween(Motion.PANEL),
                         shrinkTowards = Alignment.Top,
                     ) + androidx.compose.animation.fadeOut(
-                        animationSpec = androidx.compose.animation.core.tween(220),
+                        animationSpec = androidx.compose.animation.core.tween(Motion.PANEL),
                     ),
                 ) {
                     // 图层隔离：展开动画逐帧只改裁剪/尺寸，面板内容缓存在独立层
@@ -181,7 +197,7 @@ fun RepoCard(
                     ) {
                         Spacer(Modifier.height(2.dp))
                         // 卡中卡信息面板：展开内容有容器底，与折叠态主信息分层
-                        ExpandedDetails(item = item, extras = extras, versionEpoch = versionEpoch, refreshing = extras?.refreshing == true, onRetry = onRetryExtras)
+                        ExpandedDetails(item = item, extras = extras, versionEpoch = versionEpoch, onRetry = onRetryExtras)
                         // 卡底留白放展开块内：收起时随动画移除，折叠态底部与顶对称（8dp）
                         Spacer(Modifier.height(8.dp))
                     }
@@ -195,7 +211,6 @@ private fun ExpandedDetails(
     item: ListViewModel.RepoListItem,
     extras: ListViewModel.CardExtras?,
     versionEpoch: Int = 0,
-    refreshing: Boolean = false,
     onRetry: (() -> Unit)? = null,
 ) {
     val scheme = MiuixTheme.colorScheme
@@ -280,34 +295,5 @@ private fun ExpandedDetails(
         // 版本行：最新 release vs 本机版本（与详情页头部共用组件，口径一致）
         val release = extras?.latestRelease
         if (release != null) VersionStatusLine(repo = item.repo, remoteTag = release.tagName, installEpoch = versionEpoch)
-
-        // 静默重拉提示（150 淡入淡出）：旧数据照常显示，只是告知"正在取新数据"——
-        // 此前暗更没有任何反馈（点了没反应，数据过会儿突然变了）
-        androidx.compose.animation.AnimatedVisibility(
-            visible = refreshing,
-            // fade + 高度展开/收缩（贴顶）：此前只有 fade，出现/消失时占位突变 → 卡片高度跳变生硬
-            enter = androidx.compose.animation.expandVertically(
-                animationSpec = androidx.compose.animation.core.tween(150),
-                expandFrom = Alignment.Top,
-            ) + androidx.compose.animation.fadeIn(androidx.compose.animation.core.tween(150)),
-            exit = androidx.compose.animation.shrinkVertically(
-                animationSpec = androidx.compose.animation.core.tween(150),
-                shrinkTowards = Alignment.Top,
-            ) + androidx.compose.animation.fadeOut(androidx.compose.animation.core.tween(150)),
-        ) {
-            androidx.compose.foundation.layout.Row(
-                verticalAlignment = Alignment.CenterVertically,
-                modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = androidx.compose.foundation.layout.Arrangement.Center,
-            ) {
-                io.candy.tick.ui.common.LoadingDots(dotSize = 4.dp)
-                Spacer(Modifier.width(6.dp))
-                Text(
-                    text = stringResource(R.string.card_refreshing),
-                    style = MiuixTheme.textStyles.footnote2,
-                    color = scheme.onBackgroundVariant,
-                )
-            }
-        }
     }
 }

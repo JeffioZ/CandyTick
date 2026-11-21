@@ -47,6 +47,7 @@ import top.yukonga.miuix.kmp.basic.rememberTopAppBarState
 import top.yukonga.miuix.kmp.theme.MiuixTheme
 import androidx.compose.ui.res.vectorResource
 import androidx.compose.ui.graphics.vector.ImageVector
+import io.candy.tick.ui.common.Motion
 
 @Composable
 fun ListScreen(
@@ -205,8 +206,9 @@ fun ListScreen(
                                     ) { scope.launch { listState.animateScrollToItem(0) } },
                             )
                             Spacer(Modifier.width(6.dp))
-                            // 自动同步活体：标题右侧三点轻跳 → 完成符（信息由悬浮胶囊承担）
-                            SyncDots(
+                            // 自动同步活体：标题右侧三点轻跳 → 完成符（信息由悬浮胶囊承担）；
+                            // 组件已提到 ui/common 与详情页共用
+                            io.candy.tick.ui.common.SyncDots(
                                 running = syncStatus is SyncStatus.Running,
                                 done = syncResult,
                             )
@@ -222,14 +224,14 @@ fun ListScreen(
                             // 宽度动画与淡入淡出并行：搜索过滤让计数跨阈值时，右侧四个
                             // 图标被 48dp 瞬移一次的抖动（fade 不改宽度）改为平滑滑移
                             enter = androidx.compose.animation.fadeIn(
-                                androidx.compose.animation.core.tween(150),
+                                androidx.compose.animation.core.tween(Motion.MICRO),
                             ) + androidx.compose.animation.expandHorizontally(
-                                androidx.compose.animation.core.tween(150),
+                                androidx.compose.animation.core.tween(Motion.MICRO),
                             ),
                             exit = androidx.compose.animation.fadeOut(
-                                androidx.compose.animation.core.tween(150),
+                                androidx.compose.animation.core.tween(Motion.MICRO),
                             ) + androidx.compose.animation.shrinkHorizontally(
-                                androidx.compose.animation.core.tween(150),
+                                androidx.compose.animation.core.tween(Motion.MICRO),
                             ),
                         ) {
                             io.candy.tick.ui.common.PressIconButton(
@@ -318,14 +320,14 @@ fun ListScreen(
                         visible = showSearch,
                         // 表层档 220：展开/收起高度与透明度同拍（默认 spring 不可控且不在四档体系）
                         enter = androidx.compose.animation.expandVertically(
-                            animationSpec = androidx.compose.animation.core.tween(220),
+                            animationSpec = androidx.compose.animation.core.tween(Motion.PANEL),
                         ) + androidx.compose.animation.fadeIn(
-                            animationSpec = androidx.compose.animation.core.tween(220),
+                            animationSpec = androidx.compose.animation.core.tween(Motion.PANEL),
                         ),
                         exit = androidx.compose.animation.shrinkVertically(
-                            animationSpec = androidx.compose.animation.core.tween(220),
+                            animationSpec = androidx.compose.animation.core.tween(Motion.PANEL),
                         ) + androidx.compose.animation.fadeOut(
-                            animationSpec = androidx.compose.animation.core.tween(220),
+                            animationSpec = androidx.compose.animation.core.tween(Motion.PANEL),
                         ),
                     ) {
                         top.yukonga.miuix.kmp.basic.TextField(
@@ -414,17 +416,15 @@ fun ListScreen(
                                 pinned = item.repo.pinnedAt != null,
                                 modifier = Modifier.animateItem(
                                     // 数据刷新重排=瞬时落位（suppress 由 VM 在刷新/同步期置起）；
-                                    // 用户操作（置顶/撤销）=中等刚度略回弹，长距离不飘；增删=短促淡入淡出
+                                    // 用户操作（置顶/撤销）= miuix 家法 spring 落位（与页签滑块同源，
+                                    // 临界阻尼不飘）；增删=短促淡入淡出
                                     placementSpec = if (vm.suppressItemPlacement) {
                                         androidx.compose.animation.core.snap()
                                     } else {
-                                        androidx.compose.animation.core.spring(
-                                            dampingRatio = 0.875f,
-                                            stiffness = androidx.compose.animation.core.Spring.StiffnessMedium,
-                                        )
+                                        Motion.OffsetSpring
                                     },
-                                    fadeInSpec = androidx.compose.animation.core.tween(150),
-                                    fadeOutSpec = androidx.compose.animation.core.tween(150),
+                                    fadeInSpec = androidx.compose.animation.core.tween(Motion.MICRO),
+                                    fadeOutSpec = androidx.compose.animation.core.tween(Motion.MICRO),
                                 ),
                             ) {
                                 RepoCard(
@@ -452,8 +452,8 @@ fun ListScreen(
                                     count = state.items.size,
                                     // 与卡片同款淡入淡出：搜索→浏览切换时终点标记不跳现
                                     modifier = Modifier.animateItem(
-                                        fadeInSpec = androidx.compose.animation.core.tween(150),
-                                        fadeOutSpec = androidx.compose.animation.core.tween(150),
+                                        fadeInSpec = androidx.compose.animation.core.tween(Motion.MICRO),
+                                        fadeOutSpec = androidx.compose.animation.core.tween(Motion.MICRO),
                                     ),
                                 )
                             }
@@ -509,71 +509,3 @@ private fun rememberSyncResult(
     return result
 }
 
-/** 顶栏同步活体：标题右侧三点轻跳（进行中）→ 完成/失败符；固定占位零布局跳动 */
-@Composable
-private fun SyncDots(running: Boolean, done: SyncStatus.Done?, modifier: Modifier = Modifier) {
-    val scheme = MiuixTheme.colorScheme
-    var dotsVisible by remember { mutableStateOf(false) }
-    androidx.compose.runtime.LaunchedEffect(running) {
-        if (running) {
-            kotlinx.coroutines.delay(300) // 近即时防闪
-            dotsVisible = true
-        } else {
-            if (dotsVisible) kotlinx.coroutines.delay(350) // 停一拍再收
-            dotsVisible = false
-        }
-    }
-    Box(modifier = modifier.width(36.dp), contentAlignment = Alignment.CenterStart) {
-        // 结果符：捕获最后一个非空结果——退出期间继续渲染，
-        // 否则 done 置空的瞬间内容塌空，退出动画淡出的是空气（= 瞬间消失）
-        var lastDone by remember { mutableStateOf<SyncStatus.Done?>(null) }
-        if (done != null) lastDone = done
-        androidx.compose.animation.AnimatedVisibility(
-            visible = done != null,
-            enter = androidx.compose.animation.fadeIn(
-                androidx.compose.animation.core.tween(150),
-            ) + androidx.compose.animation.scaleIn(
-                initialScale = 0.6f,
-                animationSpec = androidx.compose.animation.core.tween(150),
-            ),
-            exit = androidx.compose.animation.fadeOut(
-                androidx.compose.animation.core.tween(150),
-            ) + androidx.compose.animation.scaleOut(
-                targetScale = 0.6f,
-                animationSpec = androidx.compose.animation.core.tween(150),
-            ),
-        ) {
-        lastDone?.let { d ->
-            val failedOnly = d.failed > 0 && d.changed == 0
-            // 结果符 Lucide 单源（ic_check/ic_close）——此前是 Unicode 文字字符，
-            // 随设备字体变形且笔画与图标库不一致（与 Feedback 胶囊状态符同批替换）
-            top.yukonga.miuix.kmp.basic.Icon(
-                imageVector = ImageVector.vectorResource(
-                    if (failedOnly) R.drawable.ic_close else R.drawable.ic_check,
-                ),
-                contentDescription = null,
-                tint = if (failedOnly) scheme.onErrorContainer else scheme.primaryVariant,
-                modifier = Modifier.size(14.dp),
-            )
-        }
-        }
-        androidx.compose.animation.AnimatedVisibility(
-            visible = dotsVisible,
-            // 150 微反馈档显式 spec：默认参数是 spring(StiffnessMediumLow)——
-            // 与同组件结果符（tween 150）一处两制；对齐后波点与结果符同节奏
-            enter = androidx.compose.animation.fadeIn(
-                androidx.compose.animation.core.tween(150),
-            ),
-            exit = androidx.compose.animation.fadeOut(
-                androidx.compose.animation.core.tween(150),
-            ),
-        ) {
-            // 复用公共组件（同一波浪语义）；结果出现时淡出
-            androidx.compose.foundation.layout.Box(
-                modifier = Modifier.alpha(if (done != null) 0f else 1f),
-            ) {
-                io.candy.tick.ui.common.LoadingDots(color = scheme.primaryVariant)
-            }
-        }
-    }
-}

@@ -39,6 +39,7 @@ import top.yukonga.miuix.kmp.theme.MiuixTheme
 import androidx.compose.ui.res.vectorResource
 import androidx.compose.ui.graphics.vector.ImageVector
 import io.candy.tick.R
+import io.candy.tick.ui.common.Motion
 
 /**
  * 卡片双向滑动操作：右滑删除（红容器 + 垃圾桶，过阈值删除 + Snackbar 撤销）、
@@ -146,8 +147,8 @@ fun SwipeToDelete(
                                     offsetX.value > commitThreshold -> {
                                         if (motionEnabled) {
                                             kotlinx.coroutines.coroutineScope {
-                                                launch { offsetX.animateTo(0f, tween(220)) }
-                                                launch { dissolve.animateTo(0f, tween(300)) }
+                                                launch { offsetX.animateTo(0f, tween(Motion.PANEL)) }
+                                                launch { dissolve.animateTo(0f, tween(Motion.PROGRESS)) }
                                             }
                                         } else {
                                             offsetX.snapTo(0f)

@@ -54,6 +54,17 @@ class SyncWorker(context: Context, params: WorkerParameters) : CoroutineWorker(c
             }.awaitAll().filterNotNull()
         }
 
+        // 1.5) 关联应用已卸载的仓库自动解除关联：卸载可能发生在本 App 未运行时（广播已
+        // 错过），关联 = 对已装应用的事实链接，失效即解除；autoClear 保留 dismissed 记忆，
+        // 用户重装应用后 auto-match 自动重绑
+        state.repos.filter { it.linkedPackage != null }.forEach { tracked ->
+            val pkg = tracked.linkedPackage ?: return@forEach
+            val installed = runCatching {
+                applicationContext.packageManager.getPackageInfo(pkg, 0)
+            }.isSuccess
+            if (!installed) container.repoRepository.setLinkedPackage(tracked.id, null, autoClear = true)
+        }
+
         // 2) 新版本检测：ETag 条件请求（304 不计配额）；拉取失败保旧 tag——此前瞬时失败
         // 写 null 会漏报一条通知 + 清掉「可更新」标识；方向判定：本机已装 ≥ tag 不算新版
         val tagChanged = AtomicInteger(0)

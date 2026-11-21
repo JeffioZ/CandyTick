@@ -14,8 +14,8 @@ import androidx.compose.ui.unit.dp
 /**
  * 全 App 下拉刷新唯一配置源（首页/详情共用）：四态常驻文字（下拉/释放/正在/完成——
  * 文字从头就在 = 头部高度全相恒定，间距跳变从根消失）+ contentPadding top（圆环不顶
- * 顶栏）。两页的间距补偿在各自 LazyColumn 的 contentPadding top 里（首页 13/详情 19），
- * 与此处的 9dp 配对——改这里时记得检查两页的配对值。
+ * 顶栏）。两页的间距补偿在各自 LazyColumn 的 contentPadding top 里（首页/详情均
+ * 13 = 4 基线 + 9），与此处的 9dp 配对——改这里时记得检查两页的配对值。
  */
 @Composable
 fun CandyPullToRefresh(

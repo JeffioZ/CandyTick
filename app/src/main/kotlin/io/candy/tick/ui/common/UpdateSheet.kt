@@ -34,6 +34,7 @@ import top.yukonga.miuix.kmp.basic.LinearProgressIndicator
 import top.yukonga.miuix.kmp.basic.Text
 import top.yukonga.miuix.kmp.theme.MiuixTheme
 import top.yukonga.miuix.kmp.window.WindowBottomSheet
+import io.candy.tick.ui.common.Motion
 
 /**
  * 应用自身更新弹窗（全局宿主：挂 MainActivity 层，设置页未打开也能弹——
@@ -111,15 +112,15 @@ fun UpdateSheet(
                 targetState = phase,
                 modifier = Modifier.fillMaxWidth(),
                 transitionSpec = {
-                    ((androidx.compose.animation.fadeIn(androidx.compose.animation.core.tween(180)) +
+                    ((androidx.compose.animation.fadeIn(androidx.compose.animation.core.tween(Motion.PHASE)) +
                         androidx.compose.animation.slideInVertically(
-                            animationSpec = androidx.compose.animation.core.tween(180),
+                            animationSpec = androidx.compose.animation.core.tween(Motion.PHASE),
                         ) { it / 6 }) togetherWith
-                        androidx.compose.animation.fadeOut(androidx.compose.animation.core.tween(180)))
+                        androidx.compose.animation.fadeOut(androidx.compose.animation.core.tween(Motion.PHASE)))
                         // 尺寸动画显式 180 同拍（默认 SizeTransform 是 spring 暗桩）
                         .using(
                             androidx.compose.animation.SizeTransform(clip = false) { _, _ ->
-                                androidx.compose.animation.core.tween(180)
+                                androidx.compose.animation.core.tween(Motion.PHASE)
                             },
                         )
                 },
@@ -218,7 +219,7 @@ fun UpdateSheet(
                         "dl" -> (state as? SelfUpdater.State.Downloading)?.let { st ->
                             val p by androidx.compose.animation.core.animateFloatAsState(
                                 targetValue = st.progress,
-                                animationSpec = androidx.compose.animation.core.tween(300),
+                                animationSpec = androidx.compose.animation.core.tween(Motion.PROGRESS),
                                 label = "updateDl",
                             )
                             LinearProgressIndicator(

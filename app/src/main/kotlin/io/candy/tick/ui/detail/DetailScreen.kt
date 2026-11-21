@@ -50,6 +50,7 @@ import top.yukonga.miuix.kmp.basic.rememberTopAppBarState
 import top.yukonga.miuix.kmp.theme.MiuixTheme
 import androidx.compose.ui.res.vectorResource
 import androidx.compose.ui.graphics.vector.ImageVector
+import io.candy.tick.ui.common.Motion
 
 @Composable
 fun DetailScreen(repoId: Long, onBack: () -> Unit) {
@@ -93,9 +94,10 @@ fun DetailScreen(repoId: Long, onBack: () -> Unit) {
     val openFailedMsg = stringResource(R.string.open_failed)
 
     // 每次进入静默刷新一轮：DetailViewModel 同 key 跨进入保留（navigation3 复用），
-    // init 的加载不会重跑——上次访问的数据会顶着「缓存」出现。此处进入即自动校准
-    // （快照 + 提交/版本列表全量重拉， refreshing 态由刷新头反馈），失败出横幅
-    LaunchedEffect(Unit) { vm.refresh() }
+    // init 的加载不会重跑——上次访问的数据会顶着「缓存」出现。silent = 不点亮刷新头：
+    // 首次进入区域加载点已是唯一且正确的信号（头部圆环 + 区域点同时转是实测「突兀」
+    // 的来源）；有缓存的重进内容原地保留、静默校准。失败出横幅
+    LaunchedEffect(Unit) { vm.refresh(silent = true) }
 
     LaunchedEffect(Unit) {
         vm.events.collect { event ->
@@ -127,39 +129,57 @@ fun DetailScreen(repoId: Long, onBack: () -> Unit) {
                     color = androidx.compose.ui.graphics.Color.Transparent,
                     title = "", // 标题左对齐走 navigationIcon 槽位（与首页一致；右侧三个动作图标下居中会被挤偏）
                     navigationIcon = {
-                        androidx.compose.foundation.layout.Row(
-                            verticalAlignment = Alignment.CenterVertically,
-                        ) {
-                            io.candy.tick.ui.common.PressIconButton(
-                                onClick = onBack,
-                                // 图标旁无文字的控件必须有可访问名称（icon-button a11y）
-                                contentDescription = stringResource(R.string.back),
+                        // 槽位 wrap-content 但约束 = 顶栏全宽（miuix TopAppBarLayout measure
+                        // minWidth 归零）：用 BoxWithConstraints 自算标题 cap，长仓库名截断时
+                        // dots 固定槽仍站在槽内——此前裸 widthIn(180) 长名会把 dots 挤进
+                        // actions 区（用户实测「重叠感」）
+                        androidx.compose.foundation.layout.BoxWithConstraints {
+                            // actions 预留 = 最多 3×44dp 钮 + 2×8dp 缝（分支钮只在提交页签出现，
+                            // 取最大档）；再加 back 48 + 双缝 14 + dots 槽 36
+                            val titleMax = (maxWidth - 48.dp - 8.dp - 6.dp - 36.dp - 148.dp)
+                                .coerceIn(120.dp, 180.dp)
+                            androidx.compose.foundation.layout.Row(
+                                verticalAlignment = Alignment.CenterVertically,
                             ) {
-                                Icon(
-                                    imageVector = ImageVector.vectorResource(R.drawable.ic_back),
-                                    contentDescription = null,
-                                    tint = scheme.onBackground,
+                                io.candy.tick.ui.common.PressIconButton(
+                                    onClick = onBack,
+                                    // 图标旁无文字的控件必须有可访问名称（icon-button a11y）
+                                    contentDescription = stringResource(R.string.back),
+                                ) {
+                                    Icon(
+                                        imageVector = ImageVector.vectorResource(R.drawable.ic_back),
+                                        contentDescription = null,
+                                        tint = scheme.onBackground,
+                                    )
+                                }
+                                // 后退钮与标题的呼吸缝：48dp 热区/40dp 染色圆之外再留 8dp
+                                // （skill: touch-spacing——此前圆贴标题文案）
+                                Spacer(Modifier.width(8.dp))
+                                Text(
+                                    text = repo?.let { it.noteName ?: it.repo } ?: stringResource(R.string.detail_title),
+                                    style = MiuixTheme.textStyles.title4,
+                                    color = scheme.onBackground,
+                                    maxLines = 1,
+                                    overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis,
+                                    modifier = Modifier
+                                        .widthIn(max = titleMax)
+                                        // 点标题回顶部（GitHub app 惯例单击，双击有判定延迟且不可发现）：
+                                        // 无 ripple，滚动动画本身即因果反馈；前置 padding 扩热区至 ~48dp
+                                        .padding(vertical = 12.dp)
+                                        .clickable(
+                                            interactionSource = remember { androidx.compose.foundation.interaction.MutableInteractionSource() },
+                                            indication = null,
+                                        ) { scope.launch { detailListState.animateScrollToItem(0) } },
+                                )
+                                // 静默刷新反馈：与首页同一套 SyncDots（36dp 固定槽 + 防闪延迟，
+                                // 提到 ui/common 共用）；6dp 间距 = 首页同款。silent 进入/刷新
+                                // 不点亮刷新头，这里就是唯一信号——零反馈曾是静默校准的盲区
+                                Spacer(Modifier.width(6.dp))
+                                io.candy.tick.ui.common.SyncDots(
+                                    running = state.refreshing || state.commitsReloading || state.releasesReloading,
+                                    done = null, // 详情静默刷新没有结果事件，只做波点
                                 )
                             }
-                            // 后退钮与标题的呼吸缝：48dp 热区/40dp 染色圆之外再留 8dp
-                            // （skill: touch-spacing——此前圆贴标题文案）
-                            Spacer(Modifier.width(8.dp))
-                            Text(
-                                text = repo?.let { it.noteName ?: it.repo } ?: stringResource(R.string.detail_title),
-                                style = MiuixTheme.textStyles.title4,
-                                color = scheme.onBackground,
-                                maxLines = 1,
-                                overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis,
-                                modifier = Modifier
-                                    .widthIn(max = 180.dp)
-                                    // 点标题回顶部（GitHub app 惯例单击，双击有判定延迟且不可发现）：
-                                    // 无 ripple，滚动动画本身即因果反馈；前置 padding 扩热区至 ~48dp
-                                    .padding(vertical = 12.dp)
-                                    .clickable(
-                                        interactionSource = remember { androidx.compose.foundation.interaction.MutableInteractionSource() },
-                                        indication = null,
-                                    ) { scope.launch { detailListState.animateScrollToItem(0) } },
-                            )
                         }
                     },
                     actions = {
@@ -191,14 +211,14 @@ fun DetailScreen(repoId: Long, onBack: () -> Unit) {
                         androidx.compose.animation.AnimatedVisibility(
                             visible = state.tab == DetailViewModel.DetailTab.COMMITS,
                             enter = androidx.compose.animation.fadeIn(
-                                androidx.compose.animation.core.tween(180),
+                                androidx.compose.animation.core.tween(Motion.PHASE),
                             ) + androidx.compose.animation.expandHorizontally(
-                                animationSpec = androidx.compose.animation.core.tween(180),
+                                animationSpec = androidx.compose.animation.core.tween(Motion.PHASE),
                             ),
                             exit = androidx.compose.animation.fadeOut(
-                                androidx.compose.animation.core.tween(180),
+                                androidx.compose.animation.core.tween(Motion.PHASE),
                             ) + androidx.compose.animation.shrinkHorizontally(
-                                animationSpec = androidx.compose.animation.core.tween(180),
+                                animationSpec = androidx.compose.animation.core.tween(Motion.PHASE),
                             ),
                         ) {
                             io.candy.tick.ui.common.PressIconButton(
@@ -245,8 +265,9 @@ fun DetailScreen(repoId: Long, onBack: () -> Unit) {
                 state = detailListState,
                 modifier = Modifier.fillMaxSize(),
                 // 底部 32：全 App 滚动终止留白统一档（footer 元素上下间距见 FooterText v8 + 此 32）
-                // top 19 = 10 基线 + 9：与首页同口径——补偿刷新指示器的下隙对称
-                contentPadding = PaddingValues(start = 16.dp, end = 16.dp, top = 19.dp, bottom = 32.dp),
+                // top 13 = 4 基线 + 9：四页顶栏间距审计后与首页同口径（基线 4、刷新补偿 9；
+                // 此前 10 基线是页间不一致的来源）
+                contentPadding = PaddingValues(start = 16.dp, end = 16.dp, top = 13.dp, bottom = 32.dp),
                 verticalArrangement = Arrangement.spacedBy(10.dp),
             ) {
                 item {
@@ -275,14 +296,14 @@ fun DetailScreen(repoId: Long, onBack: () -> Unit) {
                         androidx.compose.animation.AnimatedVisibility(
                             visible = state.banner != null,
                             enter = androidx.compose.animation.expandVertically(
-                                animationSpec = androidx.compose.animation.core.tween(220),
+                                animationSpec = androidx.compose.animation.core.tween(Motion.PANEL),
                             ) + androidx.compose.animation.fadeIn(
-                                animationSpec = androidx.compose.animation.core.tween(220),
+                                animationSpec = androidx.compose.animation.core.tween(Motion.PANEL),
                             ),
                             exit = androidx.compose.animation.shrinkVertically(
-                                animationSpec = androidx.compose.animation.core.tween(220),
+                                animationSpec = androidx.compose.animation.core.tween(Motion.PANEL),
                             ) + androidx.compose.animation.fadeOut(
-                                animationSpec = androidx.compose.animation.core.tween(220),
+                                animationSpec = androidx.compose.animation.core.tween(Motion.PANEL),
                             ),
                         ) {
                             state.banner?.let { error ->
@@ -293,23 +314,24 @@ fun DetailScreen(repoId: Long, onBack: () -> Unit) {
                         }
                     }
                 }
-                // 页签：分段控件（滑块移动动画）
+                // 页签：分段控件 v2。miuix 官方 TabRow 实测不适合本场景——未选中项 1dp 描边盒 +
+                // 满高滑块板为多标签滚动设计，两枚大页签下观感粗糙（用户实测），弃用回到手搓版，
+                // 并修掉手搓版的两处老问题：① contentPadding 16 之内又加 16 横向 padding 的双层
+                // 内缩（「比上下卡片窄」的根源）→ 与卡片精确同宽；② tween(Motion.PANEL) 匀速 →
+                // Motion.SlideSpring 阻尼收尾（与 LazyRow 滚动落位同族，miuix demo 阻尼感的来源）
                 item {
-                    val tabItems = listOf(
-                        Triple(R.drawable.ic_git_commit, stringResource(R.string.detail_commits), DetailViewModel.DetailTab.COMMITS),
-                        Triple(R.drawable.ic_tag, stringResource(R.string.detail_releases), DetailViewModel.DetailTab.RELEASES),
-                    )
                     val selectedIndex = if (state.tab == DetailViewModel.DetailTab.COMMITS) 0 else 1
-                    val segShape = androidx.compose.foundation.shape.RoundedCornerShape(19.dp)
-                    // 选中滑块圆角 = 外圆角 − 内缩（19−3=16）：同心圆角规则——滑块与
-                    // 外容器同半径时转角曲率对不上，留楔形缝/外凸感（用户实测「圆角不一致」）
-                    val segThumbShape = androidx.compose.foundation.shape.RoundedCornerShape(16.dp)
+                    // 外圆角 16dp = miuix Card 默认（HeaderCard 同源）——页签与卡片同宽后
+                    // 圆角必须同源，否则相邻两圆直接对撞（用户实测「圆角又不一样了」）
+                    val segShape = androidx.compose.foundation.shape.RoundedCornerShape(16.dp)
+                    // 选中滑块圆角 = 外圆角 − 内缩（16−3=13）：同心圆角规则——滑块与
+                    // 外容器同半径时转角曲率对不上，留楔形缝/外凸感
+                    val segThumbShape = androidx.compose.foundation.shape.RoundedCornerShape(13.dp)
                     androidx.compose.foundation.layout.Box(
                         modifier = Modifier
                             .fillMaxWidth()
                             // 上下对称：上=top8+item距10=18，下=bottom8+item距10=18
                             // （contentPadding top 作用在头卡上方，与此处无关）
-                            .padding(horizontal = 16.dp)
                             .padding(top = 8.dp, bottom = 8.dp)
                             .clip(segShape)
                             .background(scheme.secondaryVariant)
@@ -317,10 +339,10 @@ fun DetailScreen(repoId: Long, onBack: () -> Unit) {
                             .padding(3.dp),
                     ) {
                         androidx.compose.foundation.layout.BoxWithConstraints {
-                            val segWidth = maxWidth / tabItems.size
+                            val segWidth = maxWidth / 2
                             val offset by androidx.compose.animation.core.animateDpAsState(
                                 targetValue = segWidth * selectedIndex,
-                                animationSpec = androidx.compose.animation.core.tween(220),
+                                animationSpec = io.candy.tick.ui.common.Motion.SlideSpring,
                                 label = "tabThumb",
                             )
                             // 滑块（选中背景块）
@@ -332,9 +354,12 @@ fun DetailScreen(repoId: Long, onBack: () -> Unit) {
                                     .clip(segThumbShape)
                                     .background(scheme.surface),
                             )
-                            // 标签
+                            // 图标前缀（Lucide 单源）：提交=commit 节点、版本=tag，色随文字
                             androidx.compose.foundation.layout.Row(modifier = Modifier.fillMaxWidth()) {
-                                tabItems.forEachIndexed { index, (iconRes, label, tab) ->
+                                listOf(
+                                    R.drawable.ic_git_commit to stringResource(R.string.detail_commits),
+                                    R.drawable.ic_tag to stringResource(R.string.detail_releases),
+                                ).forEachIndexed { index, (iconRes, label) ->
                                     val isSelected = index == selectedIndex
                                     androidx.compose.foundation.layout.Box(
                                         modifier = Modifier
@@ -344,7 +369,7 @@ fun DetailScreen(repoId: Long, onBack: () -> Unit) {
                                                 interactionSource = remember { androidx.compose.foundation.interaction.MutableInteractionSource() },
                                                 indication = null,
                                             ) {
-                                                // 分段控件轻触感：滑块移动的物理确认（与下拉触底同族但更轻）
+                                                // 页签切换轻触感：滑块 spring 移动的物理确认
                                                 haptic.performHapticFeedback(HapticFeedbackType.TextHandleMove)
                                                 vm.setTab(
                                                     if (index == 0) DetailViewModel.DetailTab.COMMITS
@@ -353,13 +378,11 @@ fun DetailScreen(repoId: Long, onBack: () -> Unit) {
                                             },
                                         contentAlignment = Alignment.Center,
                                     ) {
-                                        // 图标前缀（Lucide 单源）：提交=commit 节点、版本=tag，色随文字
                                         androidx.compose.foundation.layout.Row(
                                             verticalAlignment = Alignment.CenterVertically,
                                         ) {
-                                            // 未选中档用 onBackgroundVariant：tertiary 色在分段控件
-                                            // secondaryVariant 底上仅 2.75:1（深 3.25:1），不达正文
-                                            // AA 4.5；onBackgroundVariant 实测 5.47:1 / 6.45:1
+                                            // 未选中档 onBackgroundVariant：tertiary 在 secondaryVariant
+                                            // 底上仅 2.75:1（深 3.25:1）不达 AA；实测 5.47:1 / 6.45:1
                                             top.yukonga.miuix.kmp.basic.Icon(
                                                 imageVector = ImageVector.vectorResource(iconRes),
                                                 contentDescription = null,

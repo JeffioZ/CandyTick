@@ -21,6 +21,7 @@ import top.yukonga.miuix.kmp.basic.Text
 import top.yukonga.miuix.kmp.theme.MiuixTheme
 import androidx.compose.ui.res.vectorResource
 import androidx.compose.ui.graphics.vector.ImageVector
+import io.candy.tick.ui.common.Motion
 
 /** 提交历史分页（到底自动加载；失败行内重试；尽头「已到底」） */
 fun LazyListScope.commitList(
@@ -33,8 +34,8 @@ fun LazyListScope.commitList(
         val context = androidx.compose.ui.platform.LocalContext.current
         // tab 切换/分页加载时卡片淡入（150 微反馈档，与首页列表同语言）
         val itemMod = Modifier.fillMaxWidth().animateItem(
-            fadeInSpec = androidx.compose.animation.core.tween(150),
-            fadeOutSpec = androidx.compose.animation.core.tween(150),
+            fadeInSpec = androidx.compose.animation.core.tween(Motion.MICRO),
+            fadeOutSpec = androidx.compose.animation.core.tween(Motion.MICRO),
         )
         // 组合期取串（lint LocalContextGetResourceValueCall）：回调里查资源不随配置刷新
         val openFailed = stringResource(io.candy.tick.R.string.open_failed)
@@ -94,12 +95,15 @@ private fun CommitFooter(
 ) {
     val scheme = MiuixTheme.colorScheme
     when {
-        state.commitsLoading -> androidx.compose.foundation.layout.Box(
-            modifier = Modifier.fillMaxWidth().padding(vertical = 8.dp),
-            contentAlignment = Alignment.Center,
-        ) {
-            io.candy.tick.ui.common.LoadingDots(dotSize = 5.dp)
-        }
+        // page1 重载（reloading）时旧内容原地保留、刷新反馈交给刷新头/静默，不叠加小点；
+        // 空列表的重载仍显示（此时它是唯一反馈）；翻页加载正常显示小点
+        state.commitsLoading && (state.commits.isEmpty() || !state.commitsReloading) ->
+            androidx.compose.foundation.layout.Box(
+                modifier = Modifier.fillMaxWidth().padding(vertical = 8.dp),
+                contentAlignment = Alignment.Center,
+            ) {
+                io.candy.tick.ui.common.LoadingDots(dotSize = 5.dp)
+            }
         state.commitsFailed -> io.candy.tick.ui.common.StatusPage(
             icon = ImageVector.vectorResource(R.drawable.ic_close),
             isError = true,

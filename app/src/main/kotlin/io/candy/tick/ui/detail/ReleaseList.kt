@@ -52,6 +52,7 @@ import androidx.compose.foundation.verticalScroll
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.setValue
+import io.candy.tick.ui.common.Motion
 
 /** Release 历史 + APK 资产（多 APK 自动推荐 + 手选；下载 → 安装） */
 fun LazyListScope.releaseList(
@@ -73,9 +74,9 @@ fun LazyListScope.releaseList(
         // 会让每帧多跑 N 个 spring 且边缘滞后于生长中的卡（gfxinfo 实测 p50 29ms
         // 的主缓解）；snap 贴合生长边缘，视觉同步性更好
         val itemMod = Modifier.fillMaxWidth().animateItem(
-            fadeInSpec = androidx.compose.animation.core.tween(150),
+            fadeInSpec = androidx.compose.animation.core.tween(Motion.MICRO),
             placementSpec = androidx.compose.animation.core.snap(),
-            fadeOutSpec = androidx.compose.animation.core.tween(150),
+            fadeOutSpec = androidx.compose.animation.core.tween(Motion.MICRO),
         )
         ReleaseCard(
             modifier = itemMod,
@@ -105,12 +106,15 @@ private fun ReleaseFooter(
 ) {
     val scheme = MiuixTheme.colorScheme
     when {
-        state.releasesLoading -> androidx.compose.foundation.layout.Box(
-            modifier = Modifier.fillMaxWidth().padding(vertical = 8.dp),
-            contentAlignment = Alignment.Center,
-        ) {
-            io.candy.tick.ui.common.LoadingDots(dotSize = 5.dp)
-        }
+        // page1 重载（reloading）时旧内容原地保留、刷新反馈交给刷新头/静默，不叠加小点；
+        // 空列表的重载仍显示（此时它是唯一反馈）；翻页加载正常显示小点
+        state.releasesLoading && (state.releases.isEmpty() || !state.releasesReloading) ->
+            androidx.compose.foundation.layout.Box(
+                modifier = Modifier.fillMaxWidth().padding(vertical = 8.dp),
+                contentAlignment = Alignment.Center,
+            ) {
+                io.candy.tick.ui.common.LoadingDots(dotSize = 5.dp)
+            }
         state.releasesFailed -> io.candy.tick.ui.common.StatusPage(
             icon = ImageVector.vectorResource(R.drawable.ic_close),
             isError = true,
@@ -205,7 +209,7 @@ private fun ReleaseCard(
                 if (hasNotes) {
                     androidx.compose.animation.Crossfade(
                         targetState = notesExpanded,
-                        animationSpec = androidx.compose.animation.core.tween(150),
+                        animationSpec = androidx.compose.animation.core.tween(Motion.MICRO),
                         label = "notesChevron",
                     ) { exp ->
                         Icon(
@@ -227,14 +231,14 @@ private fun ReleaseCard(
                 androidx.compose.animation.AnimatedVisibility(
                     visible = notesExpanded,
                     enter = androidx.compose.animation.expandVertically(
-                        animationSpec = androidx.compose.animation.core.tween(220),
+                        animationSpec = androidx.compose.animation.core.tween(Motion.PANEL),
                     ) + androidx.compose.animation.fadeIn(
-                        animationSpec = androidx.compose.animation.core.tween(220),
+                        animationSpec = androidx.compose.animation.core.tween(Motion.PANEL),
                     ),
                     exit = androidx.compose.animation.shrinkVertically(
-                        animationSpec = androidx.compose.animation.core.tween(220),
+                        animationSpec = androidx.compose.animation.core.tween(Motion.PANEL),
                     ) + androidx.compose.animation.fadeOut(
-                        animationSpec = androidx.compose.animation.core.tween(220),
+                        animationSpec = androidx.compose.animation.core.tween(Motion.PANEL),
                     ),
                 ) {
                     // 图层隔离（graphicsLayer 空参 = 强制独立层）：展开动画逐帧改的是
@@ -341,14 +345,14 @@ private fun ReleaseCard(
                 androidx.compose.animation.AnimatedContent(
                     targetState = actionPhase,
                     transitionSpec = {
-                        ((androidx.compose.animation.fadeIn(androidx.compose.animation.core.tween(180)) +
+                        ((androidx.compose.animation.fadeIn(androidx.compose.animation.core.tween(Motion.PHASE)) +
                             androidx.compose.animation.slideInVertically(
-                                animationSpec = androidx.compose.animation.core.tween(180),
+                                animationSpec = androidx.compose.animation.core.tween(Motion.PHASE),
                             ) { it / 6 }) togetherWith
-                            androidx.compose.animation.fadeOut(androidx.compose.animation.core.tween(180)))
+                            androidx.compose.animation.fadeOut(androidx.compose.animation.core.tween(Motion.PHASE)))
                             .using(
                                 androidx.compose.animation.SizeTransform(clip = false) { _, _ ->
-                                    androidx.compose.animation.core.tween(180)
+                                    androidx.compose.animation.core.tween(Motion.PHASE)
                                 },
                             )
                     },
@@ -386,7 +390,7 @@ private fun ReleaseCard(
                             val active = dl as? RepoDownloadState.Active
                             val animatedProgress by androidx.compose.animation.core.animateFloatAsState(
                                 targetValue = active?.progress ?: 0f,
-                                animationSpec = androidx.compose.animation.core.tween(300),
+                                animationSpec = androidx.compose.animation.core.tween(Motion.PROGRESS),
                                 label = "releaseDl",
                             )
                             LinearProgressIndicator(
@@ -552,7 +556,7 @@ private fun AssetRow(
             val radioTint by androidx.compose.animation.animateColorAsState(
                 targetValue = if (selected) scheme.primaryVariant
                 else scheme.onBackgroundVariant.copy(alpha = 0.45f),
-                animationSpec = androidx.compose.animation.core.tween(150),
+                animationSpec = androidx.compose.animation.core.tween(Motion.MICRO),
                 label = "radioTint",
             )
             Box(modifier = Modifier.size(20.dp), contentAlignment = Alignment.Center) {
@@ -565,16 +569,16 @@ private fun AssetRow(
                 androidx.compose.animation.AnimatedVisibility(
                     visible = selected,
                     enter = androidx.compose.animation.fadeIn(
-                        androidx.compose.animation.core.tween(120),
+                        androidx.compose.animation.core.tween(Motion.MICRO),
                     ) + androidx.compose.animation.scaleIn(
                         initialScale = 0.6f,
-                        animationSpec = androidx.compose.animation.core.tween(120),
+                        animationSpec = androidx.compose.animation.core.tween(Motion.MICRO),
                     ),
                     exit = androidx.compose.animation.fadeOut(
-                        androidx.compose.animation.core.tween(120),
+                        androidx.compose.animation.core.tween(Motion.MICRO),
                     ) + androidx.compose.animation.scaleOut(
                         targetScale = 0.6f,
-                        animationSpec = androidx.compose.animation.core.tween(120),
+                        animationSpec = androidx.compose.animation.core.tween(Motion.MICRO),
                     ),
                 ) {
                     // 圆心实心点 8dp：环内径 ~15dp（r=10 stroke2 @20dp），占比约一半——

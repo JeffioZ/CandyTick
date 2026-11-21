@@ -87,8 +87,8 @@ fun AppNavHost(
             transitionSpec = {
             (slideInHorizontally(initialOffsetX = { it / 4 }, animationSpec = navSpec()) +
                 fadeIn(navSpec())) togetherWith
-                (slideOutHorizontally(targetOffsetX = { -it / 4 }, animationSpec = navSpec()) +
-                    fadeOut(navSpec()))
+                (slideOutHorizontally(targetOffsetX = { -it / 4 }, animationSpec = exitSpec()) +
+                    fadeOut(exitSpec()))
             },
             // 返回：与前进镜像（旧页从左滑回，当前页滑向右侧）
             popTransitionSpec = { popTransform() },
@@ -128,8 +128,12 @@ fun AppNavHost(
 /** 减速曲线（页面「落位」感），260ms——比旧 300ms 轻快，比组件动效（220 档）长半档 */
 private fun <T> navSpec() = tween<T>(durationMillis = 260, easing = LinearOutSlowInEasing)
 
+/** 退出档 = 进场的 ~65%（skill: exit-faster-than-enter）——旧页更快让位，两页叠加
+ *  窗口收窄，首页顶栏按钮群在转场中的「残留/遮挡」感随之消失 */
+private fun <T> exitSpec() = tween<T>(durationMillis = 170, easing = LinearOutSlowInEasing)
+
 private fun popTransform() =
     (slideInHorizontally(initialOffsetX = { -it / 4 }, animationSpec = navSpec()) +
         fadeIn(navSpec())) togetherWith
-        (slideOutHorizontally(targetOffsetX = { it / 4 }, animationSpec = navSpec()) +
-            fadeOut(navSpec()))
+        (slideOutHorizontally(targetOffsetX = { it / 4 }, animationSpec = exitSpec()) +
+            fadeOut(exitSpec()))

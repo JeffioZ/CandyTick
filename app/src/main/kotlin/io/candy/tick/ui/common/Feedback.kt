@@ -40,6 +40,7 @@ import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import top.yukonga.miuix.kmp.basic.Text
 import top.yukonga.miuix.kmp.theme.MiuixTheme
+import io.candy.tick.ui.common.Motion
 
 /**
  * 全局统一瞬时反馈：顶部居中悬浮胶囊（✓/✕ + 文字 + 可选动作），顶栏下方。
@@ -108,8 +109,8 @@ fun FeedbackHost() {
     ) {
         AnimatedVisibility(
             visible = visible,
-            enter = fadeIn(tween(220)) + slideInVertically(tween(220)) { -it },
-            exit = fadeOut(tween(220)) + slideOutVertically(tween(220)) { -it },
+            enter = fadeIn(tween(Motion.PANEL)) + slideInVertically(tween(Motion.PANEL)) { -it },
+            exit = fadeOut(tween(Motion.PANEL)) + slideOutVertically(tween(Motion.PANEL)) { -it },
         ) {
             shown?.let { m ->
                 // 语义容器：成功=品牌薄荷（primaryContainer 系），错误=红容器（与错误横幅同语言）。

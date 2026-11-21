@@ -53,6 +53,7 @@ import top.yukonga.miuix.kmp.basic.Text
 import top.yukonga.miuix.kmp.theme.MiuixTheme
 import androidx.compose.ui.res.vectorResource
 import androidx.compose.ui.graphics.vector.ImageVector
+import io.candy.tick.ui.common.Motion
 
 // ── 详情页子组件（自 DetailScreen 拆出：头部卡 / 分支弹层 / 移除确认）──
 
@@ -105,7 +106,7 @@ internal fun BranchPickerSheet(
                 .heightIn(max = maxSheetHeight)
                 // 220 表层档显式 spec：默认 spring 时长不受六档体系控制（自家原则：
                 // 「默认 spring 不可控且在体系外」）；缩放=0 时 tween 瞬时完成自动退化
-                .animateContentSize(androidx.compose.animation.core.tween(220)),
+                .animateContentSize(androidx.compose.animation.core.tween(Motion.PANEL)),
         ) {
             if (state.branches.size > 15) {
                 top.yukonga.miuix.kmp.basic.TextField(
@@ -329,7 +330,8 @@ internal fun HeaderCard(
                 StatusBadge(status = snapshot?.statusAt() ?: io.candy.tick.data.model.RepoStatus.UNKNOWN)
             }
 
-            // ── 信息组（描述 + 统计+推送时间，组内 6dp；无描述时跨组 8dp 不叠加）──
+            // ── 信息组（描述；无描述时跨组 8dp 不叠加）——统计行与推送时间已分别
+            // 迁往名称旁（star）与首页折叠卡，此处只承载描述 ──
             Spacer(Modifier.height(8.dp))
             snapshot?.description?.takeIf { it.isNotBlank() }?.let {
                 Text(
@@ -374,16 +376,16 @@ internal fun HeaderCard(
                     androidx.compose.animation.AnimatedContent(
                         targetState = updatePhase,
                         transitionSpec = {
-                            ((androidx.compose.animation.fadeIn(androidx.compose.animation.core.tween(180)) +
+                            ((androidx.compose.animation.fadeIn(androidx.compose.animation.core.tween(Motion.PHASE)) +
                                 androidx.compose.animation.slideInVertically(
-                                    animationSpec = androidx.compose.animation.core.tween(180),
+                                    animationSpec = androidx.compose.animation.core.tween(Motion.PHASE),
                                 ) { it / 6 }) togetherWith
-                                androidx.compose.animation.fadeOut(androidx.compose.animation.core.tween(180)))
+                                androidx.compose.animation.fadeOut(androidx.compose.animation.core.tween(Motion.PHASE)))
                                 // 尺寸动画显式 180 同拍：AnimatedContent 默认 SizeTransform 是
                                 // spring 暗桩，与外挂尺寸动画双层打架=切相卡顿根源（单源化）
                                 .using(
                                     androidx.compose.animation.SizeTransform(clip = false) { _, _ ->
-                                        androidx.compose.animation.core.tween(180)
+                                        androidx.compose.animation.core.tween(Motion.PHASE)
                                     },
                                 )
                         },
@@ -444,7 +446,7 @@ internal fun HeaderCard(
                                 val active = state.download as? RepoDownloadState.Active
                                 val p by androidx.compose.animation.core.animateFloatAsState(
                                     targetValue = active?.progress ?: 0f,
-                                    animationSpec = androidx.compose.animation.core.tween(300),
+                                    animationSpec = androidx.compose.animation.core.tween(Motion.PROGRESS),
                                     label = "headerDl",
                                 )
                                 top.yukonga.miuix.kmp.basic.LinearProgressIndicator(
@@ -508,14 +510,14 @@ internal fun HeaderCard(
                     else -> "none"
                 },
                 transitionSpec = {
-                    ((androidx.compose.animation.fadeIn(androidx.compose.animation.core.tween(180)) +
+                    ((androidx.compose.animation.fadeIn(androidx.compose.animation.core.tween(Motion.PHASE)) +
                         androidx.compose.animation.slideInVertically(
-                            animationSpec = androidx.compose.animation.core.tween(180),
+                            animationSpec = androidx.compose.animation.core.tween(Motion.PHASE),
                         ) { it / 8 }) togetherWith
-                        androidx.compose.animation.fadeOut(androidx.compose.animation.core.tween(180)))
+                        androidx.compose.animation.fadeOut(androidx.compose.animation.core.tween(Motion.PHASE)))
                         .using(
                             androidx.compose.animation.SizeTransform(clip = false) { _, _ ->
-                                androidx.compose.animation.core.tween(180)
+                                androidx.compose.animation.core.tween(Motion.PHASE)
                             },
                         )
                 },
@@ -567,7 +569,10 @@ internal fun HeaderCard(
                     }
                 }
             } else if (phase == "suggest" && state.linkSuggestion != null) {
-                // 关联建议：整行点按即关联（胶囊提示条 + 本机应用小图标）
+                // 关联建议：整行点按即关联（胶囊提示条 + 本机应用小图标）。
+                // 规格与 linked 态逐项对齐（skill: Content Jumping）——图标 22/6、间距 8dp、
+                // 垂直零内边距使胶囊行高 = 动作钮 44dp = linked 行高，SizeTransform 成了
+                // 无动画，建议出现/取消关联的偶发首帧跳变随之消失
                 val suggested = state.linkSuggestion
                 val appIcon = io.candy.tick.ui.common.rememberAppIcon(suggested?.first)
                 Row(
@@ -579,13 +584,13 @@ internal fun HeaderCard(
                         .clickable(
                             interactionSource = remember { androidx.compose.foundation.interaction.MutableInteractionSource() },
                         ) { onLinkSuggestion() }
-                        .padding(horizontal = 12.dp, vertical = 10.dp),
+                        .padding(horizontal = 12.dp),
                     verticalAlignment = Alignment.CenterVertically,
                 ) {
                     if (appIcon != null) {
-                        io.candy.tick.ui.common.AppIconImage(bitmap = appIcon, size = 26.dp, corner = 7.dp)
+                        io.candy.tick.ui.common.AppIconImage(bitmap = appIcon, size = 22.dp, corner = 6.dp)
+                        Spacer(Modifier.width(8.dp))
                     }
-                    Spacer(Modifier.width(10.dp))
                     Text(
                         text = stringResource(R.string.detail_auto_link_hint, suggested.second),
                         style = MiuixTheme.textStyles.footnote1,
@@ -594,15 +599,10 @@ internal fun HeaderCard(
                         overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis,
                         modifier = Modifier.weight(1f),
                     )
-                    Spacer(Modifier.width(6.dp))
-                    Icon(
-                        imageVector = ImageVector.vectorResource(R.drawable.ic_add),
-                        contentDescription = null,
-                        tint = scheme.onPrimaryContainer,
-                        modifier = Modifier.size(18.dp),
-                    )
-                    Spacer(Modifier.width(6.dp))
-                    // 「其他应用」入口：44dp/14dp——与 linked 态动作钮同规格
+                    Spacer(Modifier.width(4.dp))
+                    // 「其他应用」入口：44dp/14dp——与 linked 态动作钮同规格。
+                    // 裸 ic_add 已去：同排「44dp 染色圆钮 + 无底裸图标」是用户实测的失衡感；
+                    // 行动语义由整行薄荷底 + 「点击关联」文案承担
                     io.candy.tick.ui.common.PressIconButton(
                         onClick = onChangeLinked,
                         contentDescription = stringResource(R.string.detail_link_app_other),

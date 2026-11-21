@@ -18,6 +18,7 @@ import androidx.compose.ui.unit.dp
 import top.yukonga.miuix.kmp.basic.Card
 import top.yukonga.miuix.kmp.basic.CardDefaults
 import top.yukonga.miuix.kmp.theme.MiuixTheme
+import io.candy.tick.ui.common.Motion
 
 /**
  * 可点击卡片统一按压反馈（全 App 唯一来源）：
@@ -45,7 +46,7 @@ fun PressableCard(
         ),
         // 80ms 到位：快跳点击（按下 ~40ms 即释放）也要在导航转场盖上来之前看到染色
         // （skill: 反馈 80-150ms 内到位；此前 150ms 在快跳下只走到 ~5%，等于没反馈）
-        animationSpec = androidx.compose.animation.core.tween(80),
+        animationSpec = androidx.compose.animation.core.tween(Motion.PRESS),
         label = "cardPress",
     ).value
     Card(
@@ -79,7 +80,7 @@ fun rememberRowPressTint(): Pair<MutableInteractionSource, androidx.compose.ui.g
             scheme.surfaceContainer, scheme.onSurfaceContainer, if (pressed) 0.10f else 0f,
         ),
         // 与 PressableCard 同步 80ms 到位（skill: 反馈 80-150ms 内到位）
-        animationSpec = androidx.compose.animation.core.tween(80),
+        animationSpec = androidx.compose.animation.core.tween(Motion.PRESS),
         label = "rowPress",
     ).value
     return src to color

@@ -57,6 +57,7 @@ import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.ui.draw.clip
+import io.candy.tick.ui.common.Motion
 
 @Composable
 fun AddScreen(
@@ -215,9 +216,9 @@ fun AddScreen(
                         androidx.compose.animation.AnimatedVisibility(
                             visibleState = cardAppear,
                             enter = androidx.compose.animation.fadeIn(
-                                androidx.compose.animation.core.tween(220),
+                                androidx.compose.animation.core.tween(Motion.PANEL),
                             ) + androidx.compose.animation.slideInVertically(
-                                animationSpec = androidx.compose.animation.core.tween(220),
+                                animationSpec = androidx.compose.animation.core.tween(Motion.PANEL),
                             ) { it / 10 },
                         ) {
                         io.candy.tick.ui.common.PressableCard(
@@ -230,8 +231,8 @@ fun AddScreen(
                             modifier = Modifier
                                 .fillMaxWidth()
                                 .animateItem(
-                                    fadeInSpec = androidx.compose.animation.core.tween(150),
-                                    fadeOutSpec = androidx.compose.animation.core.tween(150),
+                                    fadeInSpec = androidx.compose.animation.core.tween(Motion.MICRO),
+                                    fadeOutSpec = androidx.compose.animation.core.tween(Motion.MICRO),
                                 ),
                         ) {
                             Column(modifier = Modifier.padding(horizontal = 16.dp, vertical = 8.dp)) {
@@ -320,16 +321,16 @@ fun AddScreen(
                 androidx.compose.animation.AnimatedVisibility(
                     visible = state.preview !is AddViewModel.PreviewState.Idle,
                     enter = androidx.compose.animation.fadeIn(
-                        androidx.compose.animation.core.tween(150),
+                        androidx.compose.animation.core.tween(Motion.MICRO),
                     ) + androidx.compose.animation.slideInVertically(
-                        animationSpec = androidx.compose.animation.core.tween(150),
+                        animationSpec = androidx.compose.animation.core.tween(Motion.MICRO),
                     ) { it / 16 },
                     // 退场=沿进场原路退回（下移+淡出）：返回动作有方向感；
                     // 列表静止显现（零重建保滚动位），揭走本身即返回动画
                     exit = androidx.compose.animation.fadeOut(
-                        androidx.compose.animation.core.tween(150),
+                        androidx.compose.animation.core.tween(Motion.MICRO),
                     ) + androidx.compose.animation.slideOutVertically(
-                        animationSpec = androidx.compose.animation.core.tween(150),
+                        animationSpec = androidx.compose.animation.core.tween(Motion.MICRO),
                     ) { it / 8 },
                     modifier = Modifier.matchParentSize(),
                 ) {
@@ -345,11 +346,11 @@ fun AddScreen(
                         androidx.compose.animation.AnimatedContent(
                             targetState = previewKeyOf(state.preview),
                             transitionSpec = {
-                                ((androidx.compose.animation.fadeIn(androidx.compose.animation.core.tween(180))) togetherWith
-                                    (androidx.compose.animation.fadeOut(androidx.compose.animation.core.tween(180))))
+                                ((androidx.compose.animation.fadeIn(androidx.compose.animation.core.tween(Motion.PHASE))) togetherWith
+                                    (androidx.compose.animation.fadeOut(androidx.compose.animation.core.tween(Motion.PHASE))))
                                     .using(
                                         androidx.compose.animation.SizeTransform(clip = false) { _, _ ->
-                                            androidx.compose.animation.core.tween(180)
+                                            androidx.compose.animation.core.tween(Motion.PHASE)
                                         },
                                     )
                             },
@@ -678,11 +679,11 @@ private fun PreviewCard(
             androidx.compose.animation.AnimatedContent(
                 targetState = state.duplicate,
                 transitionSpec = {
-                    ((androidx.compose.animation.fadeIn(androidx.compose.animation.core.tween(180))) togetherWith
-                        (androidx.compose.animation.fadeOut(androidx.compose.animation.core.tween(180))))
+                    ((androidx.compose.animation.fadeIn(androidx.compose.animation.core.tween(Motion.PHASE))) togetherWith
+                        (androidx.compose.animation.fadeOut(androidx.compose.animation.core.tween(Motion.PHASE))))
                         .using(
                             androidx.compose.animation.SizeTransform(clip = false) { _, _ ->
-                                androidx.compose.animation.core.tween(180)
+                                androidx.compose.animation.core.tween(Motion.PHASE)
                             },
                         )
                 },

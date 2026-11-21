@@ -94,6 +94,7 @@ class RepoRepository(
         id: Long,
         packageName: String?,
         newLabel: String? = null,
+        autoClear: Boolean = false, // 系统清除（关联应用已卸载）：不动 dismissed 记忆，重装后可自动重绑
     ) = store.update { s ->
         s.copy(
             repos = s.repos.map { repo ->
@@ -109,6 +110,9 @@ class RepoRepository(
                     }
                     repo.copy(
                         linkedPackage = packageName,
+                        // 解除 = 记住「不要自动绑」；手动关联/切换 = 重新表态清除记忆；
+                        // 系统清除（autoClear）不算表态，记忆原样保留
+                        autoLinkDismissed = if (autoClear) repo.autoLinkDismissed else packageName == null,
                         noteName = note,
                         autoNote = note != null && note == newLabel,
                     )
