@@ -34,12 +34,14 @@ class CacheManager(private val context: Context) {
      * 调用方负责：清后逐仓库 setDownloadedApk(id, null) + SelfUpdater 状态重置。
      */
     fun clean(repoApks: Boolean, updateApks: Boolean, crashLog: Boolean): Long {
+        // 逐文件删除并累计「实际删掉的」字节数：此前按删除前体积报数，
+        // 文件被占用/外部存储只读时也报「已释放 X」（假成功）
         var freed = 0L
         if (repoApks) freed += deleteDir(apksRoot)
         if (updateApks) freed += deleteDir(updatesDir)
         if (crashLog && crashLogFile.exists()) {
-            freed += crashLogFile.length()
-            crashLogFile.delete()
+            val len = crashLogFile.length()
+            if (crashLogFile.delete()) freed += len
         }
         return freed
     }
@@ -63,8 +65,13 @@ class CacheManager(private val context: Context) {
         if (dir.isDirectory) dir.walkTopDown().filter { it.isFile }.sumOf { it.length() } else 0L
 
     private fun deleteDir(dir: File): Long {
-        val size = dirSize(dir)
-        dir.deleteRecursively()
-        return size
+        if (!dir.isDirectory) return 0L
+        var freed = 0L
+        dir.walkTopDown().filter { it.isFile }.forEach { f ->
+            val len = f.length()
+            if (f.delete()) freed += len
+        }
+        dir.delete() // 空目录本身（残留下次启动孤儿清理兜底）
+        return freed
     }
 }

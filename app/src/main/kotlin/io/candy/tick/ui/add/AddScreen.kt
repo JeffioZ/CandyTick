@@ -78,6 +78,12 @@ fun AddScreen(
     // 每次进入添加页都从干净状态开始（VM 为 Activity 域单例）
     LaunchedEffect(Unit) { vm.reset() }
 
+    // 预览态的系统返回 = 揭走预览浮层（与「返回搜索结果」按钮同语义），而非退出添加页；
+    // URL 直粘路径同样先回输入框——与浮层退场动画（下移+淡出）一致
+    androidx.activity.compose.BackHandler(
+        enabled = state.preview !is AddViewModel.PreviewState.Idle,
+    ) { vm.dismissPreview() }
+
     LaunchedEffect(Unit) {
         vm.events.collect { event ->
             when (event) {
@@ -146,10 +152,17 @@ fun AddScreen(
                     .focusRequester(inputFocus),
             )
             if (state.parseError) {
+                // 报错容器化（errorContainer 底 + onErrorContainer 字）：此前 onErrorContainer
+                // 裸用作前景色，深浅两模式各有一处对比度不保真
                 Text(
                     text = stringResource(R.string.add_parse_error),
                     style = MiuixTheme.textStyles.footnote1,
                     color = MiuixTheme.colorScheme.onErrorContainer,
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .clip(RoundedCornerShape(10.dp))
+                        .background(MiuixTheme.colorScheme.errorContainer)
+                        .padding(horizontal = 12.dp, vertical = 8.dp),
                 )
             }
 
@@ -342,19 +355,30 @@ fun AddScreen(
                         ) { preview ->
                             when (preview) {
                                 is AddViewModel.PreviewState.Loading -> PreviewSkeletonCard()
-                                is AddViewModel.PreviewState.Failed -> io.candy.tick.ui.common.StatusPage(
-                                    // 与搜索失败/详情列表失败同款同构（「内容区加载失败」类别）；
-                                    // 此前骨架卡变一行裸红字+文字钮，重量骤降悬空
-                                    icon = ImageVector.vectorResource(R.drawable.ic_close),
-                                    isError = true,
-                                    title = sourceErrorText(preview.error),
-                                    // 网络抖动类失败：重试不必改输入重来（skill error-recovery）
-                                    actionLabel = stringResource(R.string.retry),
-                                    onAction = vm::retryPreview,
-                                    modifier = Modifier
-                                        .fillMaxWidth()
-                                        .padding(vertical = 24.dp),
-                                )
+                                is AddViewModel.PreviewState.Failed -> Column {
+                                    // 失败态同样给退路：此前只在 Loaded 相有「返回搜索结果」，
+                                    // 失败浮层不透明盖住列表，用户只能退出整个添加页
+                                    if (state.results.isNotEmpty()) {
+                                        BackToResultsButton(onClick = {
+                                            resultsReveal++
+                                            vm.dismissPreview()
+                                        })
+                                        Spacer(Modifier.height(12.dp))
+                                    }
+                                    io.candy.tick.ui.common.StatusPage(
+                                        // 与搜索失败/详情列表失败同款同构（「内容区加载失败」类别）；
+                                        // 此前骨架卡变一行裸红字+文字钮，重量骤降悬空
+                                        icon = ImageVector.vectorResource(R.drawable.ic_close),
+                                        isError = true,
+                                        title = sourceErrorText(preview.error),
+                                        // 网络抖动类失败：重试不必改输入重来（skill error-recovery）
+                                        actionLabel = stringResource(R.string.retry),
+                                        onAction = vm::retryPreview,
+                                        modifier = Modifier
+                                            .fillMaxWidth()
+                                            .padding(vertical = 24.dp),
+                                    )
+                                }
                                 is AddViewModel.PreviewState.Loaded -> androidx.compose.foundation.layout.Column {
                                     // 从搜索结果进入的预览：顶部留明确退路（skill: back-behavior）
                                     if (state.results.isNotEmpty()) {

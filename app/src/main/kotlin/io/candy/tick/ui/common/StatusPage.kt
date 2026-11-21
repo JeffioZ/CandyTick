@@ -19,6 +19,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.res.stringResource
+import androidx.compose.ui.res.vectorResource
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import io.candy.tick.R
@@ -145,9 +146,10 @@ fun FooterText(text: String, modifier: Modifier = Modifier, count: Int? = null) 
  * 刷新失败横幅（首页/详情共用）：errorContainer 底 + 具体原因 + 「旧数据保留」副行 + 重试钮。
  * 恢复出口紧邻错误（skill: error-recovery）；「旧数据保留」如实告知不谎报全挂。
  * 此前详情页是默认 Card 底 + 红字的另一套皮肤，同语义两皮肤收敛于此。
+ * onDismiss 可选：用户有权不刷新只关提示（此前横幅只能等下次刷新清掉）。
  */
 @Composable
-fun ErrorBanner(error: SourceError, onRetry: () -> Unit) {
+fun ErrorBanner(error: SourceError, onRetry: () -> Unit, onDismiss: (() -> Unit)? = null) {
     val scheme = MiuixTheme.colorScheme
     // 错误容器底（浅粉/深红棕）：错误语义即时可读，深浅两模式下边界都清晰
     Column(
@@ -177,6 +179,20 @@ fun ErrorBanner(error: SourceError, onRetry: () -> Unit) {
                 text = stringResource(R.string.retry),
                 onClick = onRetry,
             )
+            if (onDismiss != null) {
+                PressIconButton(
+                    onClick = onDismiss,
+                    contentDescription = stringResource(io.candy.tick.R.string.action_cancel),
+                    size = 36.dp,
+                ) {
+                    Icon(
+                        imageVector = ImageVector.vectorResource(io.candy.tick.R.drawable.ic_close),
+                        contentDescription = null,
+                        tint = scheme.onErrorContainer,
+                        modifier = Modifier.size(16.dp),
+                    )
+                }
+            }
         }
     }
 }

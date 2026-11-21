@@ -10,6 +10,7 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
@@ -183,12 +184,8 @@ private fun CacheCleanupRow(
     )
 }
 
-/** 字节数格式化：1.2 MB / 345 KB / 0 B */
-private fun formatBytes(bytes: Long): String = when {
-    bytes >= 1024 * 1024 -> String.format(java.util.Locale.US, "%.1f MB", bytes / 1024f / 1024f)
-    bytes >= 1024 -> "${bytes / 1024} KB"
-    else -> "$bytes B"
-}
+/** 字节数格式化（util 单源，与下载进度/资产行共用） */
+private fun formatBytes(bytes: Long): String = io.candy.tick.util.CountFormat.formatBytes(bytes)
 
 /** 导入来源选择弹窗（文件 / 剪贴板）：主按钮 = 文件，次按钮 = 剪贴板 */
 @Composable
@@ -326,11 +323,21 @@ internal fun TokenDialog(
                     text = stringResource(R.string.token_invalid_short),
                     style = MiuixTheme.textStyles.footnote1,
                     color = scheme.onErrorContainer,
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .clip(androidx.compose.foundation.shape.RoundedCornerShape(10.dp))
+                        .background(scheme.errorContainer)
+                        .padding(horizontal = 12.dp, vertical = 8.dp),
                 )
                 SettingsViewModel.TokenTest.NETWORK -> Text(
                     text = stringResource(R.string.token_network_error),
                     style = MiuixTheme.textStyles.footnote1,
                     color = scheme.onErrorContainer,
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .clip(androidx.compose.foundation.shape.RoundedCornerShape(10.dp))
+                        .background(scheme.errorContainer)
+                        .padding(horizontal = 12.dp, vertical = 8.dp),
                 )
                 null -> Unit
             }
@@ -339,13 +346,20 @@ internal fun TokenDialog(
                     text = stringResource(R.string.settings_token_rejected),
                     style = MiuixTheme.textStyles.footnote1,
                     color = scheme.onErrorContainer,
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .clip(androidx.compose.foundation.shape.RoundedCornerShape(10.dp))
+                        .background(scheme.errorContainer)
+                        .padding(horizontal = 12.dp, vertical = 8.dp),
                 )
             }
             // 满宽主按钮（退出=放弃由 scrim/下拉/返回键承担，不再设取消按钮）
             PrimaryButton(
                 text = stringResource(R.string.settings_token_test),
                 onClick = onSaveAndTest,
-                enabled = state.tokenInput.isNotBlank(),
+                // 测试中禁用：此前连点会重复校验、多烧请求
+                enabled = state.tokenInput.isNotBlank() &&
+                    state.tokenTest != SettingsViewModel.TokenTest.TESTING,
                 modifier = Modifier.fillMaxWidth(),
             )
             // 帮助链接（底部辅助位：不插主操作流；全局文字链组件）

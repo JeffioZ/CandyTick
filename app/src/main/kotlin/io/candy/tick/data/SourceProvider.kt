@@ -22,6 +22,13 @@ interface SourceProvider {
 
     suspend fun releases(owner: String, repo: String, page: Int = 1, perPage: Int = RELEASES_PER_PAGE): List<ReleaseRecord>
 
+    /**
+     * 后台同步专用：release 列表 + ETag 条件请求（匿名配额 60/h 的主要节省点——
+     * 未变化的仓库 304 返回，不计配额）。无对应能力的源返回 Page(releases = emptyList())。
+     */
+    suspend fun releasesForSync(owner: String, repo: String, etag: String? = null): SyncReleasesResult =
+        SyncReleasesResult.Page(releases(owner, repo), etag = null)
+
     /** 分支列表（提交视图的分支切换；无对应能力的源返回空） */
     suspend fun branches(owner: String, repo: String): List<String> = emptyList()
 
@@ -65,6 +72,12 @@ sealed interface RepoInfoResult {
     data class Fetched(val info: RepoInfo) : RepoInfoResult
 }
 
+/** 后台同步的 release 拉取结果：304 = 内容未变（tag 维持旧值，不计配额） */
+sealed interface SyncReleasesResult {
+    data class Page(val releases: List<ReleaseRecord>, val etag: String?) : SyncReleasesResult
+    data object NotModified : SyncReleasesResult
+}
+
 /** 四类失败（design.md「状态与反馈」；UI 分文案，错误可行动） */
 sealed interface SourceError {
     data object NetworkUnreachable : SourceError
@@ -88,6 +101,9 @@ class GitHubProvider(private val api: GitHubApi) : SourceProvider {
 
     override suspend fun releases(owner: String, repo: String, page: Int, perPage: Int) =
         api.releases(owner, repo, page, perPage)
+
+    override suspend fun releasesForSync(owner: String, repo: String, etag: String?) =
+        api.releasesForSync(owner, repo, etag)
 
     override suspend fun branches(owner: String, repo: String) = api.branches(owner, repo)
 

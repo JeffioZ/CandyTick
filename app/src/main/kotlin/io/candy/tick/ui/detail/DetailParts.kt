@@ -347,12 +347,12 @@ internal fun HeaderCard(
                 }
                 val downloadedMatches = repo.downloadedApk?.version == tag
                 val updatePhase = when {
-                    state.download is DetailViewModel.DownloadState.Active &&
+                    state.download is RepoDownloadState.Active &&
                         state.download.fromHeader -> "progress"
                     // 失败相：此前头部无 failed 分支——失败回落"下载"按钮复原 + 错误条只在
                     // 版本 tab 的卡里（停留提交 tab 时不可见）→ 感知"点了没反应"
                     // Failed 无 fromHeader 字段：releaseKey==最新 tag 即视为头部入口的失败
-                    state.download is DetailViewModel.DownloadState.Failed &&
+                    state.download is RepoDownloadState.Failed &&
                         state.download.releaseKey == tag -> "failed"
                     hasUpdate && downloadedMatches -> "install"
                     hasUpdate -> "download"
@@ -399,7 +399,7 @@ internal fun HeaderCard(
                                 Text(
                                     text = stringResource(
                                         R.string.download_failed_reason,
-                                        (state.download as? DetailViewModel.DownloadState.Failed)?.let { f ->
+                                        (state.download as? RepoDownloadState.Failed)?.let { f ->
                                             f.error?.let { io.candy.tick.ui.common.sourceErrorText(it) } ?: f.message
                                         } ?: stringResource(R.string.err_network),
                                     ),
@@ -430,7 +430,7 @@ internal fun HeaderCard(
                                 )
                             }
                             "progress" -> Column {
-                                val active = state.download as? DetailViewModel.DownloadState.Active
+                                val active = state.download as? RepoDownloadState.Active
                                 val p by androidx.compose.animation.core.animateFloatAsState(
                                     targetValue = active?.progress ?: 0f,
                                     animationSpec = androidx.compose.animation.core.tween(300),

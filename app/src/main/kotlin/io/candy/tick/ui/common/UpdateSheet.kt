@@ -1,6 +1,8 @@
 package io.candy.tick.ui.common
 
 import androidx.compose.animation.togetherWith
+import androidx.compose.foundation.background
+import androidx.compose.ui.draw.clip
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
@@ -66,7 +68,7 @@ fun UpdateSheet(
         val s = state
         if (UpdateSheetController.manualRequest) {
             if (s is SelfUpdater.State.NewVersion || s is SelfUpdater.State.Downloading ||
-                s is SelfUpdater.State.Downloaded
+                s is SelfUpdater.State.Downloaded || s is SelfUpdater.State.Failed
             ) {
                 UpdateSheetController.manualRequest = false
                 show = true
@@ -74,8 +76,10 @@ fun UpdateSheet(
                 // 终态消费：检查完成无新版/失败即请求完结——残留会在后台下载态误弹窗
                 UpdateSheetController.manualRequest = false
             }
-        } else if (s is SelfUpdater.State.NewVersion && s.tag != dismissedTag) {
-            show = true // 自动检查发现新版：每版本自动弹一次
+        } else if (s is SelfUpdater.State.NewVersion && s.tag != dismissedTag && !s.incomparable) {
+            // 自动检查发现新版：每版本自动弹一次；无法比较版本不弹（不宣称「有更新」，
+            // design.md:183）——入口在设置页版本行，用户主动点开再看
+            show = true
         }
     }
 
@@ -94,11 +98,13 @@ fun UpdateSheet(
                 .padding(top = 4.dp, bottom = 16.dp),
             verticalArrangement = Arrangement.spacedBy(10.dp),
         ) {
-            // 三相柔切换（与仓库下载四相同款 180 档）：新版 → 进度 → 安装不硬跳
+            // 四相柔切换（与仓库下载四相同款 180 档）：新版 → 进度 → 安装 / 失败不硬跳。
+            // Failed 此前映射 idle 只渲染空白——下载失败时弹窗只剩标题，看起来像界面坏了
             val phase = when (state) {
                 is SelfUpdater.State.NewVersion -> "new"
                 is SelfUpdater.State.Downloading -> "dl"
                 is SelfUpdater.State.Downloaded -> "done"
+                is SelfUpdater.State.Failed -> "failed"
                 else -> "idle"
             }
             androidx.compose.animation.AnimatedContent(
@@ -128,6 +134,14 @@ fun UpdateSheet(
                                 style = MonoTokenStyle.copy(fontWeight = FontWeight.Bold),
                                 color = MiuixTheme.colorScheme.primaryVariant,
                             )
+                            // 无法比较版本：如实说明，不宣称「有更新」（design.md:183/294）
+                            if (s.incomparable) {
+                                Text(
+                                    text = stringResource(R.string.self_update_incomparable_note),
+                                    style = MiuixTheme.textStyles.footnote1,
+                                    color = MiuixTheme.colorScheme.onBackgroundVariant,
+                                )
+                            }
                             s.notes?.let { notes ->
                                 // 更新说明：与版本历史展开区同款——链接可点（plain 后的裸 URL
                                 // 由 annotated 再标注；remember 缓存防重组重算）
@@ -162,17 +176,44 @@ fun UpdateSheet(
                                         }
                                 }
                             }
-                            PrimaryButton(
-                                text = stringResource(R.string.settings_download_update),
-                                onClick = {
-                                    scope.launch {
-                                        val file = s.asset?.let { selfUpdater.download(it) }
-                                        // 与仓库 APK 同一行为：下载完成按开关自动进安装
-                                        if (file != null && autoInstall) selfUpdater.install(file)
-                                    }
-                                },
-                                modifier = Modifier.fillMaxWidth(),
-                            )
+                            if (s.asset == null) {
+                                // 无安装包资产（release 只有源码归档等）：此前按钮可点但静默无操作
+                                Text(
+                                    text = stringResource(R.string.self_update_no_apk),
+                                    style = MiuixTheme.textStyles.footnote1,
+                                    color = MiuixTheme.colorScheme.onBackgroundVariant,
+                                )
+                                val releasesCtx = androidx.compose.ui.platform.LocalContext.current
+                                io.candy.tick.ui.common.LinkText(
+                                    text = stringResource(R.string.self_update_view_releases),
+                                    onClick = {
+                                        runCatching {
+                                            releasesCtx.startActivity(
+                                                android.content.Intent(
+                                                    android.content.Intent.ACTION_VIEW,
+                                                    android.net.Uri.parse(
+                                                        "https://github.com/" + io.candy.tick.data.SelfUpdater.APP_OWNER +
+                                                            '/' + io.candy.tick.data.SelfUpdater.APP_REPO + "/releases",
+                                                    ),
+                                                ).addFlags(android.content.Intent.FLAG_ACTIVITY_NEW_TASK),
+                                            )
+                                        }
+                                    },
+                                    showIcon = true,
+                                )
+                            } else {
+                                PrimaryButton(
+                                    text = stringResource(R.string.settings_download_update),
+                                    onClick = {
+                                        scope.launch {
+                                            val file = selfUpdater.download(s.asset)
+                                            // 与仓库 APK 同一行为：下载完成按开关自动进安装
+                                            if (file != null && autoInstall) selfUpdater.install(file)
+                                        }
+                                    },
+                                    modifier = Modifier.fillMaxWidth(),
+                                )
+                            }
                         }
                         "dl" -> (state as? SelfUpdater.State.Downloading)?.let { st ->
                             val p by androidx.compose.animation.core.animateFloatAsState(
@@ -201,6 +242,42 @@ fun UpdateSheet(
                                 onClick = { selfUpdater.install(st.file) },
                                 modifier = Modifier.fillMaxWidth(),
                             )
+                        }
+                        "failed" -> (state as? SelfUpdater.State.Failed)?.let { f ->
+                            // 失败相（此前是空白 + 弹窗只剩标题）：错误条 + 对应出路
+                            val scheme = MiuixTheme.colorScheme
+                            Text(
+                                text = when (f.reason) {
+                                    SelfUpdater.Reason.INSTALL ->
+                                        stringResource(R.string.self_update_install_failed_note)
+                                    SelfUpdater.Reason.DOWNLOAD ->
+                                        stringResource(R.string.settings_download_failed)
+                                    SelfUpdater.Reason.NETWORK ->
+                                        stringResource(R.string.settings_update_failed)
+                                },
+                                style = MiuixTheme.textStyles.footnote1,
+                                color = scheme.onErrorContainer,
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .clip(androidx.compose.foundation.shape.RoundedCornerShape(12.dp))
+                                    .background(scheme.errorContainer)
+                                    .padding(horizontal = 12.dp, vertical = 10.dp),
+                            )
+                            when (f.reason) {
+                                // 下载失败：文件已清理，重试从零下
+                                SelfUpdater.Reason.DOWNLOAD -> PrimaryButton(
+                                    text = stringResource(R.string.retry),
+                                    onClick = { scope.launch { selfUpdater.retryDownload() } },
+                                    modifier = Modifier.fillMaxWidth(),
+                                )
+                                // 安装失败：安装包已保留，直接重装
+                                SelfUpdater.Reason.INSTALL -> PrimaryButton(
+                                    text = stringResource(R.string.settings_install_update),
+                                    onClick = { f.file?.let(selfUpdater::install) },
+                                    modifier = Modifier.fillMaxWidth(),
+                                )
+                                else -> Unit
+                            }
                         }
                         else -> {
                             // 关闭竞态兜底（state 已流转到弹窗外相）

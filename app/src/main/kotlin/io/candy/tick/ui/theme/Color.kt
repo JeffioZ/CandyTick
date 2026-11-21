@@ -7,17 +7,10 @@ import androidx.compose.ui.graphics.Color
  * 定稿值：docs/design/design-spec.html 03 章（对比度均为 WCAG 实测）
  */
 
-// —— Candy Mint 色阶（3.1，50–900）——
-val Mint50 = Color(0xFFF0FBF6)
-val Mint100 = Color(0xFFDCF6EA)
+// —— Candy Mint 色阶（在用：200/600/700；其余档位无引用已裁剪）——
 val Mint200 = Color(0xFFB9EDD6)
-val Mint300 = Color(0xFF8BDEBB)
-val Mint400 = Color(0xFF55CFA0)
-val Mint500 = Color(0xFF2EB488)
 val Mint600 = Color(0xFF18936C)
 val Mint700 = Color(0xFF0E7A59)
-val Mint800 = Color(0xFF0B5F49)
-val Mint900 = Color(0xFF083F30)
 
 // —— 语义 Token · 浅色主题（3.2）——
 // 主按钮容器：Mint700（白字实测 5.32:1 达 AA）。Mint600 白字仅 3.87:1——按钮字号

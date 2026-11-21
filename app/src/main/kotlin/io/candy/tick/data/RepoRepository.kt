@@ -5,7 +5,6 @@ import io.candy.tick.data.model.CommitRecord
 import io.candy.tick.data.model.ReleaseRecord
 import io.candy.tick.data.model.RepoSnapshot
 import io.candy.tick.data.model.Settings
-import io.candy.tick.data.model.ThemeMode
 import io.candy.tick.data.model.TrackedRepo
 import java.time.Instant
 import kotlinx.coroutines.async
@@ -28,9 +27,6 @@ class RepoRepository(
         store.state.value.repos.find { it.id == id }
 
     // ---- 设置 ----
-
-    suspend fun setThemeMode(mode: ThemeMode) =
-        updateSettings { it.copy(themeMode = mode) }
 
     suspend fun updateSettings(transform: (Settings) -> Settings) =
         store.update { it.copy(settings = transform(it.settings)) }
@@ -131,6 +127,44 @@ class RepoRepository(
     suspend fun setLatestReleaseTag(id: Long, tag: String?) = store.update { s ->
         val old = s.snapshots[id] ?: return@update s
         s.copy(snapshots = s.snapshots + (id to old.copy(latestReleaseTag = tag)))
+    }
+
+    /** syncLatestReleaseTag 的结果：Tag = 拿到（可能 null = 无带 APK 资产的 release） */
+    sealed interface SyncTagOutcome {
+        data class Tag(val tag: String?) : SyncTagOutcome
+        data object Unchanged : SyncTagOutcome // 304：tag 维持旧值
+        data object Failed : SyncTagOutcome // 拉取失败：旧 tag 保留（不写 null，防漏报）
+        data object Missing : SyncTagOutcome // 订阅已不存在
+    }
+
+    /**
+     * 后台同步取最新 release tag：ETag 条件请求（304 不计配额）+ 失败保旧值。
+     * 此前瞬时失败会把 latestReleaseTag 写空——漏报一条新版本通知、清掉「可更新」标识。
+     */
+    suspend fun syncLatestReleaseTag(id: Long): SyncTagOutcome {
+        val tracked = trackedOrNull(id) ?: return SyncTagOutcome.Missing
+        val etag = store.state.value.snapshots[id]?.releasesEtag
+        return try {
+            when (val result = provider(tracked.provider).releasesForSync(tracked.owner, tracked.repo, etag)) {
+                SyncReleasesResult.NotModified -> SyncTagOutcome.Unchanged
+                is SyncReleasesResult.Page -> {
+                    val tag = result.releases.firstOrNull { it.apkAssets.isNotEmpty() }?.tagName
+                    store.update { s ->
+                        val old = s.snapshots[id] ?: return@update s
+                        // tag 为 null（该仓无安装包资产）时保留旧值：宁可不比，不丢基线
+                        s.copy(
+                            snapshots = s.snapshots + (id to old.copy(
+                                latestReleaseTag = tag ?: old.latestReleaseTag,
+                                releasesEtag = result.etag,
+                            )),
+                        )
+                    }
+                    SyncTagOutcome.Tag(tag)
+                }
+            }
+        } catch (e: SourceException) {
+            SyncTagOutcome.Failed
+        }
     }
 
     /** 添加页搜索辅助 */

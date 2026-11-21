@@ -56,7 +56,6 @@
 
     <!-- 版本行 -->
     <string name="version_latest_only">最新 %1$s</string>
-    <string name="version_incomparable">发布 %1$s · 无法比较版本</string>
     <string name="version_incomparable_full">发布 %1$s · 本机 %2$s · 无法比较</string>
     <string name="version_line">已是最新 %1$s</string>
     <string name="version_update_available">发现新版：%1$s</string>
@@ -65,7 +64,7 @@
     <string name="err_network">网络不可用</string>
     <string name="err_timeout">超时（15 秒）</string>
     <string name="err_not_found">仓库不存在，或已设为私有</string>
-    <string name="err_rate_limited">已限流 · %1$s后恢复</string>
+    <string name="err_rate_limited">已限流 · %1$s后恢复 · 可在设置添加 Token 提升</string>
     <string name="err_rate_limited_plain">请求太频繁，请稍后再试或在设置中添加 Token</string>
     <string name="err_http">服务异常（%1$d）</string>
 
@@ -174,6 +173,10 @@
     <string name="notif_updates_summary">%1$d 个仓库有新版本</string>
     <string name="notif_update_ready_title">CandyTick 更新</string>
     <string name="notif_update_ready">新版本 %1$s 已下载 · 点击安装</string>
+    <string name="notif_channel_sync">后台同步</string>
+    <string name="notif_channel_sync_desc">旧系统版本上加急同步时显示的前台服务提示</string>
+    <string name="open_failed">无法打开链接</string>
+    <string name="picker_empty_apps">未找到可关联的应用</string>
 
     <!-- 设置页 -->
     <string name="settings_appearance">外观</string>
@@ -238,6 +241,13 @@
     <string name="settings_download_update">下载并安装</string>
     <string name="settings_install_update">安装已下载的更新</string>
     <string name="settings_update_failed">检查失败 · 稍后再试</string>
+    <string name="settings_download_failed">下载失败 · 可重试</string>
+    <string name="settings_install_failed">安装失败 · 可重试</string>
+    <string name="settings_new_release_incomparable">发现新发布 %1$s · 无法比较版本</string>
+    <string name="self_update_no_apk">该版本未提供安装包</string>
+    <string name="self_update_view_releases">在 GitHub 查看全部版本</string>
+    <string name="self_update_incomparable_note">无法比较版本，不确定是否为新版</string>
+    <string name="self_update_install_failed_note">安装失败 · 安装包已保留，可重试</string>
 
     <!-- 关于 -->
     <string name="settings_about_group">关于</string>

@@ -34,7 +34,7 @@ import top.yukonga.miuix.kmp.basic.Text
 import top.yukonga.miuix.kmp.theme.MiuixTheme
 
 @Composable
-fun statusColorOf(status: RepoStatus): StatusColors? {
+private fun statusColorOf(status: RepoStatus): StatusColors? {
     val dark = LocalDarkTheme.current
     return when (status) {
         RepoStatus.ACTIVE -> if (dark) StatusActiveDark else StatusActiveLight
@@ -47,7 +47,7 @@ fun statusColorOf(status: RepoStatus): StatusColors? {
 }
 
 @Composable
-fun statusLabelOf(status: RepoStatus): String = stringResource(
+private fun statusLabelOf(status: RepoStatus): String = stringResource(
     when (status) {
         RepoStatus.ACTIVE -> R.string.status_active
         RepoStatus.MODERATE -> R.string.status_moderate

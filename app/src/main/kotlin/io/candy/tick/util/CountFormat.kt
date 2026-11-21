@@ -12,6 +12,13 @@ object CountFormat {
         else -> count.toString()
     }
 
+    /** 字节数（下载进度 / 缓存清理 / 资产行共用）：1.2 MB / 345 KB / 0 B */
+    fun formatBytes(bytes: Long): String = when {
+        bytes >= 1024 * 1024 -> String.format(java.util.Locale.US, "%.1f MB", bytes / 1024f / 1024f)
+        bytes >= 1024 -> "${bytes / 1024} KB"
+        else -> "$bytes B"
+    }
+
     /** ≥100 或整数值去小数位，否则保留一位（Locale.US：小数点恒为「.」，GitHub 风格） */
     private fun trim(v: Double): String = when {
         v >= 100 -> v.toLong().toString()

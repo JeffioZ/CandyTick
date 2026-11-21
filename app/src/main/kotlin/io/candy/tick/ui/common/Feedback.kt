@@ -29,6 +29,9 @@ import androidx.compose.ui.draw.shadow
 import androidx.compose.foundation.layout.size
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.res.vectorResource
+import androidx.compose.ui.semantics.LiveRegionMode
+import androidx.compose.ui.semantics.liveRegion
+import androidx.compose.ui.semantics.semantics
 
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
@@ -51,22 +54,29 @@ object Feedback {
         val isError: Boolean = false,
         val actionLabel: String? = null,
         val onAction: (() -> Unit)? = null,
-    ) {
-        val durationMs: Long get() = if (actionLabel != null) 4_500L else 2_200L
-    }
+        val durationMs: Long = if (actionLabel != null) 4_500L else 2_200L,
+    )
 
     private var nextId = 0L
     private val _current = MutableStateFlow<Message?>(null)
     val current: StateFlow<Message?> = _current
 
-    /** 展示一条反馈；同屏只保留最新（瞬时消息不排队） */
+    /** 展示一条反馈；同屏只保留最新（瞬时消息不排队）。破坏性动作的撤销窗口可放长 */
     fun show(
         text: String,
         isError: Boolean = false,
         actionLabel: String? = null,
         onAction: (() -> Unit)? = null,
+        durationMs: Long? = null,
     ) {
-        _current.value = Message(nextId++, text, isError, actionLabel, onAction)
+        _current.value = Message(
+            id = nextId++,
+            text = text,
+            isError = isError,
+            actionLabel = actionLabel,
+            onAction = onAction,
+            durationMs = durationMs ?: if (actionLabel != null) 4_500L else 2_200L,
+        )
     }
 }
 
@@ -114,6 +124,8 @@ fun FeedbackHost() {
                         .shadow(2.dp, RoundedCornerShape(20.dp))
                         .clip(RoundedCornerShape(20.dp))
                         .background(container)
+                        // 读屏直播（Polite）：同步结果/安装结果此前 TalkBack 完全无感知
+                        .semantics { liveRegion = LiveRegionMode.Polite }
                         .padding(start = 14.dp, end = 12.dp, top = 10.dp, bottom = 10.dp),
                     verticalAlignment = Alignment.CenterVertically,
                 ) {

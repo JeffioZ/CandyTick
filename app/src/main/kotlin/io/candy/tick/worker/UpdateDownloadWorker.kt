@@ -29,15 +29,18 @@ class UpdateDownloadWorker(context: Context, params: WorkerParameters) : Corouti
 
         val file = updater.download(asset) ?: return Result.retry() // 下载失败：静默退避
         return if (updater.canInstallSilently()) {
-            // 统一开关：开 → 静默安装（现状）；关 → 只通知已下载，等用户手动安装
+            // 统一开关：开 → 静默安装（失败由 SelfUpdater 安装结果收口兜底「点击安装」通知）；
+            // 关 → 只通知已下载（受「新版本通知」开关管——此前自更新通知绕过开关）
             if (container.appStateStore.state.value.settings.autoInstallDownload) {
                 updater.installSilently(file)
-            } else {
+            } else if (settings.notificationsEnabled) {
                 Notifications.notifySelfUpdateReady(applicationContext, newState.tag)
             }
             Result.success()
         } else {
-            Notifications.notifySelfUpdateReady(applicationContext, newState.tag)
+            if (settings.notificationsEnabled) {
+                Notifications.notifySelfUpdateReady(applicationContext, newState.tag)
+            }
             Result.success()
         }
     }

@@ -48,6 +48,7 @@ fun RepoCard(
     versionEpoch: Int = 0, // ON_RESUME 递增：安装后版本行重算
     onToggle: () -> Unit,
     onClick: () -> Unit,
+    onRetryExtras: (() -> Unit)? = null, // 展开面板加载失败的显式重试
     modifier: Modifier = Modifier,
 ) {
     val scheme = MiuixTheme.colorScheme
@@ -172,7 +173,7 @@ fun RepoCard(
                     Column {
                         Spacer(Modifier.height(2.dp))
                         // 卡中卡信息面板：展开内容有容器底，与折叠态主信息分层
-                        ExpandedDetails(item = item, extras = extras, versionEpoch = versionEpoch, refreshing = extras?.refreshing == true)
+                        ExpandedDetails(item = item, extras = extras, versionEpoch = versionEpoch, refreshing = extras?.refreshing == true, onRetry = onRetryExtras)
                         // 卡底留白放展开块内：收起时随动画移除，折叠态底部与顶对称（8dp）
                         Spacer(Modifier.height(8.dp))
                     }
@@ -187,6 +188,7 @@ private fun ExpandedDetails(
     extras: ListViewModel.CardExtras?,
     versionEpoch: Int = 0,
     refreshing: Boolean = false,
+    onRetry: (() -> Unit)? = null,
 ) {
     val scheme = MiuixTheme.colorScheme
     Column(
@@ -227,6 +229,27 @@ private fun ExpandedDetails(
                     style = MiuixTheme.textStyles.footnote1,
                     color = scheme.onErrorContainer,
                 )
+                Spacer(Modifier.weight(1f))
+                // 显式重试链（行内恢复紧邻错误）：此前恢复=收起再展开，不可发现
+                if (onRetry != null) {
+                    val (retrySrc, retryTint) = io.candy.tick.ui.common.rememberRowPressTint()
+                    Text(
+                        text = stringResource(R.string.retry),
+                        style = MiuixTheme.textStyles.footnote1.copy(
+                            textDecoration = androidx.compose.ui.text.style.TextDecoration.Underline,
+                        ),
+                        color = scheme.onErrorContainer,
+                        modifier = Modifier
+                            .clip(RoundedCornerShape(8.dp))
+                            .background(retryTint, RoundedCornerShape(8.dp))
+                            .clickable(
+                                interactionSource = retrySrc,
+                                indication = null,
+                                onClick = onRetry,
+                            )
+                            .padding(horizontal = 8.dp, vertical = 4.dp),
+                    )
+                }
             }
             else -> extras.commits.take(3).forEach { commit ->
                 Row(verticalAlignment = Alignment.CenterVertically) {

@@ -21,6 +21,7 @@ class InstallManager(private val context: Context) {
     sealed interface InstallResult {
         data object Success : InstallResult
         data object PendingUserAction : InstallResult // 系统确认界面已拉起
+        data object Cancelled : InstallResult // 用户在系统确认页取消（不是失败，不出错误胶囊）
         data object NeedsInstallPermission : InstallResult // 未授予「安装未知应用」，已带去系统设置
         data class Failed(val message: String?, val signatureMismatch: Boolean) : InstallResult
     }
@@ -72,6 +73,7 @@ class InstallManager(private val context: Context) {
                     }
                     _results.tryEmit(InstallResult.PendingUserAction)
                 }
+                PackageInstaller.STATUS_FAILURE_ABORTED -> _results.tryEmit(InstallResult.Cancelled)
                 else -> {
                     val message = intent.getStringExtra(PackageInstaller.EXTRA_STATUS_MESSAGE)
                     // INSTALL_FAILED_UPDATE_INCOMPATIBLE（签名不匹配：常见于 F-Droid 与 GitHub 渠道混装）
@@ -148,18 +150,23 @@ class InstallManager(private val context: Context) {
             _results.tryEmit(InstallResult.NeedsInstallPermission)
             return
         }
-        val installer = context.packageManager.packageInstaller
-        val params = PackageInstaller.SessionParams(PackageInstaller.SessionParams.MODE_FULL_INSTALL)
-        val sessionId = installer.createSession(params)
-        installer.openSession(sessionId).use { session ->
-            session.openWrite("candytick-apk", 0, file.length()).use { output ->
-                file.inputStream().use { input -> input.copyTo(output) }
-                session.fsync(output)
+        try {
+            val installer = context.packageManager.packageInstaller
+            val params = PackageInstaller.SessionParams(PackageInstaller.SessionParams.MODE_FULL_INSTALL)
+            val sessionId = installer.createSession(params)
+            installer.openSession(sessionId).use { session ->
+                session.openWrite("candytick-apk", 0, file.length()).use { output ->
+                    file.inputStream().use { input -> input.copyTo(output) }
+                    session.fsync(output)
+                }
+                val intent = Intent(ACTION_INSTALL_RESULT).setPackage(context.packageName)
+                val flags = PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_MUTABLE
+                val sender = PendingIntent.getBroadcast(context, sessionId, intent, flags).intentSender
+                session.commit(sender)
             }
-            val intent = Intent(ACTION_INSTALL_RESULT).setPackage(context.packageName)
-            val flags = PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_MUTABLE
-            val sender = PendingIntent.getBroadcast(context, sessionId, intent, flags).intentSender
-            session.commit(sender)
+        } catch (e: Exception) {
+            // 会话异常（磁盘满/安全异常等）此前裸抛到点击回调直接崩
+            _results.tryEmit(InstallResult.Failed(message = e.message, signatureMismatch = false))
         }
     }
 

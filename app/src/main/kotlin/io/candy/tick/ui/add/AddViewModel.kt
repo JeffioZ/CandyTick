@@ -100,11 +100,15 @@ class AddViewModel(
         }
     }
 
-    /** 预览失败重试：清键后按当前输入重新解析拉取 */
+    /** 预览失败重试：URL 路径清键重拉；搜索关键词路径改走重搜（此前重试静默空转=死路） */
     fun retryPreview() {
         parseJob?.cancel()
         fetchingKey = null
-        val parsed = UrlParser.parse(_state.value.input) ?: return
+        val parsed = UrlParser.parse(_state.value.input)
+        if (parsed == null) {
+            if (_state.value.input.isNotBlank()) submit()
+            return
+        }
         fetchingKey = "${parsed.first}/${parsed.second}"
         fetchPreview(parsed.first, parsed.second)
     }

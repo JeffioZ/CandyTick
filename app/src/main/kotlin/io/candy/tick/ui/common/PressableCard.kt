@@ -2,6 +2,7 @@ package io.candy.tick.ui.common
 
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.combinedClickable
 import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.interaction.collectIsPressedAsState
 import androidx.compose.foundation.layout.Box
@@ -32,6 +33,7 @@ import top.yukonga.miuix.kmp.theme.MiuixTheme
 fun PressableCard(
     onClick: () -> Unit,
     modifier: Modifier = Modifier,
+    onLongClick: (() -> Unit)? = null, // 长按（提交卡复制 sha 等；null = 纯点击）
     cornerRadius: Dp = 16.dp,
     content: @Composable ColumnScope.() -> Unit,
 ) {
@@ -46,10 +48,11 @@ fun PressableCard(
         label = "cardPress",
     ).value
     Card(
-        modifier = modifier.clickable(
+        modifier = modifier.combinedClickable(
             interactionSource = pressSrc,
             indication = null,
             onClick = onClick,
+            onLongClick = onLongClick,
         ),
         cornerRadius = cornerRadius,
         insideMargin = PaddingValues(0.dp),

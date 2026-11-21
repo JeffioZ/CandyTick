@@ -64,6 +64,7 @@ data class RepoSnapshot(
     val lastSyncAt: Instant,
     val etag: String?,
     val latestReleaseTag: String? = null,
+    val releasesEtag: String? = null, // release 列表条件请求（后台同步用；304 不计配额）
 )
 
 @Serializable

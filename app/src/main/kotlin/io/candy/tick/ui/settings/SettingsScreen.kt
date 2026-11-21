@@ -164,6 +164,11 @@ fun SettingsScreen(onBack: () -> Unit) {
             context.startActivity(
                 Intent(Intent.ACTION_VIEW, Uri.parse(url)).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK),
             )
+        }.onFailure {
+            io.candy.tick.ui.common.Feedback.show(
+                text = app.getString(R.string.open_failed),
+                isError = true,
+            )
         }
     }
 
@@ -574,13 +579,26 @@ private fun themeModeLabel(mode: ThemeMode): String = stringResource(
 @Composable
 private fun versionRowValue(update: SelfUpdater.State, localVersion: String): String {
     val upToDate = stringResource(R.string.settings_up_to_date)
-    val failed = stringResource(R.string.settings_update_failed)
     return when (update) {
         is SelfUpdater.State.Checking -> stringResource(R.string.settings_checking)
         is SelfUpdater.State.UpToDate -> "$upToDate · $localVersion"
-        is SelfUpdater.State.NewVersion -> update.tag
+        is SelfUpdater.State.NewVersion ->
+            // 无法比较版本：明说「无法比较」，不宣称「有更新」（design.md:183）
+            if (update.incomparable) {
+                stringResource(R.string.settings_new_release_incomparable, update.tag)
+            } else {
+                update.tag
+            }
         is SelfUpdater.State.Downloaded -> update.tag
-        is SelfUpdater.State.Failed -> "$failed · $localVersion"
+        is SelfUpdater.State.Failed ->
+            // 失败细分（此前下载失败被显示成「检查失败」）
+            stringResource(
+                when (update.reason) {
+                    SelfUpdater.Reason.DOWNLOAD -> R.string.settings_download_failed
+                    SelfUpdater.Reason.INSTALL -> R.string.settings_install_failed
+                    else -> R.string.settings_update_failed
+                },
+            ) + " · $localVersion"
         else -> localVersion
     }
 }

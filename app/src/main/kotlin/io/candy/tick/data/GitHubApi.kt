@@ -11,6 +11,7 @@ import java.net.SocketTimeoutException
 import java.time.Instant
 import java.util.concurrent.TimeUnit
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.ensureActive
 import kotlinx.coroutines.withContext
 import kotlinx.serialization.Serializable
 import kotlinx.serialization.decodeFromString
@@ -47,140 +48,174 @@ class GitHubApi(private val tokenProvider: () -> String?) {
 
     suspend fun repoInfo(owner: String, repo: String, etag: String? = null): RepoInfoResult =
         withContext(Dispatchers.IO) {
-            val response = executeAuthenticated(request(apiUrl("repos", owner, repo), etag))
-            response.use {
-                checkHttp(it)
-                when (it.code) {
-                    304 -> RepoInfoResult.NotModified
-                    else -> {
-                        val gh = json.decodeFromString<GhRepo>(it.body.string())
-                        // 改名跟随：301 重定向后的最终 URL 即新 owner/repo
-                        val seg = it.request.url.pathSegments
-                        val finalOwner = if (seg.size >= 3 && seg[0] == "repos") seg[1] else owner
-                        val finalRepo = if (seg.size >= 3 && seg[0] == "repos") seg[2] else repo
-                        RepoInfoResult.Fetched(gh.toInfo(finalOwner, finalRepo, it.header("etag")))
+            try {
+                val response = executeAuthenticated(request(apiUrl("repos", owner, repo), etag))
+                response.use {
+                    checkHttp(it)
+                    when (it.code) {
+                        304 -> RepoInfoResult.NotModified
+                        else -> {
+                            val gh = json.decodeFromString<GhRepo>(it.body.string())
+                            // 改名跟随：301 重定向后的最终 URL 即新 owner/repo
+                            val seg = it.request.url.pathSegments
+                            val finalOwner = if (seg.size >= 3 && seg[0] == "repos") seg[1] else owner
+                            val finalRepo = if (seg.size >= 3 && seg[0] == "repos") seg[2] else repo
+                            RepoInfoResult.Fetched(gh.toInfo(finalOwner, finalRepo, it.header("etag")))
+                        }
                     }
                 }
+            } catch (e: Throwable) {
+                rethrowMapped(e)
             }
         }
 
     suspend fun commits(owner: String, repo: String, page: Int = 1, sha: String? = null): List<CommitRecord> =
         withContext(Dispatchers.IO) {
-            val url = apiUrl("repos", owner, repo, "commits")
-                .newBuilder()
-                .addQueryParameter("per_page", COMMITS_PER_PAGE.toString())
-                .addQueryParameter("page", page.toString())
-                .apply { if (sha != null) addQueryParameter("sha", sha) }
-                .build()
-            val response = executeAuthenticated(request(url, etag = null))
-            response.use {
-                checkHttp(it)
-                json.decodeFromString<List<GhCommit>>(it.body.string()).map { c ->
-                    CommitRecord(
-                        sha = c.sha,
-                        message = c.commit.message,
-                        author = c.commit.author?.name,
-                        date = parseInstant(c.commit.author?.date),
-                    )
+            try {
+                val url = apiUrl("repos", owner, repo, "commits")
+                    .newBuilder()
+                    .addQueryParameter("per_page", COMMITS_PER_PAGE.toString())
+                    .addQueryParameter("page", page.toString())
+                    .apply { if (sha != null) addQueryParameter("sha", sha) }
+                    .build()
+                val response = executeAuthenticated(request(url, etag = null))
+                response.use {
+                    checkHttp(it)
+                    json.decodeFromString<List<GhCommit>>(it.body.string()).map { c ->
+                        CommitRecord(
+                            sha = c.sha,
+                            message = c.commit.message,
+                            author = c.commit.author?.name,
+                            date = parseInstant(c.commit.author?.date),
+                        )
+                    }
                 }
+            } catch (e: Throwable) {
+                rethrowMapped(e)
             }
         }
 
     /** 分支列表（提交视图的分支切换；单页 100，超出截断——单仓库超百分支属极端场景） */
     suspend fun branches(owner: String, repo: String): List<String> =
         withContext(Dispatchers.IO) {
-            val url = apiUrl("repos", owner, repo, "branches")
-                .newBuilder()
-                .addQueryParameter("per_page", "100")
-                .build()
-            val response = executeAuthenticated(request(url, etag = null))
-            response.use {
-                checkHttp(it)
-                json.decodeFromString<List<GhBranch>>(it.body.string()).map { it.name }
+            try {
+                val url = apiUrl("repos", owner, repo, "branches")
+                    .newBuilder()
+                    .addQueryParameter("per_page", "100")
+                    .build()
+                val response = executeAuthenticated(request(url, etag = null))
+                response.use {
+                    checkHttp(it)
+                    json.decodeFromString<List<GhBranch>>(it.body.string()).map { it.name }
+                }
+            } catch (e: Throwable) {
+                rethrowMapped(e)
             }
         }
 
     suspend fun releases(owner: String, repo: String, page: Int = 1, perPage: Int = RELEASES_PER_PAGE): List<ReleaseRecord> =
         withContext(Dispatchers.IO) {
-            val url = apiUrl("repos", owner, repo, "releases")
-                .newBuilder()
-                .addQueryParameter("per_page", perPage.toString())
-                .addQueryParameter("page", page.toString())
-                .build()
-            val response = executeAuthenticated(request(url, etag = null))
-            response.use {
-                checkHttp(it)
-                json.decodeFromString<List<GhRelease>>(it.body.string()).map { r ->
-                    ReleaseRecord(
-                        tagName = r.tag_name,
-                        name = r.name,
-                        publishedAt = parseInstant(r.published_at),
-                        body = r.body ?: "",
-                        // 只收 Android 安装包格式：.apk（标准）/ .apks（split）/ .xapk / .apkm
-                        // 桌面资产（AppImage/msi/zip）混入会污染版本 tag 选取和下载候选列表；
-                        // .aab 不含（需 bundletool 转换，不可直接安装）
-                        apkAssets = r.assets
-                            .filter { a ->
-                                a.name.endsWith(".apk", true) ||
-                                    a.name.endsWith(".apks", true) ||
-                                    a.name.endsWith(".xapk", true) ||
-                                    a.name.endsWith(".apkm", true)
-                            }
-                            .map { a ->
-                                ApkAsset(
-                                    name = a.name,
-                                    url = a.browser_download_url,
-                                    size = a.size,
-                                )
-                            },
-                    )
+            try {
+                val url = apiUrl("repos", owner, repo, "releases")
+                    .newBuilder()
+                    .addQueryParameter("per_page", perPage.toString())
+                    .addQueryParameter("page", page.toString())
+                    .build()
+                val response = executeAuthenticated(request(url, etag = null))
+                response.use {
+                    checkHttp(it)
+                    json.decodeFromString<List<GhRelease>>(it.body.string()).map(::toReleaseRecord)
                 }
+            } catch (e: Throwable) {
+                rethrowMapped(e)
+            }
+        }
+
+    /**
+     * 后台同步专用：release 列表 + ETag 条件请求——未变化的仓库 304 返回不计配额
+     * （匿名 60/h 下每仓每轮一次无条件的列表请求是全局限流的主因）。304 的语义由
+     * 调用方处理：tag 维持旧值，不写不比。
+     */
+    suspend fun releasesForSync(owner: String, repo: String, etag: String? = null): SyncReleasesResult =
+        withContext(Dispatchers.IO) {
+            try {
+                val url = apiUrl("repos", owner, repo, "releases")
+                    .newBuilder()
+                    .addQueryParameter("per_page", RELEASES_PER_PAGE.toString())
+                    .build()
+                val response = executeAuthenticated(request(url, etag))
+                response.use {
+                    when (it.code) {
+                        304 -> SyncReleasesResult.NotModified
+                        else -> {
+                            checkHttp(it)
+                            SyncReleasesResult.Page(
+                                releases = json.decodeFromString<List<GhRelease>>(it.body.string()).map(::toReleaseRecord),
+                                etag = it.header("etag"),
+                            )
+                        }
+                    }
+                }
+            } catch (e: Throwable) {
+                rethrowMapped(e)
             }
         }
 
     /** 搜索辅助（添加页；Search API） */
     suspend fun search(query: String): List<RepoInfo> = withContext(Dispatchers.IO) {
-        val url = BASE_URL.toHttpUrl().newBuilder()
-            .addPathSegment("search")
-            .addPathSegment("repositories")
-            .addQueryParameter("q", query.trim())
-            .addQueryParameter("per_page", "20")
-            .build()
-        val response = executeAuthenticated(request(url, etag = null))
-        response.use {
-            checkHttp(it)
-            json.decodeFromString<GhSearch>(it.body.string()).items.map { gh ->
-                gh.toInfo(gh.owner.login, gh.name, etag = null)
+        try {
+            val url = BASE_URL.toHttpUrl().newBuilder()
+                .addPathSegment("search")
+                .addPathSegment("repositories")
+                .addQueryParameter("q", query.trim())
+                .addQueryParameter("per_page", "20")
+                .build()
+            val response = executeAuthenticated(request(url, etag = null))
+            response.use {
+                checkHttp(it)
+                json.decodeFromString<GhSearch>(it.body.string()).items.map { gh ->
+                    gh.toInfo(gh.owner.login, gh.name, etag = null)
+                }
             }
+        } catch (e: Throwable) {
+            rethrowMapped(e)
         }
     }
 
     /** APK 下载：流式写文件 + 进度回调（下载保留语义由调用方管理文件生命周期） */
     suspend fun download(url: String, dest: File, onProgress: (Float) -> Unit = {}): File =
         withContext(Dispatchers.IO) {
-            dest.parentFile?.mkdirs()
-            val request = Request.Builder().url(url).apply {
-                tokenProvider()?.takeIf { it.isNotBlank() }?.let { header("Authorization", "Bearer $it") }
-            }.build()
-            executeAuthenticated(request).use { response ->
-                checkHttp(response)
-                val body = response.body
-                val total = body.contentLength()
-                body.byteStream().use { input ->
-                    dest.outputStream().use { output ->
-                        val buffer = ByteArray(64 * 1024)
-                        var read = 0L
-                        while (true) {
-                            val n = input.read(buffer)
-                            if (n < 0) break
-                            output.write(buffer, 0, n)
-                            read += n
-                            if (total > 0) onProgress((read.toDouble() / total).toFloat().coerceIn(0f, 1f))
+            try {
+                dest.parentFile?.mkdirs()
+                val request = Request.Builder().url(url).apply {
+                    tokenProvider()?.takeIf { it.isNotBlank() }?.let { header("Authorization", "Bearer $it") }
+                }.build()
+                executeAuthenticated(request).use { response ->
+                    checkHttp(response)
+                    val body = response.body
+                    val total = body.contentLength()
+                    body.byteStream().use { input ->
+                        dest.outputStream().use { output ->
+                            val buffer = ByteArray(64 * 1024)
+                            var read = 0L
+                            while (true) {
+                                val n = input.read(buffer)
+                                if (n < 0) break
+                                // 协作取消：阻塞读不响应协程 cancel，循环里显式检查——
+                                // 否则被取消的旧任务会继续写盘（与新会话双写同文件）
+                                kotlin.coroutines.coroutineContext.ensureActive()
+                                output.write(buffer, 0, n)
+                                read += n
+                                if (total > 0) onProgress((read.toDouble() / total).toFloat().coerceIn(0f, 1f))
+                            }
                         }
                     }
                 }
+                dest
+            } catch (e: Throwable) {
+                // 磁盘满等写盘失败此前裸抛 IOException，把 UI 协程直接带崩
+                rethrowMapped(e)
             }
-            dest
         }
 
     /** Token 测试连接：200 ✓ / 401 ✗ / 网络类异常上抛 */
@@ -201,6 +236,17 @@ class GitHubApi(private val tokenProvider: () -> String?) {
     }
 
     // ---- 内部：请求 / 错误映射 ----
+
+    /**
+     * 非 HTTP 异常统一收敛为 SourceException：此前 JSON 解析失败（SerializationException）、
+     * 下载写盘失败（IOException，磁盘满）等会裸抛——下拉刷新直接崩、worker 静默失败。
+     * 按「拿不到有效数据」归网络类（四类失败口径内，UI 有既有文案）。
+     */
+    private fun rethrowMapped(e: Throwable): Nothing = when (e) {
+        is kotlinx.coroutines.CancellationException -> throw e
+        is SourceException -> throw e
+        else -> throw SourceException(SourceError.NetworkUnreachable, e)
+    }
 
     private fun request(url: HttpUrl, etag: String?): Request {
         val builder = Request.Builder().url(url)
@@ -237,18 +283,55 @@ class GitHubApi(private val tokenProvider: () -> String?) {
         if (response.code == 304) return
         when {
             response.code == 404 -> throw SourceException(SourceError.NotFound)
+            // 429（主/次限流通用信号）：Retry-After 秒数换恢复时间
+            response.code == 429 -> throw SourceException(
+                SourceError.RateLimited(
+                    response.header("retry-after")?.toLongOrNull()?.let(Instant.now()::plusSeconds),
+                ),
+            )
             response.code == 403 && response.header("x-ratelimit-remaining") == "0" -> {
                 val reset = response.header("x-ratelimit-reset")?.toLongOrNull()
                 throw SourceException(
                     SourceError.RateLimited(retryAt = reset?.let(Instant::ofEpochSecond)),
                 )
             }
+            // 二级限流：403 带 Retry-After 但无 remaining 头——此前落「服务异常(403)」
+            response.code == 403 && response.header("retry-after") != null -> throw SourceException(
+                SourceError.RateLimited(
+                    response.header("retry-after")?.toLongOrNull()?.let(Instant.now()::plusSeconds),
+                ),
+            )
             !response.isSuccessful -> throw SourceException(SourceError.Http(response.code))
         }
     }
 
     private fun apiUrl(vararg segments: String): HttpUrl =
         BASE_URL.toHttpUrl().newBuilder().apply { segments.forEach(::addPathSegment) }.build()
+
+    /** GhRelease → ReleaseRecord（releases / releasesForSync 共用） */
+    private fun toReleaseRecord(r: GhRelease) = ReleaseRecord(
+        tagName = r.tag_name,
+        name = r.name,
+        publishedAt = parseInstant(r.published_at),
+        body = r.body ?: "",
+        // 只收 Android 安装包格式：.apk（标准）/ .apks（split）/ .xapk / .apkm
+        // 桌面资产（AppImage/msi/zip）混入会污染版本 tag 选取和下载候选列表；
+        // .aab 不含（需 bundletool 转换，不可直接安装）
+        apkAssets = r.assets
+            .filter { a ->
+                a.name.endsWith(".apk", true) ||
+                    a.name.endsWith(".apks", true) ||
+                    a.name.endsWith(".xapk", true) ||
+                    a.name.endsWith(".apkm", true)
+            }
+            .map { a ->
+                ApkAsset(
+                    name = a.name,
+                    url = a.browser_download_url,
+                    size = a.size,
+                )
+            },
+    )
 
     private companion object {
         const val BASE_URL = "https://api.github.com"

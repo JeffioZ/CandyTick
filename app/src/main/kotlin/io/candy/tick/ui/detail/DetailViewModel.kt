@@ -5,14 +5,12 @@ import androidx.compose.runtime.Immutable
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import io.candy.tick.data.COMMITS_PER_PAGE
-import io.candy.tick.data.GitHubApi
 import io.candy.tick.data.InstallManager
 import io.candy.tick.data.RELEASES_PER_PAGE
 import io.candy.tick.data.RepoRepository
 import io.candy.tick.data.SourceError
 import io.candy.tick.data.model.ApkAsset
 import io.candy.tick.data.model.CommitRecord
-import io.candy.tick.data.model.DownloadedApk
 import io.candy.tick.data.model.RepoSnapshot
 import io.candy.tick.data.model.ReleaseRecord
 import io.candy.tick.data.model.TrackedRepo
@@ -31,38 +29,12 @@ import kotlinx.coroutines.launch
 class DetailViewModel(
     val repoId: Long,
     private val repository: RepoRepository,
-    private val githubApi: GitHubApi,
     private val installManager: InstallManager,
+    private val downloadHost: RepoDownloadHost,
     context: Context,
 ) : ViewModel() {
 
-    // @Immutable：接口级承诺（各实现全 val 只读），download 参数的稳定判定按此类型走
-    @Immutable
-    sealed interface DownloadState {
-        /** releaseKey=tagName + assetName 双维匹配：防同名资产的失败/进度态跨版本误显示 */
-        val releaseKey: String
-        val assetName: String
-
-        data class Active(
-            override val releaseKey: String,
-            override val assetName: String,
-            val progress: Float,
-            val fromHeader: Boolean = false, // 头部入口下载：进度只在头部显示，卡片不重复
-        ) : DownloadState
-
-        data class Done(
-            override val releaseKey: String,
-            override val assetName: String,
-            val file: File,
-        ) : DownloadState
-
-        data class Failed(
-            override val releaseKey: String,
-            override val assetName: String,
-            val message: String? = null,
-            val error: io.candy.tick.data.SourceError? = null,
-        ) : DownloadState
-    }
+    // 下载四相收口 App 级 RepoDownloadHost（离开详情页不中断下载），页面只读绑定
 
     @Immutable
     data class UiState(
@@ -80,7 +52,7 @@ class DetailViewModel(
         val releasesLoading: Boolean = false,
         val releasesEnd: Boolean = false,
         val releasesFailed: Boolean = false,
-        val download: DownloadState? = null,
+        val download: RepoDownloadState? = null,
         val selectedAssets: Map<String, ApkAsset> = emptyMap(), // releaseKey(tag) → 手选覆盖
         val branches: List<String> = emptyList(), // 分支选择器数据
         val branchesLoading: Boolean = false,
@@ -146,6 +118,12 @@ class DetailViewModel(
                 _events.send(Event.InstallResultEvent(result))
             }
         }
+        // 下载进度按 repoId 重绑：App 级宿主持有状态，离开详情页不中断（重进接上进度）
+        viewModelScope.launch {
+            downloadHost.states.collect { m ->
+                _state.update { it.copy(download = m[repoId]) }
+            }
+        }
         // 装后清理（事件驱动）：系统 PACKAGE_REPLACED/ADDED 广播带包名——装完瞬间触发，
         // 双安装路径通吃（ACTION_VIEW 外部安装器无回调也覆盖）、包名精确匹配零推断；
         // 此前版本比较推断法对不可比 tag（日期+hash）永远失灵
@@ -160,10 +138,8 @@ class DetailViewModel(
                 // 装完即撤本仓「发现新版」通知：使命已完成（不点通知直接装的场景，
                 // autoCancel 只在点击时生效——此前会一直挂在通知栏）
                 io.candy.tick.data.Notifications.cancelRepoUpdate(context, repoId)
-                // 会话态若挂着 Done 指向同文件，一并归位（版本卡回「下载」相）
-                if (_state.value.download?.releaseKey == record.version) {
-                    _state.update { it.copy(download = null) }
-                }
+                // 会话态若挂着 Done 指向同文件，一并归位（版本卡回「下载」相；宿主 App 级）
+                downloadHost.clearIfVersion(repoId, record.version)
             }
         }
         loadCommits()
@@ -291,82 +267,21 @@ class DetailViewModel(
         _state.update { it.copy(selectedAssets = it.selectedAssets + (releaseKey to asset)) }
     }
 
-    /** 下载 APK → 私有目录（下载保留；同仓库只留最新一份），完成后记录到 TrackedRepo */
-    private var downloadJob: kotlinx.coroutines.Job? = null
-
+    /** 下载 APK → App 级宿主（离开详情页不中断；完成落库/自动关联/自动安装均在宿主） */
     fun downloadAsset(release: ReleaseRecord, asset: ApkAsset, fromHeader: Boolean = false) {
-        if (_state.value.download is DownloadState.Active) return
-        downloadJob = viewModelScope.launch {
-            _state.update {
-                it.copy(download = DownloadState.Active(release.tagName, asset.name, 0f, fromHeader))
-            }
-            val dest = File(apkDir, asset.name)
-            val result = runCatching {
-                githubApi.download(asset.url, dest) { p ->
-                    _state.update { st ->
-                        val d = st.download
-                        if (d is DownloadState.Active) st.copy(download = d.copy(progress = p)) else st
-                    }
-                }
-            }
-            result.fold(
-                onSuccess = { file ->
-                    // 取消竞态防护：下载完成瞬间被取消时，cancelDownload 已删文件并清空状态，
-                    // 本回调作废（否则会把状态写回 Done 指向已删文件）
-                    if (_state.value.download !is DownloadState.Active) return@fold
-                    // 清理同仓库旧文件（下载保留只留当前）
-                    apkDir.listFiles()?.filter { it != file }?.forEach { it.delete() }
-                    _state.update { it.copy(download = DownloadState.Done(release.tagName, asset.name, file)) }
-                    // 包名随记录落库：装后广播按包名精确匹配清理（读 archive 同 autoLinkFromApk）
-                    val dlPkg = runCatching {
-                        appContext.packageManager.getPackageArchiveInfo(file.absolutePath, 0)?.packageName
-                    }.getOrNull()
-                    repository.setDownloadedApk(
-                        repoId,
-                        DownloadedApk(asset.name, release.tagName, dlPkg),
-                    )
-                    // 下载到手 → 免费读包名自动关联（getPackageArchiveInfo，零依赖）
-                    autoLinkFromApk(file)
-                    // 自动安装（默认开）：直接触发系统安装流程，确认框由系统兜底
-                    if (repository.state.value.settings.autoInstallDownload) {
-                        installManager.installApk(file)
-                    }
-                },
-                onFailure = { e ->
-                    // 取消不是失败：状态已由 cancelDownload 清空，这里直接短路防串台
-                    if (e is kotlinx.coroutines.CancellationException) return@fold
-                    // 结构化错误优先（UI 走 sourceErrorText 本地化），原始 message 兜底
-                    val se = (e as? io.candy.tick.data.SourceException)?.error
-                    _state.update {
-                        it.copy(download = DownloadState.Failed(release.tagName, asset.name, e.message, se))
-                    }
-                },
-            )
-        }
+        downloadHost.download(
+            repoId = repoId,
+            release = release,
+            asset = asset,
+            fromHeader = fromHeader,
+            onAutoLinked = { pkg ->
+                viewModelScope.launch { _events.send(Event.AutoLinked(pkg)) }
+            },
+        )
     }
 
     /** 取消下载：停任务 + 清半成品，状态归位让动作区回到「下载」相 */
-    fun cancelDownload() {
-        val d = _state.value.download as? DownloadState.Active ?: return
-        downloadJob?.cancel()
-        downloadJob = null
-        File(apkDir, d.assetName).delete()
-        _state.update { it.copy(download = null) }
-    }
-
-    /** APK 已在本机：直接解析包名，未关联时自动建立关联 */
-    private fun autoLinkFromApk(file: File) {
-        if (_state.value.repo?.linkedPackage != null) return
-        val info = runCatching {
-            appContext.packageManager.getPackageArchiveInfo(file.absolutePath, 0)
-        }.getOrNull()
-        val pkg = info?.packageName?.takeIf { it.isNotBlank() } ?: return
-        viewModelScope.launch {
-            val label = io.candy.tick.util.apkLabelOf(appContext, file)
-            repository.setLinkedPackage(repoId, pkg, newLabel = label)
-            _events.send(Event.AutoLinked(pkg))
-        }
-    }
+    fun cancelDownload() = downloadHost.cancel(repoId)
 
     /** 未关联时的建议条：弱匹配（标签包含式）唯一命中才显示，用户点一下才生效 */
     private suspend fun computeLinkSuggestion(): Pair<String, String>? = withContext(Dispatchers.Default) {
@@ -374,8 +289,6 @@ class DetailViewModel(
         io.candy.tick.util.AppMatcher.containmentSuggestion(appContext, repo.repo)
             ?.let { it.packageName to it.label }
     }
-
-    fun installFile(file: File) = installManager.installApk(file)
 
     fun retryDownload(release: ReleaseRecord, asset: ApkAsset) = downloadAsset(release, asset, fromHeader = true)
 
@@ -418,10 +331,10 @@ class DetailViewModel(
 
     /** 删除已下载的 APK（文件 + 记录；会话态一并清空，避免残留入口） */
     fun deleteDownloaded() {
+        downloadHost.clear(repoId)
         viewModelScope.launch {
             apkDir.listFiles()?.forEach { it.delete() }
             repository.setDownloadedApk(repoId, null)
-            _state.update { it.copy(download = null) }
             _events.send(Event.DownloadDeleted)
         }
     }
@@ -435,6 +348,8 @@ class DetailViewModel(
 
     /** 详情页删除入口（确认对话框后调用；下载的 APK 文件保留） */
     fun removeRepo() {
+        // 退订清场：撤掉在跑的下载任务（否则孤儿 job 会继续下完并给已退订仓库自动装包）
+        downloadHost.clear(repoId)
         viewModelScope.launch { repository.removeRepo(repoId) }
     }
 

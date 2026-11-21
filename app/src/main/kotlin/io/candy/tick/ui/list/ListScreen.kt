@@ -56,7 +56,7 @@ fun ListScreen(
     onOpenSettings: () -> Unit,
 ) {
     val app = LocalContext.current.applicationContext as CandyTickApp
-    val vm: ListViewModel = viewModel { ListViewModel(app.container.repoRepository, app) }
+    val vm: ListViewModel = viewModel { ListViewModel(app.container.repoRepository, app.container.repoDownloadHost, app) }
     // 从安装器返回（ON_RESUME）：本机版本可能已变（装完新 APK），通知 VM 重算版本对比
     val lifecycleOwner = androidx.compose.ui.platform.LocalLifecycleOwner.current
     androidx.compose.runtime.DisposableEffect(lifecycleOwner) {
@@ -154,8 +154,29 @@ fun ListScreen(
                     text = removedMsg,
                     actionLabel = undoLabel,
                     onAction = { vm.restore(event.repo, event.snapshot) },
+                    // 滑删撤销是唯一救回手段：默认 4.5s 偏短，破坏性撤销放宽到 7s
+                    durationMs = 7_000,
                 )
             }
+        }
+    }
+
+    // 通知权限上下文请求：开关默认开但权限从不主动请求——用户以为会收到更新提醒，
+    // 实际被系统静默丢弃（此前唯一入口在设置页某行）。有订阅才问（空态首启没有
+    // 「需要通知」的语境，此刻弹权限 = 过早打扰）；进程内问一次，被拒不纠缠
+    val notifPermLauncher = androidx.activity.compose.rememberLauncherForActivityResult(
+        androidx.activity.result.contract.ActivityResultContracts.RequestPermission(),
+    ) { }
+    var notifPermAsked by androidx.compose.runtime.saveable.rememberSaveable {
+        androidx.compose.runtime.mutableStateOf(false)
+    }
+    LaunchedEffect(state.items.isEmpty()) {
+        if (state.items.isEmpty()) return@LaunchedEffect
+        if (!notifPermAsked && android.os.Build.VERSION.SDK_INT >= 33 &&
+            vm.shouldRequestNotificationPermission
+        ) {
+            notifPermAsked = true
+            notifPermLauncher.launch(android.Manifest.permission.POST_NOTIFICATIONS)
         }
     }
 
@@ -312,6 +333,21 @@ fun ListScreen(
                                 // 实时过滤已出结果：回车只收键盘
                                 onSearch = { searchFocus.freeFocus() },
                             ),
+                            // 非空清空钮（与添加页/分支/应用选择器同款：同组件同待遇）
+                            trailingIcon = if (state.query.isNotEmpty()) {
+                                {
+                                    io.candy.tick.ui.common.PressIconButton(
+                                        onClick = { vm.setQuery("") },
+                                        contentDescription = stringResource(R.string.clear_input),
+                                    ) {
+                                        Icon(
+                                            imageVector = ImageVector.vectorResource(R.drawable.ic_close),
+                                            contentDescription = null,
+                                            tint = scheme.onBackgroundVariant,
+                                        )
+                                    }
+                                }
+                            } else null,
                             modifier = Modifier
                                 .fillMaxWidth()
                                 .focusRequester(searchFocus)
@@ -326,7 +362,11 @@ fun ListScreen(
                         }
                     }
                     state.banner?.let { error ->
-                        ErrorBanner(error = error, onRetry = vm::refresh)
+                        ErrorBanner(
+                            error = error,
+                            onRetry = vm::refresh,
+                            onDismiss = vm::clearBanner,
+                        )
                     }
                     if (state.query.isNotBlank() && state.items.isEmpty() && !state.refreshing) {
                         // 搜索无结果：统一空态组件
@@ -386,6 +426,7 @@ fun ListScreen(
                                         vm.clearChanged(item.repo.id)
                                         onOpenDetail(item.repo.id)
                                     },
+                                    onRetryExtras = { vm.retryCard(item.repo.id) },
                                 )
                             }
                         }

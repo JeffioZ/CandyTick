@@ -318,8 +318,8 @@ private fun ReleaseCard(
                     dl.assetName == selected?.name
                 val actionPhase = when {
                     state.repo?.downloadedApk?.version == release.tagName -> "downloaded"
-                    mine && dl is DetailViewModel.DownloadState.Active && !dl.fromHeader -> "progress"
-                    mine && dl is DetailViewModel.DownloadState.Failed -> "failed"
+                    mine && dl is RepoDownloadState.Active && !dl.fromHeader -> "progress"
+                    mine && dl is RepoDownloadState.Failed -> "failed"
                     else -> "download"
                 }
                 // 容器尺寸单源化：外挂 animateContentSize 与 AnimatedContent 内置默认 spring
@@ -370,7 +370,7 @@ private fun ReleaseCard(
                             }
                         }
                         "progress" -> Column {
-                            val active = dl as? DetailViewModel.DownloadState.Active
+                            val active = dl as? RepoDownloadState.Active
                             val animatedProgress by androidx.compose.animation.core.animateFloatAsState(
                                 targetValue = active?.progress ?: 0f,
                                 animationSpec = androidx.compose.animation.core.tween(300),
@@ -429,7 +429,7 @@ private fun ReleaseCard(
                                 .background(scheme.errorContainer)
                                 .padding(horizontal = 12.dp, vertical = 10.dp),
                         ) {
-                            val failed = dl as? DetailViewModel.DownloadState.Failed
+                            val failed = dl as? RepoDownloadState.Failed
                             Icon(
                                 imageVector = ImageVector.vectorResource(R.drawable.ic_info),
                                 contentDescription = null,
@@ -579,6 +579,15 @@ private fun AssetRow(
             color = nameColor,
             modifier = Modifier.weight(1f),
         )
+        // 文件大小（有值时）：大文件「要不要下/等多久」的决策信息，此前只在下载中出现
+        asset.size.takeIf { it > 0 }?.let { size ->
+            Text(
+                text = io.candy.tick.util.CountFormat.formatBytes(size),
+                style = MiuixTheme.textStyles.footnote2,
+                color = scheme.onBackgroundVariant,
+            )
+            Spacer(Modifier.width(8.dp))
+        }
         // 推荐胶囊：瞬时显隐——任何动画（宽度/淡出占位）都会引起文件名布局跳变（抖动感），
         // 视觉柔和不抖的职责交给 ✓ 的 Crossfade 与文字色渐变，标签一次到位
         if (recommended) {

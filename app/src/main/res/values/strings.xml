@@ -56,7 +56,6 @@
 
     <!-- 版本行 -->
     <string name="version_latest_only">latest %1$s</string>
-    <string name="version_incomparable">release %1$s · cannot compare versions</string>
     <string name="version_incomparable_full">release %1$s · installed %2$s · cannot compare</string>
     <string name="version_line">Up to date · %1$s</string>
     <string name="version_update_available">Update available: %1$s</string>
@@ -65,7 +64,7 @@
     <string name="err_network">Network unavailable</string>
     <string name="err_timeout">Timed out (15s)</string>
     <string name="err_not_found">Repository not found or made private</string>
-    <string name="err_rate_limited">Rate limited · recovers in %1$s</string>
+    <string name="err_rate_limited">Rate limited · recovers in %1$s · add a token in Settings to raise it</string>
     <string name="err_rate_limited_plain">Too many requests — try later or add a token in Settings</string>
     <string name="err_http">Server error (%1$d)</string>
 
@@ -184,6 +183,10 @@
     <string name="notif_updates_summary">%1$d repos have new versions</string>
     <string name="notif_update_ready_title">CandyTick update</string>
     <string name="notif_update_ready">Version %1$s downloaded · tap to install</string>
+    <string name="notif_channel_sync">Background sync</string>
+    <string name="notif_channel_sync_desc">Foreground indicator while syncing on older Android versions</string>
+    <string name="open_failed">Couldn\'t open the link</string>
+    <string name="picker_empty_apps">No launchable apps found</string>
 
     <!-- 设置页 -->
     <string name="settings_appearance">Appearance</string>
@@ -248,6 +251,13 @@
     <string name="settings_download_update">Download &amp; install</string>
     <string name="settings_install_update">Install downloaded update</string>
     <string name="settings_update_failed">Update check failed · try later</string>
+    <string name="settings_download_failed">Download failed · retry available</string>
+    <string name="settings_install_failed">Install failed · retry available</string>
+    <string name="settings_new_release_incomparable">New release %1$s · not comparable</string>
+    <string name="self_update_no_apk">No installable APK in this release</string>
+    <string name="self_update_view_releases">View all releases on GitHub</string>
+    <string name="self_update_incomparable_note">Version not comparable — may or may not be newer</string>
+    <string name="self_update_install_failed_note">Install failed · package kept for retry</string>
 
     <!-- 关于 -->
     <string name="settings_about_group">About</string>

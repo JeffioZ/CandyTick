@@ -58,8 +58,8 @@ fun DetailScreen(repoId: Long, onBack: () -> Unit) {
         DetailViewModel(
             repoId = repoId,
             repository = app.container.repoRepository,
-            githubApi = app.container.githubApi,
             installManager = app.container.installManager,
+            downloadHost = app.container.repoDownloadHost,
             context = app,
         )
     }
@@ -90,6 +90,7 @@ fun DetailScreen(repoId: Long, onBack: () -> Unit) {
     val mismatchMsg = stringResource(R.string.install_signature_mismatch)
     val autoLinkedFmt = stringResource(R.string.detail_auto_linked)
     val needPermMsg = stringResource(R.string.detail_need_install_permission)
+    val openFailedMsg = stringResource(R.string.open_failed)
 
     LaunchedEffect(Unit) {
         vm.events.collect { event ->
@@ -101,6 +102,7 @@ fun DetailScreen(repoId: Long, onBack: () -> Unit) {
                         isError = true,
                     )
                     InstallManager.InstallResult.PendingUserAction -> Unit // 系统确认界面已接管
+                    InstallManager.InstallResult.Cancelled -> Unit // 用户取消≠失败（design.md:180）
                     InstallManager.InstallResult.NeedsInstallPermission ->
                         io.candy.tick.ui.common.Feedback.show(text = needPermMsg, isError = true)
                 }
@@ -164,7 +166,7 @@ fun DetailScreen(repoId: Long, onBack: () -> Unit) {
                                         android.content.Intent(android.content.Intent.ACTION_VIEW, android.net.Uri.parse(url))
                                             .addFlags(android.content.Intent.FLAG_ACTIVITY_NEW_TASK),
                                     )
-                                }
+                                }.onFailure { io.candy.tick.ui.common.Feedback.show(text = openFailedMsg, isError = true) }
                             },
                             contentDescription = stringResource(R.string.open_in_browser),
                         ) {
@@ -273,9 +275,9 @@ fun DetailScreen(repoId: Long, onBack: () -> Unit) {
                             ),
                         ) {
                             state.banner?.let { error ->
-                                // 共用失败横幅（errorContainer 底 + 重试钮，与首页同构；
-                                // 恢复出口紧邻错误，此前是默认卡底红字的另一套皮肤）
-                                ErrorBanner(error = error, onRetry = vm::refresh)
+                                // 共用失败横幅（errorContainer 底 + 重试钮，与首页同构）；
+                                // 用户可不刷新只关提示（dismissBanner 由此接线）
+                                ErrorBanner(error = error, onRetry = vm::refresh, onDismiss = vm::dismissBanner)
                             }
                         }
                     }
@@ -328,6 +330,8 @@ fun DetailScreen(repoId: Long, onBack: () -> Unit) {
                                                 interactionSource = remember { androidx.compose.foundation.interaction.MutableInteractionSource() },
                                                 indication = null,
                                             ) {
+                                                // 分段控件轻触感：滑块移动的物理确认（与下拉触底同族但更轻）
+                                                haptic.performHapticFeedback(HapticFeedbackType.TextHandleMove)
                                                 vm.setTab(
                                                     if (index == 0) DetailViewModel.DetailTab.COMMITS
                                                     else DetailViewModel.DetailTab.RELEASES

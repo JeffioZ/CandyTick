@@ -23,6 +23,7 @@ object Notifications {
 
     const val CHANNEL_NEW_RELEASE = "new_release"
     const val CHANNEL_SELF_UPDATE = "self_update"
+    const val CHANNEL_SYNC = "sync" // 加急同步前台服务（API 29-30）：独立渠道，不与自更新提醒捆绑
 
     private const val GROUP_REPO_UPDATES = "repo_updates" // 多仓库同轮发版折叠为一组
     private const val SUMMARY_ID = 1001 // 组摘要固定 id：每轮覆盖更新
@@ -48,6 +49,15 @@ object Notifications {
                 NotificationManager.IMPORTANCE_LOW, // 低优先级：不打扰
             ).apply {
                 description = context.getString(R.string.notif_channel_update_desc)
+            },
+        )
+        manager.createNotificationChannel(
+            NotificationChannel(
+                CHANNEL_SYNC,
+                context.getString(R.string.notif_channel_sync),
+                NotificationManager.IMPORTANCE_LOW,
+            ).apply {
+                description = context.getString(R.string.notif_channel_sync_desc)
             },
         )
     }

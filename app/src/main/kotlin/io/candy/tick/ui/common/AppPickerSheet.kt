@@ -23,6 +23,7 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.platform.LocalConfiguration
@@ -60,10 +61,14 @@ fun AppPickerSheet(
     // 应用列表在 IO 线程加载（几百个应用的 label/icon 查询曾阻塞组合主线程）
     var apps by remember { mutableStateOf<List<AppOption>>(emptyList()) }
     var appsLoading by remember { mutableStateOf(false) }
-    // sheet 关闭即清搜索词与列表：消灭幽灵草稿（与 Token / 分支弹层同一治理原则）
-    LaunchedEffect(show) {
-        if (show) {
-            appsLoading = true
+    var appsFailed by remember { mutableStateOf(false) }
+    val scope = androidx.compose.runtime.rememberCoroutineScope()
+
+    /** 扫描已装应用（打开与重试共用）：异常不再吞成空列表（此前失败=空白 sheet 无出口） */
+    fun loadApps() {
+        appsLoading = true
+        appsFailed = false
+        scope.launch {
             apps = withContext(Dispatchers.IO) {
                 runCatching {
                     val pm = context.packageManager
@@ -79,12 +84,20 @@ fun AppPickerSheet(
                         .distinctBy { it.packageName }
                         .filterNot { it.packageName == context.packageName }
                         .sortedBy { it.label.lowercase() }
-                }.getOrDefault(emptyList())
+                }.onFailure { appsFailed = true }.getOrDefault(emptyList())
             }
             appsLoading = false
+        }
+    }
+
+    // sheet 关闭即清搜索词与列表：消灭幽灵草稿（与 Token / 分支弹层同一治理原则）
+    LaunchedEffect(show) {
+        if (show) {
+            loadApps()
         } else {
             if (query.isNotEmpty()) query = ""
             apps = emptyList()
+            appsFailed = false
         }
     }
     // 列表就绪且需要搜索框（>15 项）才请求聚焦：此刻 TextField 已组合挂载，requestFocus 生效
@@ -122,6 +135,33 @@ fun AppPickerSheet(
                 ) {
                     LoadingDots(dotSize = 5.dp)
                 }
+            }
+            // 扫描失败：错误态 + 重试（此前异常吞成空列表，sheet 直接空白）
+            if (appsFailed) {
+                StatusPage(
+                    icon = null,
+                    isError = true,
+                    compact = true,
+                    title = stringResource(R.string.load_failed),
+                    subtitle = stringResource(R.string.status_error_subtitle),
+                    actionLabel = stringResource(R.string.retry),
+                    onAction = { loadApps() },
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(vertical = 16.dp),
+                )
+            }
+            // 零应用（包可见性受限或纯系统环境）：此前全空白无任何解释
+            if (!appsLoading && !appsFailed && apps.isEmpty() && query.isBlank()) {
+                Text(
+                    text = stringResource(R.string.picker_empty_apps),
+                    style = MiuixTheme.textStyles.footnote1,
+                    color = MiuixTheme.colorScheme.onBackgroundVariant,
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(vertical = 32.dp),
+                    textAlign = androidx.compose.ui.text.style.TextAlign.Center,
+                )
             }
             if (apps.size > 15) {
                 TextField(

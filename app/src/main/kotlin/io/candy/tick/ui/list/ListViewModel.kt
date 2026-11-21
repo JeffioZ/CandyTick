@@ -38,6 +38,7 @@ enum class SortMode { LAST_PUSH, ADDED, STATUS, NAME, NAME_DESC, UPDATABLE }
 
 class ListViewModel(
     private val repository: RepoRepository,
+    private val downloadHost: io.candy.tick.ui.detail.RepoDownloadHost,
     private val context: Context,
 ) : ViewModel() {
 
@@ -305,7 +306,10 @@ class ListViewModel(
         if (syncStatus.value is SyncStatus.Running) {
             viewModelScope.launch {
                 refreshing.value = true
-                syncStatus.first { it !is SyncStatus.Running }
+                // 看门狗之外的双保险：让位等待限时 30s（仅 Wi-Fi 无 Wi-Fi 时哨兵曾永久卡 Running）
+                kotlinx.coroutines.withTimeoutOrNull(30_000) {
+                    syncStatus.first { it !is SyncStatus.Running }
+                }
                 refreshing.value = false
             }
             return
@@ -315,7 +319,9 @@ class ListViewModel(
             banner.value = null
             silentLoaded.value = emptySet() // 新一轮刷新：解锁展开时的 stale 重拉节流
             suppressPlacementTemporarily() // 刷新重排瞬时落位
-            val errors = repository.refreshAll()
+            // 网络层已把非 HTTP 异常收敛为 SourceException；此处再兜一层：任何意外抛出
+            // 不得把下拉刷新协程带崩（空 Map = 单仓无错误，横幅不出）
+            val errors = runCatching { repository.refreshAll() }.getOrDefault(emptyMap())
             repoErrors.value = errors
             val total = state.value.items.size
             banner.value = if (errors.isNotEmpty() && errors.size >= total) {
@@ -336,6 +342,19 @@ class ListViewModel(
     fun clearChanged(id: Long) {
         changedRepos.value = changedRepos.value - id
     }
+
+    /** 手动关闭刷新失败横幅（此前只能等下次刷新清掉） */
+    fun clearBanner() {
+        banner.value = null
+    }
+
+    /** 展开卡数据拉取失败后的显式重试（此前恢复路径=收起再展开，不可发现） */
+    fun retryCard(id: Long) = loadCard(id)
+
+    /** 通知开关开着但权限未授：首页上下文请求一次的依据 */
+    val shouldRequestNotificationPermission: Boolean
+        get() = repository.state.value.settings.notificationsEnabled &&
+            !io.candy.tick.data.Notifications.canNotify(context)
 
     fun setSort(mode: SortMode) {
         sortMode.value = mode
@@ -408,8 +427,9 @@ class ListViewModel(
         }
     }
 
-    /** 乐观删除 + 撤销事件（Snackbar） */
+    /** 乐观删除 + 撤销事件（Snackbar）；撤销 restore 不需要恢复下载会话 */
     fun remove(item: RepoListItem) {
+        downloadHost.clear(item.repo.id) // 退订清场：撤掉在跑的下载任务（与详情页删除同口径）
         viewModelScope.launch {
             repository.removeRepo(item.repo.id)
             _events.send(Event.Removed(item.repo, item.snapshot))
