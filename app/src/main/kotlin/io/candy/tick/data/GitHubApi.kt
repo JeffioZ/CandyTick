@@ -192,6 +192,26 @@ class GitHubApi(private val tokenProvider: () -> String?) {
             }
         }
 
+    /** 分支 tip 提交时间（per_page=1，committer date 优先）：per-branch 补齐用 */
+    suspend fun branchTipDate(owner: String, repo: String, branch: String): Instant? =
+        withContext(Dispatchers.IO) {
+            try {
+                val url = apiUrl("repos", owner, repo, "commits")
+                    .newBuilder()
+                    .addQueryParameter("per_page", "1")
+                    .addQueryParameter("sha", branch)
+                    .build()
+                val response = executeAuthenticated(request(url, etag = null))
+                response.use {
+                    checkHttp(it)
+                    json.decodeFromString<List<GhCommit>>(it.body.string()).firstOrNull()
+                        ?.let { c -> parseInstant(c.commit.committer?.date ?: c.commit.author?.date) }
+                }
+            } catch (e: Throwable) {
+                rethrowMapped(e)
+            }
+        }
+
     /** 搜索辅助（添加页；Search API） */
     suspend fun search(query: String): List<RepoInfo> = withContext(Dispatchers.IO) {
         try {
@@ -380,6 +400,7 @@ private data class GhRepo(
     val description: String? = null,
     val archived: Boolean = false,
     val pushed_at: String? = null,
+    val default_branch: String? = null,
     val stargazers_count: Int = 0,
     val forks_count: Int = 0,
     val open_issues_count: Int = 0,
@@ -400,6 +421,7 @@ private data class GhRepo(
         ownerAvatar = this.owner.avatar_url,
         htmlUrl = html_url,
         etag = etag,
+        defaultBranch = default_branch,
     )
 }
 
@@ -419,6 +441,7 @@ private data class GhCommit(
 private data class GhCommitDetail(
     val message: String = "",
     val author: GhPerson? = null,
+    val committer: GhPerson? = null,
 )
 
 @Serializable

@@ -1,16 +1,20 @@
 package io.candy.tick.data
 
 import io.candy.tick.data.model.AppState
+import io.candy.tick.data.model.BranchInfo
 import io.candy.tick.data.model.CommitRecord
 import io.candy.tick.data.model.ReleaseRecord
 import io.candy.tick.data.model.RepoSnapshot
 import io.candy.tick.data.model.Settings
 import io.candy.tick.data.model.TrackedRepo
 import java.time.Instant
+import java.util.concurrent.CancellationException
 import kotlinx.coroutines.async
 import kotlinx.coroutines.awaitAll
 import kotlinx.coroutines.coroutineScope
 import kotlinx.coroutines.flow.StateFlow
+import kotlinx.coroutines.sync.Semaphore
+import kotlinx.coroutines.sync.withPermit
 
 /** 用例编排：刷新 / 增删 / 关联 / 设置。Screen 不直连本层以下（拆分红线） */
 class RepoRepository(
@@ -192,7 +196,10 @@ class RepoRepository(
             // pushed_at 前进（任意分支的推送都可能）→ 复查浏览分支 tip；304 → 内容
             // 未变，tip 也未变（除非基线缺失）
             var tipNeeded = old?.lastCommitSha == null
-            when (val result = provider(tracked.provider).repoInfo(tracked.owner, tracked.repo, etag)) {
+            // defaultBranch 缺失（旧版本快照补齐）→ 不带 ETag 强拉一次：一次性 1 配额，
+            // 之后 etag 更新恢复 304 免费循环。304 响应体不含字段，无法从 304 补齐
+            val needRepoBody = old?.defaultBranch == null
+            when (val result = provider(tracked.provider).repoInfo(tracked.owner, tracked.repo, if (needRepoBody) null else etag)) {
                 RepoInfoResult.NotModified -> {
                     store.update { s ->
                         val cur = s.snapshots[id] ?: return@update s
@@ -218,6 +225,8 @@ class RepoRepository(
                                 latestReleaseTag = cur?.latestReleaseTag,
                                 lastCommitSha = cur?.lastCommitSha,
                                 commitsEtag = cur?.commitsEtag,
+                                releasesEtag = cur?.releasesEtag, // repoInfo 200 不清 release 条件请求状态（清了下轮就多烧 1 配额）
+                                // defaultBranch 取新 info（上游可能改默认分支）
                             )),
                         )
                     }
@@ -227,16 +236,24 @@ class RepoRepository(
                 // 浏览分支 tip 条件请求：304（浏览分支没动，dev 推进不在此列）→ 免配额
                 // 不亮灯；200 → sha 变化经 SnapshotDiff 点亮。失败静默：基线保留下轮重试，
                 // 不拖垮 repoInfo 的成功
+                val tipBranch = tracked.branch // 发请求时的浏览分支
                 runCatching {
                     when (val tip = provider(tracked.provider).commitTipForSync(tracked.owner, tracked.repo, tracked.branch, old?.commitsEtag)) {
                         is SyncCommitTipResult.Tip -> store.update { s ->
                             val cur = s.snapshots[id] ?: return@update s
-                            s.copy(
-                                snapshots = s.snapshots + (id to cur.copy(
-                                    lastCommitSha = tip.sha,
-                                    commitsEtag = tip.etag,
-                                )),
-                            )
+                            // 请求在途中用户切了分支（setBranch 已清基线）→ 这份旧分支的
+                            // tip 作废；写进新分支快照会亮假圆点 + etag 与浏览分支错配多耗配额。
+                            // 浏览分支存在 TrackedRepo 上（不在快照），须读 update 内的当前值比对
+                            if (s.repos.firstOrNull { it.id == id }?.branch == tipBranch) {
+                                s.copy(
+                                    snapshots = s.snapshots + (id to cur.copy(
+                                        lastCommitSha = tip.sha,
+                                        commitsEtag = tip.etag,
+                                    )),
+                                )
+                            } else {
+                                s
+                            }
                         }
                         else -> Unit // 304 / 无能力源：基线保持
                     }
@@ -255,6 +272,42 @@ class RepoRepository(
         }.awaitAll()
             .filter { it.second != null }
             .associate { it.first to it.second!! }
+    }
+
+    /**
+     * 分支列表 + 每分支 tip 提交时间（per-branch，取时间上限 ~20 防超大仓失控）。
+     * 曾试过 events 活动流打底的 A+B 混合——实测活动流有投递延迟（main 当天推送
+     * 次日才入流），会给新分支标旧时间，宁缺毋假故全部 per-branch。
+     * 浏览分支与默认分支优先保时间：字典序截断会把 main 排到 dev/feature 之后。
+     * 返回 null = 分支列表拉取失败（调用方显示失败态）；空列表 = 仓库无分支。
+     * 结果随 DetailViewModel 缓存，弹层重开不重复请求。
+     */
+    suspend fun loadBranchInfos(repoId: Long): List<BranchInfo>? {
+        val tracked = trackedOrNull(repoId) ?: return null
+        val provider = provider(tracked.provider)
+        val names = runCatching { provider.branches(tracked.owner, tracked.repo) }
+            .onFailure { if (it is CancellationException) throw it } // 退出详情后别把余量请求空跑完
+            .getOrNull() ?: return null
+        if (names.isEmpty()) return emptyList()
+        val old = store.state.value.snapshots[repoId]
+        val dateNames = names.take(20).toSet() + setOfNotNull(tracked.branch, old?.defaultBranch)
+        return coroutineScope {
+            val gate = Semaphore(6) // 并发闸：二十来个并行请求在弱网互相挤带宽，排队更稳
+            names.map { name ->
+                async {
+                    val date = if (name in dateNames) {
+                        gate.withPermit {
+                            runCatching { provider.branchTipDate(tracked.owner, tracked.repo, name) }
+                                .onFailure { if (it is CancellationException) throw it }
+                                .getOrNull()
+                        }
+                    } else {
+                        null // 超出上限的分支不显示时间（宁缺毋假）
+                    }
+                    BranchInfo(name, date)
+                }
+            }.awaitAll()
+        }
     }
 
     /** 浏览分支（null = 仓库默认分支；仅影响提交视图，状态/版本仍按仓库级） */
@@ -292,8 +345,4 @@ class RepoRepository(
         return provider(t.provider).releases(t.owner, t.repo, page, perPage = RELEASES_PER_PAGE)
     }
 
-    suspend fun branches(repoId: Long): List<String> {
-        val t = trackedOrNull(repoId) ?: return emptyList()
-        return provider(t.provider).branches(t.owner, t.repo)
-    }
 }

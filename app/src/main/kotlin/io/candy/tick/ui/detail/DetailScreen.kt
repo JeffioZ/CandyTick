@@ -92,6 +92,11 @@ fun DetailScreen(repoId: Long, onBack: () -> Unit) {
     val needPermMsg = stringResource(R.string.detail_need_install_permission)
     val openFailedMsg = stringResource(R.string.open_failed)
 
+    // 每次进入静默刷新一轮：DetailViewModel 同 key 跨进入保留（navigation3 复用），
+    // init 的加载不会重跑——上次访问的数据会顶着「缓存」出现。此处进入即自动校准
+    // （快照 + 提交/版本列表全量重拉， refreshing 态由刷新头反馈），失败出横幅
+    LaunchedEffect(Unit) { vm.refresh() }
+
     LaunchedEffect(Unit) {
         vm.events.collect { event ->
             when (event) {
@@ -226,21 +231,22 @@ fun DetailScreen(repoId: Long, onBack: () -> Unit) {
                 )
         },
     ) { padding ->
-        PullToRefresh(
+        io.candy.tick.ui.common.CandyPullToRefresh(
             isRefreshing = state.refreshing,
-            onRefresh = vm::refresh,
+            onRefresh = {
+                haptic.performHapticFeedback(HapticFeedbackType.LongPress) // 松手触发确认：与首页同款
+                vm.refresh()
+            },
             pullToRefreshState = pullState,
             topAppBarScrollBehavior = scrollBehavior,
-            color = scheme.primaryVariant, // 薄荷主色：与全应用活动色统一
-            // 只在刷新中显示两个字：36dp 文字区是库的固定结构，用它让间距有目的
-            refreshTexts = listOf("", "", stringResource(R.string.refresh_refreshing), ""),
             modifier = Modifier.padding(padding),
         ) {
             LazyColumn(
                 state = detailListState,
                 modifier = Modifier.fillMaxSize(),
                 // 底部 32：全 App 滚动终止留白统一档（footer 元素上下间距见 FooterText v8 + 此 32）
-                contentPadding = PaddingValues(start = 16.dp, end = 16.dp, top = 10.dp, bottom = 32.dp),
+                // top 19 = 10 基线 + 9：与首页同口径——补偿刷新指示器的下隙对称
+                contentPadding = PaddingValues(start = 16.dp, end = 16.dp, top = 19.dp, bottom = 32.dp),
                 verticalArrangement = Arrangement.spacedBy(10.dp),
             ) {
                 item {
@@ -295,6 +301,9 @@ fun DetailScreen(repoId: Long, onBack: () -> Unit) {
                     )
                     val selectedIndex = if (state.tab == DetailViewModel.DetailTab.COMMITS) 0 else 1
                     val segShape = androidx.compose.foundation.shape.RoundedCornerShape(19.dp)
+                    // 选中滑块圆角 = 外圆角 − 内缩（19−3=16）：同心圆角规则——滑块与
+                    // 外容器同半径时转角曲率对不上，留楔形缝/外凸感（用户实测「圆角不一致」）
+                    val segThumbShape = androidx.compose.foundation.shape.RoundedCornerShape(16.dp)
                     androidx.compose.foundation.layout.Box(
                         modifier = Modifier
                             .fillMaxWidth()
@@ -320,7 +329,7 @@ fun DetailScreen(repoId: Long, onBack: () -> Unit) {
                                     .offset(x = offset)
                                     .width(segWidth)
                                     .height(38.dp)
-                                    .clip(segShape)
+                                    .clip(segThumbShape)
                                     .background(scheme.surface),
                             )
                             // 标签

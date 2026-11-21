@@ -41,8 +41,10 @@ class SyncScheduler(
     }
 
     /**
-     * 「每次打开应用」模式：前台切换（冷/热启动）触发一次同步，
-     * 10 分钟节流防止频繁切前后台打爆配额（304 不计配额，但保守为上）。
+     * 「每次打开应用」模式：前台切换（冷/热启动）触发一次同步。
+     * 节流 60 秒仅防快速切前后台刷请求——ETag 条件请求上线后，未变化仓库
+     * 304 全免费，配额不再是约束；10 分钟旧节流与「每次打开」承诺矛盾
+     * （用户隔几分钟回 App 不刷新即此因），已缩短。
      */
     fun maybeSyncOnOpen(settings: Settings) {
         if (settings.syncFrequency != SyncFrequency.ON_OPEN) return
@@ -110,7 +112,7 @@ class SyncScheduler(
         const val WORK_SYNC = "candytick_sync"
         const val WORK_SYNC_ON_OPEN = "candytick_sync_on_open"
         const val WORK_UPDATE_DOWNLOAD = "candytick_update_download"
-        private const val ON_OPEN_THROTTLE_MS = 10 * 60 * 1000L
+        private const val ON_OPEN_THROTTLE_MS = 60_000L // 防快速前后台抖动；「每次打开」承诺以 1 分钟为粒度兑现
 
         /** 哨兵超时：加急作业正常启动远快于此；被约束卡住即解锁 UI */
         private const val WATCHDOG_MS = 25_000L

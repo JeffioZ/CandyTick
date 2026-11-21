@@ -10,6 +10,7 @@ import io.candy.tick.data.RELEASES_PER_PAGE
 import io.candy.tick.data.RepoRepository
 import io.candy.tick.data.SourceError
 import io.candy.tick.data.model.ApkAsset
+import io.candy.tick.data.model.BranchInfo
 import io.candy.tick.data.model.CommitRecord
 import io.candy.tick.data.model.RepoSnapshot
 import io.candy.tick.data.model.ReleaseRecord
@@ -54,7 +55,7 @@ class DetailViewModel(
         val releasesFailed: Boolean = false,
         val download: RepoDownloadState? = null,
         val selectedAssets: Map<String, ApkAsset> = emptyMap(), // releaseKey(tag) → 手选覆盖
-        val branches: List<String> = emptyList(), // 分支选择器数据
+        val branches: List<BranchInfo> = emptyList(), // 分支选择器数据（name + tip 时间）
         val branchesLoading: Boolean = false,
         val branchesFailed: Boolean = false,
         val installEpoch: Int = 0, // ON_RESUME 递增：安装完成后破除版本对比的重组跳过
@@ -81,6 +82,7 @@ class DetailViewModel(
     private var commitsPage = 1
     private var releasesPage = 1
     private var commitsGen = 0 // 提交列表代数：切分支/刷新时 +1，迟到的旧响应作废
+    private var releasesGen = 0 // 版本列表代数：刷新时 +1，迟到的旧页响应作废
     private var autoLinkTried = false // 高置信自动关联只尝试一次
 
     init {
@@ -155,12 +157,14 @@ class DetailViewModel(
         if (_state.value.branches.isNotEmpty() || _state.value.branchesLoading) return
         viewModelScope.launch {
             _state.update { it.copy(branchesLoading = true, branchesFailed = false) }
-            val result = runCatching { repository.branches(repoId) }
+            // 纯 per-branch：names + 各分支 tip 时间（并发闸 6，浏览/默认分支优先保时间）
+            val list = repository.loadBranchInfos(repoId)
             _state.update {
-                result.fold(
-                    onSuccess = { list -> it.copy(branches = list, branchesLoading = false) },
-                    onFailure = { _ -> it.copy(branchesLoading = false, branchesFailed = true) },
-                )
+                if (list != null) {
+                    it.copy(branches = list, branchesLoading = false)
+                } else {
+                    it.copy(branchesLoading = false, branchesFailed = true)
+                }
             }
         }
     }
@@ -192,10 +196,14 @@ class DetailViewModel(
                 commitsPage = 1
                 commitsGen++
                 releasesPage = 1
+                releasesGen++
                 _state.update {
                     it.copy(
-                        commits = emptyList(), commitsEnd = false, commitsFailed = false,
-                        releases = emptyList(), releasesEnd = false, releasesFailed = false,
+                        // loading 一并复位：进入即刷新时 init 的在途响应会因 gen 不匹配作废、
+                        // 不复位的话下面的 loadCommits/loadReleases 被自家守卫挡回，
+                        // 在途响应又不认领 → 列表永久转圈（进入详情必现窗口）
+                        commits = emptyList(), commitsEnd = false, commitsFailed = false, commitsLoading = false,
+                        releases = emptyList(), releasesEnd = false, releasesFailed = false, releasesLoading = false,
                     )
                 }
                 loadCommits()
@@ -242,7 +250,9 @@ class DetailViewModel(
         viewModelScope.launch {
             _state.update { it.copy(releasesLoading = true, releasesFailed = false) }
             val page = releasesPage
+            val gen = releasesGen
             val more = runCatching { repository.releases(repoId, page) }
+            if (gen != releasesGen) return@launch // 已刷新：旧页响应作废（loading 由新周期接管）
             _state.update {
                 when (val data = more.getOrNull()) {
                     null -> it.copy(releasesLoading = false, releasesFailed = true)

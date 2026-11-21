@@ -39,6 +39,9 @@ interface SourceProvider {
     /** 分支列表（提交视图的分支切换；无对应能力的源返回空） */
     suspend fun branches(owner: String, repo: String): List<String> = emptyList()
 
+    /** 分支 tip 提交时间（per-branch 补齐用；分支不存在/无提交返回 null） */
+    suspend fun branchTipDate(owner: String, repo: String, branch: String): Instant? = null
+
     /** 搜索（添加页辅助；无对应能力的源返回空） */
     suspend fun search(query: String): List<RepoInfo> = emptyList()
 }
@@ -58,6 +61,7 @@ data class RepoInfo(
     val ownerAvatar: String?,
     val htmlUrl: String,
     val etag: String?,
+    val defaultBranch: String?, // 上游当前默认分支名（分支选择器打勾用）
 ) {
     fun toSnapshot() = RepoSnapshot(
         stars = stars,
@@ -71,6 +75,7 @@ data class RepoInfo(
         htmlUrl = htmlUrl,
         lastSyncAt = Instant.now(),
         etag = etag,
+        defaultBranch = defaultBranch,
     )
 }
 
@@ -122,6 +127,9 @@ class GitHubProvider(private val api: GitHubApi) : SourceProvider {
         api.commitsTip(owner, repo, branch, etag)
 
     override suspend fun branches(owner: String, repo: String) = api.branches(owner, repo)
+
+    override suspend fun branchTipDate(owner: String, repo: String, branch: String) =
+        api.branchTipDate(owner, repo, branch)
 
     override suspend fun search(query: String) = api.search(query)
 }

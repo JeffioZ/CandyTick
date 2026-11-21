@@ -70,6 +70,13 @@ data class RepoSnapshot(
     // 直接用它判定会误亮且详情页无从查证。null = 基线缺失（首次/切分支/导入），只记录不亮灯
     val lastCommitSha: String? = null,
     val commitsEtag: String? = null, // tip 条件请求（per_page=1；304 不计配额）
+    val defaultBranch: String? = null, // 上游当前默认分支名（跟随语义的显示锚点）
+)
+
+/** 分支选择器条目：name + 分支 tip 提交时间（纯 per-branch 拉取，上限 ~20） */
+data class BranchInfo(
+    val name: String,
+    val tipDate: Instant?, // 分支最后提交时间（committer date）；null = 查不到（冷分支/失败）
 )
 
 @Serializable

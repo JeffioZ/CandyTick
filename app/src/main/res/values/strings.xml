@@ -11,7 +11,7 @@
     <string name="retry">Retry</string>
     <string name="refresh_pull">Pull down to refresh</string>
     <string name="refresh_release">Release to refresh</string>
-    <string name="refresh_refreshing">Refreshing…</string>
+    <string name="refresh_refreshing">Refreshing</string>
     <string name="refresh_done">Refresh complete</string>
     <string name="undo">Undo</string>
     <string name="pinned_a11y">Pinned</string>
@@ -125,7 +125,6 @@
     <string name="detail_title">Repository</string>
 
     <!-- 分支 -->
-    <string name="branch_default">Default branch</string>
     <string name="branch_picker_title">Branch</string>
     <string name="branch_search_hint">Search branches</string>
     <string name="branch_no_match">No matching branches</string>

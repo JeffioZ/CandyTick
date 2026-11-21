@@ -39,7 +39,6 @@ import io.candy.tick.R
 import io.candy.tick.ui.common.ErrorBanner
 import top.yukonga.miuix.kmp.basic.Icon
 import top.yukonga.miuix.kmp.basic.MiuixScrollBehavior
-import top.yukonga.miuix.kmp.basic.PullToRefresh
 import top.yukonga.miuix.kmp.basic.Scaffold
 import top.yukonga.miuix.kmp.basic.SmallTopAppBar
 import top.yukonga.miuix.kmp.basic.Text
@@ -216,11 +215,20 @@ fun ListScreen(
                     actions = {
                         // 一键收起：展开 ≥2 张时出现（150 淡入淡出；点按后批量收起动画即反馈）
                         androidx.compose.animation.AnimatedVisibility(
-                            visible = state.expanded.size >= 2,
+                            // 可见性数「当前过滤视图里展开的卡」而非全局展开数——
+                            // 搜索过滤后隐藏卡片的展开态对用户不可见，计入会凭空出按钮
+                            // （实测场景：A 展开 → 搜出 B 展开 → 全局 2 但可见 1，按钮误现）
+                            visible = state.items.count { it.repo.id in state.expanded } >= 2,
+                            // 宽度动画与淡入淡出并行：搜索过滤让计数跨阈值时，右侧四个
+                            // 图标被 48dp 瞬移一次的抖动（fade 不改宽度）改为平滑滑移
                             enter = androidx.compose.animation.fadeIn(
+                                androidx.compose.animation.core.tween(150),
+                            ) + androidx.compose.animation.expandHorizontally(
                                 androidx.compose.animation.core.tween(150),
                             ),
                             exit = androidx.compose.animation.fadeOut(
+                                androidx.compose.animation.core.tween(150),
+                            ) + androidx.compose.animation.shrinkHorizontally(
                                 androidx.compose.animation.core.tween(150),
                             ),
                         ) {
@@ -295,26 +303,15 @@ fun ListScreen(
             },
         ) { padding ->
             Box(modifier = Modifier.padding(padding)) {
-            PullToRefresh(
+            // 松手触发刷新：轻触感确认（HyperOS 下拉刷新惯例）
+            io.candy.tick.ui.common.CandyPullToRefresh(
                 isRefreshing = state.refreshing,
                 onRefresh = {
-                    // 松手触发刷新：轻触感确认（HyperOS 下拉刷新惯例）
                     haptic.performHapticFeedback(HapticFeedbackType.LongPress)
                     vm.refresh()
                 },
                 pullToRefreshState = pullState,
                 topAppBarScrollBehavior = scrollBehavior,
-                // 刷新指示器四态常驻文字（下拉/释放/正在/完成）：文字从头就在 = 头部
-                // 高度全相恒定，「拉时 OK、字一出上空就多」的间距跳变从根消失
-                // （经典下拉刷新形态；36dp 区固定，contentPadding top 让圆环不顶顶栏）
-                contentPadding = androidx.compose.foundation.layout.PaddingValues(top = 9.dp),
-                color = scheme.primaryVariant, // 薄荷主色：与全应用活动色统一
-                refreshTexts = listOf(
-                    stringResource(R.string.refresh_pull),
-                    stringResource(R.string.refresh_release),
-                    stringResource(R.string.refresh_refreshing),
-                    stringResource(R.string.refresh_done),
-                ),
             ) {
                 Column(modifier = Modifier.fillMaxSize()) {
                     androidx.compose.animation.AnimatedVisibility(
@@ -403,7 +400,9 @@ fun ListScreen(
                             contentPadding = PaddingValues(
                                 start = 16.dp,
                                 end = 16.dp,
-                                top = 4.dp,
+                                // top 13 = 4 基线 + 9：补偿 PullToRefresh contentPadding——
+                                // 刷新指示器（环+文字）的上下隙对称（实测上 20/下 10.7 → 均衡）
+                                top = 13.dp,
                                 bottom = 32.dp,
                             ),
                             verticalArrangement = Arrangement.spacedBy(8.dp),

@@ -31,7 +31,8 @@ val LightDivider = LightOutline
 val LightSurfaceHigh = Color(0xFFE9EDEB)
 val LightSurfaceHighest = LightOutline
 val LightOnSurfaceSecondary = Color(0xCC191D1B)
-val LightOnSurfaceSummary = Color(0x995A625E)
+// 90% alpha：summary 对比度 2.54→4.67:1（WCAG AA 4.5 达标；60% 时浅色模式不达标，2026-11-21 审计）
+val LightOnSurfaceSummary = Color(0xE65A625E)
 val LightOnSurfaceActions = Color(0x665A625E)
 val LightDisabledSurfaceText = Color(0xFFB9C0BC)
 val LightSecondary = LightOutline // 中性控件底

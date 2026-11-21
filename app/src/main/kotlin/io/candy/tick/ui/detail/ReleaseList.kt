@@ -521,7 +521,7 @@ private fun AssetRow(
     onSelect: () -> Unit,
 ) {
     val scheme = MiuixTheme.colorScheme
-    // 按压染色多态（全行热区；圈/勾选中动画另由 radioTint/nameColor 承担）
+    // 按压染色多态（全行热区；圈/勾选中动画由 radioTint 承担，名称恒主色）
     val (pressSrc, pressColor) = io.candy.tick.ui.common.rememberRowPressTint()
     Row(
         modifier = Modifier
@@ -581,19 +581,19 @@ private fun AssetRow(
             }
         }
         Spacer(Modifier.width(8.dp))
-        val nameColor by androidx.compose.animation.animateColorAsState(
-            targetValue = if (selected) scheme.onBackground else scheme.onBackgroundVariant,
-            animationSpec = androidx.compose.animation.core.tween(150),
-            label = "assetName",
-        )
+        // 名称 = 行主体：恒主色（选中态由 radio 承担）；体积 = 次级元信息（footnote2 +
+        // 次级色），8dp 间隙分隔——此前名称/体积同色无间隙，长名换行时糊成一片
         Text(
             text = asset.name,
             style = MonoTokenStyle,
-            color = nameColor,
+            color = scheme.onBackground,
             modifier = Modifier.weight(1f),
         )
-        // 文件大小（有值时）：大文件「要不要下/等多久」的决策信息，此前只在下载中出现
+        // 文件大小（有值时）：大文件「要不要下/等多久」的决策信息，此前只在下载中出现。
+        // 名称前 8dp = 与长名（占满行宽）的最小间隙；名称后 8dp = 与「推荐」胶囊的间隙
+        // （weight 槽的富余不可依赖，长名占满时两个间隙都得显式给）
         asset.size.takeIf { it > 0 }?.let { size ->
+            Spacer(Modifier.width(8.dp))
             Text(
                 text = io.candy.tick.util.CountFormat.formatBytes(size),
                 style = MiuixTheme.textStyles.footnote2,

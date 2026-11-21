@@ -85,10 +85,13 @@ internal fun BranchPickerSheet(
             runCatching { branchFocus.requestFocus() }
         }
     }
-    val current = state.repo?.branch
+    // GitHub 式分支切换器：纯分支列表，当前查看的分支打勾——
+    // branch=null（跟随默认）时勾打在上游默认分支上；无「Default branch」幻影行
+    val defaultBranch = state.snapshot?.defaultBranch
+    val currentViewed = state.repo?.branch ?: defaultBranch
     val keyword = query.trim()
     val filtered = if (keyword.isEmpty()) state.branches else state.branches.filter {
-        it.contains(keyword, ignoreCase = true)
+        it.name.contains(keyword, ignoreCase = true)
     }
     // show 直通（勿用 if 包裹组件）：关闭时组件仍在组合中，库的退场动画才能播放
     top.yukonga.miuix.kmp.window.WindowBottomSheet(
@@ -140,14 +143,6 @@ internal fun BranchPickerSheet(
                         .focusRequester(branchFocus),
                 )
             }
-            BranchRow(
-                label = stringResource(R.string.branch_default),
-                selected = current == null,
-                onClick = {
-                    onSelect(null)
-                    onDismiss()
-                },
-            )
             // 搜索无结果：轻量居中提示（与分支/应用弹层同一处理）
             if (keyword.isNotEmpty() && filtered.isEmpty()) {
                 Text(
@@ -161,14 +156,20 @@ internal fun BranchPickerSheet(
                 )
             }
             LazyColumn(modifier = Modifier.weight(1f, fill = false)) {
-                items(filtered, key = { it }) { name ->
-                    BranchRow(name, name == current) {
-                        onSelect(name)
+                items(filtered, key = { it.name }) { b ->
+                    // 点默认分支 = 存 null（保留「跟随默认」语义，上游改名自动跟）
+                    BranchRow(b.name, b.name == currentViewed, tipDate = b.tipDate) {
+                        onSelect(if (b.name == defaultBranch) null else b.name)
                         onDismiss()
                     }
                 }
-                // 已选分支被远端删除（不在列表里）：保留一行选中态，可切回默认
-                current?.takeIf { it !in state.branches && (keyword.isEmpty() || it.contains(keyword, true)) }?.let { name ->
+                // 已 pin 的分支被远端删除（不在列表里）：保留一行选中态，可切回。
+                // loading 中列表为空 ≠ 「已删」——当前分支会闪现成删除行，等加载完再判
+                state.repo?.branch?.takeIf { pinned ->
+                    !state.branchesLoading &&
+                        state.branches.none { it.name == pinned } &&
+                        (keyword.isEmpty() || pinned.contains(keyword, true))
+                }?.let { name ->
                     item(key = "deleted-$name") {
                         BranchRow(name, true) {
                             onSelect(name)
@@ -252,13 +253,20 @@ internal fun RemoveRepoDialog(
 
 /** 分支选择行：BasicComponent + Check 选中态（与设置页 OptionRow 同款） */
 @Composable
-internal fun BranchRow(label: String, selected: Boolean, onClick: () -> Unit) {
+internal fun BranchRow(
+    label: String,
+    selected: Boolean,
+    tipDate: java.time.Instant? = null,
+    onClick: () -> Unit,
+) {
     top.yukonga.miuix.kmp.basic.BasicComponent(
         // selected 语义与 OptionRow 同源：✓ 图标纯视觉，读屏需播报选中态
         modifier = Modifier
             .fillMaxWidth()
             .semantics { this.selected = selected },
         title = label,
+        // 分支 tip 提交时间（分钟节拍自动重算）：帮你识别「活的」分支
+        summary = tipDate?.let { relTimeString(it) },
         endActions = {
             if (selected) {
                 Icon(
