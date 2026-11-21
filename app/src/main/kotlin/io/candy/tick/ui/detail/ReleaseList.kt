@@ -546,8 +546,9 @@ private fun AssetRow(
             modifier = Modifier.size(20.dp),
             contentAlignment = Alignment.Center,
         ) {
-            // 单选框（Windows 风格）：圆圈恒定 + 勾按需淡入淡出——两图形大部分重叠，
-            // 整体交叉切换会让圆圈先消失再出现（闪烁感），只动差异部分（勾）才稳
+            // 单选框（Material 3 / HyperOS 单选惯例）：圆环恒定 + 圆心实心点淡入缩放——
+            // 两态同族（都是圆），只动圆心差异部分。此前 20dp 裸勾叠在环上，笔画横穿
+            // 圆环、形状重心跳（用户实测「略有点丑」）
             val radioTint by androidx.compose.animation.animateColorAsState(
                 targetValue = if (selected) scheme.primaryVariant
                 else scheme.onBackgroundVariant.copy(alpha = 0.45f),
@@ -565,17 +566,24 @@ private fun AssetRow(
                     visible = selected,
                     enter = androidx.compose.animation.fadeIn(
                         androidx.compose.animation.core.tween(120),
+                    ) + androidx.compose.animation.scaleIn(
+                        initialScale = 0.6f,
+                        animationSpec = androidx.compose.animation.core.tween(120),
                     ),
                     exit = androidx.compose.animation.fadeOut(
                         androidx.compose.animation.core.tween(120),
+                    ) + androidx.compose.animation.scaleOut(
+                        targetScale = 0.6f,
+                        animationSpec = androidx.compose.animation.core.tween(120),
                     ),
                 ) {
-                    // 只叠勾（circle-check 的差异部分），圆圈底层恒定不动
-                    Icon(
-                        imageVector = ImageVector.vectorResource(R.drawable.ic_check),
-                        contentDescription = null,
-                        tint = scheme.primaryVariant,
-                        modifier = Modifier.size(20.dp),
+                    // 圆心实心点 8dp：环内径 ~15dp（r=10 stroke2 @20dp），占比约一半——
+                    // 与 M3 radio 的点/环比例同档
+                    Box(
+                        modifier = Modifier
+                            .size(8.dp)
+                            .clip(CircleShape)
+                            .background(scheme.primaryVariant),
                     )
                 }
             }

@@ -99,7 +99,10 @@ fun RepoCard(
                         .padding(vertical = 7.dp),
                     verticalAlignment = Alignment.CenterVertically,
                 ) {
-                    item.snapshot?.pushedAt?.let { pushed ->
+                    // 时间源 = 浏览分支 tip 提交时间（lastCommitDate，与详情提交首行同源精确
+                    // 一致）；基线缺失（首次同步/切分支）回退 pushedAt。pushed_at 统计任意
+                    // 分支推送，曾导致「首页 x 分钟前 / 详情 2 小时前」各说各话（miuix/ShizukuX）
+                    (item.snapshot?.lastCommitDate ?: item.snapshot?.pushedAt)?.let { pushed ->
                         if (isChanged) {
                             // 低调「有更新」标记：6dp 薄荷圆点，静态无动画
                             Box(

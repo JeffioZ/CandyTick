@@ -70,6 +70,10 @@ data class RepoSnapshot(
     // 直接用它判定会误亮且详情页无从查证。null = 基线缺失（首次/切分支/导入），只记录不亮灯
     val lastCommitSha: String? = null,
     val commitsEtag: String? = null, // tip 条件请求（per_page=1；304 不计配额）
+    // 浏览分支 tip 提交时间（committer date）：首页卡片时间与详情提交首行同源——
+    // pushed_at 统计任意分支推送（dev 推进也前进），曾是「首页 x 分钟前 / 详情 2 小时前」
+    // 各说各话的根因（miuix/ShizukuX 实测）。null = 基线缺失/无能力源，首页回退 pushedAt
+    val lastCommitDate: Instant? = null,
     val defaultBranch: String? = null, // 上游当前默认分支名（跟随语义的显示锚点）
 )
 

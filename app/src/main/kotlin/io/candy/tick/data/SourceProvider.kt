@@ -92,7 +92,7 @@ sealed interface SyncReleasesResult {
 
 /** 后台同步的分支 tip 拉取结果：Tip.sha 空串 = 分支存在但无提交（立为基线） */
 sealed interface SyncCommitTipResult {
-    data class Tip(val sha: String, val etag: String?) : SyncCommitTipResult
+    data class Tip(val sha: String, val etag: String?, val date: Instant? = null) : SyncCommitTipResult
     data object NotModified : SyncCommitTipResult
 }
 

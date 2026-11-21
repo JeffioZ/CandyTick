@@ -192,10 +192,10 @@ class RepoRepository(
         val old = store.state.value.snapshots[id]
         val etag = old?.etag
         return try {
-            // tip 检查时机：基线缺失（首次/切分支/导入）必须立基线；repoInfo 200 =
-            // pushed_at 前进（任意分支的推送都可能）→ 复查浏览分支 tip；304 → 内容
-            // 未变，tip 也未变（除非基线缺失）
-            var tipNeeded = old?.lastCommitSha == null
+            // tip 检查时机：基线缺失（首次/切分支/导入）必须立基线；date 缺失（lastCommitDate
+            // 是后补字段，旧版本基线只有 sha）也要拉一次补时间；repoInfo 200 = pushed_at
+            // 前进（任意分支的推送都可能）→ 复查浏览分支 tip；304 → 内容未变，tip 也未变
+            var tipNeeded = old?.lastCommitSha == null || old?.lastCommitDate == null
             // defaultBranch 缺失（旧版本快照补齐）→ 不带 ETag 强拉一次：一次性 1 配额，
             // 之后 etag 更新恢复 304 免费循环。304 响应体不含字段，无法从 304 补齐
             val needRepoBody = old?.defaultBranch == null
@@ -225,6 +225,7 @@ class RepoRepository(
                                 latestReleaseTag = cur?.latestReleaseTag,
                                 lastCommitSha = cur?.lastCommitSha,
                                 commitsEtag = cur?.commitsEtag,
+                                lastCommitDate = cur?.lastCommitDate,
                                 releasesEtag = cur?.releasesEtag, // repoInfo 200 不清 release 条件请求状态（清了下轮就多烧 1 配额）
                                 // defaultBranch 取新 info（上游可能改默认分支）
                             )),
@@ -237,8 +238,11 @@ class RepoRepository(
                 // 不亮灯；200 → sha 变化经 SnapshotDiff 点亮。失败静默：基线保留下轮重试，
                 // 不拖垮 repoInfo 的成功
                 val tipBranch = tracked.branch // 发请求时的浏览分支
+                // date 缺失 = 旧版本基线补时间：必须无条件拉——带旧 etag 只会 304 空体，
+                // 补不到 date；一次 1 配额，date 落库后恢复 304 免费循环
+                val tipEtag = if (old?.lastCommitDate == null) null else old?.commitsEtag
                 runCatching {
-                    when (val tip = provider(tracked.provider).commitTipForSync(tracked.owner, tracked.repo, tracked.branch, old?.commitsEtag)) {
+                    when (val tip = provider(tracked.provider).commitTipForSync(tracked.owner, tracked.repo, tracked.branch, tipEtag)) {
                         is SyncCommitTipResult.Tip -> store.update { s ->
                             val cur = s.snapshots[id] ?: return@update s
                             // 请求在途中用户切了分支（setBranch 已清基线）→ 这份旧分支的
@@ -249,6 +253,7 @@ class RepoRepository(
                                     snapshots = s.snapshots + (id to cur.copy(
                                         lastCommitSha = tip.sha,
                                         commitsEtag = tip.etag,
+                                        lastCommitDate = tip.date,
                                     )),
                                 )
                             } else {
@@ -290,10 +295,18 @@ class RepoRepository(
             .getOrNull() ?: return null
         if (names.isEmpty()) return emptyList()
         val old = store.state.value.snapshots[repoId]
-        val dateNames = names.take(20).toSet() + setOfNotNull(tracked.branch, old?.defaultBranch)
+        val defaultBranch = old?.defaultBranch
+        // GitHub 分支切换器排序：默认分支固定首行，其余字典序（API 返回本身即字典序，
+        // 这里只把默认分支提到顶部——大仓里 main 埋在 dev/feature 之后的样子）
+        val ordered = if (defaultBranch != null && names.contains(defaultBranch)) {
+            listOf(defaultBranch) + names.filter { it != defaultBranch }
+        } else {
+            names
+        }
+        val dateNames = ordered.take(20).toSet() + setOfNotNull(tracked.branch, defaultBranch)
         return coroutineScope {
             val gate = Semaphore(6) // 并发闸：二十来个并行请求在弱网互相挤带宽，排队更稳
-            names.map { name ->
+            ordered.map { name ->
                 async {
                     val date = if (name in dateNames) {
                         gate.withPermit {
@@ -319,7 +332,7 @@ class RepoRepository(
             // sync 重新立（首次记录不亮灯）。窗口内并发的 sync 读到旧基线 → tip
             // 相同不亮，无副作用
             snapshots = if (old != null) {
-                s.snapshots + (id to old.copy(lastCommitSha = null, commitsEtag = null))
+                s.snapshots + (id to old.copy(lastCommitSha = null, commitsEtag = null, lastCommitDate = null))
             } else {
                 s.snapshots
             },

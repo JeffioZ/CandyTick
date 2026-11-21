@@ -86,7 +86,10 @@ class GitHubApi(private val tokenProvider: () -> String?) {
                             sha = c.sha,
                             message = c.commit.message,
                             author = c.commit.author?.name,
-                            date = parseInstant(c.commit.author?.date),
+                            // committer date 优先：落枝时间才是「该分支最后有动静」的真源
+                            // （rebase/squash 会改写 committer），与 tip 快照/分支行同口径，
+                            // 保证首页卡片时间与详情提交首行精确一致
+                            date = parseInstant(c.commit.committer?.date ?: c.commit.author?.date),
                         )
                     }
                 }
@@ -180,9 +183,12 @@ class GitHubApi(private val tokenProvider: () -> String?) {
                         304 -> SyncCommitTipResult.NotModified
                         else -> {
                             checkHttp(it)
+                            val tip = json.decodeFromString<List<GhCommit>>(it.body.string()).firstOrNull()
                             SyncCommitTipResult.Tip(
-                                sha = json.decodeFromString<List<GhCommit>>(it.body.string()).firstOrNull()?.sha ?: "",
+                                sha = tip?.sha ?: "",
                                 etag = it.header("etag"),
+                                // 顺手带回落快照（首页卡片时间源）；committer date 与提交行/分支行同口径
+                                date = tip?.let { c -> parseInstant(c.commit.committer?.date ?: c.commit.author?.date) },
                             )
                         }
                     }
