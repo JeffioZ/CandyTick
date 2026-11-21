@@ -272,7 +272,9 @@ internal fun TokenDialog(
             // 输入框：单行密码式，眼睛切换在原生 trailingIcon 槽位（48dp 触控）
             TextField(
                 value = state.tokenInput,
-                onValueChange = { if (it.length <= io.candy.tick.ui.common.InputLimits.TOKEN) onTokenInput(it) },
+                // Token 不设前端长度上限：官方无长度文档，正确性由 Save & verify 的
+                // 服务端验证兜底——前端瞎猜的上限反而可能废掉未来的有效格式
+                onValueChange = onTokenInput,
                 label = stringResource(R.string.token_input_hint),
                 modifier = Modifier
                     .fillMaxWidth()
