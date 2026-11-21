@@ -3,12 +3,12 @@ package io.candy.tick.ui.common
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.draw.clip
 import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.semantics
@@ -60,10 +60,15 @@ fun SecondaryButton(
 /**
  * 图标钮统一按压反馈版（全 App 图标钮唯一来源，2026-11-21 起）：
  * Miuix IconButton 的 clickable 不接 indication（0.9.4 字节码核实——库层面无按压
- * 多态），与「所有可点击控件必须有多态」红线冲突。本组件：48dp 圆形热区 +
+ * 多态），与「所有可点击控件必须有多态」红线冲突。本组件：[size] 圆形热区 +
  * 按压 10% 前景染色（rememberRowPressTint，与 PressableCard/信息行同一反馈语言）+
  * Role.Button 语义；可访问名称挂容器（[contentDescription]），槽内 Icon 一律
- * contentDescription = null。行内紧凑位传 size = 44.dp 与行高协调。
+ * contentDescription = null。
+ *
+ * 染色圆直径 = size − 2×[tintInset]（默认 4dp）：热区大于视觉圆——顶栏相邻 48dp
+ * 槽位相接时染色圆之间仍有 8dp 视觉缝（skill: touch-spacing，M3 顶栏动作本就是
+ * 无间隙打包 48dp 槽，视觉缝由染色圆承担），行内 44dp 档圆 36dp 不溢出输入框
+ * 边界；触控目标本身仍是完整 size（Android 48dp 档不缩）。
  */
 @Composable
 fun PressIconButton(
@@ -71,21 +76,23 @@ fun PressIconButton(
     contentDescription: String?,
     modifier: Modifier = Modifier,
     size: Dp = 48.dp,
+    tintInset: Dp = 4.dp,
     content: @Composable () -> Unit,
 ) {
     val (pressSrc, pressColor) = rememberRowPressTint()
     Box(
         modifier = modifier
             .size(size)
-            .clip(CircleShape)
-            .background(pressColor, CircleShape)
             .clickable(
                 interactionSource = pressSrc,
                 indication = null,
                 role = Role.Button,
                 onClick = onClick,
             )
-            .semantics { contentDescription?.let { this.contentDescription = it } },
+            .semantics { contentDescription?.let { this.contentDescription = it } }
+            // padding 在 clickable 之后：染色圆缩进、热区不缩
+            .padding(tintInset)
+            .background(pressColor, CircleShape),
         contentAlignment = Alignment.Center,
     ) {
         content()

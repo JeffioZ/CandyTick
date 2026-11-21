@@ -36,10 +36,8 @@ fun LazyListScope.commitList(
             fadeInSpec = androidx.compose.animation.core.tween(150),
             fadeOutSpec = androidx.compose.animation.core.tween(150),
         )
-        val clipboard = androidx.compose.ui.platform.LocalClipboardManager.current
         // 组合期取串（lint LocalContextGetResourceValueCall）：回调里查资源不随配置刷新
         val openFailed = stringResource(io.candy.tick.R.string.open_failed)
-        val copied = stringResource(io.candy.tick.R.string.toast_copied)
         io.candy.tick.ui.common.PressableCard(
             // 点击跳 GitHub 查 diff/详情（GitHub app 同款延伸）；无浏览器时给出反馈而非静默
             onClick = {
@@ -51,13 +49,6 @@ fun LazyListScope.commitList(
                         ),
                     )
                 }.onFailure { io.candy.tick.ui.common.Feedback.show(text = openFailed, isError = true) }
-            },
-            // 长按复制 sha（此前的惯例交互缺口；复制成功走全局胶囊）
-            onLongClick = {
-                clipboard.setText(
-                    androidx.compose.ui.text.AnnotatedString(commit.sha),
-                )
-                io.candy.tick.ui.common.Feedback.show(text = copied)
             },
             modifier = itemMod,
         ) {

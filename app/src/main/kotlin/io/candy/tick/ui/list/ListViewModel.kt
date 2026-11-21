@@ -372,10 +372,17 @@ class ListViewModel(
 
     /** 一键收起全部展开卡（批量收起各自播放收起动画） */
     fun collapseAll() {
+        // 批量收起 = N 张卡逐帧缩 + 下方 M 张卡位移——suppress 让位移改 snap，
+        // 省掉每帧 N×M 的 spring 写入（与详情列表 placementSpec=snap 同哲学）
+        suppressPlacementTemporarily()
         expanded.value = emptySet()
     }
 
     fun toggleExpand(id: Long) {
+        // 展开/收起 220ms 期间下方卡片 snap 贴合生长边缘：spring 位移在此期间
+        // 每帧多跑 N 个且滞后于生长中的卡（详情列表同款结论），suppress 窗口内顺带
+        // 锚定逻辑保持「用户原来看哪还看哪」
+        suppressPlacementTemporarily()
         val next = expanded.value.toMutableSet()
         if (!next.add(id)) next.remove(id)
         expanded.value = next

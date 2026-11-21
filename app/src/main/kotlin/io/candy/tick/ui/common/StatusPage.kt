@@ -18,6 +18,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.vector.ImageVector
+import androidx.compose.ui.res.pluralStringResource
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.res.vectorResource
 import androidx.compose.ui.text.style.TextAlign
@@ -122,9 +123,10 @@ fun FooterText(text: String, modifier: Modifier = Modifier, count: Int? = null) 
         )
         Spacer(Modifier.width(10.dp))
         Text(
-            // count 非空时「已到底 · 共 N 项」：滚到底的清点时刻给总数（书末页码心理）
+            // count 非空时「已到底 · 共 N 项」：滚到底的清点时刻给总数（书末页码心理）；
+            // plurals 承载单复数（EN "1 item" vs "N items"，zh 无单复数只挂 other）
             text = if (count != null) {
-                stringResource(R.string.list_end_count, text, count)
+                pluralStringResource(R.plurals.list_end_count_items, count, text, count)
             } else {
                 text
             },
@@ -179,11 +181,14 @@ fun ErrorBanner(error: SourceError, onRetry: () -> Unit, onDismiss: (() -> Unit)
                 text = stringResource(R.string.retry),
                 onClick = onRetry,
             )
+            // 重试钮与关闭钮之间的触控缝（skill: touch-spacing ≥8dp）
+            if (onDismiss != null) Spacer(Modifier.width(8.dp))
             if (onDismiss != null) {
                 PressIconButton(
                     onClick = onDismiss,
                     contentDescription = stringResource(io.candy.tick.R.string.action_cancel),
-                    size = 36.dp,
+                    // 36dp 低于触控下限（skill: 44dp 档）：提至 44dp 行内档，染色圆 36dp
+                    size = 44.dp,
                 ) {
                     Icon(
                         imageVector = ImageVector.vectorResource(io.candy.tick.R.drawable.ic_close),

@@ -9,7 +9,10 @@
 
     <!-- 通用 -->
     <string name="retry">重试</string>
+    <string name="refresh_pull">下拉刷新</string>
+    <string name="refresh_release">释放刷新</string>
     <string name="refresh_refreshing">正在刷新…</string>
+    <string name="refresh_done">刷新完成</string>
     <string name="undo">撤销</string>
     <string name="pinned_a11y">已置顶</string>
     <string name="removed">已移除</string>
@@ -150,7 +153,9 @@
     <string name="load_failed">加载失败</string>
     <string name="status_error_subtitle">网络或接口出了点问题，稍后再试试</string>
     <string name="list_end">已到底</string>
-    <string name="list_end_count">%1$s · 共 %2$d 项</string>
+    <plurals name="list_end_count_items">
+        <item quantity="other">%1$s · 共 %2$d 项</item>
+    </plurals>
     <string name="release_view_on_github">查看完整更新说明</string>
     <string name="release_current">当前</string>
     <string name="asset_recommended">推荐</string>

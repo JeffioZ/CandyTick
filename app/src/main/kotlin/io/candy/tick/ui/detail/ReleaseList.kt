@@ -28,6 +28,7 @@ import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.semantics.role
@@ -67,9 +68,13 @@ fun LazyListScope.releaseList(
 ) {
     items(count = state.releases.size, key = { state.releases[it].tagName + it }) { index ->
         val release = state.releases[index]
-        // tab 切换/分页加载时卡片淡入（150 微反馈档，与首页/提交列表同语言）
+        // tab 切换/分页加载时卡片淡入（150 微反馈档，与首页/提交列表同语言）；
+        // placementSpec=snap：展开某张卡时下方卡片每帧都在位移——spring 位移动画
+        // 会让每帧多跑 N 个 spring 且边缘滞后于生长中的卡（gfxinfo 实测 p50 29ms
+        // 的主缓解）；snap 贴合生长边缘，视觉同步性更好
         val itemMod = Modifier.fillMaxWidth().animateItem(
             fadeInSpec = androidx.compose.animation.core.tween(150),
+            placementSpec = androidx.compose.animation.core.snap(),
             fadeOutSpec = androidx.compose.animation.core.tween(150),
         )
         ReleaseCard(
@@ -229,7 +234,12 @@ private fun ReleaseCard(
                         animationSpec = androidx.compose.animation.core.tween(220),
                     ),
                 ) {
-                    Column {
+                    // 图层隔离（graphicsLayer 空参 = 强制独立层）：展开动画逐帧改的是
+                    // 裁剪/尺寸，文本等重内容缓存在自身层里，每帧只重绘裁剪区，
+                    // 不拖整卡重录显示列表——长日志展开偶发掉帧的主缓解
+                    Column(
+                        modifier = Modifier.graphicsLayer(),
+                    ) {
                         val linkCtx = androidx.compose.ui.platform.LocalContext.current
                         // ClickableText + 自定义 URL span：经典稳定路径（LinkAnnotation 在
                         // Miuix Text 包装下闪退），命中 span 即开浏览器

@@ -292,6 +292,9 @@ internal fun TokenDialog(
                         contentDescription = stringResource(
                             if (tokenVisible) R.string.token_hide else R.string.token_show,
                         ),
+                        // 44dp 行内档 + 右让 4dp：染色圆四向 8dp 均衡
+                        size = 44.dp,
+                        modifier = Modifier.padding(end = 4.dp),
                     ) {
                         Icon(
                             imageVector = if (tokenVisible) ImageVector.vectorResource(R.drawable.ic_hide) else ImageVector.vectorResource(R.drawable.ic_show),

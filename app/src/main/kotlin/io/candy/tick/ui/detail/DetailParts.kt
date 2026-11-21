@@ -122,6 +122,9 @@ internal fun BranchPickerSheet(
                             io.candy.tick.ui.common.PressIconButton(
                                 onClick = { query = "" },
                                 contentDescription = stringResource(R.string.clear_input),
+                                // 44dp 行内档 + 右让 4dp：染色圆四向 8dp 均衡
+                                size = 44.dp,
+                                modifier = Modifier.padding(end = 4.dp),
                             ) {
                                 Icon(
                                     imageVector = ImageVector.vectorResource(R.drawable.ic_close),
@@ -539,6 +542,8 @@ internal fun HeaderCard(
                             modifier = Modifier.size(14.dp),
                         )
                     }
+                    // 相邻动作钮的触控缝（skill: touch-spacing；染色圆已内缩仍有余量）
+                    Spacer(Modifier.width(4.dp))
                     io.candy.tick.ui.common.PressIconButton(
                         onClick = onUnlink,
                         contentDescription = stringResource(R.string.detail_unlink),

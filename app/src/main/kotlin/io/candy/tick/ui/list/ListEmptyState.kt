@@ -60,6 +60,8 @@ internal fun EmptyState(onAdd: () -> Unit, modifier: Modifier = Modifier) {
             text = stringResource(R.string.empty_subtitle),
             style = MiuixTheme.textStyles.body2,
             color = scheme.onBackgroundVariant,
+            // 居中换行：窄屏两行时避免「孤字挂左」的失衡断行
+            textAlign = androidx.compose.ui.text.style.TextAlign.Center,
         )
         Spacer(Modifier.height(20.dp))
         PrimaryButton(

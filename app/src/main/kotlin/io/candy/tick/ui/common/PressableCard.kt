@@ -2,7 +2,6 @@ package io.candy.tick.ui.common
 
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
-import androidx.compose.foundation.combinedClickable
 import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.interaction.collectIsPressedAsState
 import androidx.compose.foundation.layout.Box
@@ -24,8 +23,9 @@ import top.yukonga.miuix.kmp.theme.MiuixTheme
  * 可点击卡片统一按压反馈（全 App 唯一来源）：
  * - 按压 = 卡面染 10% 前景色（Material 3 pressed state layer 标准区间；主题自带
  *   surfaceContainerHigh 档实测仅 2-8% 明度差，暗色下肉眼不可辨）
- * - 150 微反馈档；纯色变零位移零露底——Sink 缩放会在 surface/background 色差下
- *   露出深色环，观感如「背后有色块阴影」（Miuix Card 无阴影可关）
+ * - 80 微反馈档（快跳点击也来得及看到染色再被转场盖过）；纯色变零位移零露底——
+ *   Sink 缩放会在 surface/background 色差下露出深色环，观感如「背后有色块阴影」
+ *   （Miuix Card 无阴影可关）
  * - 圆角 16 / insideMargin 0（内容自管 padding，与其他卡片同构）；
  *   与 Miuix 默认卡色同源：surfaceContainer / onSurfaceContainer
  */
@@ -33,7 +33,6 @@ import top.yukonga.miuix.kmp.theme.MiuixTheme
 fun PressableCard(
     onClick: () -> Unit,
     modifier: Modifier = Modifier,
-    onLongClick: (() -> Unit)? = null, // 长按（提交卡复制 sha 等；null = 纯点击）
     cornerRadius: Dp = 16.dp,
     content: @Composable ColumnScope.() -> Unit,
 ) {
@@ -44,15 +43,16 @@ fun PressableCard(
         targetValue = lerp(
             scheme.surfaceContainer, scheme.onSurfaceContainer, if (pressed) 0.10f else 0f,
         ),
-        animationSpec = androidx.compose.animation.core.tween(150),
+        // 80ms 到位：快跳点击（按下 ~40ms 即释放）也要在导航转场盖上来之前看到染色
+        // （skill: 反馈 80-150ms 内到位；此前 150ms 在快跳下只走到 ~5%，等于没反馈）
+        animationSpec = androidx.compose.animation.core.tween(80),
         label = "cardPress",
     ).value
     Card(
-        modifier = modifier.combinedClickable(
+        modifier = modifier.clickable(
             interactionSource = pressSrc,
             indication = null,
             onClick = onClick,
-            onLongClick = onLongClick,
         ),
         cornerRadius = cornerRadius,
         insideMargin = PaddingValues(0.dp),
@@ -78,7 +78,8 @@ fun rememberRowPressTint(): Pair<MutableInteractionSource, androidx.compose.ui.g
         targetValue = lerp(
             scheme.surfaceContainer, scheme.onSurfaceContainer, if (pressed) 0.10f else 0f,
         ),
-        animationSpec = androidx.compose.animation.core.tween(150),
+        // 与 PressableCard 同步 80ms 到位（skill: 反馈 80-150ms 内到位）
+        animationSpec = androidx.compose.animation.core.tween(80),
         label = "rowPress",
     ).value
     return src to color

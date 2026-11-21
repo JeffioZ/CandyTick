@@ -136,6 +136,9 @@ fun DetailScreen(repoId: Long, onBack: () -> Unit) {
                                     tint = scheme.onBackground,
                                 )
                             }
+                            // 后退钮与标题的呼吸缝：48dp 热区/40dp 染色圆之外再留 8dp
+                            // （skill: touch-spacing——此前圆贴标题文案）
+                            Spacer(Modifier.width(8.dp))
                             Text(
                                 text = repo?.let { it.noteName ?: it.repo } ?: stringResource(R.string.detail_title),
                                 style = MiuixTheme.textStyles.title4,
@@ -170,8 +173,10 @@ fun DetailScreen(repoId: Long, onBack: () -> Unit) {
                             },
                             contentDescription = stringResource(R.string.open_in_browser),
                         ) {
+                            // globe =「打开网页」本命语义；此前 external-link 观感近「分享」
+                            // （skill icons：glyph 按用途选，带文字的 LinkText 保留 external-link）
                             Icon(
-                                imageVector = ImageVector.vectorResource(R.drawable.ic_external_link),
+                                imageVector = ImageVector.vectorResource(R.drawable.ic_globe),
                                 contentDescription = null,
                                 tint = scheme.onBackground,
                             )

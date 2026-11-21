@@ -35,6 +35,7 @@ import top.yukonga.miuix.kmp.basic.Text
 import top.yukonga.miuix.kmp.theme.MiuixTheme
 import androidx.compose.foundation.layout.width
 import androidx.compose.ui.res.vectorResource
+import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.graphics.vector.ImageVector
 
 /** 首页仓库卡片：图标 + 名称 + 徽章 + 相对时间；展开显示提交与版本行 */
@@ -170,7 +171,11 @@ fun RepoCard(
                         animationSpec = androidx.compose.animation.core.tween(220),
                     ),
                 ) {
-                    Column {
+                    // 图层隔离：展开动画逐帧只改裁剪/尺寸，面板内容缓存在独立层
+                    // （与 ReleaseList 展开区同款缓解）
+                    Column(
+                        modifier = Modifier.graphicsLayer(),
+                    ) {
                         Spacer(Modifier.height(2.dp))
                         // 卡中卡信息面板：展开内容有容器底，与折叠态主信息分层
                         ExpandedDetails(item = item, extras = extras, versionEpoch = versionEpoch, refreshing = extras?.refreshing == true, onRetry = onRetryExtras)

@@ -245,15 +245,16 @@ fun ListScreen(
                                 if (showSearch) R.string.close_search else R.string.action_search,
                             ),
                         ) {
-                            // 激活态换关闭图标：点一下能收起是可发现的
+                            // 激活态换返回箭头（= 退出搜索模式，与系统返回同语义）：
+                            // 此前用 X 与输入框「清空」钮同形（skill: X=modal close 语义撞车）
                             Icon(
                                 imageVector = if (showSearch) {
-                                    ImageVector.vectorResource(R.drawable.ic_close)
+                                    ImageVector.vectorResource(R.drawable.ic_back)
                                 } else {
                                     ImageVector.vectorResource(R.drawable.ic_search)
                                 },
                                 contentDescription = null,
-                                tint = scheme.onBackground,
+                                tint = if (showSearch) scheme.primaryVariant else scheme.onBackground,
                                 modifier = Modifier.size(24.dp), // 顶栏动作图标统一 24dp
                             )
                         }
@@ -303,9 +304,17 @@ fun ListScreen(
                 },
                 pullToRefreshState = pullState,
                 topAppBarScrollBehavior = scrollBehavior,
+                // 刷新指示器四态常驻文字（下拉/释放/正在/完成）：文字从头就在 = 头部
+                // 高度全相恒定，「拉时 OK、字一出上空就多」的间距跳变从根消失
+                // （经典下拉刷新形态；36dp 区固定，contentPadding top 让圆环不顶顶栏）
+                contentPadding = androidx.compose.foundation.layout.PaddingValues(top = 9.dp),
                 color = scheme.primaryVariant, // 薄荷主色：与全应用活动色统一
-                // 只在刷新中显示两个字：36dp 文字区是库的固定结构，用它让间距有目的
-                refreshTexts = listOf("", "", stringResource(R.string.refresh_refreshing), ""),
+                refreshTexts = listOf(
+                    stringResource(R.string.refresh_pull),
+                    stringResource(R.string.refresh_release),
+                    stringResource(R.string.refresh_refreshing),
+                    stringResource(R.string.refresh_done),
+                ),
             ) {
                 Column(modifier = Modifier.fillMaxSize()) {
                     androidx.compose.animation.AnimatedVisibility(
@@ -339,6 +348,9 @@ fun ListScreen(
                                     io.candy.tick.ui.common.PressIconButton(
                                         onClick = { vm.setQuery("") },
                                         contentDescription = stringResource(R.string.clear_input),
+                                        // 44dp 行内档 + 右让 4dp：染色圆四向 8dp 均衡
+                                        size = 44.dp,
+                                        modifier = Modifier.padding(end = 4.dp),
                                     ) {
                                         Icon(
                                             imageVector = ImageVector.vectorResource(R.drawable.ic_close),

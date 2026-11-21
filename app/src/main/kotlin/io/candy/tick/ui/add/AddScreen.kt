@@ -138,6 +138,10 @@ fun AddScreen(
                         io.candy.tick.ui.common.PressIconButton(
                             onClick = { vm.onInput("") },
                             contentDescription = stringResource(R.string.clear_input),
+                            // 44dp 行内档 + 右让 4dp：染色圆四向距输入框边 8dp 均衡
+                            // （实测：槽位贴右缘，圆到右缘仅 4.2dp、上下 7.9dp）；文字区仅让 4dp
+                            size = 44.dp,
+                            modifier = Modifier.padding(end = 4.dp),
                         ) {
                             Icon(
                                 imageVector = ImageVector.vectorResource(R.drawable.ic_close),
@@ -339,9 +343,7 @@ fun AddScreen(
                         // （浮层自身 fade+slide 已承担进场，双层叠加反而迟滞）；
                         // SizeTransform 显式 180：三态高度不同，默认 spring 是尺寸暗桩
                         androidx.compose.animation.AnimatedContent(
-                            // 目标态直用 PreviewState：内容切换读 target 而非实时 state——
-                            // 退场帧定格自身快照，不再中途改读新态（此前 Loaded→Failed 过渡两帧同显失败态）
-                            targetState = state.preview,
+                            targetState = previewKeyOf(state.preview),
                             transitionSpec = {
                                 ((androidx.compose.animation.fadeIn(androidx.compose.animation.core.tween(180))) togetherWith
                                     (androidx.compose.animation.fadeOut(androidx.compose.animation.core.tween(180))))
@@ -352,12 +354,13 @@ fun AddScreen(
                                     )
                             },
                             label = "previewPhase",
-                        ) { preview ->
-                            when (preview) {
-                                is AddViewModel.PreviewState.Loading -> PreviewSkeletonCard()
-                                is AddViewModel.PreviewState.Failed -> Column {
+                        ) { key ->
+                            when (key) {
+                                PreviewKey.Loading -> PreviewSkeletonCard()
+                                is PreviewKey.Failed -> Column {
                                     // 失败态同样给退路：此前只在 Loaded 相有「返回搜索结果」，
-                                    // 失败浮层不透明盖住列表，用户只能退出整个添加页
+                                    // 失败浮层不透明盖住列表，用户只能退出整个添加页。
+                                    // 内容渲染自 key.error（转场期间定格自身快照）
                                     if (state.results.isNotEmpty()) {
                                         BackToResultsButton(onClick = {
                                             resultsReveal++
@@ -370,7 +373,7 @@ fun AddScreen(
                                         // 此前骨架卡变一行裸红字+文字钮，重量骤降悬空
                                         icon = ImageVector.vectorResource(R.drawable.ic_close),
                                         isError = true,
-                                        title = sourceErrorText(preview.error),
+                                        title = sourceErrorText(key.error),
                                         // 网络抖动类失败：重试不必改输入重来（skill error-recovery）
                                         actionLabel = stringResource(R.string.retry),
                                         onAction = vm::retryPreview,
@@ -379,7 +382,7 @@ fun AddScreen(
                                             .padding(vertical = 24.dp),
                                     )
                                 }
-                                is AddViewModel.PreviewState.Loaded -> androidx.compose.foundation.layout.Column {
+                                is PreviewKey.Loaded -> androidx.compose.foundation.layout.Column {
                                     // 从搜索结果进入的预览：顶部留明确退路（skill: back-behavior）
                                     if (state.results.isNotEmpty()) {
                                         // 上=外层 spacedBy(12)+按钮 pad5，下=pad5+Spacer12：视觉 17/17 对称
@@ -389,15 +392,17 @@ fun AddScreen(
                                         })
                                         Spacer(Modifier.height(12.dp))
                                     }
-                                    PreviewCard(
-                                        preview = preview,
-                                        state = state,
-                                        onLinkApp = { showAppPicker = true },
-                                        onConfirm = vm::confirmAdd,
-                                        onOpenExisting = { onAdded(preview.info.githubId) },
-                                    )
+                                    (state.preview as? AddViewModel.PreviewState.Loaded)?.let { loaded ->
+                                        PreviewCard(
+                                            preview = loaded,
+                                            state = state,
+                                            onLinkApp = { showAppPicker = true },
+                                            onConfirm = vm::confirmAdd,
+                                            onOpenExisting = { onAdded(loaded.info.githubId) },
+                                        )
+                                    }
                                 }
-                                AddViewModel.PreviewState.Idle -> Unit
+                                PreviewKey.Idle -> Unit
                             }
                         }
                     }
@@ -511,10 +516,32 @@ private fun PreviewSkeletonCard() {
     }
 }
 
+/**
+ * 预览浮层三态的转场键：只随「相变」变，不随数据刷新变——
+ * Loaded 以 githubId 为身份：点搜索结果直出的 info 来自 Search API（无 etag），
+ * 静默校准回流的 info 来自 repos API（必带 etag）→ 实例必不等；此前 target=preview
+ * 实例时每次进预览都会重放一次转场 = 卡片闪一下。自动关联落地（linked 变化）
+ * 同理不重放，原位更新。错误相携 error：换了个错误值得重放。
+ * 内容侧用安全转换读实时 state：实际发生的相变组合（Idle→Loading→Loaded/Failed
+ * →…→Idle）里退场帧读到的是自身或空，不存在「退场帧渲染新态内容」的串台。
+ */
+private sealed interface PreviewKey {
+    data object Idle : PreviewKey
+    data object Loading : PreviewKey
+    data class Failed(val error: io.candy.tick.data.SourceError) : PreviewKey
+    data class Loaded(val githubId: Long) : PreviewKey
+}
+
+private fun previewKeyOf(p: AddViewModel.PreviewState): PreviewKey = when (p) {
+    AddViewModel.PreviewState.Idle -> PreviewKey.Idle
+    AddViewModel.PreviewState.Loading -> PreviewKey.Loading
+    is AddViewModel.PreviewState.Failed -> PreviewKey.Failed(p.error)
+    is AddViewModel.PreviewState.Loaded -> PreviewKey.Loaded(p.info.githubId)
+}
+
 @Composable
 private fun PreviewCard(
-    // 由 AnimatedContent 的 target 快照传入：过渡期退场帧渲染自身数据，
-    // 不回读实时 state（实时值已变会 ClassCastException / 内容跳变）
+    // 当前 Loaded 态（AnimatedContent 相同相内原位更新；相变由 PreviewKey 控制）
     preview: AddViewModel.PreviewState.Loaded,
     state: AddViewModel.UiState,
     onLinkApp: () -> Unit,
