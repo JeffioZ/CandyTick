@@ -25,8 +25,9 @@ val LightBackground = Color(0xFFF4F6F5) // 微绿灰页面底
 val LightSurface = Color(0xFFFFFFFF)
 val LightTextPrimary = Color(0xFF191D1B)
 val LightTextSecondary = Color(0xFF5A625E)
-val LightTextTertiary = Color(0xFF8A938F) // 仅 ≥13sp 辅助注
+val LightTextTertiary = Color(0xFF646D69) // 小字号辅助文字在 surfaceContainerHigh 上仍有 4.52:1
 val LightOutline = Color(0xFFE4E8E6)
+val LightFeedbackOutline = Color(0xFF7E8883)
 val LightDivider = LightOutline
 val LightSurfaceHigh = Color(0xFFE9EDEB)
 val LightSurfaceHighest = LightOutline
@@ -62,8 +63,9 @@ val DarkBackground = Color(0xFF0D100E)
 val DarkSurface = Color(0xFF161A18)
 val DarkTextPrimary = Color(0xFFE6EAE8)
 val DarkTextSecondary = Color(0xFFA4ACA8)
-val DarkTextTertiary = Color(0xFF6E7773)
+val DarkTextTertiary = Color(0xFF919B96)
 val DarkOutline = Color(0xFF2A302D)
+val DarkFeedbackOutline = Color(0xFF666F6A) // 悬浮提示与卡面、页面底均可辨
 val DarkDivider = Color(0xFF232825)
 val DarkSurfaceHigh = Color(0xFF1C201E)
 val DarkSurfaceHighest = DarkDivider
@@ -74,6 +76,7 @@ val DarkDisabledSurfaceText = Color(0xFF4A524E)
 val DarkSecondary = DarkOutline
 val DarkSecondaryVariant = DarkDivider
 val DarkSecondaryContainer = Color(0xFF1C211F)
+val DarkFieldActionContainer = Color(0xFF49574F)
 val DarkTertiaryContainer = Color(0xFF0C3D2E)
 val DarkError = Color(0xFFF87171)
 val DarkOnError = Color(0xFF450A0A)
@@ -101,28 +104,27 @@ val StatusLowDark = StatusColors(Color(0xFFFB923C), Color(0xFF32231A), Color(0xF
 val StatusAbandonedDark = StatusColors(Color(0xFFF87171), Color(0xFF35201F), Color(0xFFF87171))
 val StatusArchivedDark = StatusColors(Color(0xFFB0B0B0), Color(0xFF232825), Color(0xFFA7B3AD))
 
-// —— 设置行彩色芯片（LibChecker 风格：实色圆角方块 + 白色 glyph）——
-val ChipBlue = Color(0xFF5B8DEF)
-val ChipTeal = Color(0xFF38B9A6)
-val ChipSky = Color(0xFF64A9F5)
-val ChipAmber = Color(0xFFF6B352)
-val ChipPink = Color(0xFFF07FA0)
-val ChipGreen = Color(0xFF66C18C)
-val ChipViolet = Color(0xFF9B8CF4)
-val ChipMint = Color(0xFF2EB488)
-val ChipSlate = Color(0xFF7A93B5)
-val ChipOrange = Color(0xFFEF8B4E)
-val ChipSand = Color(0xFFC9A45C)
-val ChipPeriwinkle = Color(0xFF7E9Bf0)
+// 设置行图标底色。浅色与深色共用，白色线条的对比度均达到 3.3:1。
+val ChipBlue = Color(0xFF598AEA)
+val ChipTeal = Color(0xFF309D8D)
+val ChipSky = Color(0xFF5590D0)
+val ChipAmber = Color(0xFFB6843D)
+val ChipPink = Color(0xFFD16E8B)
+val ChipGreen = Color(0xFF539C71)
+val ChipViolet = Color(0xFF8D7FDE)
+val ChipSlate = Color(0xFF768FB0)
+val ChipOrange = Color(0xFFCB7642)
+val ChipSand = Color(0xFFA7884C)
+val ChipPeriwinkle = Color(0xFF708AD6)
 
-// —— 首字母头像 8 色环（135° 双色渐变，owner hash 取色）——
+// 首字母头像：按 owner 选八种色相，渐变两端都能承托白色字母。
 val AvatarPalette = listOf(
-    Color(0xFFF59E0B) to Color(0xFFD97706),
-    Color(0xFFEF4444) to Color(0xFFB91C1C),
-    Color(0xFF8B5CF6) to Color(0xFF6D28D9),
-    Color(0xFF0EA5E9) to Color(0xFF0369A1),
-    Color(0xFF10B981) to Color(0xFF047857),
-    Color(0xFFF97316) to Color(0xFFC2410C),
-    Color(0xFFEC4899) to Color(0xFFBE185D),
+    Color(0xFFAB6305) to Color(0xFF89500C),
+    Color(0xFFDC3232) to Color(0xFFAF1A1A),
+    Color(0xFF8354EB) to Color(0xFF6526CC),
+    Color(0xFF047CB3) to Color(0xFF075A88),
+    Color(0xFF068359) to Color(0xFF056045),
+    Color(0xFFBE510E) to Color(0xFF92370C),
+    Color(0xFFCF2D78) to Color(0xFFAA1652),
     Color(0xFF64748B) to Color(0xFF334155),
 )

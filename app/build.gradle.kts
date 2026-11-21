@@ -6,8 +6,6 @@ plugins {
 
 android {
     namespace = "io.candy.tick"
-    // 文档基线 36；OkHttp 5.5.1 / materialkolor 等 2026-11 依赖的 AAR 元数据要求 ≥37，
-    // 按 design.md「开工时取最新」取当前 stable 37.2（本机已装 android-37.2）
     compileSdk = 37
     compileSdkMinor = 2
 
@@ -45,12 +43,15 @@ android {
 
     buildTypes {
         release {
+            // Optional identifier for locally shared builds, visible in Android's app info.
+            versionNameSuffix = providers.gradleProperty("candyTickBuildLabel").orNull?.let { "+$it" }
             isMinifyEnabled = true
+            isShrinkResources = true
             // 真机双架构；x86/x86_64 仅供模拟器，release 不带（debug 不受限）
             ndk {
                 abiFilters += listOf("arm64-v8a", "armeabi-v7a")
             }
-            signingConfig = signingConfigs.getByName("release")
+            if (ksPath != null) signingConfig = signingConfigs.getByName("release")
             proguardFiles(
                 getDefaultProguardFile("proguard-android-optimize.txt"),
                 "proguard-rules.pro",
@@ -86,7 +87,6 @@ dependencies {
     implementation(platform(libs.compose.bom))
     implementation(libs.compose.ui)
     implementation(libs.compose.foundation)
-    implementation(libs.compose.ui.tooling.preview)
     debugImplementation(libs.compose.ui.tooling)
 
     implementation(libs.miuix.ui)
@@ -95,7 +95,6 @@ dependencies {
     implementation(libs.commonmark.gfm.tables)
     implementation(libs.commonmark.gfm.strikethrough)
     implementation(libs.commonmark.autolink)
-    implementation(libs.miuix.icons)
 
     implementation(libs.androidx.navigation3.runtime)
     implementation(libs.androidx.navigation3.ui)
@@ -103,7 +102,6 @@ dependencies {
 
     implementation(libs.okhttp)
     implementation(libs.kotlinx.serialization.json)
-
-
     implementation(libs.androidx.work.runtime.ktx)
+    testImplementation(libs.junit)
 }

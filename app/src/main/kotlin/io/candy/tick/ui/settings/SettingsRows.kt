@@ -19,8 +19,14 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.res.stringResource
+import androidx.compose.ui.semantics.Role
+import androidx.compose.ui.semantics.clearAndSetSemantics
+import androidx.compose.ui.semantics.disabled
+import androidx.compose.ui.semantics.role
 import androidx.compose.ui.semantics.selected
 import androidx.compose.ui.semantics.semantics
+import androidx.compose.ui.semantics.toggleableState
+import androidx.compose.ui.state.ToggleableState
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import io.candy.tick.R
@@ -34,10 +40,8 @@ import top.yukonga.miuix.kmp.basic.Text
 import top.yukonga.miuix.kmp.theme.MiuixTheme
 import androidx.compose.ui.res.vectorResource
 
-/**
- * 设置页分组列表体系：基于 Miuix BasicComponent 构建（不自绘行布局），
- * 只补两层薄封装：图标芯片 + 等宽 value。
- */
+private val RowSideInset = 16.dp
+private val IconChipSize = 30.dp
 
 @Composable
 internal fun SettingsGroup(
@@ -51,7 +55,7 @@ internal fun SettingsGroup(
                 text = title,
                 style = MiuixTheme.textStyles.footnote1,
                 color = MiuixTheme.colorScheme.onBackgroundVariant,
-                modifier = Modifier.padding(start = 16.dp, top = 20.dp, bottom = 8.dp),
+                modifier = Modifier.padding(start = RowSideInset, top = 20.dp, bottom = 8.dp),
             )
         }
         Card(modifier = Modifier.fillMaxWidth()) {
@@ -60,13 +64,13 @@ internal fun SettingsGroup(
     }
 }
 
-/** 行间分隔线：起点与文字对齐（缩进 16dp），1dp */
+/** 分隔线从行标题起笔，末端与右侧值或开关对齐。 */
 @Composable
 internal fun RowDivider() {
     Box(
         modifier = Modifier
             .fillMaxWidth()
-            .padding(start = 16.dp)
+            .padding(start = RowSideInset + IconChipSize + 8.dp, end = RowSideInset)
             .height(1.dp)
             .background(MiuixTheme.colorScheme.dividerLine),
     )
@@ -77,7 +81,7 @@ internal fun RowDivider() {
 private fun IconChip(icon: ImageVector, tint: Color) {
     Box(
         modifier = Modifier
-            .size(30.dp)
+            .size(IconChipSize)
             .clip(RoundedCornerShape(9.dp))
             .background(tint),
         contentAlignment = Alignment.Center,
@@ -95,12 +99,12 @@ private fun IconChip(icon: ImageVector, tint: Color) {
 @Composable
 internal fun SettingRow(
     title: String,
+    icon: ImageVector,
+    iconTint: Color,
     modifier: Modifier = Modifier,
     summary: String? = null,
     value: String? = null,
     valueMonospace: Boolean = false,
-    icon: ImageVector? = null,
-    iconTint: Color = Color.Unspecified,
     onClick: (() -> Unit)? = null,
     trailing: (@Composable () -> Unit)? = null,
 ) {
@@ -108,11 +112,9 @@ internal fun SettingRow(
         modifier = modifier.fillMaxWidth(),
         title = title,
         summary = summary,
-        startAction = icon?.let {
-            { IconChip(icon = it, tint = iconTint) }
-        },
+        startAction = { IconChip(icon = icon, tint = iconTint) },
         endActions = {
-            Spacer(Modifier.width(12.dp))
+            if (trailing != null || value != null) Spacer(Modifier.width(12.dp))
             when {
                 trailing != null -> trailing()
                 value != null -> Text(
@@ -126,7 +128,7 @@ internal fun SettingRow(
         },
         onClick = onClick,
         insideMargin = PaddingValues(
-            start = 16.dp, end = 16.dp, top = 12.dp, bottom = 12.dp,
+            start = RowSideInset, end = RowSideInset, top = 12.dp, bottom = 12.dp,
         ),
     )
 }
@@ -134,21 +136,35 @@ internal fun SettingRow(
 @Composable
 internal fun SwitchRow(
     title: String,
+    icon: ImageVector,
+    iconTint: Color,
     checked: Boolean,
     onChange: (Boolean) -> Unit,
     summary: String? = null,
-    icon: ImageVector? = null,
-    iconTint: Color = Color.Unspecified,
 ) {
     SettingRow(
+        modifier = Modifier.switchSemantics(checked),
         title = title,
         summary = summary,
         icon = icon,
         iconTint = iconTint,
         onClick = { onChange(!checked) },
-        trailing = { Switch(checked = checked, onCheckedChange = onChange) },
+        trailing = {
+            Switch(
+                checked = checked, onCheckedChange = onChange,
+                modifier = Modifier.clearAndSetSemantics { },
+            )
+        },
     )
 }
+
+/** 读屏聚焦整行，同时保留开关本身的拖动手势。 */
+internal fun Modifier.switchSemantics(checked: Boolean, enabled: Boolean = true): Modifier =
+    semantics(mergeDescendants = true) {
+        role = Role.Switch
+        toggleableState = ToggleableState(checked)
+        if (!enabled) disabled()
+    }
 
 @Composable
 internal fun frequencyLabel(frequency: SyncFrequency): String = stringResource(

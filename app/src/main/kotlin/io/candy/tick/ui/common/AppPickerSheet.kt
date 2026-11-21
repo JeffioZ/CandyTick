@@ -1,37 +1,46 @@
 package io.candy.tick.ui.common
 
+import android.content.Context
 import android.content.Intent
-import androidx.compose.foundation.Image
+import androidx.activity.compose.BackHandler
 import androidx.compose.foundation.layout.Box
 import androidx.compose.ui.Alignment
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
+import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.wrapContentHeight
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
-import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.foundation.lazy.rememberLazyListState
 import top.yukonga.miuix.kmp.basic.Text
 import top.yukonga.miuix.kmp.theme.MiuixTheme
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.key
+import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberCoroutineScope
+import androidx.compose.runtime.rememberUpdatedState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
-import kotlinx.coroutines.withContext
-import androidx.compose.ui.draw.clip
+import kotlinx.coroutines.async
+import kotlinx.coroutines.withTimeoutOrNull
 import androidx.compose.ui.platform.LocalConfiguration
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.dp
 import io.candy.tick.R
-import io.candy.tick.ui.common.toImageBitmap
+import io.candy.tick.util.appDisplayName
+import io.candy.tick.util.labelOf
 import top.yukonga.miuix.kmp.basic.BasicComponent
 import top.yukonga.miuix.kmp.basic.TextField
 import top.yukonga.miuix.kmp.window.WindowBottomSheet
@@ -39,8 +48,30 @@ import top.yukonga.miuix.kmp.window.WindowBottomSheet
 private data class AppOption(
     val packageName: String,
     val label: String,
-    val icon: android.graphics.drawable.Drawable?,
 )
+
+private const val SEARCH_THRESHOLD = 15
+private const val PICKER_OPEN_BUDGET_MS = 80L
+
+private class AppPickerVisit {
+    var result by mutableStateOf<Result<List<AppOption>>?>(null)
+    var retry by mutableIntStateOf(0)
+    var fullHeight = false
+}
+
+private fun readLauncherApps(context: Context): List<AppOption> {
+    val pm = context.packageManager
+    val intent = Intent(Intent.ACTION_MAIN).addCategory(Intent.CATEGORY_LAUNCHER)
+    return pm.queryIntentActivities(intent, 0).asSequence()
+        .filterNot { it.activityInfo.packageName == context.packageName }
+        .distinctBy { it.activityInfo.packageName }
+        .map { entry ->
+            val pkg = entry.activityInfo.packageName
+            AppOption(pkg, appDisplayName(pkg, entry.loadLabel(pm)) ?: labelOf(context, pkg) ?: pkg)
+        }
+        .sortedBy { it.label.lowercase() }
+        .toList()
+}
 
 /**
  * 关联本机应用选择器（QUERY_ALL_PACKAGES；列出可启动应用，按名称排序）。
@@ -54,90 +85,76 @@ fun AppPickerSheet(
     onDismiss: () -> Unit,
 ) {
     val context = LocalContext.current
-    var query by remember { mutableStateOf("") }
-    // 打开即聚焦：搜索框仅在列表 >15 项时组合，且列表 IO 加载常超 100ms——
-    // 固定延迟会打在尚未挂载的 FocusRequester 上静默失败；请求挪到列表就绪后（见下）
-    val pickerFocus = remember { androidx.compose.ui.focus.FocusRequester() }
-    // 应用列表在 IO 线程加载（几百个应用的 label/icon 查询曾阻塞组合主线程）
-    var apps by remember { mutableStateOf<List<AppOption>>(emptyList()) }
-    var appsLoading by remember { mutableStateOf(false) }
-    var appsFailed by remember { mutableStateOf(false) }
-    val scope = androidx.compose.runtime.rememberCoroutineScope()
-
-    /** 扫描已装应用（打开与重试共用）：异常不再吞成空列表（此前失败=空白 sheet 无出口） */
-    fun loadApps() {
-        appsLoading = true
-        appsFailed = false
-        scope.launch {
-            apps = withContext(Dispatchers.IO) {
-                runCatching {
-                    val pm = context.packageManager
-                    val intent = Intent(Intent.ACTION_MAIN).addCategory(Intent.CATEGORY_LAUNCHER)
-                    pm.queryIntentActivities(intent, 0)
-                        .map { ri ->
-                            AppOption(
-                                packageName = ri.activityInfo.packageName,
-                                label = ri.loadLabel(pm).toString(),
-                                icon = runCatching { ri.activityInfo.loadIcon(pm) }.getOrNull(),
-                            )
-                        }
-                        .distinctBy { it.packageName }
-                        .filterNot { it.packageName == context.packageName }
-                        .sortedBy { it.label.lowercase() }
-                }.onFailure { appsFailed = true }.getOrDefault(emptyList())
-            }
-            appsLoading = false
+    val visit = if (show) remember(context) { AppPickerVisit() } else null
+    var displayed by remember { mutableStateOf<AppPickerVisit?>(null) }
+    val visible by rememberUpdatedState(show)
+    LaunchedEffect(visit, visit?.retry) {
+        if (visit == null) return@LaunchedEffect
+        visit.result = null
+        val scan = async(Dispatchers.IO) { runCatching { readLauncherApps(context) } }
+        if (displayed !== visit) {
+            // A quick scan can size a short list exactly. On a cold scan, show the loading
+            // surface within one press interval and keep that same height when rows arrive.
+            val quickResult = withTimeoutOrNull(PICKER_OPEN_BUDGET_MS) { scan.await() }
+            val quickApps = quickResult?.getOrNull()
+            visit.fullHeight = quickApps == null || quickApps.size > SEARCH_THRESHOLD
+            visit.result = quickResult
+            displayed = visit
+            if (quickResult != null) return@LaunchedEffect
         }
+        visit.result = scan.await()
     }
-
-    // sheet 关闭即清搜索词与列表：消灭幽灵草稿（与 Token / 分支弹层同一治理原则）
-    LaunchedEffect(show) {
-        if (show) {
-            loadApps()
-        } else {
-            if (query.isNotEmpty()) query = ""
-            apps = emptyList()
-            appsFailed = false
-        }
-    }
-    // 列表就绪且需要搜索框（>15 项）才请求聚焦：此刻 TextField 已组合挂载，requestFocus 生效
-    LaunchedEffect(show, apps.size > 15) {
-        if (show && apps.size > 15) {
-            kotlinx.coroutines.delay(100)
-            runCatching { pickerFocus.requestFocus() }
-        }
-    }
-    val keyword = query.trim()
-    val filtered = if (keyword.isEmpty()) apps else apps.filter {
-        it.label.contains(keyword, ignoreCase = true) ||
-            it.packageName.contains(keyword, ignoreCase = true)
-    }
+    val open = visit != null && displayed === visit
+    BackHandler(enabled = show && !open, onBack = onDismiss)
     val maxSheetHeight = LocalConfiguration.current.screenHeightDp.dp * 0.6f
 
     // show 直通（勿用 if 包裹）：退场动画依赖组件持续组合
     WindowBottomSheet(
-        show = show,
-        title = stringResource(R.string.detail_link_app),
+        show = open,
         onDismissRequest = onDismiss,
+        onDismissFinished = {
+            if (!visible) displayed = null
+        },
     ) {
+        val page = displayed ?: return@WindowBottomSheet
+        val result = page.result
+        val apps = result?.getOrNull().orEmpty()
+        val searchable = apps.size > SEARCH_THRESHOLD
+        var query by remember(page) { mutableStateOf("") }
+        val keyword = query.trim()
+        val filtered = remember(apps, keyword) {
+            if (keyword.isEmpty()) apps else apps.filter {
+                it.label.contains(keyword, ignoreCase = true) ||
+                    it.packageName.contains(keyword, ignoreCase = true)
+            }
+        }
+        val listState = key(page) { rememberLazyListState() }
+        val scope = rememberCoroutineScope()
+        val animate = rememberMotionEnabled()
+        fun filterApps(value: String) {
+            if (value == query || value.length > InputLimits.SEARCH) return
+            query = value
+            listState.requestScrollToItem(0)
+        }
+        SheetScrollToTopTitle(stringResource(R.string.detail_link_app)) {
+            scope.launch { listState.scrollToTop(animate) }
+        }
         Column(
             modifier = Modifier
                 .fillMaxWidth()
-                .heightIn(max = maxSheetHeight),
+                // The sheet applies IME insets. The requested height is clamped to its available space.
+                .then(if (page.fullHeight) Modifier.height(maxSheetHeight) else Modifier.heightIn(max = maxSheetHeight)),
         ) {
-            if (appsLoading) {
-                // 加载位：与分支弹层同款（独立等待位 = 居中 dots）
+            if (result == null) {
                 Box(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .padding(vertical = 24.dp),
+                    modifier = Modifier.fillMaxSize(),
                     contentAlignment = Alignment.Center,
                 ) {
                     LoadingDots(dotSize = 5.dp)
                 }
+                return@Column
             }
-            // 扫描失败：错误态 + 重试（此前异常吞成空列表，sheet 直接空白）
-            if (appsFailed) {
+            if (result.isFailure) {
                 StatusPage(
                     icon = null,
                     isError = true,
@@ -145,57 +162,60 @@ fun AppPickerSheet(
                     title = stringResource(R.string.load_failed),
                     subtitle = stringResource(R.string.status_error_subtitle),
                     actionLabel = stringResource(R.string.retry),
-                    onAction = { loadApps() },
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .padding(vertical = 16.dp),
+                    onAction = { page.retry++ },
+                    modifier = Modifier.fillMaxSize(),
                 )
+                return@Column
             }
-            // 零应用（包可见性受限或纯系统环境）：此前全空白无任何解释
-            if (!appsLoading && !appsFailed && apps.isEmpty() && query.isBlank()) {
+            if (apps.isEmpty()) {
                 Text(
                     text = stringResource(R.string.picker_empty_apps),
                     style = MiuixTheme.textStyles.footnote1,
                     color = MiuixTheme.colorScheme.onBackgroundVariant,
                     modifier = Modifier
                         .fillMaxWidth()
+                        .then(if (page.fullHeight) Modifier.fillMaxSize().wrapContentHeight() else Modifier)
                         .padding(vertical = 32.dp),
                     textAlign = androidx.compose.ui.text.style.TextAlign.Center,
                 )
+                return@Column
             }
-            if (apps.size > 15) {
+            if (searchable) {
                 TextField(
                     value = query,
-                    onValueChange = { if (it.length <= io.candy.tick.ui.common.InputLimits.SEARCH) query = it },
+                    onValueChange = ::filterApps,
                     label = stringResource(R.string.picker_search_app),
                     singleLine = true,
+                    trailingIcon = if (query.isNotEmpty()) {
+                        { TextFieldActionButton(onClick = { filterApps("") }) }
+                    } else null,
                     modifier = Modifier
                         .fillMaxWidth()
                         .padding(horizontal = 16.dp),
                 )
             }
-            // 搜索无结果：轻量居中提示（sheet 语境，不套重型空态组件）
-            if (query.isNotBlank() && filtered.isEmpty()) {
-                Text(
-                    text = stringResource(R.string.picker_no_match),
-                    style = MiuixTheme.textStyles.footnote1,
-                    color = MiuixTheme.colorScheme.onBackgroundVariant,
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .padding(vertical = 32.dp),
-                    textAlign = androidx.compose.ui.text.style.TextAlign.Center,
-                )
-            }
-            LazyColumn {
+            LazyColumn(state = listState) {
+                if (searchable && filtered.isEmpty()) {
+                    item {
+                        Text(
+                            text = stringResource(R.string.picker_no_match),
+                            style = MiuixTheme.textStyles.footnote1,
+                            color = MiuixTheme.colorScheme.onBackgroundVariant,
+                            modifier = Modifier.fillMaxWidth().fillParentMaxHeight().wrapContentHeight()
+                                .padding(horizontal = 16.dp),
+                            textAlign = androidx.compose.ui.text.style.TextAlign.Center,
+                        )
+                    }
+                }
                 items(filtered, key = { it.packageName }) { app ->
                     BasicComponent(
                         modifier = Modifier.fillMaxWidth(),
                         title = app.label,
                         summary = app.packageName,
                         startAction = {
-                            app.icon?.let {
+                            rememberAppIcon(app.packageName)?.let {
                                 AppIconImage(
-                                    bitmap = remember(app.packageName) { it.toImageBitmap() },
+                                    bitmap = it,
                                     size = 36.dp,
                                     corner = 9.dp,
                                 )

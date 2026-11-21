@@ -1,11 +1,11 @@
 package io.candy.tick.ui.detail
 
 import android.os.Build
-import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.FlowRow
 import androidx.compose.foundation.layout.heightIn
 import top.yukonga.miuix.kmp.basic.Icon
 import androidx.compose.foundation.layout.Row
@@ -15,11 +15,11 @@ import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.lazy.LazyItemScope
 import androidx.compose.foundation.lazy.LazyListScope
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.background
-import androidx.compose.animation.animateContentSize
 import androidx.compose.animation.togetherWith
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
@@ -31,15 +31,17 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.semantics.Role
-import androidx.compose.ui.semantics.role
-import androidx.compose.ui.semantics.selected
-import androidx.compose.ui.semantics.semantics
+import androidx.compose.foundation.selection.selectable
+import androidx.compose.foundation.selection.selectableGroup
+import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.buildAnnotatedString
+import androidx.compose.ui.text.withStyle
 import androidx.compose.ui.unit.dp
 import io.candy.tick.R
 import io.candy.tick.data.model.ApkAsset
 import io.candy.tick.data.model.ReleaseRecord
 import io.candy.tick.ui.common.PrimaryButton
-import io.candy.tick.ui.common.RelTimeText
+import io.candy.tick.ui.common.relTimeString
 import io.candy.tick.ui.theme.MonoTokenStyle
 import io.candy.tick.util.ApkPicker
 import top.yukonga.miuix.kmp.basic.Card
@@ -48,8 +50,6 @@ import top.yukonga.miuix.kmp.basic.Text
 import top.yukonga.miuix.kmp.theme.MiuixTheme
 import androidx.compose.ui.res.vectorResource
 import androidx.compose.ui.graphics.vector.ImageVector
-import androidx.compose.foundation.verticalScroll
-import androidx.compose.foundation.rememberScrollState
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.setValue
 import io.candy.tick.ui.common.Motion
@@ -57,64 +57,63 @@ import io.candy.tick.ui.common.Motion
 /** Release 历史 + APK 资产（多 APK 自动推荐 + 手选；下载 → 安装） */
 fun LazyListScope.releaseList(
     state: DetailViewModel.UiState,
+    releases: List<ReleaseRecord>,
+    notificationTag: String?,
+    contentModifier: Modifier,
     localVersion: String?,
     htmlBase: String,
+    showPagingIndicator: Boolean,
     onLoadMore: () -> Unit,
     onSelectAsset: (String, ApkAsset) -> Unit,
+    onRead: (String) -> Unit,
     onDownload: (ReleaseRecord, ApkAsset) -> Unit,
     onRetry: (ReleaseRecord, ApkAsset) -> Unit,
     onInstallDownloaded: () -> Unit,
     onDeleteDownloaded: () -> Unit,
     onCancelDownload: () -> Unit,
 ) {
-    items(count = state.releases.size, key = { state.releases[it].tagName + it }) { index ->
-        val release = state.releases[index]
-        // tab 切换/分页加载时卡片淡入（150 微反馈档，与首页/提交列表同语言）；
-        // placementSpec=snap：展开某张卡时下方卡片每帧都在位移——spring 位移动画
-        // 会让每帧多跑 N 个 spring 且边缘滞后于生长中的卡（gfxinfo 实测 p50 29ms
-        // 的主缓解）；snap 贴合生长边缘，视觉同步性更好
-        val itemMod = Modifier.fillMaxWidth().animateItem(
-            fadeInSpec = androidx.compose.animation.core.tween(Motion.MICRO),
-            placementSpec = androidx.compose.animation.core.snap(),
-            fadeOutSpec = androidx.compose.animation.core.tween(Motion.MICRO),
-        )
+    items(
+        count = releases.size,
+        key = { "releases:${releases[it].tagName}" },
+        contentType = { "release" },
+    ) { index ->
+        val release = releases[index]
         ReleaseCard(
-            modifier = itemMod,
             release = release,
+            modifier = contentModifier,
             state = state,
             localVersion = localVersion,
             htmlBase = htmlBase,
+            fromNotification = release.tagName == notificationTag,
+            onRead = { onRead(release.tagName) },
             onSelectAsset = onSelectAsset,
             onDownload = onDownload,
             onRetry = onRetry,
-            onInstallDownloaded = onInstallDownloaded,
+            onInstallDownloaded = {
+                onRead(release.tagName)
+                onInstallDownloaded()
+            },
             onDeleteDownloaded = onDeleteDownloaded,
             onCancelDownload = onCancelDownload,
         )
     }
     item(key = "releases-footer") {
-        // fillParentMaxHeight 须在 item{}（LazyItemScope）内取：随屏高自适应的空态/错误态高度
-        ReleaseFooter(state = state, onLoadMore = onLoadMore, Modifier.fillParentMaxHeight(0.45f))
+        ReleaseFooter(state, releases.size, onLoadMore, showPagingIndicator, contentModifier)
     }
 }
 
 @Composable
-private fun ReleaseFooter(
+private fun LazyItemScope.ReleaseFooter(
     state: DetailViewModel.UiState,
+    displayedCount: Int,
     onLoadMore: () -> Unit,
-    pageModifier: Modifier = Modifier, // item{} 注入的 fillParentMaxHeight（空态/错误态用）
+    showPagingIndicator: Boolean,
+    contentModifier: Modifier,
 ) {
-    val scheme = MiuixTheme.colorScheme
+    val pageModifier = contentModifier.fillParentMaxHeight(0.45f)
     when {
-        // page1 重载（reloading）时旧内容原地保留、刷新反馈交给刷新头/静默，不叠加小点；
-        // 空列表的重载仍显示（此时它是唯一反馈）；翻页加载正常显示小点
-        state.releasesLoading && (state.releases.isEmpty() || !state.releasesReloading) ->
-            androidx.compose.foundation.layout.Box(
-                modifier = Modifier.fillMaxWidth().padding(vertical = 8.dp),
-                contentAlignment = Alignment.Center,
-            ) {
-                io.candy.tick.ui.common.LoadingDots(dotSize = 5.dp)
-            }
+        state.releasesReloading -> Unit // 页首刷新统一由顶栏或下拉刷新头反馈
+        state.releasesLoading -> if (showPagingIndicator) DetailPagingIndicator()
         state.releasesFailed -> io.candy.tick.ui.common.StatusPage(
             icon = ImageVector.vectorResource(R.drawable.ic_close),
             isError = true,
@@ -125,23 +124,27 @@ private fun ReleaseFooter(
             modifier = pageModifier.fillMaxWidth(),
         )
         !state.releasesEnd && state.releases.isNotEmpty() -> LaunchedEffect(state.releases.size) { onLoadMore() }
-        state.releases.isEmpty() -> io.candy.tick.ui.common.StatusPage(
+        displayedCount == 0 && state.releasesEnd -> io.candy.tick.ui.common.StatusPage(
             icon = ImageVector.vectorResource(R.drawable.ic_file),
             title = stringResource(R.string.detail_no_releases),
             modifier = pageModifier.fillMaxWidth(),
         )
         // 到底且有内容：终点提示（与 CommitFooter 对称，替代原先挂在 Screen 层的外置 if）
-        else -> io.candy.tick.ui.common.FooterText(text = stringResource(R.string.list_end), count = state.releases.size)
+        displayedCount > 0 -> io.candy.tick.ui.common.FooterText(
+            R.plurals.footer_releases, displayedCount, contentModifier,
+        )
     }
 }
 
 @Composable
 private fun ReleaseCard(
-    modifier: Modifier = Modifier,
     release: ReleaseRecord,
+    modifier: Modifier,
     state: DetailViewModel.UiState,
     localVersion: String?,
     htmlBase: String,
+    fromNotification: Boolean,
+    onRead: () -> Unit,
     onSelectAsset: (String, ApkAsset) -> Unit,
     onDownload: (ReleaseRecord, ApkAsset) -> Unit,
     onRetry: (ReleaseRecord, ApkAsset) -> Unit,
@@ -154,76 +157,35 @@ private fun ReleaseCard(
     val (autoPick, isAuto) = remember(release) {
         ApkPicker.pick(release.apkAssets, Build.SUPPORTED_ABIS.toList())
     }
-    val selected = state.selectedAssets[release.tagName] ?: autoPick
+    val selected = candidates.find { it.name == state.selectedAssets[release.tagName]?.name } ?: autoPick
     // 更新日志展开态：body 有内容才可展开（chevron 提示）
     val hasNotes = release.body.isNotBlank()
     // rememberSaveable：列表项滚出屏销毁后回来保持展开态（remember 会丢）
     var notesExpanded by androidx.compose.runtime.saveable.rememberSaveable(release.tagName) { mutableStateOf(false) }
+    val cardInset = 6.dp
+    val sectionGap = 4.dp
     Card(modifier = modifier.fillMaxWidth()) {
-        Column(modifier = Modifier.padding(horizontal = 16.dp, vertical = 8.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
-            Row(
-                verticalAlignment = Alignment.CenterVertically,
-                modifier = if (hasNotes) {
-                    Modifier
-                        .fillMaxWidth()
-                        // clip 在 clickable 前：按压色块圆角化（与首页触发行同款 10dp）
-                        .clip(RoundedCornerShape(10.dp))
-                        .clickable { notesExpanded = !notesExpanded }
-                        // 内缩 8dp：按下色块与 tag 文字/箭头的左右间隙对称（此前色块
-                        // 贴 tag 文字、右侧却有空隙；与首页触发行 8dp 对齐）
-                        .padding(horizontal = 8.dp)
-                } else {
-                    Modifier.fillMaxWidth()
+        Column(
+            modifier = Modifier.padding(horizontal = 16.dp, vertical = cardInset),
+            verticalArrangement = Arrangement.spacedBy(sectionGap),
+        ) {
+            ReleaseHeader(
+                release = release,
+                hasPackages = candidates.isNotEmpty(),
+                hasNotes = hasNotes,
+                current = localVersion != null && io.candy.tick.util.VersionCompare.matchesTag(release.tagName, localVersion),
+                expanded = notesExpanded,
+                onToggleNotes = {
+                    onRead()
+                    notesExpanded = !notesExpanded
                 },
-            ) {
+            )
+            if (fromNotification) {
                 Text(
-                    text = release.tagName,
-                    style = MonoTokenStyle.copy(fontWeight = androidx.compose.ui.text.font.FontWeight.Bold),
+                    text = stringResource(R.string.detail_release_from_notification),
+                    style = MiuixTheme.textStyles.footnote2,
                     color = scheme.primaryVariant,
                 )
-                Spacer(Modifier.width(10.dp))
-                RelTimeText(
-                    date = release.publishedAt,
-                    color = scheme.onBackgroundVariant,
-                    style = MiuixTheme.textStyles.footnote2,
-                )
-                Spacer(Modifier.weight(1f))
-                // 「当前」徽章：tag 规范化后等于本机已装版本（去 v/V 前缀；
-                // 花式 tag 不匹配则不显示——宁缺勿错）。中性色：与推荐的薄荷（建议）区分，这是事实
-                if (localVersion != null && release.tagName.removePrefix("v").removePrefix("V") == localVersion) {
-                    Row(
-                        modifier = Modifier
-                            .clip(CircleShape)
-                            .background(scheme.secondaryVariant)
-                            .padding(horizontal = 8.dp, vertical = 2.dp),
-                    ) {
-                        Text(
-                            text = stringResource(R.string.release_current),
-                            color = scheme.onBackgroundVariant,
-                            style = MiuixTheme.textStyles.footnote2,
-                        )
-                    }
-                    Spacer(Modifier.width(8.dp))
-                }
-                // 更新日志 chevron：有 body 时提示 tag 行可展开
-                if (hasNotes) {
-                    androidx.compose.animation.Crossfade(
-                        targetState = notesExpanded,
-                        animationSpec = androidx.compose.animation.core.tween(Motion.MICRO),
-                        label = "notesChevron",
-                    ) { exp ->
-                        Icon(
-                            imageVector = if (exp) {
-                                ImageVector.vectorResource(R.drawable.ic_chevron_up)
-                            } else {
-                                ImageVector.vectorResource(R.drawable.ic_chevron_down)
-                            },
-                            contentDescription = null,
-                            tint = scheme.onBackgroundVariant,
-                            modifier = Modifier.size(18.dp),
-                        )
-                    }
-                }
             }
 
             // 更新日志展开区（220 展开档与首页卡一致）：纯文本限高可滚 + GitHub 链接
@@ -247,84 +209,36 @@ private fun ReleaseCard(
                     Column(
                         modifier = Modifier.graphicsLayer(),
                     ) {
-                        val linkCtx = androidx.compose.ui.platform.LocalContext.current
-                        // ClickableText + 自定义 URL span：经典稳定路径（LinkAnnotation 在
-                        // Miuix Text 包装下闪退），命中 span 即开浏览器
-                        val noteStyle = MiuixTheme.textStyles.body2.copy(color = scheme.onBackgroundVariant)
-                        // remember：长 body 的正则解析+AnnotatedString 构建只跑一次
-                        // （此前每次重组都重建，展开动画期间每帧重算——长日志卡顿主因）
-                        // repoSlug 供 #123 issue 引用转可点链接
-                        val repoSlug = state.repo?.let { "${it.owner}/${it.repo}" }
-                        val notesText = remember(release.tagName, release.body, scheme.primaryVariant, repoSlug) {
-                            io.candy.tick.util.ReleaseNotes.annotated(
-                                md = release.body,
-                                linkColor = scheme.primaryVariant,
-                                repoSlug = repoSlug,
-                            )
-                        }
-                        androidx.compose.foundation.text.ClickableText(
-                            text = notesText,
-                            style = noteStyle,
-                            modifier = Modifier
-                                .heightIn(max = 260.dp)
-                                .verticalScroll(rememberScrollState()),
-                        ) { offset ->
-                            notesText.getStringAnnotations("URL", offset, offset)
-                                .firstOrNull()?.item?.let { url ->
-                                    runCatching {
-                                        linkCtx.startActivity(
-                                            android.content.Intent(
-                                                android.content.Intent.ACTION_VIEW,
-                                                android.net.Uri.parse(url),
-                                            ),
-                                        )
-                                    }
-                                }
-                        }
-                        Spacer(Modifier.height(6.dp))
-                        // 尾部跳转：GitHub 该 release 页（全局文字链组件：图标+下划线+薄荷）
-                        val ctx = androidx.compose.ui.platform.LocalContext.current
-                        io.candy.tick.ui.common.LinkText(
-                            text = stringResource(R.string.release_view_on_github),
-                            onClick = {
-                                runCatching {
-                                    ctx.startActivity(
-                                        android.content.Intent(
-                                            android.content.Intent.ACTION_VIEW,
-                                            android.net.Uri.parse("$htmlBase/releases/tag/${release.tagName}"),
-                                        ),
-                                    )
-                                }
+                        io.candy.tick.ui.common.ReleaseNotesBody(
+                            markdown = release.body,
+                            repoSlug = state.repo?.let { "${it.owner}/${it.repo}" },
+                            repoUrl = htmlBase,
+                            tag = release.tagName,
+                            maxHeight = 260.dp,
+                            spaceAfter = when (candidates.size) {
+                                0 -> cardInset
+                                1 -> sectionGap + AssetRowInset
+                                else -> sectionGap
                             },
-                            showIcon = true,
                         )
                     }
                 }
             }
-            release.name?.takeIf { it.isNotBlank() && it != release.tagName }?.let {
-                // 与提交消息 body1 同级：都是人写给人看的内容主体（此前 body2 与镜像卡差异）
-                Text(
-                    text = it,
-                    style = MiuixTheme.textStyles.body1,
-                    color = scheme.onBackground,
-                )
-            }
-
-            if (candidates.isEmpty()) {
-                Text(
-                    text = stringResource(R.string.detail_no_apk),
-                    style = MiuixTheme.textStyles.footnote1,
-                    color = scheme.onBackgroundVariant,
-                )
-            } else {
-                candidates.forEach { asset ->
-                    AssetRow(
-                        asset = asset,
-                        // 仅多候选时才标「推荐」（唯一候选没有选择问题，不啰嗦）
-                        recommended = isAuto && candidates.size > 1 && selected?.name == asset.name,
-                        selected = selected?.name == asset.name,
-                        onSelect = { onSelectAsset(release.tagName, asset) },
-                    )
+            if (candidates.isNotEmpty()) {
+                val multiple = candidates.size > 1
+                Column(if (multiple) Modifier.selectableGroup() else Modifier) {
+                    candidates.forEach { asset ->
+                        AssetRow(
+                            asset = asset,
+                            recommended = multiple && isAuto && autoPick?.name == asset.name,
+                            selectable = multiple,
+                            selected = selected?.name == asset.name,
+                            onSelect = {
+                                onRead()
+                                onSelectAsset(release.tagName, asset)
+                            },
+                        )
+                    }
                 }
 
                 // 动作区四相（download/progress/failed/downloaded）：AnimatedContent 柔切换，
@@ -334,8 +248,8 @@ private fun ReleaseCard(
                 val mine = dl != null && dl.releaseKey == release.tagName &&
                     dl.assetName == selected?.name
                 val actionPhase = when {
-                    state.repo?.downloadedApk?.version == release.tagName -> "downloaded"
-                    mine && dl is RepoDownloadState.Active && !dl.fromHeader -> "progress"
+                    state.repo?.downloadedApk?.let { it.version == release.tagName && it.displayAssetName == selected?.name } == true -> "downloaded"
+                    dl is RepoDownloadState.Active && dl.releaseKey == release.tagName && !dl.fromHeader -> "progress"
                     mine && dl is RepoDownloadState.Failed -> "failed"
                     else -> "download"
                 }
@@ -343,7 +257,8 @@ private fun ReleaseCard(
                 // SizeTransform 双层打架 = 切相卡顿根源（取消时高度变化发闷）；收敛为显式
                 // SizeTransform 180 与 fade 同拍；clip=false 容许过渡期两相叠影，由 fade 收尾
                 androidx.compose.animation.AnimatedContent(
-                    targetState = actionPhase,
+                    targetState = actionPhase to dl,
+                    contentKey = { it.first },
                     transitionSpec = {
                         ((androidx.compose.animation.fadeIn(androidx.compose.animation.core.tween(Motion.PHASE)) +
                             androidx.compose.animation.slideInVertically(
@@ -357,7 +272,7 @@ private fun ReleaseCard(
                             )
                     },
                     label = "releaseAction",
-                ) { phase ->
+                ) { (phase, transfer) ->
                     when (phase) {
                         "downloaded" -> Row(
                             modifier = Modifier.fillMaxWidth(),
@@ -387,7 +302,7 @@ private fun ReleaseCard(
                             }
                         }
                         "progress" -> Column {
-                            val active = dl as? RepoDownloadState.Active
+                            val active = transfer as? RepoDownloadState.Active
                             val animatedProgress by androidx.compose.animation.core.animateFloatAsState(
                                 targetValue = active?.progress ?: 0f,
                                 animationSpec = androidx.compose.animation.core.tween(Motion.PROGRESS),
@@ -404,7 +319,7 @@ private fun ReleaseCard(
                                         (animatedProgress * 100).toInt(),
                                     ) + (
                                         // 大小参考（asset 带 size 时）：大文件不再「不知要等多久」
-                                        selected?.takeIf { it.size > 0 }?.let { a ->
+                                        candidates.find { it.name == active?.assetName && it.size > 0 }?.let { a ->
                                             val totalMb = a.size / (1024f * 1024f)
                                             String.format(
                                                 java.util.Locale.US, " · %.1f/%.0f MB",
@@ -446,7 +361,7 @@ private fun ReleaseCard(
                                 .background(scheme.errorContainer)
                                 .padding(horizontal = 12.dp, vertical = 10.dp),
                         ) {
-                            val failed = dl as? RepoDownloadState.Failed
+                            val failed = transfer as? RepoDownloadState.Failed
                             Icon(
                                 imageVector = ImageVector.vectorResource(R.drawable.ic_info),
                                 contentDescription = null,
@@ -455,14 +370,7 @@ private fun ReleaseCard(
                             )
                             Spacer(Modifier.width(8.dp))
                             Text(
-                                text = stringResource(
-                                    R.string.download_failed_reason,
-                                    // 结构化错误本地化优先，原始 message 兜底（英文技术串也比空白强）
-                                    failed?.let { f ->
-                                        f.error?.let { io.candy.tick.ui.common.sourceErrorText(it) }
-                                            ?: f.message
-                                    } ?: stringResource(R.string.err_network),
-                                ),
+                                text = downloadFailureText(failed),
                                 style = MiuixTheme.textStyles.footnote1,
                                 color = scheme.onErrorContainer,
                                 maxLines = 2,
@@ -495,6 +403,7 @@ private fun ReleaseCard(
                                 PrimaryButton(
                                     text = stringResource(R.string.download_apk),
                                     onClick = { onDownload(release, sel) },
+                                    enabled = dl !is RepoDownloadState.Active,
                                     modifier = Modifier.fillMaxWidth(),
                                 )
                             } else {
@@ -518,38 +427,118 @@ private fun ReleaseCard(
 }
 
 @Composable
+private fun ReleaseHeader(
+    release: ReleaseRecord,
+    hasPackages: Boolean,
+    hasNotes: Boolean,
+    current: Boolean,
+    expanded: Boolean,
+    onToggleNotes: () -> Unit,
+) {
+    val scheme = MiuixTheme.colorScheme
+    val name = release.name?.trim()?.takeIf {
+        it.isNotEmpty() && !it.trimStart('v', 'V').equals(release.tagName.trimStart('v', 'V'), ignoreCase = true)
+    }
+    val published = release.publishedAt?.let { relTimeString(it) }
+    val noPackage = if (hasPackages) null else stringResource(R.string.detail_no_apk)
+    val details = buildAnnotatedString {
+        if (name != null) withStyle(MonoTokenStyle.toSpanStyle()) { append(release.tagName) }
+        if (published != null) {
+            if (length > 0) append(" · ")
+            append(published)
+        }
+        if (noPackage != null) {
+            if (length > 0) append(" · ")
+            append(noPackage)
+        }
+    }
+    val expandAction = if (hasNotes) {
+        Modifier.clip(RoundedCornerShape(10.dp)).clickable(
+            role = Role.Button,
+            onClickLabel = stringResource(if (expanded) R.string.collapse_details else R.string.expand_details),
+            onClick = onToggleNotes,
+        ).heightIn(min = 48.dp)
+    } else Modifier
+    Column(
+        Modifier.fillMaxWidth().then(expandAction).padding(vertical = 4.dp),
+        verticalArrangement = Arrangement.spacedBy(2.dp, Alignment.CenterVertically),
+    ) {
+        Text(
+            text = name ?: release.tagName,
+            style = if (name == null) MonoTokenStyle.copy(fontWeight = FontWeight.Bold)
+                else MiuixTheme.textStyles.body1.copy(fontWeight = FontWeight.Medium),
+            color = if (name == null) scheme.primaryVariant else scheme.onBackground,
+        )
+        if (details.isNotEmpty() || current || hasNotes) {
+            Row(
+                Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.spacedBy(6.dp),
+                verticalAlignment = Alignment.CenterVertically,
+            ) {
+                FlowRow(
+                    Modifier.weight(1f),
+                    horizontalArrangement = Arrangement.spacedBy(6.dp),
+                    verticalArrangement = Arrangement.spacedBy(2.dp),
+                    itemVerticalAlignment = Alignment.CenterVertically,
+                ) {
+                    if (details.isNotEmpty()) {
+                        Text(details, style = MiuixTheme.textStyles.footnote2, color = scheme.onBackgroundVariant)
+                    }
+                    if (current) {
+                        Text(
+                            text = stringResource(R.string.release_current),
+                            style = MiuixTheme.textStyles.footnote2,
+                            color = scheme.onBackgroundVariant,
+                            modifier = Modifier.background(scheme.secondaryVariant, CircleShape)
+                                .padding(horizontal = 8.dp, vertical = 2.dp),
+                        )
+                    }
+                }
+                if (hasNotes) {
+                    Icon(
+                        imageVector = ImageVector.vectorResource(
+                            if (expanded) R.drawable.ic_chevron_up else R.drawable.ic_chevron_down,
+                        ),
+                        contentDescription = null,
+                        tint = scheme.onBackgroundVariant,
+                        modifier = Modifier.size(18.dp),
+                    )
+                }
+            }
+        }
+    }
+}
+
+private val AssetRowInset = 4.dp
+
+@Composable
 private fun AssetRow(
     asset: ApkAsset,
     recommended: Boolean,
+    selectable: Boolean,
     selected: Boolean,
     onSelect: () -> Unit,
 ) {
     val scheme = MiuixTheme.colorScheme
-    // 按压染色多态（全行热区；圈/勾选中动画由 radioTint 承担，名称恒主色）
-    val (pressSrc, pressColor) = io.candy.tick.ui.common.rememberRowPressTint()
-    Row(
-        modifier = Modifier
-            .fillMaxWidth()
-            // 单选语义：圈/勾图形纯视觉，读屏以「单选按钮 + 已/未选中」播报
-            // （此前勾上硬编码英文字面量 "selected"，中文读屏也念英文，且会被合并进行标签）
-            .semantics {
-                role = Role.RadioButton
-                this.selected = selected
-            }
+    val selection = if (selectable) {
+        val (pressSrc, pressColor) = io.candy.tick.ui.common.rememberRowPressTint()
+        Modifier
             .clip(RoundedCornerShape(10.dp))
             .background(pressColor, RoundedCornerShape(10.dp))
-            .clickable(
+            .selectable(
+                selected = selected,
+                role = Role.RadioButton,
                 interactionSource = pressSrc,
                 indication = null,
                 onClick = onSelect,
             )
-            .padding(vertical = 8.dp),
+            .heightIn(min = 48.dp)
+    } else Modifier
+    Row(
+        modifier = Modifier.fillMaxWidth().then(selection).padding(vertical = AssetRowInset),
         verticalAlignment = Alignment.CenterVertically,
     ) {
-        Box(
-            modifier = Modifier.size(20.dp),
-            contentAlignment = Alignment.Center,
-        ) {
+        if (selectable) {
             // 单选框（Material 3 / HyperOS 单选惯例）：圆环恒定 + 圆心实心点淡入缩放——
             // 两态同族（都是圆），只动圆心差异部分。此前 20dp 裸勾叠在环上，笔画横穿
             // 圆环、形状重心跳（用户实测「略有点丑」）
@@ -591,8 +580,8 @@ private fun AssetRow(
                     )
                 }
             }
+            Spacer(Modifier.width(8.dp))
         }
-        Spacer(Modifier.width(8.dp))
         // 名称 = 行主体：恒主色（选中态由 radio 承担）；体积 = 次级元信息（footnote2 +
         // 次级色），8dp 间隙分隔——此前名称/体积同色无间隙，长名换行时糊成一片
         Text(
@@ -611,11 +600,11 @@ private fun AssetRow(
                 style = MiuixTheme.textStyles.footnote2,
                 color = scheme.onBackgroundVariant,
             )
-            Spacer(Modifier.width(8.dp))
         }
         // 推荐胶囊：瞬时显隐——任何动画（宽度/淡出占位）都会引起文件名布局跳变（抖动感），
         // 视觉柔和不抖的职责交给 ✓ 的 Crossfade 与文字色渐变，标签一次到位
         if (recommended) {
+            Spacer(Modifier.width(8.dp))
             Row(
                 modifier = Modifier
                     .clip(CircleShape)

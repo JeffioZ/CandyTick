@@ -1,0 +1,136 @@
+package io.candy.tick.ui.common
+
+import androidx.compose.foundation.ScrollState
+import androidx.compose.foundation.border
+import androidx.compose.foundation.clickable
+import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.sizeIn
+import androidx.compose.foundation.lazy.LazyListState
+import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.runtime.Composable
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
+import androidx.compose.ui.Alignment
+import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clip
+import androidx.compose.ui.focus.onFocusChanged
+import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.vector.ImageVector
+import androidx.compose.ui.input.InputMode
+import androidx.compose.ui.platform.LocalInputModeManager
+import androidx.compose.ui.res.stringResource
+import androidx.compose.ui.res.vectorResource
+import androidx.compose.ui.semantics.Role
+import androidx.compose.ui.semantics.heading
+import androidx.compose.ui.semantics.semantics
+import androidx.compose.ui.text.TextStyle
+import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.style.TextOverflow
+import androidx.compose.ui.unit.dp
+import io.candy.tick.R
+import top.yukonga.miuix.kmp.basic.Icon
+import top.yukonga.miuix.kmp.basic.SmallTopAppBar
+import top.yukonga.miuix.kmp.basic.Text
+import top.yukonga.miuix.kmp.basic.TopAppBarDefaults
+import top.yukonga.miuix.kmp.theme.MiuixTheme
+
+@Composable
+internal fun ScrollToTopTitle(
+    text: String,
+    onClick: (() -> Unit)?,
+    modifier: Modifier = Modifier,
+    style: TextStyle = MiuixTheme.textStyles.title4,
+    color: Color = MiuixTheme.colorScheme.onBackground,
+) {
+    val shape = RoundedCornerShape(10.dp)
+    val action = if (onClick == null) Modifier else {
+        var focused by remember { mutableStateOf(false) }
+        val focusRing = if (focused && LocalInputModeManager.current.inputMode == InputMode.Keyboard) {
+            Modifier.border(1.dp, MiuixTheme.colorScheme.primaryVariant, shape)
+        } else Modifier
+        focusRing
+            .onFocusChanged { focused = it.isFocused }
+            .clickable(
+                interactionSource = null,
+                indication = null,
+                onClickLabel = stringResource(R.string.scroll_to_top),
+                role = Role.Button,
+                onClick = onClick,
+            )
+    }
+    Box(
+        modifier = modifier
+            .clip(shape)
+            .then(action)
+            .semantics { heading() }
+            .sizeIn(minWidth = 48.dp, minHeight = 48.dp),
+        contentAlignment = Alignment.Center,
+    ) {
+        Text(
+            text = text,
+            style = style,
+            color = color,
+            maxLines = 1,
+            softWrap = false,
+            overflow = TextOverflow.Ellipsis,
+        )
+    }
+}
+
+@Composable
+internal fun SheetScrollToTopTitle(text: String, onClick: (() -> Unit)?) {
+    Box(Modifier.fillMaxWidth(), contentAlignment = Alignment.Center) {
+        ScrollToTopTitle(
+            text = text,
+            onClick = onClick,
+            style = MiuixTheme.textStyles.title4.copy(fontWeight = FontWeight.Medium),
+            color = MiuixTheme.colorScheme.onSurface,
+        )
+    }
+}
+
+/** A centered, tappable title in Miuix's inset-aware small app bar. */
+@Composable
+internal fun CenteredScrollToTopBar(title: String, onBack: () -> Unit, onTitleClick: () -> Unit) {
+    val backInset = TopAppBarDefaults.NavigationIconPadding
+    SmallTopAppBar(
+        title = "",
+        color = Color.Transparent,
+        navigationIconPadding = 0.dp,
+        navigationIcon = {
+            Box(Modifier.fillMaxWidth(), contentAlignment = Alignment.Center) {
+                ScrollToTopTitle(
+                    text = title,
+                    onClick = onTitleClick,
+                    modifier = Modifier.padding(horizontal = backInset + 48.dp),
+                    style = MiuixTheme.textStyles.title3.copy(fontWeight = FontWeight.Medium),
+                )
+                PressIconButton(
+                    onClick = onBack,
+                    contentDescription = stringResource(R.string.back),
+                    modifier = Modifier.align(Alignment.CenterStart).padding(start = backInset),
+                ) {
+                    Icon(
+                        imageVector = ImageVector.vectorResource(R.drawable.ic_back),
+                        contentDescription = null,
+                        tint = MiuixTheme.colorScheme.onBackground,
+                    )
+                }
+            }
+        },
+    )
+}
+
+internal suspend fun LazyListState.scrollToTop(animated: Boolean) {
+    if (!canScrollBackward && !isScrollInProgress) return
+    if (animated) animateScrollToItem(0) else scrollToItem(0)
+}
+
+internal suspend fun ScrollState.scrollToTop(animated: Boolean) {
+    if (value == 0 && !isScrollInProgress) return
+    if (animated) animateScrollTo(0) else scrollTo(0)
+}

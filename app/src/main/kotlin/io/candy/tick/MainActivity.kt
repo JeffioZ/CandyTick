@@ -1,5 +1,6 @@
 package io.candy.tick
 
+import android.content.Intent
 import android.os.Bundle
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
@@ -7,31 +8,54 @@ import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.activity.enableEdgeToEdge
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.core.splashscreen.SplashScreen.Companion.installSplashScreen
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import io.candy.tick.data.Notifications
 import io.candy.tick.ui.nav.AppNavHost
+import io.candy.tick.ui.nav.AppRoute
+import io.candy.tick.ui.nav.RouteDetail
+import io.candy.tick.ui.nav.RouteHome
+import io.candy.tick.ui.nav.RouteSettings
 import io.candy.tick.ui.theme.CandyTickTheme
+import kotlinx.serialization.json.Json
+import java.util.UUID
+
+private const val SAVED_NOTIFICATION_TARGET = "pending_notification_target"
 
 class MainActivity : ComponentActivity() {
 
-    // 通知导航目标：冷启动（onCreate）与热启动（onNewIntent，singleTop 复用实例）双路径写入；
-    // AppNavHost 消费后清空（mutableStateOf 驱动 composition 内的导航）
-    private var pendingNavRepoId by androidx.compose.runtime.mutableStateOf<Long?>(null)
-    private var pendingNavSettings by androidx.compose.runtime.mutableStateOf(false)
+    private var pendingNavTarget by mutableStateOf<AppRoute?>(null)
 
-    override fun onNewIntent(intent: android.content.Intent) {
+    override fun onNewIntent(intent: Intent) {
         super.onNewIntent(intent)
         consumeNavIntent(intent)
     }
 
-    private fun consumeNavIntent(intent: android.content.Intent) {
-        intent.getLongExtra(io.candy.tick.data.Notifications.EXTRA_NAV_REPO, -1L)
-            .takeIf { it != -1L }?.let { pendingNavRepoId = it }
-        if (intent.getBooleanExtra(io.candy.tick.data.Notifications.EXTRA_NAV_SETTINGS, false)) {
-            pendingNavSettings = true
+    private fun consumeNavIntent(intent: Intent) {
+        val repoId = intent.getLongExtra(Notifications.EXTRA_NAV_REPO, -1L)
+        pendingNavTarget = when {
+            repoId != -1L -> {
+                val repos = (application as CandyTickApp).container.appStateStore.state.value.repos
+                if (repos.any { it.id == repoId }) {
+                    RouteDetail(
+                        repoId = repoId,
+                        releaseTag = intent.getStringExtra(Notifications.EXTRA_NAV_RELEASE_TAG)?.takeIf { it.isNotBlank() },
+                        releaseRequestId = UUID.randomUUID().toString(),
+                    )
+                } else RouteHome
+            }
+            intent.getBooleanExtra(Notifications.EXTRA_NAV_SETTINGS, false) -> RouteSettings
+            intent.action == Notifications.ACTION_NAV_HOME -> RouteHome
+            else -> return
         }
+    }
+
+    override fun onSaveInstanceState(outState: Bundle) {
+        super.onSaveInstanceState(outState)
+        pendingNavTarget?.let { outState.putString(SAVED_NOTIFICATION_TARGET, Json.encodeToString<AppRoute>(it)) }
     }
 
     override fun onCreate(savedInstanceState: Bundle?) {
@@ -62,7 +86,13 @@ class MainActivity : ComponentActivity() {
         }
         // 仅真冷启动消费 extra：旋转/后台回收重建会带着原 intent 重走 onCreate，
         // 此时再消费会把用户已离开的通知目标页重新压回栈
-        if (savedInstanceState == null) consumeNavIntent(intent)
+        if (savedInstanceState == null) {
+            consumeNavIntent(intent)
+        } else {
+            pendingNavTarget = savedInstanceState.getString(SAVED_NOTIFICATION_TARGET)?.let {
+                Json.decodeFromString<AppRoute>(it)
+            }
+        }
         // 应用保存的语言设置（在 setContent 前生效）；跟随系统（空串）时重置为系统 locale
         val savedLang = (application as CandyTickApp).container.appStateStore.state.value.settings.language
         val locale = if (savedLang.isNotBlank()) {
@@ -105,13 +135,8 @@ class MainActivity : ComponentActivity() {
                 CandyTickTheme(themeMode = state.settings.themeMode) {
                     Box(modifier = Modifier.fillMaxSize()) {
                         AppNavHost(
-                            container = container,
-                            pendingRepoId = pendingNavRepoId,
-                            pendingSettings = pendingNavSettings,
-                            onNavConsumed = {
-                                pendingNavRepoId = null
-                                pendingNavSettings = false
-                            },
+                            pendingTarget = pendingNavTarget,
+                            onNavConsumed = { if (pendingNavTarget == it) pendingNavTarget = null },
                         )
                         io.candy.tick.ui.common.FeedbackHost()
                         // 全局更新弹窗：设置页未打开时（后台自动检查）也能弹出

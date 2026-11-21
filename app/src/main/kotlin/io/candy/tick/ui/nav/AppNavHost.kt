@@ -14,11 +14,12 @@ import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.dp
+import androidx.lifecycle.viewmodel.navigation3.rememberViewModelStoreNavEntryDecorator
+import androidx.navigation3.runtime.rememberSaveableStateHolderNavEntryDecorator
 import androidx.navigation3.runtime.NavEntry
 import androidx.navigation3.runtime.NavKey
 import androidx.navigation3.runtime.rememberNavBackStack
 import androidx.navigation3.ui.NavDisplay
-import io.candy.tick.di.AppContainer
 import io.candy.tick.ui.add.AddScreen
 import io.candy.tick.ui.detail.DetailScreen
 import io.candy.tick.ui.list.ListScreen
@@ -26,45 +27,51 @@ import io.candy.tick.ui.settings.SettingsScreen
 import kotlinx.serialization.Serializable
 
 @Serializable
-data object RouteHome : NavKey
+sealed interface AppRoute : NavKey
 
 @Serializable
-data object RouteAdd : NavKey
+data object RouteHome : AppRoute
 
 @Serializable
-data object RouteSettings : NavKey
+data object RouteAdd : AppRoute
 
 @Serializable
-data class RouteDetail(val repoId: Long) : NavKey
+data object RouteSettings : AppRoute
+
+@Serializable
+data class RouteDetail(
+    val repoId: Long,
+    val releaseTag: String? = null,
+    val releaseRequestId: String? = null,
+) : AppRoute
 
 @Composable
 fun AppNavHost(
-    container: AppContainer,
-    pendingRepoId: Long? = null, // 通知点击目标：仓库新版本 → 详情页
-    pendingSettings: Boolean = false, // 自更新通知 → 设置页
-    onNavConsumed: () -> Unit = {},
+    pendingTarget: AppRoute? = null,
+    onNavConsumed: (AppRoute) -> Unit = {},
 ) {
     // 冷启动：初始栈直达目标（返回语义：目标 → 首页 → 桌面）
     val backStack = rememberNavBackStack(
         *buildList {
             add(RouteHome)
-            pendingRepoId?.let { add(RouteDetail(it)) }
-            if (pendingSettings) add(RouteSettings)
+            if (pendingTarget != null && pendingTarget != RouteHome) add(pendingTarget)
         }.toTypedArray(),
     )
-    // 消费通知目标（热启动压栈；冷启动初始栈已含 → 栈顶去重天然跳过）
-    androidx.compose.runtime.LaunchedEffect(pendingRepoId, pendingSettings) {
-        when {
-            pendingSettings -> {
-                if (backStack.lastOrNull() != RouteSettings) backStack.add(RouteSettings)
-                onNavConsumed()
-            }
-            pendingRepoId != null -> {
-                val target = RouteDetail(pendingRepoId)
-                if (backStack.lastOrNull() != target) backStack.add(target)
-                onNavConsumed()
-            }
+    androidx.compose.runtime.LaunchedEffect(pendingTarget) {
+        val target = pendingTarget ?: return@LaunchedEffect
+        val existing = backStack.indexOfLast { key ->
+            key == target || (target is RouteDetail && key is RouteDetail && key.repoId == target.repoId)
         }
+        if (existing < 0) {
+            backStack.add(target)
+        } else {
+            while (backStack.lastIndex > existing) backStack.removeLastOrNull()
+            if (backStack[existing] != target) backStack[existing] = target
+        }
+        onNavConsumed(target)
+    }
+    fun openFromHome(key: NavKey) {
+        if (backStack.lastOrNull() == RouteHome) backStack.add(key)
     }
     fun close(key: NavKey) {
         // pop 语义优先：正常路径（key 在栈顶）随返回转场退出；通知热启动叠栈时 key
@@ -82,13 +89,17 @@ fun AppNavHost(
     ) {
         NavDisplay(
             backStack = backStack,
+            entryDecorators = listOf(
+                rememberSaveableStateHolderNavEntryDecorator(),
+                rememberViewModelStoreNavEntryDecorator(),
+            ),
             onBack = { backStack.removeLastOrNull() },
             // 覆盖式转场（Android/HyperOS 系统惯例）：新页 100% 不透明滑入、旧页 25% 视差
             // 平移、全程无 fade——两页任何瞬间都不互相透明，交叉淡化时代的顶栏按钮
             // 「残留/遮挡」物理消失。前置：每页自备不透明背景（entryProvider 内包裹）。
             transitionSpec = {
-            slideInHorizontally(initialOffsetX = { it }, animationSpec = navSpec()) togetherWith
-                slideOutHorizontally(targetOffsetX = { -it / 4 }, animationSpec = navSpec())
+                slideInHorizontally(initialOffsetX = { it }, animationSpec = navSpec()) togetherWith
+                    slideOutHorizontally(targetOffsetX = { -it / 4 }, animationSpec = navSpec())
             },
             // 返回：与前进镜像（详情页 100% 滑出右侧，下层页从 -25% 归位）
             popTransitionSpec = { popTransform() },
@@ -96,38 +107,48 @@ fun AppNavHost(
             // 手指，100% 行程下放大成「前段不动、后段猛冲」），与 pop 的缓动曲线分开
             predictivePopTransitionSpec = { predTransform() },
             entryProvider = { key: NavKey ->
-            NavEntry(key) { k ->
-                // 每页自备不透明背景（覆盖式转场前置）：背景画在页与页之间而非最外层，
-                // 否则 100% 滑入的透明页会把旧页整块透出来（评审阻断项）。640dp 列外的
-                // 留白仍由外层 Box 负责（同色，视觉零变化）
-                Box(
-                    Modifier
-                        .fillMaxSize()
-                        .background(top.yukonga.miuix.kmp.theme.MiuixTheme.colorScheme.background),
-                ) {
-                    when (k) {
-                        RouteHome -> ListScreen(
-                            onAdd = { backStack.add(RouteAdd) },
-                            onOpenDetail = { backStack.add(RouteDetail(it)) },
-                            onOpenSettings = { backStack.add(RouteSettings) },
-                        )
-                        RouteAdd -> AddScreen(
-                            onClose = { close(k) },
-                            onAdded = { id ->
-                                close(k)
-                                backStack.add(RouteDetail(id))
-                            },
-                        )
-                        RouteSettings -> SettingsScreen(
-                            onBack = { close(k) },
-                        )
-                        is RouteDetail -> DetailScreen(
-                            repoId = k.repoId,
-                            onBack = { close(k) },
-                        )
+                val content: @Composable (NavKey) -> Unit = { k ->
+                    // 每页自备不透明背景（覆盖式转场前置）：背景画在页与页之间而非最外层，
+                    // 否则 100% 滑入的透明页会把旧页整块透出来（评审阻断项）。640dp 列外的
+                    // 留白仍由外层 Box 负责（同色，视觉零变化）
+                    Box(
+                        Modifier
+                            .fillMaxSize()
+                            .background(top.yukonga.miuix.kmp.theme.MiuixTheme.colorScheme.background),
+                    ) {
+                        when (k) {
+                            RouteHome -> ListScreen(
+                                onAdd = { openFromHome(RouteAdd) },
+                                onOpenDetail = { openFromHome(RouteDetail(it)) },
+                                onOpenSettings = { openFromHome(RouteSettings) },
+                            )
+                            RouteAdd -> AddScreen(
+                                onClose = { close(k) },
+                                onAdded = { id ->
+                                    // Completion may arrive during the outgoing animation after Back or a notification.
+                                    val stillOnAdd = backStack.lastOrNull() == k
+                                    close(k)
+                                    if (stillOnAdd) backStack.add(RouteDetail(id))
+                                },
+                            )
+                            RouteSettings -> SettingsScreen(
+                                onBack = { close(k) },
+                            )
+                            is RouteDetail -> DetailScreen(
+                                repoId = k.repoId,
+                                onBack = { close(k) },
+                                releaseRequestId = k.releaseRequestId,
+                                releaseTag = k.releaseTag,
+                            )
+                        }
                     }
                 }
-            }
+                // 重复点击同仓通知时只更新请求，保留原有的详情 ViewModel、列表位置与页面转场状态。
+                if (key is RouteDetail) {
+                    NavEntry<NavKey>(key, contentKey = key.repoId, content = content)
+                } else {
+                    NavEntry(key, content = content)
+                }
             },
             // 内容列限宽：NavDisplay 收窄至 640dp 并水平居中（外层 Box 背景补全两侧）
             modifier = Modifier.widthIn(max = 640.dp),

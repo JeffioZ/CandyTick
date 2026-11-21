@@ -2,20 +2,23 @@ package io.candy.tick.ui.common
 
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
-import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.RowScope
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
-import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.layout.sizeIn
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.runtime.Composable
-import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.res.vectorResource
+import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.text.style.TextDecoration
+import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import io.candy.tick.R
 import top.yukonga.miuix.kmp.basic.Icon
@@ -34,22 +37,15 @@ fun LinkText(
     onClick: () -> Unit,
     modifier: Modifier = Modifier,
     showIcon: Boolean = false,
+    spaceAfter: Dp = 0.dp,
 ) {
-    // 按压染色多态：与信息行/图标钮同一反馈语言（自绘 clickable 原本零反馈）
-    val (pressSrc, pressColor) = rememberRowPressTint()
-    Row(
-        verticalAlignment = Alignment.CenterVertically,
-        modifier = modifier
-            .clip(RoundedCornerShape(10.dp))
-            .background(pressColor, RoundedCornerShape(10.dp))
-            .clickable(
-                interactionSource = pressSrc,
-                indication = null,
-                onClick = onClick,
-            )
-            // padding 计入命中区：8/13 使文字链命中 44dp（skill touch 规范；两处使用均为
-            // 独立行而非段落内嵌链，不会推开段落节奏）
-            .padding(horizontal = 8.dp, vertical = 13.dp),
+    // Count the parent's trailing gap once. The visible surface stays centred between
+    // its neighbours even when a large font makes the tap target taller than 48dp.
+    val inset = maxOf(8.dp, spaceAfter)
+    CompactTextAction(
+        onClick = onClick,
+        modifier = modifier,
+        hitAreaPadding = PaddingValues(top = inset, bottom = inset - spaceAfter),
     ) {
         if (showIcon) {
             Icon(
@@ -58,7 +54,6 @@ fun LinkText(
                 tint = MiuixTheme.colorScheme.primaryVariant,
                 modifier = Modifier.size(13.dp),
             )
-            Spacer(Modifier.width(4.dp))
         }
         Text(
             text = text,
@@ -66,6 +61,33 @@ fun LinkText(
                 textDecoration = TextDecoration.Underline,
             ),
             color = MiuixTheme.colorScheme.primaryVariant,
+        )
+    }
+}
+
+/** Keep the tap target generous while the tinted surface hugs the icon and label. */
+@Composable
+internal fun CompactTextAction(
+    onClick: () -> Unit,
+    modifier: Modifier = Modifier,
+    hitAreaPadding: PaddingValues = PaddingValues(0.dp),
+    content: @Composable RowScope.() -> Unit,
+) {
+    val (source, tint) = rememberRowPressTint()
+    Box(
+        modifier = modifier
+            .clickable(interactionSource = source, indication = null, role = Role.Button, onClick = onClick)
+            .sizeIn(minWidth = 48.dp, minHeight = 48.dp)
+            .padding(hitAreaPadding),
+        contentAlignment = Alignment.CenterStart,
+    ) {
+        Row(
+            modifier = Modifier
+                .background(tint, RoundedCornerShape(8.dp))
+                .padding(horizontal = 6.dp, vertical = 5.dp),
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.spacedBy(6.dp),
+            content = content,
         )
     }
 }

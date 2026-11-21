@@ -1,5 +1,7 @@
 package io.candy.tick.util
 
+import io.candy.tick.data.model.TrackedRepo
+
 /**
  * 版本比较（真实世界格式优先，仍守「宁可不比，不要比错」底线）。
  *
@@ -19,9 +21,9 @@ package io.candy.tick.util
  * 两个已知的保守权衡（宁可不比，不要比错）：
  * - 数字开头的 dash 后缀（"1.2-4" 这类构建号，Obtainium #946 场景）按预发布参与排序，
  *   与干净版本 "1.2" 比较时判为更旧——方向安全（不会误报更新）
- * - 远端 tag 带打包词（"1.6.15-release"）不做剥离，同样判为更旧——宁可漏报不误报
+ * - 同一主版本的未知渠道或构建后缀只可辨认是否相同，不猜两者的发布顺序。
  *
- * 不可比（返回 null）：主版本所有段都无数字（如 "latest" 这类纯命名 tag）。
+ * 不可比（返回 null）：主版本没有可辨认的数字开头，或同一基线带有不明渠道标识。
  */
 object VersionCompare {
 
@@ -36,6 +38,27 @@ object VersionCompare {
 
     /** 仅当 v/V 后紧跟数字才剥（"v26.11" ✓ / "vbeta1" ✗） */
     private val LEADING_V = Regex("^[vV](?=\\d)")
+    private val PRERELEASE_STAGE = Regex("(?:alpha|beta|rc|pre|preview|dev|nightly|snapshot)\\d*", RegexOption.IGNORE_CASE)
+    private val WHITESPACE = Regex("\\s+")
+
+    /** 有些 APK 把产品名也写入 versionName。只移除完整匹配的应用名或仓库名。 */
+    fun installedName(raw: String, repo: TrackedRepo): String {
+        val name = raw.trim()
+        val space = name.indexOfLast { it.isWhitespace() }
+        if (space < 0) return name
+        val prefix = name.substring(0, space).trimEnd()
+        if (!prefix.equals(repo.repo, ignoreCase = true) &&
+            !(repo.autoNote && prefix.equals(repo.noteName, ignoreCase = true))
+        ) return name
+        val version = name.substring(space + 1)
+        return if (version.replaceFirst(LEADING_V, "").firstOrNull()?.isDigit() == true) version else name
+    }
+
+    /** 版本历史标注具体的安装版本，须保留构建和渠道标识。 */
+    fun matchesTag(remote: String, local: String): Boolean {
+        val tag = remote.trim().replaceFirst(LEADING_V, "")
+        return tag.isNotEmpty() && tag == local.trim().replaceFirst(LEADING_V, "")
+    }
 
     /** 排序前归一化：下划线 → 连字符；v/V 前缀；丢弃 +build（SemVer：build 不参与排序） */
     private fun normalize(version: String): String = version.trim()
@@ -48,10 +71,13 @@ object VersionCompare {
      * @return 正数 = remote 更新；0 = 一致；null = 无法比较
      */
     fun compare(remote: String, local: String): Int? {
-        val r = parse(normalize(remote), dropPackaging = false) ?: return null
-        val l = parse(normalize(local), dropPackaging = true) ?: return null
+        val r = parse(normalize(remote), dropPackaging = false)
+        val l = parse(normalize(local), dropPackaging = true)
+        if (r == null || l == null) return if (matchesTag(remote, local)) 0 else null
         val mainCmp = compareLists(r.first, l.first, padZero = true)
         if (mainCmp != 0) return mainCmp
+        // A vendor suffix may identify another build or channel rather than an earlier release.
+        if ((r.second.isOpaqueChannel() || l.second.isOpaqueChannel()) && r.second != l.second) return null
         // 主版本相等才看预发布：正式版 > 预发布；两边都有则逐标识符比
         return when {
             r.second.isEmpty() && l.second.isEmpty() -> 0
@@ -62,18 +88,25 @@ object VersionCompare {
     }
 
     /**
-     * 拆成（主段列表, 预发布标识符列表）；主段一个数字都没有 → null（纯命名式 tag 不可比）。
+     * 拆成主版本和预发布标识，只比较以数字开头的版本。
      * dropPackaging=true 时预发布里的打包装饰词（debug/final/…）剔除——它们不是版本语义。
      */
     private fun parse(version: String, dropPackaging: Boolean): Pair<List<String>, List<String>>? {
-        val main = version.substringBefore('-').trim('.', ' ')
-        if (main.isEmpty() || main.none { it.isDigit() }) return null
-        val pre = version.substringAfter('-', "").trim('.', ' ')
+        val parts = if (dropPackaging && version.any { it.isWhitespace() }) version.split(WHITESPACE) else emptyList()
+        val token = if (parts.size > 1 && parts.drop(1).all { it.lowercase() in PACKAGING_WORDS }) parts.first() else version
+        val main = token.substringBefore('-').trim('.', ' ')
+        if (main.firstOrNull()?.isDigit() != true || main.any { it.isWhitespace() }) return null
+        val pre = token.substringAfter('-', "").trim('.', ' ')
         val mainParts = main.split('.').filter { it.isNotEmpty() }
         val preParts = if (pre.isEmpty()) emptyList() else pre.split('.')
             .filter { it.isNotEmpty() }
             .filter { !dropPackaging || it.lowercase() !in PACKAGING_WORDS }
         return mainParts to preParts
+    }
+
+    private fun List<String>.isOpaqueChannel(): Boolean {
+        val first = firstOrNull() ?: return false
+        return !first.all { it.isDigit() } && !PRERELEASE_STAGE.matches(first)
     }
 
     /**
@@ -86,10 +119,8 @@ object VersionCompare {
         for (i in 0 until size) {
             val x = a.getOrNull(i)
             val y = b.getOrNull(i)
-            if (x == null && y == null) break
-            if (x == null) return if (padZero) compareSegment("0", y!!) else -1
-            if (y == null) return if (padZero) compareSegment(x, "0") else 1
-            val cmp = compareSegment(x, y)
+            if (!padZero && (x == null || y == null)) return a.size.compareTo(b.size)
+            val cmp = compareSegment(x ?: "0", y ?: "0")
             if (cmp != 0) return cmp
         }
         return 0
@@ -115,7 +146,10 @@ object VersionCompare {
                 b == null -> return 1
                 else -> {
                     val cmp = when {
-                        a is Num && b is Num -> a.value.compareTo(b.value)
+                        a is Num && b is Num -> {
+                            val length = a.value.length.compareTo(b.value.length)
+                            if (length == 0) a.value.compareTo(b.value) else length
+                        }
                         a is Alpha && b is Alpha -> a.value.compareTo(b.value, ignoreCase = true)
                         a is Num && b is Alpha -> -1 // 数字标识符 < 字母标识符（SemVer；0 < hash 段）
                         else -> 1
@@ -133,11 +167,12 @@ object VersionCompare {
         var i = 0
         while (i < segment.length) {
             val digit = segment[i].isDigit()
-            var j = i
-            while (j < segment.length && segment[j].isDigit() == digit) j++
-            // 超长数字串（外部 tag 不可信）降级为 Long.MAX_VALUE：不崩溃，方向保守
+            var j = i + 1
+            // Debian 的 ~ 独立排序，即便它紧邻 rc 等字母。
+            while (segment[i] != '~' && j < segment.length &&
+                segment[j] != '~' && segment[j].isDigit() == digit) j++
             tokens += if (digit) {
-                Num(segment.substring(i, j).toLongOrNull() ?: Long.MAX_VALUE)
+                Num(segment.substring(i, j).trimStart('0'))
             } else {
                 Alpha(segment.substring(i, j))
             }
@@ -147,6 +182,6 @@ object VersionCompare {
     }
 
     private sealed interface Token
-    private data class Num(val value: Long) : Token
+    private data class Num(val value: String) : Token
     private data class Alpha(val value: String) : Token
 }

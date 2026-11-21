@@ -1,6 +1,5 @@
 <?xml version="1.0" encoding="utf-8"?>
-<!-- Lucide "wifi" (ISC License), path 官方原版：24 网格 / stroke 2 圆端。
-     弧线光学居中（此前 cloud 图标内容右下偏，芯片内视觉不居中）；语义直接对应「仅 Wi-Fi 同步」 -->
+<!-- Lucide "wifi" (ISC License) -->
 <vector xmlns:android="http://schemas.android.com/apk/res/android"
     android:width="24dp"
     android:height="24dp"

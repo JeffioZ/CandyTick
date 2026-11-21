@@ -4,27 +4,32 @@ import io.candy.tick.data.model.ApkAsset
 
 /**
  * 多 APK 自动选择（Obtainium 哲学：唯一候选直接选；多候选按文件名 ABI 标记匹配
- * SUPPORTED_ABIS（精确 → universal → 任意支持 ABI）；无标记无法区分则手选。
+ * SUPPORTED_ABIS（优先设备 ABI，再找 universal）；无标记无法区分则手选。
  * 自动选择仅为默认选中，完整资产列表始终可见可改选。
  */
 object ApkPicker {
 
     /** ABI 别名表（覆盖变体，取自 Obtainium #2416 实战教训） */
-    private val ALIASES: Map<String, List<String>> = mapOf(
+    private val abiPatterns = mapOf(
         "arm64-v8a" to listOf("arm64-v8a", "arm64", "aarch64"),
-        "armeabi-v7a" to listOf("armeabi-v7a", "armv7", "arm", "armhf"),
-        "x86_64" to listOf("x86_64", "x64", "amd64"),
+        "armeabi-v7a" to listOf("armeabi-v7a", "armv7a", "armv7", "arm", "armhf"),
+        "x86_64" to listOf("x86_64", "x86-64", "x64", "amd64"),
+        "x86" to listOf("x86(?![-_]64)", "i[3-6]86"),
         "universal" to listOf("universal", "all", "multi"),
-    )
+    ).mapValues { (_, aliases) ->
+        Regex("(?<![a-z0-9])(?:${aliases.joinToString("|")})(?![a-z0-9])", RegexOption.IGNORE_CASE)
+    }
 
     /** release 资产中的 Android 安装包候选（.apk/.apks/.xapk/.apkm，与 GitHubApi 过滤口径一致） */
     fun apkCandidates(assets: List<ApkAsset>): List<ApkAsset> =
-        assets.filter { a ->
-            a.name.endsWith(".apk", true) ||
-                a.name.endsWith(".apks", true) ||
-                a.name.endsWith(".xapk", true) ||
-                a.name.endsWith(".apkm", true)
-        }
+        assets.filter { isPackageAsset(it.name) }
+
+    fun isPackageAsset(name: String): Boolean = packageExtension(name) != null
+
+    internal fun packageExtension(name: String): String? =
+        name.substringAfterLast('.', "").lowercase().takeIf { it in packageExtensions }
+
+    private val packageExtensions = setOf("apk", "apks", "xapk", "apkm")
 
     /**
      * @return selected = 推荐项（null = 无法自动区分）；auto = 是否自动选中
@@ -36,36 +41,13 @@ object ApkPicker {
 
         // 1) 精确匹配设备 ABI（顺序即优先级）
         for (abi in supportedAbis) {
-            val aliases = ALIASES[abi] ?: continue
-            val hit = candidates.firstOrNull { apk ->
-                aliases.any { matchesAlias(apk.name, it) }
-            }
+            val pattern = abiPatterns[abi] ?: continue
+            val hit = candidates.firstOrNull { pattern.containsMatchIn(it.name) }
             if (hit != null) return hit to true
         }
         // 2) universal 兜底
-        val universal = candidates.firstOrNull { apk ->
-            ALIASES.getValue("universal").any { matchesAlias(apk.name, it) }
-        }
+        val universal = candidates.firstOrNull { abiPatterns.getValue("universal").containsMatchIn(it.name) }
         if (universal != null) return universal to true
-        // 3) 任意支持的 ABI（不在前序命中说明标记混乱，尽力一搏）
-        for (abi in supportedAbis) {
-            val hit = candidates.firstOrNull { apk -> apk.name.contains(abi, ignoreCase = true) }
-            if (hit != null) return hit to true
-        }
         return null to false // 列表手选
     }
-
-    /**
-     * 别名匹配：裸 "arm" 要求词边界（Swarm/alarm 之类子串误命中会选错包）；
-     * 其余别名含完整标记（arm64-v8a/armhf…）直接子串匹配即可
-     */
-    private fun matchesAlias(apkName: String, alias: String): Boolean =
-        if (alias == "arm") {
-            armWord.containsMatchIn(apkName)
-        } else {
-            apkName.contains(alias, ignoreCase = true)
-        }
-
-    // 词边界含数字："arm64" 里的 arm 不算（否则 v7 设备会误选 arm64-only 包），独立 arm 才命中
-    private val armWord = Regex("(?<![a-zA-Z0-9])arm(?![a-zA-Z0-9])", RegexOption.IGNORE_CASE)
 }

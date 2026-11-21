@@ -81,6 +81,7 @@ fun relTimeUntilString(target: Instant): String {
     val now = remember(target, tick) { Instant.now() }
     val span = remember(target, now) { RelTime.spanOf(now, target) }
     return when {
+        !target.isAfter(now) -> stringResource(R.string.rel_until_now)
         span.isNow -> stringResource(R.string.rel_until_soon)
         span.unit == RelUnit.MINUTE -> pluralStringResource(R.plurals.rel_minutes_until, span.value.toInt(), span.value)
         span.unit == RelUnit.HOUR -> pluralStringResource(R.plurals.rel_hours_until, span.value.toInt(), span.value)

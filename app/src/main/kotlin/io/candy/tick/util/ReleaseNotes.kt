@@ -1,5 +1,16 @@
 package io.candy.tick.util
 
+import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.text.AnnotatedString
+import androidx.compose.ui.text.LinkAnnotation
+import androidx.compose.ui.text.SpanStyle
+import androidx.compose.ui.text.TextLinkStyles
+import androidx.compose.ui.text.font.FontFamily
+import androidx.compose.ui.text.font.FontStyle
+import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.style.TextDecoration
+import androidx.compose.ui.unit.TextUnit
+import androidx.compose.ui.unit.sp
 import org.commonmark.ext.autolink.AutolinkExtension
 import org.commonmark.ext.gfm.strikethrough.Strikethrough
 import org.commonmark.ext.gfm.strikethrough.StrikethroughExtension
@@ -38,8 +49,7 @@ import org.commonmark.parser.Parser
  * AST 节点，不存在「裸符号漏网」——替代早期逐特性补正则的清理管线（每遇到新模板
  * 结构就要加规则）。块级结构摊平为「文本行 + 分段样式」：标题/粗体→字重，行内代码/
  * 代码块→等宽，列表→· 前缀 + 缩进层级，表格→表头加粗的竖线行；链接（含 autolink
- * 裸 URL 与 #123 issue 引用）标注 tag="URL" 自定义 span，调用方用 ClickableText
- * 命中开浏览器。自更新弹窗与版本历史共用。
+ * 裸 URL 与 issue 引用）保留为可聚焦、可朗读的链接。自更新弹窗与版本历史共用。
  */
 object ReleaseNotes {
 
@@ -75,30 +85,39 @@ object ReleaseNotes {
         )
         .build()
 
-    /** GitHub issue/PR 引用 shorthand（#123 → issues/123）；负向后视避开 URL 锚点/C#/HTML 实体 */
-    private val issueRef = Regex("(?<![\\w/#&])#([0-9]{1,6})")
+    /** GitHub 支持本仓库的 #123 和跨仓库的 owner/repo#123。 */
+    private val issueRef = Regex("(?<![\\w./#&-])(?:([A-Za-z0-9][A-Za-z0-9-]*/[A-Za-z0-9_.-]+))?#([1-9][0-9]*)(?![\\w])")
+    private val taskMarker = Regex("^\\[([ xX])]\\s+")
+    private val detailsBlock = Regex("(?i)^\\s*</?(?:details|summary)\\b")
+    private val detailsStart = Regex("(?i)^</?details\\b[^>]*>\\s*")
+    private val detailsEnd = Regex("(?i)\\s*</details\\s*>$")
+    private val summaryTag = Regex("(?is)^<summary\\b[^>]*>(.*?)</summary\\s*>")
 
     private val brTag = Regex("(?i)<br\\s*/?>")
+    private val shortcode = Regex(":([a-z0-9_]+):")
 
     /** 超长 body 截断阈值（实测订阅仓库 9k–40k：全量渲染 40k 字符的展开构建达百 ms 级） */
     private const val MAX_BODY_CHARS = 9000
 
+    fun isPreview(md: String): Boolean = md.length > MAX_BODY_CHARS
+
     fun annotated(
         md: String,
-        linkColor: androidx.compose.ui.graphics.Color,
+        linkColor: Color,
         repoSlug: String? = null, // "owner/repo"：提供时 #123 变为可点 issue 链接
-    ): androidx.compose.ui.text.AnnotatedString {
-        val emojiMd = emoji.entries.fold(md) { acc, (k, v) -> acc.replace(":$k:", v) }
+    ): AnnotatedString {
         val r = Renderer(linkColor, repoSlug)
-        r.blocks(parser.parse(truncate(emojiMd)), indent = "")
+        r.blocks(parser.parse(truncate(md)), indent = "")
         return r.build()
     }
 
     /** 段落边界截断（完整 changelog 永远在 GitHub：卡片里已有跳转链接） */
     private fun truncate(md: String): String {
-        if (md.length <= MAX_BODY_CHARS) return md
+        if (!isPreview(md)) return md
         val cut = md.lastIndexOf("\n\n", MAX_BODY_CHARS)
-        return md.substring(0, if (cut > MAX_BODY_CHARS / 2) cut else MAX_BODY_CHARS) + "\n\n…"
+        var end = if (cut > MAX_BODY_CHARS / 2) cut else MAX_BODY_CHARS
+        if (md[end - 1].isHighSurrogate() && md[end].isLowSurrogate()) end--
+        return md.substring(0, end) + "\n\n…"
     }
 
     /** 节点子树内是否含 CJK 字符（CJK 区块：汉字/扩展/通用标点全兼容范围） */
@@ -114,23 +133,18 @@ object ReleaseNotes {
         return false
     }
 
-    /** 一次 append 一段：段自带当时全部活跃样式（链接/粗体/等宽…），段间天然不重叠 */
-    private class Span(
-        val start: Int,
-        val end: Int,
-        val url: String?, // 非空 = 可点链接段
-        val bold: Boolean,
-        val italic: Boolean,
-        val mono: Boolean,
-        val strike: Boolean,
-    )
-
     private class Renderer(
-        val linkColor: androidx.compose.ui.graphics.Color,
+        linkColor: Color,
         val repoSlug: String?,
     ) {
         private val sb = StringBuilder()
-        private val spans = mutableListOf<Span>()
+        private val styles = mutableListOf<AnnotatedString.Range<SpanStyle>>()
+        private val links = mutableListOf<AnnotatedString.Range<LinkAnnotation.Url>>()
+        private val linkStyle = TextLinkStyles(
+            style = SpanStyle(color = linkColor, textDecoration = TextDecoration.Underline),
+            pressedStyle = SpanStyle(background = linkColor.copy(alpha = 0.14f)),
+            focusedStyle = SpanStyle(background = linkColor.copy(alpha = 0.14f)),
+        )
         private var bold = 0
         private var italic = 0
         private var mono = 0
@@ -151,22 +165,34 @@ object ReleaseNotes {
         private fun styled(text: String) {
             val start = sb.length
             sb.append(text)
-            if (currentUrl != null || bold > 0 || italic > 0 || mono > 0 || strike > 0) {
-                spans.add(Span(start, sb.length, currentUrl, bold > 0, italic > 0, mono > 0, strike > 0))
+            if (text.isNotEmpty() && (bold > 0 || italic > 0 || mono > 0 || strike > 0)) {
+                val style = SpanStyle(
+                    fontWeight = if (bold > 0) FontWeight.Bold else null,
+                    fontStyle = if (italic > 0) FontStyle.Italic else null,
+                    fontFamily = if (mono > 0) FontFamily.Monospace else null,
+                    fontSize = if (mono > 0) 13.sp else TextUnit.Unspecified,
+                    textDecoration = if (strike > 0) TextDecoration.LineThrough else null,
+                )
+                styles += AnnotatedString.Range(style, start, sb.length)
             }
         }
 
         /** Text 节点：先做 #123 issue 引用切分（代码内与无仓库上下文时不处理） */
-        private fun text(t: String) {
-            if (repoSlug == null || mono > 0 || currentUrl != null) {
+        private fun text(literal: String) {
+            if (currentUrl == literal || mono > 0) {
+                styled(literal)
+                return
+            }
+            val t = if (':' in literal) shortcode.replace(literal) { emoji[it.groupValues[1]] ?: it.value } else literal
+            if (currentUrl != null || '#' !in t) {
                 styled(t)
                 return
             }
             var idx = 0
             for (m in issueRef.findAll(t)) {
+                val slug = m.groups[1]?.value ?: repoSlug ?: continue
                 styled(t.substring(idx, m.range.first))
-                val n = m.groupValues[1]
-                withUrl("https://github.com/$repoSlug/issues/$n") { styled("#$n") }
+                withUrl("https://github.com/$slug/issues/${m.groupValues[2]}") { styled(m.value) }
                 idx = m.range.last + 1
             }
             styled(t.substring(idx))
@@ -174,9 +200,13 @@ object ReleaseNotes {
 
         private inline fun withUrl(url: String, block: () -> Unit) {
             val prev = currentUrl
+            val start = sb.length
             currentUrl = url
             block()
             currentUrl = prev
+            if (sb.length > start) {
+                links += AnnotatedString.Range(LinkAnnotation.Url(url, linkStyle), start, sb.length)
+            }
         }
 
         /** 块间距：删尾换行后统一一个空行 */
@@ -190,39 +220,16 @@ object ReleaseNotes {
             if (sb.isNotEmpty() && sb.last() != '\n') raw("\n")
         }
 
-        fun build(): androidx.compose.ui.text.AnnotatedString {
-            while (sb.isNotEmpty() && sb.last() == '\n') sb.deleteCharAt(sb.length - 1)
-            val b = androidx.compose.ui.text.AnnotatedString.Builder()
-            var pos = 0
-            for (s in spans) {
-                // 无样式缺口（普通文本/结构字符）：span 只记录有样式区间，这里补齐裸文本
-                if (s.start > pos) b.append(sb.substring(pos, s.start))
-                val style = androidx.compose.ui.text.SpanStyle(
-                    color = if (s.url != null) linkColor else androidx.compose.ui.graphics.Color.Unspecified,
-                    textDecoration = if (s.url != null) {
-                        androidx.compose.ui.text.style.TextDecoration.Underline
-                    } else if (s.strike) {
-                        androidx.compose.ui.text.style.TextDecoration.LineThrough
-                    } else {
-                        null
-                    },
-                    fontWeight = if (s.bold) androidx.compose.ui.text.font.FontWeight.Bold else null,
-                    fontStyle = if (s.italic) androidx.compose.ui.text.font.FontStyle.Italic else null,
-                    fontFamily = if (s.mono) androidx.compose.ui.text.font.FontFamily.Monospace else null,
-                    // 等宽配 13sp 小号（对齐 MonoTokenStyle）：跟随正文字号的大号等宽观感突兀
-                    fontSize = if (s.mono) androidx.compose.ui.unit.TextUnit(13f,
-                        androidx.compose.ui.unit.TextUnitType.Sp)
-                    else androidx.compose.ui.unit.TextUnit.Unspecified,
-                )
-                b.pushStyle(style)
-                if (s.url != null) b.pushStringAnnotation("URL", s.url)
-                b.append(sb.substring(s.start, s.end))
-                if (s.url != null) b.pop()
-                b.pop()
-                pos = s.end
-            }
-            if (pos < sb.length) b.append(sb.substring(pos))
-            return b.toAnnotatedString()
+        fun build(): AnnotatedString {
+            val text = sb.toString().trimEnd('\n')
+            return AnnotatedString.Builder(text).apply {
+                for ((style, start, end) in styles) {
+                    if (start < text.length) addStyle(style, start, minOf(end, text.length))
+                }
+                for ((link, start, end) in links) {
+                    if (start < text.length) addLink(link, start, minOf(end, text.length))
+                }
+            }.toAnnotatedString()
         }
 
         // ── 块级遍历 ──
@@ -257,13 +264,29 @@ object ReleaseNotes {
                     blocks(node, indent)
                 }
                 is ThematicBreak -> blank() // 分隔线 → 空行分组
-                is HtmlBlock -> Unit // HTML 块整块丢弃（<a id> 语言锚点等）
+                is HtmlBlock -> details(node.literal, indent)
                 is TableBlock -> table(node, indent)
                 else -> { // 未知块按行内兜底（新语法至少内容不丢）
                     blank()
                     inline(node)
                 }
             }
+        }
+
+        /** 展平 GitHub 折叠区。仅剥外层标签，里面的列表、链接及围栏代码仍由 Markdown 解析。 */
+        private fun details(literal: String, indent: String) {
+            var body = literal.trim()
+            if (!detailsBlock.containsMatchIn(body)) return
+            while (detailsStart.containsMatchIn(body)) body = body.replaceFirst(detailsStart, "")
+            while (detailsEnd.containsMatchIn(body)) body = body.replace(detailsEnd, "")
+            val summary = summaryTag.find(body)
+            if (summary != null) {
+                bold++
+                blocks(parser.parse(summary.groupValues[1]), indent)
+                bold--
+                body = body.substring(summary.range.last + 1).trim()
+            }
+            if (body.isNotBlank() && body != literal.trim()) blocks(parser.parse(body), indent)
         }
 
         private fun list(node: Node, indent: String, ordered: Boolean, top: Boolean) {
@@ -273,9 +296,13 @@ object ReleaseNotes {
             while (item != null) {
                 if (item is ListItem) {
                     nl()
-                    val marker = if (ordered) "$i. " else "· "
+                    val firstParagraph = item.firstChild as? Paragraph
+                    val firstText = firstParagraph?.firstChild as? Text
+                    val task = firstText?.let { taskMarker.find(it.literal) }
+                    val marker = if (ordered) "$i. " else if (task == null) "· " else ""
                     raw(indent + marker)
-                    listItemChildren(item, indent + "    ")
+                    if (task != null) raw(if (task.groupValues[1] == " ") "☐ " else "☑ ")
+                    listItemChildren(item, indent + "    ", task?.value?.length ?: 0)
                 }
                 item = item.next
                 if (ordered) i++
@@ -283,7 +310,7 @@ object ReleaseNotes {
         }
 
         /** 列表项子块：首段接在 marker 后，后续段落/嵌套列表带缩进 */
-        private fun listItemChildren(item: ListItem, childIndent: String) {
+        private fun listItemChildren(item: ListItem, childIndent: String, skipMarker: Int) {
             var n = item.firstChild
             var first = true
             while (n != null) {
@@ -292,7 +319,18 @@ object ReleaseNotes {
                         if (!first) {
                             raw("\n" + childIndent)
                         }
-                        inline(n)
+                        lineIndent = childIndent
+                        if (first && skipMarker > 0) {
+                            val label = n.firstChild as Text
+                            text(label.literal.drop(skipMarker))
+                            var sibling = label.next
+                            while (sibling != null) {
+                                inlineNode(sibling)
+                                sibling = sibling.next
+                            }
+                        } else {
+                            inline(n)
+                        }
                     }
                     is BulletList -> list(n, childIndent, ordered = false, top = false)
                     is OrderedList -> list(n, childIndent, ordered = true, top = false)
@@ -385,7 +423,10 @@ object ReleaseNotes {
                 }
                 is Link ->
                     // autolink 裸 URL 也走这里；锚点/相对链接（#english 语言切换行）不标链接
-                    if (node.destination.startsWith("http") || node.destination.startsWith("mailto")) {
+                    if (node.destination.startsWith("https://", ignoreCase = true) ||
+                        node.destination.startsWith("http://", ignoreCase = true) ||
+                        node.destination.startsWith("mailto:", ignoreCase = true)
+                    ) {
                         withUrl(node.destination) { inline(node) }
                     } else {
                         inline(node)

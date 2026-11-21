@@ -1,6 +1,5 @@
 package io.candy.tick.ui.common
 
-import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Row
@@ -10,12 +9,17 @@ import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.runtime.Composable
+import androidx.compose.animation.Crossfade
+import androidx.compose.animation.core.tween
+import androidx.compose.runtime.key
+import androidx.compose.runtime.produceState
 import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.ImageBitmap
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.vectorResource
@@ -27,6 +31,8 @@ import io.candy.tick.data.model.TrackedRepo
 import io.candy.tick.ui.theme.AvatarPalette
 import io.candy.tick.ui.theme.MonoTokenStyle
 import kotlin.math.abs
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.withContext
 import top.yukonga.miuix.kmp.basic.Icon
 import top.yukonga.miuix.kmp.basic.Text
 import top.yukonga.miuix.kmp.theme.MiuixTheme
@@ -37,20 +43,48 @@ import top.yukonga.miuix.kmp.theme.MiuixTheme
  */
 @Composable
 fun RepoIconBlock(owner: String, linkedPackage: String?, size: Dp = 48.dp, corner: Dp = 12.dp) {
-    rememberAppIcon(linkedPackage)?.let {
-        AppIconImage(bitmap = it, size = size, corner = corner)
-        return
-    }
-    AvatarBlock(owner = owner, size = size, corner = corner)
+    RepoAvatar(owner, rememberAppIcon(linkedPackage), size, corner)
 }
 
-/** 已安装应用的图标（remember 缓存，PM 查询失败返回 null）——全 App 唯一来源 */
 @Composable
-fun rememberAppIcon(packageName: String?): androidx.compose.ui.graphics.ImageBitmap? {
+internal fun RepoAvatar(owner: String, bitmap: ImageBitmap?, size: Dp, corner: Dp) {
+    if (bitmap != null) AppIconImage(bitmap = bitmap, size = size, corner = corner)
+    else AvatarBlock(owner = owner, size = size, corner = corner)
+}
+
+@Composable
+internal fun LinkedRepoAvatar(owner: String, bitmap: ImageBitmap?) {
+    if (rememberMotionEnabled()) {
+        Crossfade(targetState = bitmap, animationSpec = tween(Motion.PHASE), label = "linkedAvatar") {
+            RepoAvatar(owner, it, 56.dp, 14.dp)
+        }
+    } else {
+        RepoAvatar(owner, bitmap, 56.dp, 14.dp)
+    }
+}
+
+/** A completed lookup may have no icon if the app has been uninstalled. */
+internal data class AppIconResult(val bitmap: ImageBitmap?)
+
+/** 可见行才查询图标；包切换时先清空上一应用的位图。 */
+@Composable
+fun rememberAppIcon(packageName: String?): ImageBitmap? = rememberAppIconResult(packageName)?.bitmap
+
+@Composable
+internal fun rememberAppIconResult(packageName: String?): AppIconResult? {
     if (packageName == null) return null
     val context = LocalContext.current
-    return remember(packageName) {
-        runCatching { context.packageManager.getApplicationIcon(packageName).toImageBitmap() }.getOrNull()
+    return key(context, packageName) {
+        produceState<AppIconResult?>(null) {
+            value = withContext(Dispatchers.IO) {
+                val bitmap = try {
+                    context.packageManager.getApplicationIcon(packageName).toImageBitmap()
+                } catch (_: Exception) {
+                    null
+                }
+                AppIconResult(bitmap)
+            }
+        }.value
     }
 }
 

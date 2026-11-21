@@ -20,8 +20,8 @@ import kotlinx.coroutines.flow.MutableStateFlow
 /** 手动 DI（design.md：页面少，框架是负资产） */
 class AppContainer(context: Context) {
 
-    /** 应用级协程作用域（与进程同寿）：看门狗等脱离页面生命周期的后台任务 */
-    private val appScope = CoroutineScope(SupervisorJob() + Dispatchers.Default)
+    /** 安装结果与更新任务跨页面存活。 */
+    internal val appScope = CoroutineScope(SupervisorJob() + Dispatchers.Default)
 
     val appStateStore: AppStateStore by lazy { AppStateStore(context) }
 
@@ -32,18 +32,19 @@ class AppContainer(context: Context) {
         GitHubApi(tokenProvider = { appStateStore.state.value.settings.githubToken })
     }
 
-    val installManager: InstallManager by lazy { InstallManager(context) }
+    val installManager: InstallManager by lazy { InstallManager(context, appScope) }
 
     val selfUpdater: SelfUpdater by lazy {
         SelfUpdater(
             context = context,
             githubApi = githubApi,
             installManager = installManager,
+            store = appStateStore,
             notificationsEnabled = { appStateStore.state.value.settings.notificationsEnabled },
         ).also { it.observeInstallResults(appScope) } // 自更新安装失败此前无人消费（详情页专属订阅）
     }
 
-    val syncScheduler: SyncScheduler by lazy { SyncScheduler(context, syncStatus, appScope) }
+    val syncScheduler: SyncScheduler by lazy { SyncScheduler(context) }
     val cacheManager: CacheManager by lazy { CacheManager(context) }
 
     init {
@@ -54,6 +55,7 @@ class AppContainer(context: Context) {
         RepoRepository(
             store = appStateStore,
             providers = mapOf(PROVIDER_GITHUB to GitHubProvider(githubApi)),
+            filesDir = context.filesDir,
         )
     }
 

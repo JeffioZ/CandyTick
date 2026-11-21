@@ -30,16 +30,24 @@ jobs:
           yes | "$ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager" --licenses > /dev/null 2>&1 || true
 
       - name: Decode keystore
+        env:
+          KEYSTORE_BASE64: ${{ secrets.KEYSTORE_BASE64 }}
+          STORE_PASSWORD: ${{ secrets.KEYSTORE_PASSWORD }}
+          KEY_ALIAS: ${{ secrets.KEY_ALIAS }}
+          KEY_PASSWORD: ${{ secrets.KEY_PASSWORD }}
         run: |
-          echo "${{ secrets.KEYSTORE_BASE64 }}" | base64 -d > candytick-release.keystore
+          umask 077
+          printf '%s' "$KEYSTORE_BASE64" | base64 -d > candytick-release.keystore
           printf 'storeFile=candytick-release.keystore\nstorePassword=%s\nkeyAlias=%s\nkeyPassword=%s\n' \
-            "${{ secrets.KEYSTORE_PASSWORD }}" \
-            "${{ secrets.KEY_ALIAS }}" \
-            "${{ secrets.KEY_PASSWORD }}" > keystore.properties
+            "$STORE_PASSWORD" "$KEY_ALIAS" "$KEY_PASSWORD" > keystore.properties
 
-      # 发版唯一构建：release 本身即完整验证（不再跑 debug 双构建）
       - name: Build release APK
-        run: ./gradlew assembleRelease --no-daemon
+        run: ./gradlew assembleRelease --no-daemon --no-configuration-cache
+
+      - name: Check APK version against release tag
+        run: |
+          VERSION=$(jq -er '.elements[0].versionName' app/build/outputs/apk/release/output-metadata.json)
+          test "$GITHUB_REF_NAME" = "v$VERSION"
 
       - name: Extract release notes from CHANGELOG
         run: |
@@ -51,10 +59,12 @@ jobs:
             index($0, "## [") == 1 { p = (index($0, "## [" ver "]") == 1) }
             p
           ' CHANGELOG.md | tail -n +2 | sed -e '/./,$!d' > release_notes.md
+          test -s release_notes.md
           echo "--- notes for $VERSION ---"
           cat release_notes.md
 
       - name: Clean up secrets
+        if: always()
         run: |
           rm -f candytick-release.keystore keystore.properties
 

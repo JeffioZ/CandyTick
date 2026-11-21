@@ -6,107 +6,93 @@ import androidx.work.ExistingPeriodicWorkPolicy
 import androidx.work.ExistingWorkPolicy
 import androidx.work.NetworkType
 import androidx.work.OneTimeWorkRequestBuilder
+import androidx.work.OutOfQuotaPolicy
 import androidx.work.PeriodicWorkRequestBuilder
-import androidx.work.WorkInfo
 import androidx.work.WorkManager
+import androidx.work.await
 import io.candy.tick.data.model.Settings
 import io.candy.tick.data.model.SyncFrequency
-import kotlinx.coroutines.CoroutineScope
-import kotlinx.coroutines.launch
+import kotlinx.coroutines.NonCancellable
+import kotlinx.coroutines.flow.first
+import kotlinx.coroutines.sync.Mutex
+import kotlinx.coroutines.sync.withLock
+import kotlinx.coroutines.withContext
 import java.util.concurrent.TimeUnit
 
 /** 同步调度：周期频率（含「每次打开应用」模式）+ 仅 Wi-Fi 约束（按设置）；设置变更即重排 */
-class SyncScheduler(
-    private val context: Context,
-    private val syncStatus: kotlinx.coroutines.flow.MutableStateFlow<io.candy.tick.data.SyncStatus>,
-    private val watchdogScope: kotlinx.coroutines.CoroutineScope,
-) {
+class SyncScheduler(private val context: Context) {
 
-    fun apply(settings: Settings) {
-        val manager = WorkManager.getInstance(context)
-        if (settings.syncFrequency == SyncFrequency.ON_OPEN) {
-            manager.cancelUniqueWork(WORK_SYNC) // 打开即同步模式下不排后台周期任务
-            return
-        }
-        val constraints = Constraints.Builder()
-            .setRequiredNetworkType(NetworkType.CONNECTED)
-            .apply {
-                if (settings.wifiOnly) setRequiredNetworkType(NetworkType.UNMETERED)
+    private val scheduling = Mutex()
+    private var lastOnOpenSync = -1L
+
+    private fun networkConstraints(settings: Settings) = Constraints.Builder()
+        .setRequiredNetworkType(if (settings.wifiOnly) NetworkType.UNMETERED else NetworkType.CONNECTED)
+        .build()
+
+    suspend fun apply(settings: Settings) {
+        // 设置已写入磁盘，离开设置页时也要完成相应的任务切换。
+        withContext(NonCancellable) {
+            scheduling.withLock {
+                val manager = WorkManager.getInstance(context)
+                val constraints = networkConstraints(settings)
+                if (settings.syncFrequency == SyncFrequency.ON_OPEN) {
+                    manager.cancelUniqueWork(WORK_SYNC).await()
+                    scheduleOnOpen(manager, constraints, enqueueIfMissing = false)
+                } else {
+                    manager.cancelUniqueWork(WORK_SYNC_ON_OPEN).await()
+                    lastOnOpenSync = -1L
+                    val request = PeriodicWorkRequestBuilder<SyncWorker>(
+                        settings.syncFrequency.hours.toLong(), TimeUnit.HOURS,
+                    ).setConstraints(constraints).build()
+                    manager.enqueueUniquePeriodicWork(WORK_SYNC, ExistingPeriodicWorkPolicy.UPDATE, request).await()
+                }
             }
-            .build()
-        val request = PeriodicWorkRequestBuilder<SyncWorker>(settings.syncFrequency.hours.toLong(), TimeUnit.HOURS)
-            .setConstraints(constraints)
-            .build()
-        manager.enqueueUniquePeriodicWork(WORK_SYNC, ExistingPeriodicWorkPolicy.UPDATE, request)
+        }
     }
 
     /**
      * 「每次打开应用」模式：前台切换（冷/热启动）触发一次同步。
-     * 节流 60 秒仅防快速切前后台刷请求——ETag 条件请求上线后，未变化仓库
-     * 304 全免费，配额不再是约束；10 分钟旧节流与「每次打开」承诺矛盾
-     * （用户隔几分钟回 App 不刷新即此因），已缩短。
+     * 节流 60 秒，避免快速切换前后台反复排队。
      */
-    fun maybeSyncOnOpen(settings: Settings) {
-        if (settings.syncFrequency != SyncFrequency.ON_OPEN) return
-        val now = System.currentTimeMillis()
-        if (now - lastOnOpenSync < ON_OPEN_THROTTLE_MS) return
+    suspend fun maybeSyncOnOpen(settings: Settings): Unit = scheduling.withLock {
+        if (settings.syncFrequency != SyncFrequency.ON_OPEN) return@withLock
+        val now = android.os.SystemClock.elapsedRealtime()
+        if (lastOnOpenSync >= 0 && now - lastOnOpenSync < ON_OPEN_THROTTLE_MS) return@withLock
+        scheduleOnOpen(WorkManager.getInstance(context), networkConstraints(settings), enqueueIfMissing = true)
         lastOnOpenSync = now
-        // 乐观置 Running：enqueue 即点亮顶栏波点——WorkManager 加急作业在 ROM 省电策略/
-        // 网络约束（仅 Wi-Fi）未满足时会排队延迟，此前队列期间无任何 UI 反馈（"没反应"）；
-        // Worker 开跑后覆盖为真实进度，完成设 Done。
-        syncStatus.value = io.candy.tick.data.SyncStatus.Running(0, 1)
-        armOnOpenWatchdog()
-        val manager = WorkManager.getInstance(context)
-        val request = OneTimeWorkRequestBuilder<SyncWorker>()
-            // 与周期同步同规则：用户开了「仅 Wi-Fi 同步」后打开即同步也不走流量
-            .setConstraints(
-                Constraints.Builder().setRequiredNetworkType(
-                    if (settings.wifiOnly) NetworkType.UNMETERED else NetworkType.CONNECTED,
-                ).build(),
-            )
-            // 加急作业：消除 WorkManager 调度延迟，启动即跑（10 分钟节流远在加急配额内）
-            .setExpedited(androidx.work.OutOfQuotaPolicy.RUN_AS_NON_EXPEDITED_WORK_REQUEST)
-            .build()
-        manager.enqueueUniqueWork(WORK_SYNC_ON_OPEN, ExistingWorkPolicy.REPLACE, request)
     }
 
-    /**
-     * 开屏哨兵看门狗：Running(0,1) 只由这里写入（worker 真实进度 step>0 / total=2N）。
-     * 排队作业可能因「仅 Wi-Fi 无 Wi-Fi」无限不执行——此前 sentinel 永不落 Done，
-     * 首页下拉刷新的让位等待被永久锁死。超时仍见哨兵即回 Idle（波点收起、刷新可走）。
-     */
-    private fun armOnOpenWatchdog() {
-        watchdogScope.launch {
-            kotlinx.coroutines.delay(WATCHDOG_MS)
-            val current = syncStatus.value
-            if (current is io.candy.tick.data.SyncStatus.Running && current.done == 0 && current.total == 1) {
-                syncStatus.value = io.candy.tick.data.SyncStatus.Idle
-            }
-        }
+    private suspend fun scheduleOnOpen(manager: WorkManager, constraints: Constraints, enqueueIfMissing: Boolean) {
+        val existing = manager.getWorkInfosForUniqueWorkFlow(WORK_SYNC_ON_OPEN).first()
+            .firstOrNull { !it.state.isFinished }
+        if (existing == null && !enqueueIfMissing) return
+        if (existing?.constraints?.requiredNetworkType == constraints.requiredNetworkType) return
+
+        val request = OneTimeWorkRequestBuilder<SyncWorker>()
+            .setConstraints(constraints)
+            .setExpedited(OutOfQuotaPolicy.RUN_AS_NON_EXPEDITED_WORK_REQUEST)
+            .build()
+        // 仅在网络约束实际变化时替换，确保收紧限制后正在执行的任务也停止使用计费网络。
+        val policy = if (existing == null) ExistingWorkPolicy.KEEP else ExistingWorkPolicy.REPLACE
+        manager.enqueueUniqueWork(WORK_SYNC_ON_OPEN, policy, request).await()
     }
 
     /** 自身更新自动下载（一次性，全网络，退避重试——包仅 ~4MB，开关本身即用户同意） */
-    fun enqueueUpdateDownload() {
+    suspend fun enqueueUpdateDownload() {
         val manager = WorkManager.getInstance(context)
-        val request = OneTimeWorkRequestBuilder<UpdateDownloadWorker>()
+        val builder = OneTimeWorkRequestBuilder<UpdateDownloadWorker>()
             .setConstraints(
                 Constraints.Builder().setRequiredNetworkType(NetworkType.CONNECTED).build(),
             )
-            .build()
-        // 手工实现「排队换新 / 运行不动」（一次性策略没有 UPDATE）：KEEP 会让揣着旧规格的
-        // 排队任务永生（旧版 UNMETERED 约束升级后仍焊死在请求上）；REPLACE 会掐断运行中的
-        // 下载重下、取消临安装的任务错过通知。运行中→跳过，其余→REPLACE 换新规格
-        val running = runCatching {
-            manager.getWorkInfosForUniqueWork(WORK_UPDATE_DOWNLOAD).get()
-                .any { it.state == WorkInfo.State.RUNNING }
-        }.getOrDefault(true) // 查询失败宁可不入队（下轮同步自然再来）
-        if (!running) {
-            manager.enqueueUniqueWork(WORK_UPDATE_DOWNLOAD, ExistingWorkPolicy.REPLACE, request)
+        val existing = manager.getWorkInfosForUniqueWorkFlow(WORK_UPDATE_DOWNLOAD).first()
+            .firstOrNull { !it.state.isFinished }
+        if (existing == null) {
+            manager.enqueueUniqueWork(WORK_UPDATE_DOWNLOAD, ExistingWorkPolicy.KEEP, builder.build())
+        } else if (existing.constraints.requiredNetworkType != NetworkType.CONNECTED) {
+            // 升级旧版仅限 Wi-Fi 的排队任务，保留正在下载的任务和已有重试退避。
+            manager.updateWork(builder.setId(existing.id).build())
         }
     }
-
-    @Volatile
-    private var lastOnOpenSync: Long = 0L
 
     companion object {
         const val WORK_SYNC = "candytick_sync"
@@ -114,7 +100,5 @@ class SyncScheduler(
         const val WORK_UPDATE_DOWNLOAD = "candytick_update_download"
         private const val ON_OPEN_THROTTLE_MS = 60_000L // 防快速前后台抖动；「每次打开」承诺以 1 分钟为粒度兑现
 
-        /** 哨兵超时：加急作业正常启动远快于此；被约束卡住即解锁 UI */
-        private const val WATCHDOG_MS = 25_000L
     }
 }

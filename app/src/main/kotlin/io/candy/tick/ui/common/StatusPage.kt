@@ -1,8 +1,10 @@
 package io.candy.tick.ui.common
 
+import androidx.annotation.PluralsRes
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.BoxWithConstraints
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
@@ -17,12 +19,18 @@ import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.lerp
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.res.pluralStringResource
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.res.vectorResource
+import androidx.compose.ui.platform.LocalDensity
+import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.style.LineBreak
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.Dp
 import io.candy.tick.R
 import io.candy.tick.data.SourceError
 import top.yukonga.miuix.kmp.basic.Icon
@@ -99,9 +107,9 @@ fun StatusPage(
     }
 }
 
-/** 列表终点提示（「已到底」）：全应用列表共用，footnote2 弱化 + 居中 */
+/** 在列表末尾显示当前列表的数量与单位。 */
 @Composable
-fun FooterText(text: String, modifier: Modifier = Modifier, count: Int? = null) {
+fun FooterText(@PluralsRes countLabel: Int, count: Int, modifier: Modifier = Modifier, topPadding: Dp = 24.dp) {
     // 列表终点标记：文字两侧短线（dividerLine 与卡内分隔线同源）——印刷式「线·文·线」
     // 终点语言；保持最弱层级（footnote2 + 分隔线色）不与内容争夺注意力
     val scheme = MiuixTheme.colorScheme
@@ -110,9 +118,7 @@ fun FooterText(text: String, modifier: Modifier = Modifier, count: Int? = null) 
         horizontalArrangement = Arrangement.Center,
         modifier = modifier
             .fillMaxWidth()
-            // 上 24 / 下 0：上方 = spacedBy(8~10)+24 ≈ 32~34，下方 = 容器终止 32——上下对称
-            // （此前 v8 上下各半：上 16 / 下 40，footer 悬得偏上、底下空一截）
-            .padding(top = 24.dp),
+            .padding(top = topPadding),
     ) {
         Box(
             Modifier
@@ -123,15 +129,11 @@ fun FooterText(text: String, modifier: Modifier = Modifier, count: Int? = null) 
         )
         Spacer(Modifier.width(10.dp))
         Text(
-            // count 非空时「已到底 · 共 N 项」：滚到底的清点时刻给总数（书末页码心理）；
-            // plurals 承载单复数（EN "1 item" vs "N items"，zh 无单复数只挂 other）
-            text = if (count != null) {
-                pluralStringResource(R.plurals.list_end_count_items, count, text, count)
-            } else {
-                text
-            },
+            text = pluralStringResource(countLabel, count, count),
+            modifier = Modifier.weight(1f, fill = false),
             style = MiuixTheme.textStyles.footnote2,
             color = scheme.onBackgroundVariant,
+            textAlign = TextAlign.Center,
         )
         Spacer(Modifier.width(10.dp))
         Box(
@@ -144,60 +146,85 @@ fun FooterText(text: String, modifier: Modifier = Modifier, count: Int? = null) 
     }
 }
 
-/**
- * 刷新失败横幅（首页/详情共用）：errorContainer 底 + 具体原因 + 「旧数据保留」副行 + 重试钮。
- * 恢复出口紧邻错误（skill: error-recovery）；「旧数据保留」如实告知不谎报全挂。
- * 此前详情页是默认 Card 底 + 红字的另一套皮肤，同语义两皮肤收敛于此。
- * onDismiss 可选：用户有权不刷新只关提示（此前横幅只能等下次刷新清掉）。
- */
+private val BannerButtonInset = 7.dp
+
+/** 首页和详情共用的刷新提示。已知恢复时间优先于缓存说明。 */
 @Composable
-fun ErrorBanner(error: SourceError, onRetry: () -> Unit, onDismiss: (() -> Unit)? = null) {
+fun ErrorBanner(
+    error: SourceError,
+    hasSavedDetails: Boolean,
+    onRetry: () -> Unit,
+    onDismiss: () -> Unit,
+    modifier: Modifier = Modifier,
+) {
     val scheme = MiuixTheme.colorScheme
-    // 错误容器底（浅粉/深红棕）：错误语义即时可读，深浅两模式下边界都清晰
-    Column(
-        modifier = Modifier
-            .fillMaxWidth()
-            .padding(horizontal = 16.dp, vertical = 6.dp)
-            .clip(RoundedCornerShape(16.dp))
-            .background(scheme.errorContainer),
+    val limited = error as? SourceError.RateLimited
+    val title = if (limited != null) stringResource(R.string.banner_rate_limit_title) else sourceErrorText(error)
+    val hint = when {
+        limited?.retryAt != null -> stringResource(R.string.banner_retry_after, relTimeUntilString(limited.retryAt))
+        limited != null -> stringResource(R.string.status_error_subtitle)
+        hasSavedDetails -> stringResource(R.string.banner_old_data_kept)
+        else -> null
+    }
+    val panel = lerp(scheme.surfaceContainer, scheme.errorContainer, 0.5f)
+    val buttonColor = lerp(panel, scheme.onErrorContainer, 0.09f)
+    BoxWithConstraints(
+        modifier.fillMaxWidth().padding(vertical = 6.dp)
+            .background(panel, RoundedCornerShape(16.dp))
+            .padding(start = 16.dp, end = 16.dp - BannerButtonInset, top = 8.dp, bottom = 8.dp),
     ) {
-        Row(
-            modifier = Modifier.padding(horizontal = 14.dp, vertical = 10.dp),
-            verticalAlignment = Alignment.CenterVertically,
-        ) {
-            Column(modifier = Modifier.weight(1f)) {
-                Text(
-                    text = sourceErrorText(error),
-                    style = MiuixTheme.textStyles.footnote1,
-                    color = scheme.onErrorContainer,
-                )
-                Text(
-                    text = stringResource(R.string.banner_old_data_kept),
-                    style = MiuixTheme.textStyles.footnote2,
-                    color = scheme.onBackgroundVariant,
-                )
+        // 两枚按钮各保留 48dp，大字体或窄窗时让正文独占一行。
+        val minTextWidth = 156.dp * LocalDensity.current.fontScale.coerceAtLeast(1f)
+        if (maxWidth - 104.dp < minTextWidth) {
+            Column(Modifier.fillMaxWidth()) {
+                ErrorBannerMessage(title, hint, Modifier.padding(end = BannerButtonInset))
+                ErrorBannerActions(onRetry, onDismiss, buttonColor, Modifier.align(Alignment.End))
             }
-            SecondaryButton(
-                text = stringResource(R.string.retry),
-                onClick = onRetry,
-            )
-            // 重试钮与关闭钮之间的触控缝（skill: touch-spacing ≥8dp）
-            if (onDismiss != null) Spacer(Modifier.width(8.dp))
-            if (onDismiss != null) {
-                PressIconButton(
-                    onClick = onDismiss,
-                    contentDescription = stringResource(io.candy.tick.R.string.action_cancel),
-                    // 36dp 低于触控下限（skill: 44dp 档）：提至 44dp 行内档，染色圆 36dp
-                    size = 44.dp,
-                ) {
-                    Icon(
-                        imageVector = ImageVector.vectorResource(io.candy.tick.R.drawable.ic_close),
-                        contentDescription = null,
-                        tint = scheme.onErrorContainer,
-                        modifier = Modifier.size(16.dp),
-                    )
-                }
+        } else {
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                ErrorBannerMessage(title, hint, Modifier.weight(1f).padding(end = 8.dp))
+                ErrorBannerActions(onRetry, onDismiss, buttonColor)
             }
         }
+    }
+}
+
+@Composable
+private fun ErrorBannerMessage(title: String, hint: String?, modifier: Modifier) {
+    val scheme = MiuixTheme.colorScheme
+    Column(modifier, verticalArrangement = Arrangement.spacedBy(3.dp)) {
+        Text(
+            text = title,
+            style = MiuixTheme.textStyles.body2.copy(fontWeight = FontWeight.Medium, lineBreak = LineBreak.Heading),
+            color = scheme.onErrorContainer,
+        )
+        if (hint != null) {
+            Text(text = hint, style = MiuixTheme.textStyles.footnote1, color = scheme.onBackgroundVariant)
+        }
+    }
+}
+
+@Composable
+private fun ErrorBannerActions(onRetry: () -> Unit, onDismiss: () -> Unit, color: Color, modifier: Modifier = Modifier) {
+    Row(modifier) {
+        ErrorBannerButton(R.drawable.ic_refresh, R.string.retry, color, onRetry)
+        ErrorBannerButton(R.drawable.ic_close, R.string.banner_dismiss, color, onDismiss)
+    }
+}
+
+@Composable
+private fun ErrorBannerButton(icon: Int, label: Int, color: Color, onClick: () -> Unit) {
+    PressIconButton(
+        onClick = onClick,
+        contentDescription = stringResource(label),
+        containerColor = color,
+        tintInset = BannerButtonInset,
+    ) {
+        Icon(
+            imageVector = ImageVector.vectorResource(icon),
+            contentDescription = null,
+            tint = MiuixTheme.colorScheme.onErrorContainer,
+            modifier = Modifier.size(20.dp),
+        )
     }
 }

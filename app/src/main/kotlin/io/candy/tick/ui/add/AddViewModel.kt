@@ -6,10 +6,18 @@ import androidx.lifecycle.viewModelScope
 import io.candy.tick.data.RepoInfo
 import io.candy.tick.data.RepoInfoResult
 import io.candy.tick.data.RepoRepository
+import io.candy.tick.data.RepoSearchPage
 import io.candy.tick.data.SourceError
 import io.candy.tick.data.SourceException
+import io.candy.tick.data.model.TrackedRepo
 import io.candy.tick.util.UrlParser
+import io.candy.tick.util.AppMatcher
+import io.candy.tick.util.appDisplayName
+import io.candy.tick.util.labelOf
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.Job
 import kotlinx.coroutines.channels.Channel
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
@@ -17,6 +25,7 @@ import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.receiveAsFlow
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
 
 class AddViewModel(
     private val repository: RepoRepository,
@@ -24,7 +33,8 @@ class AddViewModel(
 ) : ViewModel() {
 
     private val appContext = context.applicationContext
-    private var userClearedLink = false // 用户主动清除过关联：本会话不再自动关联
+    private var linkEdited = false
+    private val appNames = mutableMapOf<String, String>()
 
     // @Immutable：AnimatedContent targetState 与 PreviewCard 参数的稳定判定依赖此承诺
     @Immutable
@@ -37,6 +47,7 @@ class AddViewModel(
             val info: RepoInfo,
             val linkedPackage: String? = null,
             val linkedLabel: String? = null,
+            val matchingApp: Boolean = false,
         ) : PreviewState
 
         data class Failed(val error: SourceError) : PreviewState
@@ -50,7 +61,7 @@ class AddViewModel(
         val duplicate: Boolean = false,
         val searching: Boolean = false,
         val searched: Boolean = false, // 已完成过一次搜索（区分「还没搜」与「无结果」）
-        val results: List<RepoInfo> = emptyList(),
+        val results: RepoSearchPage = RepoSearchPage(),
         val searchFailed: Boolean = false,
         val adding: Boolean = false,
     )
@@ -65,52 +76,40 @@ class AddViewModel(
     private val _state = MutableStateFlow(UiState())
     val state: StateFlow<UiState> = _state.asStateFlow()
 
-    private var fetchingKey: String? = null
-    private var parseJob: kotlinx.coroutines.Job? = null
+    // 同一输入区只允许一个搜索、去抖或预览请求持有结果。
+    private var lookupJob: Job? = null
+    private var addJob: Job? = null
 
     fun onInput(text: String) {
+        lookupJob?.cancel()
+        addJob?.cancel()
+        linkEdited = false
+        val parsed = UrlParser.parse(text)
         _state.update {
             it.copy(
-                input = text, searchFailed = false, searched = false,
-                // 输入已变，旧预览与输入不匹配 → 失效（URL 粘贴场景随后立即重新 Loading）
+                input = text, searchFailed = false, searched = false, searching = false,
+                results = RepoSearchPage(), duplicate = false, adding = false,
+                parseError = parsed == null && UrlParser.looksLikeUrl(text),
                 preview = PreviewState.Idle,
             )
         }
-        parseJob?.cancel()
-        val parsed = UrlParser.parse(text)
-        if (parsed == null) {
-            val looksTried = UrlParser.looksLikeUrl(text)
-            _state.update {
-                it.copy(
-                    parseError = looksTried,
-                    preview = if (looksTried) PreviewState.Idle else it.preview,
-                    duplicate = false,
-                )
-            }
-            return
-        }
-        _state.update { it.copy(parseError = false) }
+        if (parsed == null) return
         // 250ms debounce：裸 owner/repo 逐字输入的中间态不再各发一次请求（匿名限额 60/h 很贵）
-        parseJob = viewModelScope.launch {
-            kotlinx.coroutines.delay(250)
-            val key = "${parsed.first}/${parsed.second}"
-            if (key == fetchingKey) return@launch
-            fetchingKey = key
+        lookupJob = viewModelScope.launch {
+            delay(250)
             fetchPreview(parsed.first, parsed.second)
         }
     }
 
     /** 预览失败重试：URL 路径清键重拉；搜索关键词路径改走重搜（此前重试静默空转=死路） */
     fun retryPreview() {
-        parseJob?.cancel()
-        fetchingKey = null
+        lookupJob?.cancel()
         val parsed = UrlParser.parse(_state.value.input)
         if (parsed == null) {
             if (_state.value.input.isNotBlank()) submit()
             return
         }
-        fetchingKey = "${parsed.first}/${parsed.second}"
-        fetchPreview(parsed.first, parsed.second)
+        lookupJob = viewModelScope.launch { fetchPreview(parsed.first, parsed.second) }
     }
 
     /** 提交：URL → 已在解析；否则按关键词搜索 */
@@ -118,121 +117,128 @@ class AddViewModel(
         val text = _state.value.input
         if (UrlParser.parse(text) != null) return
         if (text.isBlank()) return
-        viewModelScope.launch {
+        lookupJob?.cancel()
+        lookupJob = viewModelScope.launch {
             _state.update {
-                it.copy(searching = true, searchFailed = false, results = emptyList(), preview = PreviewState.Idle)
+                it.copy(searching = true, searchFailed = false, results = RepoSearchPage(), preview = PreviewState.Idle)
             }
-            val results = runCatching { repository.search(text) }.getOrNull()
-            _state.update {
-                if (results == null) {
-                    it.copy(searching = false, searchFailed = true)
-                } else {
-                    it.copy(searching = false, searched = true, results = results)
-                }
+            try {
+                val results = repository.search(text)
+                _state.update { it.copy(searching = false, searched = true, results = results) }
+            } catch (_: SourceException) {
+                _state.update { it.copy(searching = false, searchFailed = true) }
             }
         }
     }
 
     /** 预览态返回搜索结果（results 保留时的退路） */
     fun dismissPreview() {
-        fetchingKey = null
-        _state.update { it.copy(preview = PreviewState.Idle, duplicate = false) }
+        lookupJob?.cancel()
+        addJob?.cancel()
+        linkEdited = false
+        _state.update { it.copy(preview = PreviewState.Idle, duplicate = false, adding = false) }
     }
 
     fun pickResult(info: RepoInfo) {
-        fetchingKey = "${info.owner}/${info.repo}"
-        // 搜索结果与 addPreview 返回同构（同一 GhRepo.toInfo 转换）：点击即用已知数据直出预览，
-        // 不为已有信息闪 loading（skill: tap-feedback-speed <100ms）；duplicate 本地库同步判定；
-        // 已订阅仓库的现有关联一并直出（此前 linked 页面级残留 + 异步才补，先「未关联」再跳变）
+        lookupJob?.cancel()
+        linkEdited = false
+        val tracked = showPreview(info)
+        lookupJob = viewModelScope.launch {
+            launch { resolveLink(info, tracked) }
+            try {
+                val fresh = repository.addPreview(info.owner, info.repo) as? RepoInfoResult.Fetched ?: return@launch
+                if (fresh.info.githubId == info.githubId) _state.update { state ->
+                    val preview = state.preview as? PreviewState.Loaded
+                    if (preview?.info?.githubId == info.githubId) state.copy(preview = preview.copy(info = fresh.info))
+                    else state
+                }
+            } catch (_: SourceException) {
+                // A search result already contains the information needed to show and add this repo.
+            }
+        }
+    }
+
+    private fun showPreview(info: RepoInfo): TrackedRepo? {
         val tracked = repository.state.value.repos.find { it.id == info.githubId }
         val linkedPkg = tracked?.linkedPackage
+        val name = linkedPkg?.let { pkg ->
+            appNames[pkg] ?: rememberAppName(pkg, tracked.noteName?.takeIf { tracked.autoNote })
+        }
         _state.update {
             it.copy(
                 preview = PreviewState.Loaded(
                     info = info,
                     linkedPackage = linkedPkg,
-                    linkedLabel = linkedPkg?.let(::appLabel),
+                    linkedLabel = name,
+                    matchingApp = tracked == null,
                 ),
                 duplicate = tracked != null,
             )
         }
-        fetchPreview(info.owner, info.repo, silent = true)
+        return tracked
     }
 
-    private fun appLabel(pkg: String): String? =
-        io.candy.tick.util.labelOf(appContext, pkg) ?: pkg
+    private suspend fun fetchPreview(owner: String, repo: String) {
+        _state.update { it.copy(preview = PreviewState.Loading, duplicate = false) }
+        try {
+            val result = repository.addPreview(owner, repo) as? RepoInfoResult.Fetched ?: return
+            val info = result.info
+            resolveLink(info, showPreview(info))
+        } catch (e: SourceException) {
+            _state.update { it.copy(preview = PreviewState.Failed(e.error)) }
+        }
+    }
 
-    private fun fetchPreview(owner: String, repo: String, silent: Boolean = false) {
-        val key = "$owner/$repo"
-        viewModelScope.launch {
-            // 保留 results：预览态可「返回搜索结果」重选（此前清空导致无退路）
-            if (!silent) _state.update { it.copy(preview = PreviewState.Loading, duplicate = false) }
-            try {
-                when (val result = repository.addPreview(owner, repo)) {
-                    is RepoInfoResult.NotModified -> Unit // 预览无 etag，不会走到
-                    is RepoInfoResult.Fetched -> {
-                        val dup = repository.state.value.repos.any { it.id == result.info.githubId }
-                        // 页面已被重置（fetchingKey 变更）则丢弃过期结果
-                        if (fetchingKey == key) {
-                            // 保留既有/用户手选的关联；无关联且未清除过 → 高置信自动关联
-                            // （Obtainium 式静默体验：仅本地查询零下载；PM 全量查询有成本，
-                            // 不可在直出主线程跑，随网络校准异步完成）
-                            val auto = if (!userClearedLink) {
-                                io.candy.tick.util.AppMatcher.bestAutoMatch(
-                                    appContext, result.info.owner, result.info.repo,
-                                )
-                            } else null
-                            // 合并在 update 内做：bestAutoMatch 的几十 ms 里用户可能已在选择器
-                            // 手选应用，快照直接覆盖会吞掉手选——手选（非空）永远优先
-                            _state.update {
-                                val cur = it.preview as? PreviewState.Loaded
-                                it.copy(
-                                    preview = PreviewState.Loaded(
-                                        info = result.info,
-                                        linkedPackage = cur?.linkedPackage ?: auto?.packageName,
-                                        linkedLabel = cur?.linkedLabel ?: auto?.label,
-                                    ),
-                                    duplicate = dup,
-                                )
-                            }
-                        }
-                    }
-                }
-            } catch (e: SourceException) {
-                // 静默校准失败：已直出的本地数据不受影响（仅 URL 粘贴路径亮错误态）
-                if (!silent && fetchingKey == key) {
-                    _state.update { it.copy(preview = PreviewState.Failed(e.error)) }
+    private suspend fun resolveLink(info: RepoInfo, tracked: TrackedRepo?) {
+        if (linkEdited) return
+        val pkg = tracked?.linkedPackage
+        val preview = _state.value.preview as? PreviewState.Loaded ?: return
+        if (preview.info.githubId != info.githubId || (pkg != null && preview.linkedLabel != null)) return
+        val link = withContext(Dispatchers.IO) {
+            when {
+                pkg != null -> pkg to labelOf(appContext, pkg)
+                tracked?.autoLinkDismissed == true -> null
+                else -> AppMatcher.bestAutoMatch(appContext, info.owner, info.repo)?.let { candidate ->
+                    candidate.packageName to (appDisplayName(candidate.packageName, candidate.label)
+                        ?: labelOf(appContext, candidate.packageName))
                 }
             }
         }
+        val current = _state.value.preview as? PreviewState.Loaded ?: return
+        if (current.info.githubId != info.githubId || linkEdited) return
+        val name = link?.let { (pkg, label) -> rememberAppName(pkg, label) }
+        _state.update { it.copy(preview = current.copy(linkedPackage = link?.first, linkedLabel = name, matchingApp = false)) }
+    }
+
+    private fun rememberAppName(packageName: String, label: String?): String? {
+        appDisplayName(packageName, label)?.let { appNames[packageName] = it }
+        return appNames[packageName]
     }
 
     fun setLinkedApp(packageName: String?, label: String?) {
-        if (packageName == null) userClearedLink = true // 主动清除 = 退出自动关联
+        linkEdited = true
+        val name = packageName?.let { rememberAppName(it, label) }
         _state.update { s ->
             val p = s.preview as? PreviewState.Loaded ?: return@update s
-            s.copy(preview = p.copy(linkedPackage = packageName, linkedLabel = label))
+            s.copy(preview = p.copy(linkedPackage = packageName, linkedLabel = name, matchingApp = false))
         }
-    }
-
-    /** 每次进入添加页调用：清空上一次的输入 / 预览 / 卡死标志 */
-    fun reset() {
-        parseJob?.cancel()
-        fetchingKey = null
-        _state.value = UiState()
     }
 
     fun confirmAdd() {
         val preview = _state.value.preview as? PreviewState.Loaded ?: return
-        if (_state.value.adding) return
-        viewModelScope.launch {
+        if (_state.value.adding || preview.matchingApp) return
+        addJob = viewModelScope.launch {
             _state.update { it.copy(adding = true) }
-            when (val result = repository.addRepo(preview.info.owner, preview.info.repo)) {
+            if (_state.value.duplicate) {
+                if (linkEdited) {
+                    repository.setLinkedPackage(preview.info.githubId, preview.linkedPackage, preview.linkedLabel)
+                }
+                _events.send(Event.Added(preview.info.githubId))
+                return@launch
+            }
+            when (val result = repository.addRepo(preview.info, preview.linkedPackage, preview.linkedLabel)) {
                 is RepoRepository.AddResult.Added -> {
-                    preview.linkedPackage?.let { pkg ->
-                        repository.setLinkedPackage(result.repo.id, pkg, newLabel = preview.linkedLabel)
-                    }
-                    _state.update { it.copy(adding = false) } // 成功也要复位（导航后 VM 仍存活）
+                    _state.update { it.copy(adding = false) }
                     _events.send(Event.Added(result.repo.id))
                 }
                 is RepoRepository.AddResult.Duplicate -> {

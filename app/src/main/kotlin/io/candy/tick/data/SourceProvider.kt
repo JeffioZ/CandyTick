@@ -15,22 +15,23 @@ const val RELEASES_PER_PAGE = 10
 interface SourceProvider {
     val name: String
 
-    /** 携带 ETag 条件请求；304 时返回 NotModified（不计配额） */
+    /** 携带 ETag 条件请求；304 时返回 NotModified。 */
     suspend fun repoInfo(owner: String, repo: String, etag: String? = null): RepoInfoResult
 
     suspend fun commits(owner: String, repo: String, page: Int = 1, sha: String? = null): List<CommitRecord>
 
     suspend fun releases(owner: String, repo: String, page: Int = 1, perPage: Int = RELEASES_PER_PAGE): List<ReleaseRecord>
 
+    suspend fun releaseByTag(owner: String, repo: String, tag: String): ReleaseRecord? = null
+
     /**
-     * 后台同步专用：release 列表 + ETag 条件请求（匿名配额 60/h 的主要节省点——
-     * 未变化的仓库 304 返回，不计配额）。无对应能力的源返回 Page(releases = emptyList())。
+     * 后台同步 release 列表可使用 ETag，默认实现回退为普通分页请求。
      */
     suspend fun releasesForSync(owner: String, repo: String, etag: String? = null): SyncReleasesResult =
         SyncReleasesResult.Page(releases(owner, repo), etag = null)
 
     /**
-     * 后台同步专用：浏览分支 tip sha（per_page=1 条件请求，304 不计配额）。
+     * 后台同步专用：浏览分支 tip sha（per_page=1 条件请求）。
      * 「有新提交」的精确信号源——pushed_at 统计任意分支的推送，直接用它会误亮。
      * branch = null 即默认分支（与详情页提交列表的口径一致）。无对应能力的源返回 null。
      */
@@ -43,8 +44,10 @@ interface SourceProvider {
     suspend fun branchTipDate(owner: String, repo: String, branch: String): Instant? = null
 
     /** 搜索（添加页辅助；无对应能力的源返回空） */
-    suspend fun search(query: String): List<RepoInfo> = emptyList()
+    suspend fun search(query: String): RepoSearchPage = RepoSearchPage()
 }
+
+data class RepoSearchPage(val repositories: List<RepoInfo> = emptyList(), val isComplete: Boolean = false)
 
 /** 拉取到的仓库信息（改名跟随后的最终 owner/repo 在此） */
 data class RepoInfo(
@@ -84,7 +87,7 @@ sealed interface RepoInfoResult {
     data class Fetched(val info: RepoInfo) : RepoInfoResult
 }
 
-/** 后台同步的 release 拉取结果：304 = 内容未变（tag 维持旧值，不计配额） */
+/** 后台同步的 release 拉取结果：304 = 内容未变，tag 维持旧值。 */
 sealed interface SyncReleasesResult {
     data class Page(val releases: List<ReleaseRecord>, val etag: String?) : SyncReleasesResult
     data object NotModified : SyncReleasesResult
@@ -119,6 +122,9 @@ class GitHubProvider(private val api: GitHubApi) : SourceProvider {
 
     override suspend fun releases(owner: String, repo: String, page: Int, perPage: Int) =
         api.releases(owner, repo, page, perPage)
+
+    override suspend fun releaseByTag(owner: String, repo: String, tag: String) =
+        api.releaseByTag(owner, repo, tag)
 
     override suspend fun releasesForSync(owner: String, repo: String, etag: String?) =
         api.releasesForSync(owner, repo, etag)

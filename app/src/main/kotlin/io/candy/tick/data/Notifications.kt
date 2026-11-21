@@ -9,12 +9,13 @@ import android.content.Context
 import android.content.Intent
 import android.content.pm.PackageManager
 import android.os.Build
+import android.os.Bundle
 import androidx.core.app.NotificationCompat
 import androidx.core.app.NotificationManagerCompat
 import androidx.core.content.ContextCompat
 import io.candy.tick.MainActivity
 import io.candy.tick.R
-import io.candy.tick.data.model.TrackedRepo
+import io.candy.tick.data.model.AppState
 import io.candy.tick.ui.common.localVersionName
 import io.candy.tick.util.VersionCompare
 
@@ -64,22 +65,28 @@ object Notifications {
 
     /** 13+ 未授权时静默跳过（不 crash、不弹窗） */
     fun canNotify(context: Context): Boolean =
-        Build.VERSION.SDK_INT < 33 ||
+        NotificationManagerCompat.from(context).areNotificationsEnabled() && (Build.VERSION.SDK_INT < 33 ||
             ContextCompat.checkSelfPermission(context, Manifest.permission.POST_NOTIFICATIONS) ==
-            PackageManager.PERMISSION_GRANTED
+            PackageManager.PERMISSION_GRANTED)
 
     // 通知点击导航目标（MainActivity 解析后直达对应页面）
     const val EXTRA_NAV_REPO = "nav_repo_id" // 仓库新版本 → 该仓库详情页
+    const val EXTRA_NAV_RELEASE_TAG = "nav_release_tag"
     const val EXTRA_NAV_SETTINGS = "nav_settings" // 自更新就绪 → 设置页
+    const val ACTION_NAV_HOME = "io.candy.tick.NOTIFY_REPO_SUMMARY"
 
     // canNotify() 已在函数头守门（13+ 未授权直接 return），notify 调用另包 runCatching 兜底；
     // lint 的静态权限分析不识别跨函数守卫，就地标注
     @SuppressLint("MissingPermission")
+    @Synchronized
     fun notifyRepoNewVersion(context: Context, repoName: String, tag: String, repoId: Long) {
         if (!canNotify(context)) return
         ensureChannels(context)
         val intent = Intent(context, MainActivity::class.java)
+            // PendingIntent 的身份不含 extras。同仓不同版本各用独立 action，点击旧通知时仍指向旧版。
+            .setAction("io.candy.tick.NOTIFY_REPO.$repoId.$tag")
             .putExtra(EXTRA_NAV_REPO, repoId)
+            .putExtra(EXTRA_NAV_RELEASE_TAG, tag)
         val pending = PendingIntent.getActivity(
             context,
             repoId.hashCode(),
@@ -90,21 +97,23 @@ object Notifications {
             .setSmallIcon(R.drawable.ic_notification)
             .setContentTitle(repoName)
             .setContentText(context.getString(R.string.notif_new_release, tag))
+            .addExtras(Bundle().apply { putString(EXTRA_NAV_RELEASE_TAG, tag) })
             .setContentIntent(pending)
             .setAutoCancel(true)
             .setGroup(GROUP_REPO_UPDATES) // 多仓库同轮发版折叠（≥2 条时摘要汇总）
             .build()
         runCatching {
-            NotificationManagerCompat.from(context).notify(repoId.hashCode(), notification)
+            NotificationManagerCompat.from(context).notify(repoId.toString(), 0, notification)
         }
     }
 
     /** 组摘要：一轮同步 ≥2 个仓库发版时折叠展示「N 个仓库有新版本」（点击回首页） */
     @SuppressLint("MissingPermission")
+    @Synchronized
     fun notifyRepoUpdatesSummary(context: Context, count: Int) {
         if (count < 2 || !canNotify(context)) return
         ensureChannels(context)
-        val intent = Intent(context, MainActivity::class.java) // 无目标 extra：回首页自览
+        val intent = Intent(context, MainActivity::class.java).setAction(ACTION_NAV_HOME)
         val pending = PendingIntent.getActivity(
             context,
             SUMMARY_ID,
@@ -155,40 +164,38 @@ object Notifications {
      * 场景：不点通知、直接进 App 装完新版——autoCancel 只在点击时生效，这里补主动清理。
      * 判定保守：未关联 / 未安装 / 无法比较 → 保留（信息仍有效，不误撤）。
      */
-    fun reconcileRepoNotifications(
-        context: Context,
-        repos: List<TrackedRepo>,
-        tags: Map<Long, String?>, // repoId → latestReleaseTag
-    ) {
+    @Synchronized
+    fun reconcileRepoNotifications(context: Context, state: AppState) {
         val manager = NotificationManagerCompat.from(context)
-        repos.forEach { repo ->
-            val tag = tags[repo.id] ?: return@forEach
-            val local = localVersionName(context, repo) ?: return@forEach
-            val handled = VersionCompare.compare(tag, local)?.let { it <= 0 } ?: return@forEach
-            if (handled) runCatching { manager.cancel(repo.id.hashCode()) }
-        }
-        // 已退订仓库的残留通知：id 不在现存仓集合 → 撤（退订后不点通知的陈旧场景。
-        // 代价：删除撤销窗口内若恰逢对账会误撤——下次发版会重新通知，无害）
-        val liveIds = repos.map { it.id.hashCode() }.toSet()
-        val active = runCatching { manager.activeNotifications.toList() }.getOrDefault(emptyList())
-        active.forEach {
-            if (it.notification.channelId == CHANNEL_NEW_RELEASE &&
-                it.id != SUMMARY_ID && it.id !in liveIds
-            ) {
-                runCatching { manager.cancel(it.id) }
+        val active = runCatching { manager.activeNotifications.filter { it.notification.channelId == CHANNEL_NEW_RELEASE } }
+            .getOrNull().orEmpty()
+        if (active.isEmpty()) return
+        val byTag = state.repos.associateBy { it.id.toString() }
+        val byLegacyId = state.repos.associateBy { it.id.hashCode() }
+        var hasChildren = false
+        var hasSummary = false
+        for (entry in active) {
+            if (entry.tag == null && entry.id == SUMMARY_ID) {
+                hasSummary = true
+                continue
+            }
+            val repo = if (entry.tag != null) byTag[entry.tag] else byLegacyId[entry.id]
+            // A legacy notification has no tag. Use the last version processed for notifications,
+            // since the foreground may already have seen a newer, as-yet unannounced release.
+            val tag = entry.notification.extras.getString(EXTRA_NAV_RELEASE_TAG)
+                ?: repo?.let { state.snapshots[it.id]?.latestReleaseTag }
+            val local = repo?.let { localVersionName(context, it) }
+            val installed = tag != null && local != null && VersionCompare.compare(tag, local)?.let { it <= 0 } == true
+            val noPublishedApk = repo?.let { state.snapshots[it.id] }?.let {
+                it.releaseBaselineKnown && it.currentReleaseTag == null
+            } == true
+            if (repo == null || installed || noPublishedApk) {
+                if (runCatching { manager.cancel(entry.tag, entry.id) }.isFailure) hasChildren = true
+            } else {
+                hasChildren = true
             }
         }
-        // 子通知全撤后摘要成孤儿（「N 个仓库有新版本」却点不出内容），一并清理
-        val childrenActive = active.any {
-            it.notification.channelId == CHANNEL_NEW_RELEASE &&
-                it.id != SUMMARY_ID && it.id != SELF_UPDATE_ID && it.id in liveIds
-        }
-        if (!childrenActive) runCatching { manager.cancel(SUMMARY_ID) }
-    }
-
-    /** 装完即撤单仓通知（安装广播命中本仓关联包名时调用） */
-    fun cancelRepoUpdate(context: Context, repoId: Long) {
-        runCatching { NotificationManagerCompat.from(context).cancel(repoId.hashCode()) }
+        if (hasSummary && !hasChildren) runCatching { manager.cancel(SUMMARY_ID) }
     }
 
     /** 自更新装完撤「下载完成」通知（SelfUpdater 检测到本机已是新版时调用） */

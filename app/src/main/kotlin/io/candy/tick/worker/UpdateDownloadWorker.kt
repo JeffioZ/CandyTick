@@ -22,26 +22,26 @@ class UpdateDownloadWorker(context: Context, params: WorkerParameters) : Corouti
 
         var newState = updater.state.value as? SelfUpdater.State.NewVersion
         if (newState == null) {
-            if (!updater.check()) return Result.success()
+            if (!updater.check()) {
+                val failed = updater.state.value as? SelfUpdater.State.Failed
+                return if (failed?.reason == SelfUpdater.Reason.NETWORK && runAttemptCount < 2) Result.retry() else Result.success()
+            }
             newState = updater.state.value as? SelfUpdater.State.NewVersion ?: return Result.success()
         }
         val asset = newState.asset ?: return Result.success()
+        if (newState.incomparable) return Result.success()
 
-        val file = updater.download(asset) ?: return Result.retry() // 下载失败：静默退避
-        return if (updater.canInstallSilently()) {
-            // 统一开关：开 → 静默安装（失败由 SelfUpdater 安装结果收口兜底「点击安装」通知）；
-            // 关 → 只通知已下载（受「新版本通知」开关管——此前自更新通知绕过开关）
-            if (container.appStateStore.state.value.settings.autoInstallDownload) {
-                updater.installSilently(file)
-            } else if (settings.notificationsEnabled) {
-                Notifications.notifySelfUpdateReady(applicationContext, newState.tag)
-            }
-            Result.success()
-        } else {
-            if (settings.notificationsEnabled) {
-                Notifications.notifySelfUpdateReady(applicationContext, newState.tag)
-            }
-            Result.success()
+        val file = updater.download(asset) ?: return when {
+            updater.state.value is SelfUpdater.State.Downloaded -> Result.success()
+            runAttemptCount < 2 -> Result.retry()
+            else -> Result.failure()
         }
+        val current = container.appStateStore.state.value.settings
+        if (current.selfUpdateAutoDownload && current.autoInstallDownload && updater.canInstallSilently()) {
+            updater.installSilently(file)
+        } else if (current.notificationsEnabled) {
+            Notifications.notifySelfUpdateReady(applicationContext, newState.tag)
+        }
+        return Result.success()
     }
 }

@@ -2,17 +2,19 @@ package io.candy.tick.ui.detail
 
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
-import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxWidth
-import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
-import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.lazy.LazyItemScope
 import androidx.compose.foundation.lazy.LazyListScope
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.res.stringResource
+import androidx.compose.ui.text.buildAnnotatedString
+import androidx.compose.ui.text.style.TextOverflow
+import androidx.compose.ui.text.withStyle
 import androidx.compose.ui.unit.dp
 import io.candy.tick.R
 import io.candy.tick.ui.common.RelTimeText
@@ -21,22 +23,23 @@ import top.yukonga.miuix.kmp.basic.Text
 import top.yukonga.miuix.kmp.theme.MiuixTheme
 import androidx.compose.ui.res.vectorResource
 import androidx.compose.ui.graphics.vector.ImageVector
-import io.candy.tick.ui.common.Motion
 
 /** 提交历史分页（到底自动加载；失败行内重试；尽头「已到底」） */
 fun LazyListScope.commitList(
     state: DetailViewModel.UiState,
+    contentModifier: Modifier,
     htmlBase: String,
+    showPagingIndicator: Boolean,
     onLoadMore: () -> Unit,
 ) {
-    items(count = state.commits.size, key = { state.commits[it].sha + it }) { index ->
+    items(
+        count = state.commits.size,
+        key = { "commits:${state.commits[it].sha}" },
+        contentType = { "commit" },
+    ) { index ->
         val commit = state.commits[index]
+        val title = remember(commit.message) { commitTitlePreview(commit.message) }
         val context = androidx.compose.ui.platform.LocalContext.current
-        // tab 切换/分页加载时卡片淡入（150 微反馈档，与首页列表同语言）
-        val itemMod = Modifier.fillMaxWidth().animateItem(
-            fadeInSpec = androidx.compose.animation.core.tween(Motion.MICRO),
-            fadeOutSpec = androidx.compose.animation.core.tween(Motion.MICRO),
-        )
         // 组合期取串（lint LocalContextGetResourceValueCall）：回调里查资源不随配置刷新
         val openFailed = stringResource(io.candy.tick.R.string.open_failed)
         io.candy.tick.ui.common.PressableCard(
@@ -51,22 +54,30 @@ fun LazyListScope.commitList(
                     )
                 }.onFailure { io.candy.tick.ui.common.Feedback.show(text = openFailed, isError = true) }
             },
-            modifier = itemMod,
+            modifier = contentModifier.fillMaxWidth(),
         ) {
             Column(modifier = Modifier.padding(horizontal = 16.dp, vertical = 8.dp)) {
                 Row(verticalAlignment = Alignment.CenterVertically) {
+                    val shaColor = MiuixTheme.colorScheme.primaryVariant
+                    val byline = remember(commit.sha, commit.author, shaColor) {
+                        buildAnnotatedString {
+                            withStyle(MonoTokenStyle.toSpanStyle().copy(color = shaColor)) {
+                                append(commit.sha.take(7))
+                            }
+                            commit.author?.takeIf { it.isNotBlank() }?.let {
+                                append("\u2002")
+                                append(it)
+                            }
+                        }
+                    }
                     Text(
-                        text = commit.sha.take(7),
-                        style = MonoTokenStyle,
-                        color = MiuixTheme.colorScheme.primaryVariant,
-                    )
-                    Spacer(Modifier.width(10.dp))
-                    Text(
-                        text = commit.author ?: "",
+                        text = byline,
                         style = MiuixTheme.textStyles.footnote2,
                         color = MiuixTheme.colorScheme.onBackgroundVariant,
+                        maxLines = 1,
+                        overflow = TextOverflow.Ellipsis,
+                        modifier = Modifier.weight(1f).padding(end = 8.dp),
                     )
-                    Spacer(Modifier.weight(1f))
                     RelTimeText(
                         date = commit.date,
                         color = MiuixTheme.colorScheme.onBackgroundVariant,
@@ -74,7 +85,9 @@ fun LazyListScope.commitList(
                     )
                 }
                 Text(
-                    text = commit.message.lineSequence().firstOrNull().orEmpty(),
+                    text = title,
+                    maxLines = 3,
+                    overflow = TextOverflow.Ellipsis,
                     style = MiuixTheme.textStyles.body1,
                     color = MiuixTheme.colorScheme.onBackground,
                 )
@@ -82,28 +95,21 @@ fun LazyListScope.commitList(
         }
     }
     item(key = "commits-footer") {
-        // fillParentMaxHeight 须在 item{}（LazyItemScope）内取：随屏高自适应的空态/错误态高度
-        CommitFooter(state = state, onLoadMore = onLoadMore, Modifier.fillParentMaxHeight(0.45f))
+        CommitFooter(state, onLoadMore, showPagingIndicator, contentModifier)
     }
 }
 
 @Composable
-private fun CommitFooter(
+private fun LazyItemScope.CommitFooter(
     state: DetailViewModel.UiState,
     onLoadMore: () -> Unit,
-    pageModifier: Modifier = Modifier, // item{} 注入的 fillParentMaxHeight（空态/错误态用）
+    showPagingIndicator: Boolean,
+    contentModifier: Modifier,
 ) {
-    val scheme = MiuixTheme.colorScheme
+    val pageModifier = contentModifier.fillParentMaxHeight(0.45f)
     when {
-        // page1 重载（reloading）时旧内容原地保留、刷新反馈交给刷新头/静默，不叠加小点；
-        // 空列表的重载仍显示（此时它是唯一反馈）；翻页加载正常显示小点
-        state.commitsLoading && (state.commits.isEmpty() || !state.commitsReloading) ->
-            androidx.compose.foundation.layout.Box(
-                modifier = Modifier.fillMaxWidth().padding(vertical = 8.dp),
-                contentAlignment = Alignment.Center,
-            ) {
-                io.candy.tick.ui.common.LoadingDots(dotSize = 5.dp)
-            }
+        state.commitsReloading -> Unit // 首卡上方波点或下拉刷新头负责提示
+        state.commitsLoading -> if (showPagingIndicator) DetailPagingIndicator()
         state.commitsFailed -> io.candy.tick.ui.common.StatusPage(
             icon = ImageVector.vectorResource(R.drawable.ic_close),
             isError = true,
@@ -113,13 +119,15 @@ private fun CommitFooter(
             onAction = onLoadMore,
             modifier = pageModifier.fillMaxWidth(),
         )
-        !state.commitsEnd -> LaunchedEffect(state.commits.size) { onLoadMore() }
-        state.commits.isEmpty() -> io.candy.tick.ui.common.StatusPage(
+        !state.commitsEnd && state.commits.isNotEmpty() -> LaunchedEffect(state.commits.size) { onLoadMore() }
+        state.commits.isEmpty() && state.commitsEnd -> io.candy.tick.ui.common.StatusPage(
             icon = ImageVector.vectorResource(R.drawable.ic_file),
             title = stringResource(R.string.detail_no_commits),
             modifier = pageModifier.fillMaxWidth(),
         )
         // 到底且有内容：终点提示（修复缺失——此前 when 链在此情形什么都不渲染）
-        else -> io.candy.tick.ui.common.FooterText(text = stringResource(R.string.list_end), count = state.commits.size)
+        state.commits.isNotEmpty() -> io.candy.tick.ui.common.FooterText(
+            R.plurals.footer_commits, state.commits.size, contentModifier,
+        )
     }
 }

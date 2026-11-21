@@ -4,7 +4,7 @@ package io.candy.tick.util
 object UrlParser {
 
     private val REPO_PATH = Regex(
-        """^(?:https?://)?(?:www\.)?github\.com/([A-Za-z0-9_.-]+)/([A-Za-z0-9_.-]+?)(?:/[?#\s].*)?/?$""",
+        """(?:https?://)?(?:www\.)?github\.com/([A-Za-z0-9_.-]+)/([A-Za-z0-9_.-]+)(?:[/?#][^\s]*)?""",
         RegexOption.IGNORE_CASE,
     )
 
@@ -14,9 +14,10 @@ object UrlParser {
     /** @return owner/repo 二元组；null = 无法识别 */
     fun parse(input: String): Pair<String, String>? {
         val text = input.trim()
-        REPO_PATH.find(text)?.let { return it.groupValues[1] to it.groupValues[2] }
-        BARE.find(text)?.let { return it.groupValues[1] to it.groupValues[2] }
-        return null
+        val match = REPO_PATH.matchEntire(text) ?: BARE.matchEntire(text) ?: return null
+        val (owner, repo) = match.destructured
+        if (owner == "." || owner == ".." || repo == "." || repo == "..") return null
+        return owner to repo
     }
 
     fun looksLikeUrl(input: String): Boolean =

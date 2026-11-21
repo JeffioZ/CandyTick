@@ -2,6 +2,8 @@ package io.candy.tick.ui.list
 
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.LocalIndication
+import androidx.compose.foundation.indication
 import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -15,12 +17,17 @@ import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.key
 import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.layout.LayoutBoundsHolder
+import androidx.compose.ui.layout.onVisibilityChanged
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.stringResource
+import androidx.compose.ui.semantics.semantics
+import androidx.compose.ui.semantics.stateDescription
 import androidx.compose.ui.unit.dp
 import io.candy.tick.R
 import io.candy.tick.data.model.TrackedRepo
@@ -50,11 +57,31 @@ fun RepoCard(
     versionEpoch: Int = 0, // ON_RESUME 递增：安装后版本行重算
     onToggle: () -> Unit,
     onClick: () -> Unit,
+    readViewport: LayoutBoundsHolder?,
+    onReleaseSeen: (String) -> Unit,
+    onCommitSeen: (String, Boolean) -> Unit,
     onRetryExtras: (() -> Unit)? = null, // 展开面板加载失败的显式重试
     modifier: Modifier = Modifier,
+    interactionModifier: Modifier = Modifier,
 ) {
     val scheme = MiuixTheme.colorScheme
-    io.candy.tick.ui.common.PressableCard(onClick = onClick, modifier = modifier.fillMaxWidth()) {
+    val pinned = item.repo.pinnedAt != null
+    val pinnedDescription = if (pinned) stringResource(R.string.pinned_a11y) else null
+    val unreadRelease = !item.snapshot?.activity?.unreadReleaseTags.isNullOrEmpty()
+    val unreadCommit = !item.snapshot?.activity?.unreadCommitShas.isNullOrEmpty()
+    val unread = when {
+        unreadRelease && unreadCommit -> stringResource(R.string.card_unread_both)
+        unreadRelease -> stringResource(R.string.card_unread_release)
+        unreadCommit -> stringResource(R.string.card_unread_commit)
+        else -> null
+    }
+    io.candy.tick.ui.common.PressableCard(
+        onClick = onClick,
+        modifier = modifier.fillMaxWidth(),
+        interactionModifier = interactionModifier.semantics {
+            if (pinnedDescription != null) stateDescription = pinnedDescription
+        },
+    ) {
         Column(modifier = Modifier.padding(start = 16.dp, end = 16.dp, top = 8.dp)) {
                 Row(verticalAlignment = Alignment.CenterVertically) {
                     io.candy.tick.ui.common.RepoIconBlock(repo = item.repo)
@@ -68,42 +95,28 @@ fun RepoCard(
                         // 等宽标识符家族（与详情头卡路径/tag/sha 一致）
                         io.candy.tick.ui.common.OwnerRepoLine(owner = item.repo.owner, repo = item.repo.repo)
                     }
-                    if (item.repo.pinnedAt != null) {
-                        Icon(
-                            imageVector = ImageVector.vectorResource(R.drawable.ic_pin),
-                            contentDescription = stringResource(R.string.pinned_a11y),
-                            // 薄荷 accent：置顶是用户主动状态（与灰色被动信息区分）
-                            tint = scheme.primaryVariant,
-                            modifier = Modifier.size(12.dp),
-                        )
-                        Spacer(Modifier.width(6.dp))
-                    }
                     if (item.error != null) InaccessibleBadge() else StatusBadge(item.status)
                 }
 
-                // 2+10 = 展开面板上方 10+2 一致（12dp）：上下呼吸对称
-                Spacer(Modifier.height(2.dp))
+                val expandPress = remember { MutableInteractionSource() }
                 Row(
                     modifier = Modifier
                         .fillMaxWidth()
-                        // 色块外上下留 3dp：按压色块不贴上方内容、不贴下方面板/卡边（对称空隙）
-                        .padding(vertical = 3.dp)
-                        // clip 在 clickable 前：ripple 随之圆角化（直角矩形按压效果生硬）
-                        .clip(RoundedCornerShape(10.dp))
-                        // clickable 在 padding 之前：留白计入命中区（~40dp 达标），
-                        // 且点击缓冲带不再穿透到卡片 onClick（误进详情）
                         .clickable(
-                            interactionSource = remember { MutableInteractionSource() },
+                            onClickLabel = stringResource(if (expanded) R.string.collapse_details else R.string.expand_details),
+                            role = androidx.compose.ui.semantics.Role.Button,
+                            interactionSource = expandPress,
+                            indication = null,
                         ) { onToggle() }
-                        // 内容边距 8（ripple 全宽）：文字不贴按压色块边缘；与面板边距统一对称
-                        .padding(horizontal = 8.dp)
-                        .padding(vertical = 7.dp),
+                        .semantics { if (unread != null) stateDescription = unread }
+                        // 收起和展开共用同一对留白，留白也响应展开操作。
+                        .padding(vertical = 4.dp)
+                        .clip(RoundedCornerShape(10.dp))
+                        .indication(expandPress, LocalIndication.current)
+                        .padding(horizontal = 8.dp, vertical = 7.dp),
                     verticalAlignment = Alignment.CenterVertically,
                 ) {
-                    // 时间源 = 浏览分支 tip 提交时间（lastCommitDate，与详情提交首行同源精确
-                    // 一致）；基线缺失（首次同步/切分支）回退 pushedAt。pushed_at 统计任意
-                    // 分支推送，曾导致「首页 x 分钟前 / 详情 2 小时前」各说各话（miuix/ShizukuX）
-                    (item.snapshot?.lastCommitDate ?: item.snapshot?.pushedAt)?.let { pushed ->
+                    Row(modifier = Modifier.weight(1f), verticalAlignment = Alignment.CenterVertically) {
                         if (isChanged) {
                             // 低调「有更新」标记：6dp 薄荷圆点，静态无动画
                             Box(
@@ -128,14 +141,42 @@ fun RepoCard(
                                 )
                             }
                         } else {
-                            Text(
-                                text = stringResource(R.string.card_last_push, relTimeString(pushed)),
+                            val timeLabel = item.activityAt?.let { instant ->
+                                val label = when {
+                                    item.releaseIsLatest -> R.string.card_last_release
+                                    item.snapshot?.lastCommitDate != null -> R.string.card_last_commit
+                                    else -> R.string.card_last_push
+                                }
+                                stringResource(label, relTimeString(instant))
+                            }
+                            val otherUnread = when {
+                                item.releaseIsLatest && unreadCommit -> R.string.card_unread_commit
+                                !item.releaseIsLatest && unreadRelease -> R.string.card_unread_release
+                                else -> null
+                            }
+                            val label = when {
+                                timeLabel == null -> unread
+                                otherUnread != null -> stringResource(R.string.card_activity_with_unread, timeLabel, stringResource(otherUnread))
+                                else -> timeLabel
+                            }
+                            if (label != null) Text(
+                                text = label,
                                 style = MiuixTheme.textStyles.footnote2,
                                 color = if (isChanged) scheme.primaryVariant else scheme.onBackgroundVariant,
                             )
                         }
                     }
-                    Spacer(Modifier.weight(1f))
+                    // Reserve the pin's place as cards change groups, including at larger text sizes.
+                    Box(Modifier.width(24.dp), contentAlignment = Alignment.CenterStart) {
+                        if (pinned) {
+                            Icon(
+                                imageVector = ImageVector.vectorResource(R.drawable.ic_pin),
+                                contentDescription = null,
+                                tint = scheme.onBackgroundVariant,
+                                modifier = Modifier.size(16.dp),
+                            )
+                        }
+                    }
                     // 「发现新版」直显标识（薄荷胶囊）：收起态的唯一新版提示；
                     // 展开且版本行可见时隐藏（版本行已给完整 tag 对比，两处同说=重复），
                     // 版本行暂无数据时保留兜底（展开也不至于零提示）
@@ -195,10 +236,12 @@ fun RepoCard(
                     Column(
                         modifier = Modifier.graphicsLayer(),
                     ) {
-                        Spacer(Modifier.height(2.dp))
                         // 卡中卡信息面板：展开内容有容器底，与折叠态主信息分层
-                        ExpandedDetails(item = item, extras = extras, versionEpoch = versionEpoch, onRetry = onRetryExtras)
-                        // 卡底留白放展开块内：收起时随动画移除，折叠态底部与顶对称（8dp）
+                        ExpandedDetails(
+                            item, extras, versionEpoch, onRetryExtras, readViewport.takeIf { expanded },
+                            onReleaseSeen, onCommitSeen,
+                        )
+                        // 展开面板底部与卡片顶部各留 8dp。
                         Spacer(Modifier.height(8.dp))
                     }
                 }
@@ -210,10 +253,14 @@ fun RepoCard(
 private fun ExpandedDetails(
     item: ListViewModel.RepoListItem,
     extras: ListViewModel.CardExtras?,
-    versionEpoch: Int = 0,
-    onRetry: (() -> Unit)? = null,
+    versionEpoch: Int,
+    onRetry: (() -> Unit)?,
+    readViewport: LayoutBoundsHolder?,
+    onReleaseSeen: (String) -> Unit,
+    onCommitSeen: (String, Boolean) -> Unit,
 ) {
     val scheme = MiuixTheme.colorScheme
+    val activity = item.snapshot?.activity
     Column(
         modifier = Modifier
             .fillMaxWidth()
@@ -232,7 +279,7 @@ private fun ExpandedDetails(
             }
             // 加载失败行：errorContainer 底 + onErrorContainer 字（token 正确配对，与
             // 版本卡/头卡失败条同语言）——此前 onErrorContainer 直写在面板灰底上
-            extras.commits == null -> Row(
+            extras.failed -> Row(
                 verticalAlignment = Alignment.CenterVertically,
                 modifier = Modifier
                     .fillMaxWidth()
@@ -274,26 +321,49 @@ private fun ExpandedDetails(
                     )
                 }
             }
-            else -> extras.commits.take(3).forEach { commit ->
-                Row(verticalAlignment = Alignment.CenterVertically) {
-                    Text(
-                        text = commit.sha.take(7),
-                        style = MonoTokenStyle,
-                        color = scheme.primaryVariant,
-                    )
-                    Spacer(Modifier.width(8.dp))
-                    Text(
-                        text = commit.message.lineSequence().firstOrNull().orEmpty(),
-                        style = MiuixTheme.textStyles.footnote1,
-                        color = scheme.onBackgroundVariant,
-                        maxLines = 1,
-                    )
+        }
+        if (extras?.loading != true) {
+            extras?.commits?.take(3)?.forEachIndexed { index, commit ->
+                key(commit.sha) {
+                    val observe = activity != null && (commit.sha in activity.unreadCommitShas ||
+                        (index == 0 && commit.sha !in activity.recentlyViewedCommits))
+                    Row(
+                        modifier = Modifier.whenRowSeen(readViewport.takeIf { observe }) { onCommitSeen(commit.sha, index == 0) },
+                        verticalAlignment = Alignment.CenterVertically,
+                    ) {
+                        Text(
+                            text = commit.sha.take(7),
+                            style = MonoTokenStyle,
+                            color = scheme.primaryVariant,
+                        )
+                        Spacer(Modifier.width(8.dp))
+                        Text(
+                            text = commit.message.lineSequence().firstOrNull().orEmpty(),
+                            style = MiuixTheme.textStyles.footnote1,
+                            color = scheme.onBackgroundVariant,
+                            maxLines = 1,
+                        )
+                    }
                 }
             }
         }
 
         // 版本行：最新 release vs 本机版本（与详情页头部共用组件，口径一致）
         val release = extras?.latestRelease
-        if (release != null) VersionStatusLine(repo = item.repo, remoteTag = release.tagName, installEpoch = versionEpoch)
+        if (release != null) key(release.tagName) {
+            val observe = activity != null && (release.tagName in activity.unreadReleaseTags ||
+                release.tagName !in activity.recentlyViewedReleases)
+            VersionStatusLine(
+                repo = item.repo,
+                remoteTag = release.tagName,
+                installEpoch = versionEpoch,
+                modifier = Modifier.whenRowSeen(readViewport.takeIf { observe }) { onReleaseSeen(release.tagName) },
+            )
+        }
     }
 }
+
+private fun Modifier.whenRowSeen(viewport: LayoutBoundsHolder?, onSeen: () -> Unit): Modifier =
+    if (viewport == null) this else onVisibilityChanged(250L, 1f, viewport) { visible ->
+        if (visible) onSeen()
+    }

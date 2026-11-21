@@ -1,5 +1,6 @@
 package io.candy.tick.ui.common
 
+import android.os.SystemClock
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.core.tween
 import androidx.compose.animation.fadeIn
@@ -7,12 +8,18 @@ import androidx.compose.animation.fadeOut
 import androidx.compose.animation.slideInVertically
 import androidx.compose.animation.slideOutVertically
 import androidx.compose.foundation.background
+import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.LocalIndication
+import androidx.compose.foundation.indication
+import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.sizeIn
 import androidx.compose.foundation.layout.statusBarsPadding
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.shape.RoundedCornerShape
@@ -26,10 +33,11 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.shadow
-import androidx.compose.foundation.layout.size
 import androidx.compose.ui.graphics.vector.ImageVector
+import androidx.compose.ui.platform.LocalAccessibilityManager
 import androidx.compose.ui.res.vectorResource
 import androidx.compose.ui.semantics.LiveRegionMode
+import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.semantics.liveRegion
 import androidx.compose.ui.semantics.semantics
 
@@ -40,27 +48,25 @@ import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import top.yukonga.miuix.kmp.basic.Text
 import top.yukonga.miuix.kmp.theme.MiuixTheme
-import io.candy.tick.ui.common.Motion
+import io.candy.tick.ui.theme.DarkFeedbackOutline
+import io.candy.tick.ui.theme.LightFeedbackOutline
+import io.candy.tick.ui.theme.LocalDarkTheme
 
 /**
- * 全局统一瞬时反馈：顶部居中悬浮白卡胶囊（✓/✕ + 文字 + 可选动作），顶栏下方。
- * 配色 = V3 白卡（用户选定）：卡片语言同族、主题色只在语义图标与撤销动作上——
- * 取代整颗薄荷容器（主题色大面积出现与 UI 配色不搭）。
- * 取代此前并存的三套通道（顶部结果胶囊 / Miuix Snackbar / 系统 Toast）——
- * 位置、配色、动效全应用一致；skill 准则：无动作 2.2s、有动作 4.5s 自动消失，统一动效 token。
+ * 顶栏下方的瞬时反馈。明暗共用圆角、描边、阴影和动效，主题色用于状态图标和操作文字。
  */
 object Feedback {
 
-    data class Message(
-        val id: Long,
+    class Message(
         val text: String,
         val isError: Boolean = false,
         val actionLabel: String? = null,
         val onAction: (() -> Unit)? = null,
         val durationMs: Long = if (actionLabel != null) 4_500L else 2_200L,
-    )
+    ) {
+        val createdAt = SystemClock.elapsedRealtime()
+    }
 
-    private var nextId = 0L
     private val _current = MutableStateFlow<Message?>(null)
     val current: StateFlow<Message?> = _current
 
@@ -73,7 +79,6 @@ object Feedback {
         durationMs: Long? = null,
     ) {
         _current.value = Message(
-            id = nextId++,
             text = text,
             isError = isError,
             actionLabel = actionLabel,
@@ -81,23 +86,43 @@ object Feedback {
             durationMs = durationMs ?: if (actionLabel != null) 4_500L else 2_200L,
         )
     }
+
+    internal fun dismiss(message: Message): Boolean = _current.compareAndSet(message, null)
 }
 
-/** 宿主：置于 Activity 内容最上层（导航之上），底部居中、键盘上方 */
+/** 置于导航上方，顶栏下方居中。 */
 @Composable
 fun FeedbackHost() {
     val scheme = MiuixTheme.colorScheme
     val msg by Feedback.current.collectAsStateWithLifecycle()
+    val accessibility = LocalAccessibilityManager.current
+    val dark = LocalDarkTheme.current
+    val shape = RoundedCornerShape(16.dp)
 
     // 末值捕获：退出动画期间继续渲染（内容塌空 = 瞬间消失的教训）
     var shown by remember { mutableStateOf<Feedback.Message?>(null) }
     var visible by remember { mutableStateOf(false) }
-    LaunchedEffect(msg) {
-        val m = msg ?: return@LaunchedEffect
+    LaunchedEffect(msg, accessibility) {
+        val m = msg
+        if (m == null) {
+            visible = false
+            return@LaunchedEffect
+        }
+        val timeout = accessibility?.calculateRecommendedTimeoutMillis(
+            originalTimeoutMillis = m.durationMs,
+            containsIcons = true,
+            containsText = true,
+            containsControls = m.onAction != null,
+        ) ?: m.durationMs
+        val remaining = timeout - (SystemClock.elapsedRealtime() - m.createdAt)
+        if (remaining <= 0) {
+            Feedback.dismiss(m)
+            return@LaunchedEffect
+        }
         shown = m
         visible = true
-        delay(m.durationMs)
-        visible = false
+        delay(remaining)
+        Feedback.dismiss(m)
     }
 
     // 顶部居中、顶栏之下：状态栏 + 标准顶栏高（64dp）+ 间距，避开标题/动作区；
@@ -106,7 +131,7 @@ fun FeedbackHost() {
         modifier = Modifier
             .fillMaxSize()
             .statusBarsPadding()
-            .padding(top = 76.dp),
+            .padding(start = 16.dp, end = 16.dp, top = 76.dp),
         contentAlignment = Alignment.TopCenter,
     ) {
         AnimatedVisibility(
@@ -115,20 +140,17 @@ fun FeedbackHost() {
             exit = fadeOut(tween(Motion.PANEL)) + slideOutVertically(tween(Motion.PANEL)) { -it },
         ) {
             shown?.let { m ->
-                // 卡片语言对齐（用户选定 V3 后追加）：底色/圆角/无边框 = 首页卡片同款
-                // （surfaceContainer + 16dp 圆角 + 无描边），仅保留 2dp 轻影承担悬浮语义；
-                // 主题色只在语义图标（成功 Mint700 / 失败红）与撤销动作上
                 val iconTint = if (m.isError) scheme.onErrorContainer else scheme.primaryVariant
                 val textTint = scheme.onSurfaceContainer
                 Row(
                     modifier = Modifier
-                        .padding(top = 0.dp)
-                        .shadow(2.dp, RoundedCornerShape(16.dp))
-                        .clip(RoundedCornerShape(16.dp))
-                        .background(scheme.surfaceContainer)
+                        .shadow(2.dp, shape)
+                        .clip(shape)
+                        .background(if (dark) scheme.surfaceContainerHigh else scheme.surfaceContainer)
+                        .border(1.dp, if (dark) DarkFeedbackOutline else LightFeedbackOutline, shape)
                         // 读屏直播（Polite）：同步结果/安装结果此前 TalkBack 完全无感知
                         .semantics { liveRegion = LiveRegionMode.Polite }
-                        .padding(start = 14.dp, end = 12.dp, top = 10.dp, bottom = 10.dp),
+                        .padding(start = 14.dp, end = if (m.actionLabel == null) 14.dp else 4.dp),
                     verticalAlignment = Alignment.CenterVertically,
                 ) {
                     // 状态符 Lucide 单源（与 SyncDots 结果符同库同规格 14dp）：语义色
@@ -143,26 +165,32 @@ fun FeedbackHost() {
                     Spacer(Modifier.width(6.dp))
                     Text(
                         text = m.text,
+                        modifier = Modifier.weight(1f, fill = false).padding(vertical = 10.dp),
                         style = MiuixTheme.textStyles.footnote1,
                         color = textTint,
                     )
                     m.actionLabel?.let { label ->
                         Spacer(Modifier.width(4.dp))
-                        Text(
-                            text = label,
-                            style = MiuixTheme.textStyles.footnote1,
-                            color = scheme.primaryVariant,
-                            fontWeight = androidx.compose.ui.text.font.FontWeight.Medium,
+                        val press = remember { MutableInteractionSource() }
+                        Box(
                             modifier = Modifier
-                                .clip(RoundedCornerShape(8.dp))
-                                .clickable {
-                                    m.onAction?.invoke()
-                                    visible = false
+                                .clickable(interactionSource = press, indication = null, role = Role.Button) {
+                                    if (Feedback.dismiss(m)) m.onAction?.invoke()
                                 }
-                                // 垂直 12：动作区 ≈44dp 触控下限——「撤销」是滑删唯一救回手段，
-                                // 此前 ~32dp 偏小；胶囊整体高度由内容撑起，视觉不变厚
-                                .padding(horizontal = 8.dp, vertical = 12.dp),
-                        )
+                                .sizeIn(minWidth = 48.dp, minHeight = 48.dp)
+                                .padding(vertical = 4.dp)
+                                .clip(RoundedCornerShape(8.dp))
+                                .indication(press, LocalIndication.current)
+                                .padding(horizontal = 8.dp),
+                            contentAlignment = Alignment.Center,
+                        ) {
+                            Text(
+                                text = label,
+                                style = MiuixTheme.textStyles.footnote1,
+                                color = scheme.primaryVariant,
+                                fontWeight = androidx.compose.ui.text.font.FontWeight.Medium,
+                            )
+                        }
                     }
                 }
             }

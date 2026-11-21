@@ -27,6 +27,7 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.draw.alpha
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
@@ -93,13 +94,14 @@ fun LoadingDots(
         verticalAlignment = Alignment.CenterVertically,
     ) {
         repeat(3) { i ->
-            val phase = (((t - i / 3f) % 1f) + 1f) % 1f
-            val wave = sin(phase * 2 * Math.PI).toFloat()
             Box(
                 modifier = Modifier
-                    .offset(y = dotSize * -0.625f * wave)
                     .size(dotSize)
-                    .alpha(0.45f + 0.55f * (0.5f + 0.5f * wave))
+                    .graphicsLayer {
+                        val wave = sin((t - i / 3f) * 2 * Math.PI).toFloat()
+                        translationY = dotSize.toPx() * -0.625f * wave
+                        alpha = 0.45f + 0.55f * (0.5f + 0.5f * wave)
+                    }
                     .clip(CircleShape)
                     .background(color),
             )
@@ -107,11 +109,29 @@ fun LoadingDots(
     }
 }
 
+/** Hide brief operations during navigation. Once visible, allow one readable beat. */
+@Composable
+internal fun rememberBusyIndicator(running: Boolean): Boolean {
+    var visible by remember { mutableStateOf(false) }
+    var shownAt by remember { androidx.compose.runtime.mutableLongStateOf(0L) }
+    LaunchedEffect(running) {
+        if (running && !visible) {
+            kotlinx.coroutines.delay(300)
+            shownAt = android.os.SystemClock.uptimeMillis()
+            visible = true
+        } else if (!running && visible) {
+            val remaining = Motion.PHASE - (android.os.SystemClock.uptimeMillis() - shownAt)
+            if (remaining > 0) kotlinx.coroutines.delay(remaining)
+            visible = false
+        }
+    }
+    return visible
+}
+
 /**
- * 顶栏同步活体（首页/详情共用）：标题右侧三点轻跳（进行中）→ 完成/失败符。
+ * 首页标题右侧的三点与完成／失败符。
  * 36dp 固定占位槽——槽常在，标题再长 dots 也不会被挤出/挤进 actions 区；
  * 300ms 延迟防闪（短抖动不点亮），结束后停一拍再收。
- * done 传 null = 只做波点（详情静默刷新没有结果事件）。
  */
 @Composable
 fun SyncDots(
@@ -120,16 +140,7 @@ fun SyncDots(
     modifier: Modifier = Modifier,
 ) {
     val scheme = MiuixTheme.colorScheme
-    var dotsVisible by remember { mutableStateOf(false) }
-    LaunchedEffect(running) {
-        if (running) {
-            kotlinx.coroutines.delay(300) // 近即时防闪
-            dotsVisible = true
-        } else {
-            if (dotsVisible) kotlinx.coroutines.delay(350) // 停一拍再收
-            dotsVisible = false
-        }
-    }
+    val dotsVisible = rememberBusyIndicator(running)
     Box(modifier = modifier.width(36.dp), contentAlignment = Alignment.CenterStart) {
         // 结果符：捕获最后一个非空结果——退出期间继续渲染，
         // 否则 done 置空的瞬间内容塌空，退出动画淡出的是空气（= 瞬间消失）

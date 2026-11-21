@@ -51,9 +51,14 @@ class CacheManager(private val context: Context) {
      * 冷启动时 Snackbar 早已消失，不影响撤销安全。
      */
     fun cleanOrphanApks(subscribedIds: Set<Long>) {
-        val root = apksRoot
-        if (!root.isDirectory) return
-        root.listFiles()?.forEach { dir ->
+        // 上个进程崩溃留下的临时文件没有任务再负责收尾。按进程启动时间区分活跃下载。
+        val startedAt = System.currentTimeMillis() -
+            (android.os.SystemClock.elapsedRealtime() - android.os.Process.getStartElapsedRealtime())
+        for (root in listOf(apksRoot, updatesDir)) {
+            root.walkTopDown().filter { it.isFile && it.isDownloadPart() && it.lastModified() < startedAt }
+                .forEach { it.delete() }
+        }
+        apksRoot.listFiles()?.forEach { dir ->
             val dirId = dir.name.toLongOrNull()
             if (dirId != null && dirId !in subscribedIds) {
                 dir.deleteRecursively()
@@ -67,11 +72,17 @@ class CacheManager(private val context: Context) {
     private fun deleteDir(dir: File): Long {
         if (!dir.isDirectory) return 0L
         var freed = 0L
-        dir.walkTopDown().filter { it.isFile }.forEach { f ->
-            val len = f.length()
-            if (f.delete()) freed += len
+        dir.walkBottomUp().forEach { f ->
+            if (f.isDirectory) {
+                f.delete()
+            } else if (!f.isDownloadPart()) {
+                // 流式下载在独立临时文件内进行，由下载任务负责收尾。
+                val len = f.length()
+                if (f.delete()) freed += len
+            }
         }
-        dir.delete() // 空目录本身（残留下次启动孤儿清理兜底）
         return freed
     }
+
+    private fun File.isDownloadPart(): Boolean = name.endsWith(".part") || name.substringAfterLast(".part-", "").toLongOrNull() != null
 }

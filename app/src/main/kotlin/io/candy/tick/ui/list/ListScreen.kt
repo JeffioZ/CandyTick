@@ -1,11 +1,23 @@
 package io.candy.tick.ui.list
 
-import androidx.compose.foundation.clickable
+import androidx.compose.animation.EnterTransition
+import androidx.compose.animation.ExitTransition
+import androidx.compose.animation.core.tween
+import androidx.compose.animation.expandHorizontally
+import androidx.compose.animation.fadeIn
+import androidx.compose.animation.fadeOut
+import androidx.compose.animation.shrinkHorizontally
+import androidx.compose.foundation.interaction.DragInteraction
+import androidx.compose.foundation.layout.BoxWithConstraints
+import androidx.compose.foundation.layout.heightIn
+import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.foundation.layout.size
 import androidx.compose.ui.hapticfeedback.HapticFeedbackType
 import androidx.compose.ui.draw.alpha
 import kotlinx.coroutines.launch
 import androidx.compose.ui.focus.focusRequester
+import androidx.compose.ui.focus.focusProperties
 import io.candy.tick.data.SyncStatus
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -22,21 +34,36 @@ import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.produceState
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.key
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.layout.LayoutBoundsHolder
+import androidx.compose.ui.layout.layoutBounds
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.platform.LocalResources
 import androidx.compose.ui.res.stringResource
+import androidx.compose.ui.semantics.clearAndSetSemantics
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.Density
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import androidx.lifecycle.compose.currentStateAsState
+import androidx.lifecycle.Lifecycle
+import androidx.lifecycle.repeatOnLifecycle
+import kotlinx.coroutines.delay
+import kotlinx.coroutines.flow.collectLatest
 import androidx.lifecycle.viewmodel.compose.viewModel
 import io.candy.tick.CandyTickApp
 import io.candy.tick.R
 import io.candy.tick.ui.common.ErrorBanner
+import io.candy.tick.ui.common.ScrollToTopTitle
+import io.candy.tick.ui.common.TextFieldActionButton
+import io.candy.tick.ui.common.scrollToTop
 import top.yukonga.miuix.kmp.basic.Icon
 import top.yukonga.miuix.kmp.basic.MiuixScrollBehavior
 import top.yukonga.miuix.kmp.basic.Scaffold
@@ -48,6 +75,26 @@ import top.yukonga.miuix.kmp.theme.MiuixTheme
 import androidx.compose.ui.res.vectorResource
 import androidx.compose.ui.graphics.vector.ImageVector
 import io.candy.tick.ui.common.Motion
+import io.candy.tick.ui.common.rememberMotionEnabled
+
+/** A short home list keeps its end marker at the bottom of the available viewport. */
+private object HomeListArrangement : Arrangement.Vertical {
+    override val spacing = 8.dp
+
+    override fun Density.arrange(totalSize: Int, sizes: IntArray, outPositions: IntArray) {
+        val gap = spacing.roundToPx()
+        var top = 0
+        sizes.forEachIndexed { index, height ->
+            outPositions[index] = if (index == sizes.lastIndex) maxOf(top, totalSize - height) else top
+            top += height + gap
+        }
+    }
+}
+
+private class SortSheetSession(val initial: SortOrder) {
+    var open by mutableStateOf(true)
+    var selected by mutableStateOf(initial)
+}
 
 @Composable
 fun ListScreen(
@@ -56,25 +103,37 @@ fun ListScreen(
     onOpenSettings: () -> Unit,
 ) {
     val app = LocalContext.current.applicationContext as CandyTickApp
+    val resources = LocalResources.current
     val vm: ListViewModel = viewModel { ListViewModel(app.container.repoRepository, app.container.repoDownloadHost, app) }
+    fun leaveHome(navigate: () -> Unit) {
+        vm.titleSync.leave(vm.syncStatus.value)
+        navigate()
+    }
     // 从安装器返回（ON_RESUME）：本机版本可能已变（装完新 APK），通知 VM 重算版本对比
-    val lifecycleOwner = androidx.compose.ui.platform.LocalLifecycleOwner.current
-    androidx.compose.runtime.DisposableEffect(lifecycleOwner) {
+    val lifecycleOwner = androidx.lifecycle.compose.LocalLifecycleOwner.current
+    val lifecycleState by lifecycleOwner.lifecycle.currentStateAsState()
+    val listBounds = remember { LayoutBoundsHolder() }
+    var sortSheet by remember(vm) { mutableStateOf<SortSheetSession?>(null) }
+    var keepReadingOrder by remember(vm) { mutableStateOf(false) }
+    androidx.compose.runtime.DisposableEffect(lifecycleOwner, vm) {
         val observer = androidx.lifecycle.LifecycleEventObserver { _, event ->
-            if (event == androidx.lifecycle.Lifecycle.Event.ON_RESUME) vm.onAppResume()
+            when (event) {
+                androidx.lifecycle.Lifecycle.Event.ON_RESUME -> vm.onAppResume()
+                androidx.lifecycle.Lifecycle.Event.ON_PAUSE -> vm.titleSync.leave(vm.syncStatus.value)
+                androidx.lifecycle.Lifecycle.Event.ON_STOP -> keepReadingOrder = false
+                else -> Unit
+            }
         }
         lifecycleOwner.lifecycle.addObserver(observer)
-        onDispose { lifecycleOwner.lifecycle.removeObserver(observer) }
+        onDispose {
+            lifecycleOwner.lifecycle.removeObserver(observer)
+            vm.titleSync.leave(vm.syncStatus.value)
+        }
     }
     val state by vm.state.collectAsStateWithLifecycle()
     val syncStatus by vm.syncStatus.collectAsStateWithLifecycle()
-    // 结果转变检测（Running→Done，或冷启动 10s 内的新鲜 Done）——顶栏完成符与胶囊共用
-    val syncResult = rememberSyncResult(
-        status = syncStatus,
-        consumedAt = vm.syncResultConsumedAt,
-        onConsumed = { vm.syncResultConsumedAt = it },
-    )
-    // 同步结果也走统一反馈（顶栏 ✓ 符保留作状态指示）；app.getString 可在协程内带参取串
+    val syncResult = rememberSyncResult(vm, lifecycleOwner.lifecycle)
+    // 同步结果使用页面选定的语言，和设置中的语言切换即时一致。
     // 胶囊只在有信息量时出（有更新计数/有失败）；无变化不出——顶栏 ✓ 已确认成功，
     // 卡片圆点缺席已说明无更新，静默即无变化
     androidx.compose.runtime.LaunchedEffect(syncResult) {
@@ -84,60 +143,55 @@ fun ListScreen(
             val allFailed = d.total > 0 && d.failed >= d.total
             when {
                 allFailed -> io.candy.tick.ui.common.Feedback.show(
-                    text = app.getString(R.string.sync_result_all_failed, d.failed),
+                    text = resources.getQuantityString(R.plurals.sync_result_all_failed, d.failed, d.failed),
                     isError = true,
                 )
                 d.failed > 0 && d.changed == 0 -> io.candy.tick.ui.common.Feedback.show(
-                    text = app.getString(R.string.sync_result_partial_failed, d.failed),
+                    text = resources.getQuantityString(R.plurals.sync_result_partial_failed, d.failed, d.failed),
                     isError = true,
                 )
-                d.changed > 0 -> io.candy.tick.ui.common.Feedback.show(
-                    text = app.getString(R.string.sync_result_updated, d.changed) +
-                        if (d.failed > 0) app.getString(R.string.sync_result_failed_suffix, d.failed) else "",
-                )
+                d.changed > 0 -> {
+                    val updated = resources.getQuantityString(R.plurals.sync_result_updated, d.changed, d.changed)
+                    val message = if (d.failed > 0) {
+                        resources.getString(R.string.sync_result_with_failures, updated, d.failed)
+                    } else updated
+                    io.candy.tick.ui.common.Feedback.show(text = message)
+                }
             }
         }
     }
     val scheme = MiuixTheme.colorScheme
     // 瞬时反馈走全局 FeedbackHost（撤销动作由胶囊承载）
     val listState = androidx.compose.foundation.lazy.rememberLazyListState()
+    val emptyScroll = rememberScrollState()
+    val showingEmpty = state.items.isEmpty() && !state.refreshing
     val scope = androidx.compose.runtime.rememberCoroutineScope()
     val haptic = androidx.compose.ui.platform.LocalHapticFeedback.current
-    // 重排锚点：抑制期内保持「用户原来看哪还看哪」——修复 LazyColumn 锚定取整误差
-    // （重排项插到首见项之上时露出 1px 边 + 跨视口闪烁）
-    var scrollAnchor by remember { mutableStateOf<Pair<Long, Int>?>(null) }
-    androidx.compose.runtime.LaunchedEffect(vm.suppressItemPlacement) {
-        if (vm.suppressItemPlacement) {
-            if (scrollAnchor == null && !listState.isScrollInProgress) {
-                state.items.getOrNull(listState.firstVisibleItemIndex)?.let {
-                    scrollAnchor = it.repo.id to listState.firstVisibleItemScrollOffset
-                }
-            }
-        } else {
-            scrollAnchor = null
+    val motionEnabled = rememberMotionEnabled()
+    // A foreground sync can start after the sheet closes. Keep the just-shown ranking
+    // through that update, until the user scrolls, refreshes or leaves this visit.
+    // The sort's own requestScrollToItem(0) is not a user drag.
+    LaunchedEffect(listState, keepReadingOrder) {
+        if (keepReadingOrder) listState.interactionSource.interactions.collect {
+            if (it is DragInteraction.Stop) keepReadingOrder = false
         }
     }
-    androidx.compose.runtime.LaunchedEffect(state.items, vm.suppressItemPlacement, scrollAnchor) {
-        val anchor = scrollAnchor ?: return@LaunchedEffect
-        if (!vm.suppressItemPlacement) return@LaunchedEffect
-        when {
-            listState.isScrollInProgress -> scrollAnchor = null // 用户接管滚动：放弃锚点
-            else -> {
-                val idx = state.items.indexOfFirst { it.repo.id == anchor.first }
-                if (idx < 0) {
-                    scrollAnchor = null // 锚点条目已不在列表
-                } else if (listState.firstVisibleItemIndex != idx ||
-                    listState.firstVisibleItemScrollOffset != anchor.second
-                ) {
-                    listState.requestScrollToItem(idx, anchor.second)
-                }
-            }
-        }
+    fun refresh() {
+        keepReadingOrder = false
+        vm.refresh()
     }
+    // Ranking runs off the main thread. During dismissal only hand over rows for the final choice.
+    val holdOrder = sortSheet?.open == true || state.sortOrder != vm.storedSortOrder
+    val rows = rememberHomeRows(
+        vm, state, listState, lifecycleState == Lifecycle.State.RESUMED, motionEnabled, holdOrder = holdOrder,
+        keepReadingOrder = keepReadingOrder,
+    )
+    // A sort may bring distant keys into the lazy layout's tracking range. They are existing cards.
+    val fadeMembership = motionEnabled && sortSheet == null && !holdOrder && !rows.revealingSort
     val scrollBehavior = MiuixScrollBehavior(rememberTopAppBarState())
     val pullState = rememberPullToRefreshState()
-    var showSortSheet by remember { mutableStateOf(false) }
-    var showSearch by remember { mutableStateOf(false) }
+    var showSearch by androidx.compose.runtime.saveable.rememberSaveable { mutableStateOf(false) }
+    val keyboard = androidx.compose.ui.platform.LocalSoftwareKeyboardController.current
     val searchFocus = remember { androidx.compose.ui.focus.FocusRequester() }
     // 返回键先收起搜索（而非退出应用）——搜索态的标准返回语义
     androidx.activity.compose.BackHandler(enabled = showSearch) {
@@ -192,51 +246,51 @@ fun ListScreen(
                     scrollBehavior = scrollBehavior,
                     navigationIcon = {
                         Row(verticalAlignment = Alignment.CenterVertically) {
-                            Text(
+                            ScrollToTopTitle(
                                 text = stringResource(R.string.app_name),
-                                style = MiuixTheme.textStyles.title4,
-                                color = scheme.onBackground,
-                                // 点标题回顶部（与详情页同款交互）：无 ripple，滚动动画即反馈；
-                                // 前置 padding 扩热区至 ~48dp
-                                modifier = Modifier
-                                    .padding(vertical = 12.dp)
-                                    .clickable(
-                                        interactionSource = remember { androidx.compose.foundation.interaction.MutableInteractionSource() },
-                                        indication = null,
-                                    ) { scope.launch { listState.animateScrollToItem(0) } },
+                                onClick = {
+                                    keepReadingOrder = false
+                                    scope.launch {
+                                        if (showingEmpty) emptyScroll.scrollToTop(motionEnabled)
+                                        else listState.scrollToTop(motionEnabled)
+                                    }
+                                },
                             )
                             Spacer(Modifier.width(6.dp))
-                            // 自动同步活体：标题右侧三点轻跳 → 完成符（信息由悬浮胶囊承担）；
-                            // 组件已提到 ui/common 与详情页共用
-                            io.candy.tick.ui.common.SyncDots(
-                                running = syncStatus is SyncStatus.Running,
-                                done = syncResult,
-                            )
+                            // 离开时连同最短显示时长和退出动画一并结束，快速返回也不带回上一帧。
+                            androidx.compose.runtime.key(vm.titleSync.interruptedRun) {
+                                io.candy.tick.ui.common.SyncDots(
+                                    running = vm.titleSync.shouldAnimate(syncStatus) && !state.refreshing,
+                                    done = syncResult,
+                                )
+                            }
                         }
                     },
                     actions = {
-                        // 一键收起：展开 ≥2 张时出现（150 淡入淡出；点按后批量收起动画即反馈）
+                        val canCollapse = state.expanded.size >= 2 &&
+                            state.items.count { it.repo.id in state.expanded } >= 2
+                        // Reserve the slot before fading in; release it only after the pressed circle has faded.
                         androidx.compose.animation.AnimatedVisibility(
-                            // 可见性数「当前过滤视图里展开的卡」而非全局展开数——
-                            // 搜索过滤后隐藏卡片的展开态对用户不可见，计入会凭空出按钮
-                            // （实测场景：A 展开 → 搜出 B 展开 → 全局 2 但可见 1，按钮误现）
-                            visible = state.items.count { it.repo.id in state.expanded } >= 2,
-                            // 宽度动画与淡入淡出并行：搜索过滤让计数跨阈值时，右侧四个
-                            // 图标被 48dp 瞬移一次的抖动（fade 不改宽度）改为平滑滑移
-                            enter = androidx.compose.animation.fadeIn(
-                                androidx.compose.animation.core.tween(Motion.MICRO),
-                            ) + androidx.compose.animation.expandHorizontally(
-                                androidx.compose.animation.core.tween(Motion.MICRO),
-                            ),
-                            exit = androidx.compose.animation.fadeOut(
-                                androidx.compose.animation.core.tween(Motion.MICRO),
-                            ) + androidx.compose.animation.shrinkHorizontally(
-                                androidx.compose.animation.core.tween(Motion.MICRO),
-                            ),
+                            visible = canCollapse,
+                            enter = if (motionEnabled) {
+                                expandHorizontally(tween(Motion.PRESS), expandFrom = Alignment.End, clip = false) +
+                                    fadeIn(tween(Motion.MICRO, delayMillis = Motion.PRESS))
+                            } else EnterTransition.None,
+                            exit = if (motionEnabled) {
+                                fadeOut(tween(Motion.MICRO)) +
+                                    shrinkHorizontally(
+                                        tween(Motion.PRESS, delayMillis = Motion.MICRO),
+                                        shrinkTowards = Alignment.End,
+                                        clip = false,
+                                    )
+                            } else ExitTransition.None,
                         ) {
                             io.candy.tick.ui.common.PressIconButton(
-                                onClick = vm::collapseAll,
+                                onClick = { if (canCollapse) vm.collapseAll() },
                                 contentDescription = stringResource(R.string.collapse_all),
+                                modifier = if (canCollapse) Modifier else Modifier
+                                    .clearAndSetSemantics { }
+                                    .focusProperties { canFocus = false },
                             ) {
                                 Icon(
                                     imageVector = ImageVector.vectorResource(R.drawable.ic_collapse_all),
@@ -269,7 +323,7 @@ fun ListScreen(
                             )
                         }
                         io.candy.tick.ui.common.PressIconButton(
-                            onClick = { showSortSheet = true },
+                            onClick = { sortSheet = SortSheetSession(vm.storedSortOrder) },
                             contentDescription = stringResource(R.string.sort_title),
                         ) {
                             Icon(
@@ -280,7 +334,7 @@ fun ListScreen(
                             )
                         }
                         io.candy.tick.ui.common.PressIconButton(
-                            onClick = onOpenSettings,
+                            onClick = { leaveHome(onOpenSettings) },
                             contentDescription = stringResource(R.string.settings_title),
                         ) {
                             Icon(
@@ -291,7 +345,7 @@ fun ListScreen(
                         }
                         // 主操作：添加仓库（顶栏最右，替代 FAB）
                         io.candy.tick.ui.common.PressIconButton(
-                            onClick = onAdd,
+                            onClick = { leaveHome(onAdd) },
                             contentDescription = stringResource(R.string.add_repo),
                         ) {
                             Icon(
@@ -307,10 +361,11 @@ fun ListScreen(
             Box(modifier = Modifier.padding(padding)) {
             // 松手触发刷新：轻触感确认（HyperOS 下拉刷新惯例）
             io.candy.tick.ui.common.CandyPullToRefresh(
-                isRefreshing = state.refreshing,
+                requestState = vm.manualRefresh,
+                refreshing = { it },
                 onRefresh = {
                     haptic.performHapticFeedback(HapticFeedbackType.LongPress)
-                    vm.refresh()
+                    refresh()
                 },
                 pullToRefreshState = pullState,
                 topAppBarScrollBehavior = scrollBehavior,
@@ -341,25 +396,11 @@ fun ListScreen(
                             ),
                             keyboardActions = androidx.compose.foundation.text.KeyboardActions(
                                 // 实时过滤已出结果：回车只收键盘
-                                onSearch = { searchFocus.freeFocus() },
+                                onSearch = { keyboard?.hide() },
                             ),
                             // 非空清空钮（与添加页/分支/应用选择器同款：同组件同待遇）
                             trailingIcon = if (state.query.isNotEmpty()) {
-                                {
-                                    io.candy.tick.ui.common.PressIconButton(
-                                        onClick = { vm.setQuery("") },
-                                        contentDescription = stringResource(R.string.clear_input),
-                                        // 44dp 行内档 + 右让 4dp：染色圆四向 8dp 均衡
-                                        size = 44.dp,
-                                        modifier = Modifier.padding(end = 4.dp),
-                                    ) {
-                                        Icon(
-                                            imageVector = ImageVector.vectorResource(R.drawable.ic_close),
-                                            contentDescription = null,
-                                            tint = scheme.onBackgroundVariant,
-                                        )
-                                    }
-                                }
+                                { TextFieldActionButton(onClick = { vm.setQuery("") }) }
                             } else null,
                             modifier = Modifier
                                 .fillMaxWidth()
@@ -377,28 +418,34 @@ fun ListScreen(
                     state.banner?.let { error ->
                         ErrorBanner(
                             error = error,
-                            onRetry = vm::refresh,
+                            hasSavedDetails = state.items.any { it.error != null && it.snapshot != null },
+                            onRetry = ::refresh,
                             onDismiss = vm::clearBanner,
+                            modifier = Modifier.padding(horizontal = 16.dp),
                         )
                     }
-                    if (state.query.isNotBlank() && state.items.isEmpty() && !state.refreshing) {
-                        // 搜索无结果：统一空态组件
-                        io.candy.tick.ui.common.StatusPage(
-                            icon = ImageVector.vectorResource(R.drawable.ic_search),
-                            title = stringResource(R.string.search_no_results, state.query),
-                            subtitle = stringResource(R.string.search_no_results_hint),
-                            actionLabel = stringResource(R.string.search_clear),
-                            onAction = { vm.setQuery("") },
-                            modifier = Modifier
-                                .weight(1f)
-                                .fillMaxWidth(),
-                        )
-                    } else if (state.isEmpty) {
-                        EmptyState(onAdd = onAdd, modifier = Modifier.weight(1f))
+                    if (showingEmpty) {
+                        BoxWithConstraints(Modifier.weight(1f).fillMaxWidth()) {
+                            val viewport = Modifier.fillMaxWidth()
+                                .verticalScroll(emptyScroll)
+                                .heightIn(min = maxHeight)
+                            if (state.query.isNotBlank()) {
+                                io.candy.tick.ui.common.StatusPage(
+                                    icon = ImageVector.vectorResource(R.drawable.ic_search),
+                                    title = stringResource(R.string.search_no_results, state.query),
+                                    subtitle = stringResource(R.string.search_no_results_hint),
+                                    actionLabel = stringResource(R.string.search_clear),
+                                    onAction = { vm.setQuery("") },
+                                    modifier = viewport,
+                                )
+                            } else {
+                                EmptyState(onAdd = { leaveHome(onAdd) }, modifier = viewport)
+                            }
+                        }
                     } else {
                         LazyColumn(
                             state = listState,
-                            modifier = Modifier.fillMaxSize(),
+                            modifier = Modifier.fillMaxSize().layoutBounds(listBounds),
                             contentPadding = PaddingValues(
                                 start = 16.dp,
                                 end = 16.dp,
@@ -407,54 +454,46 @@ fun ListScreen(
                                 top = 13.dp,
                                 bottom = 32.dp,
                             ),
-                            verticalArrangement = Arrangement.spacedBy(8.dp),
+                            verticalArrangement = HomeListArrangement,
                         ) {
-                        items(state.items, key = { it.repo.id }) { item ->
+                        items(rows.items, key = { it.repo.id }) { item ->
                             SwipeToDelete(
                                 onDelete = { vm.remove(item) },
                                 onPin = { vm.togglePin(item) },
                                 pinned = item.repo.pinnedAt != null,
-                                modifier = Modifier.animateItem(
-                                    // 数据刷新重排=瞬时落位（suppress 由 VM 在刷新/同步期置起）；
-                                    // 用户操作（置顶/撤销）= miuix 家法 spring 落位（与页签滑块同源，
-                                    // 临界阻尼不飘）；增删=短促淡入淡出
-                                    placementSpec = if (vm.suppressItemPlacement) {
-                                        androidx.compose.animation.core.snap()
-                                    } else {
-                                        Motion.OffsetSpring
-                                    },
-                                    fadeInSpec = androidx.compose.animation.core.tween(Motion.MICRO),
-                                    fadeOutSpec = androidx.compose.animation.core.tween(Motion.MICRO),
+                                modifier = (rows.motion?.modifier(item.repo.id) ?: Modifier).animateItem(
+                                    placementSpec = null,
+                                    fadeInSpec = if (fadeMembership) tween(Motion.MICRO) else null,
+                                    fadeOutSpec = if (fadeMembership) tween(Motion.MICRO) else null,
                                 ),
-                            ) {
+                            ) { swipeActions ->
                                 RepoCard(
+                                    interactionModifier = swipeActions,
                                     item = item,
-                                    extras = state.cards[item.repo.id],
+                                    extras = state.cards[item.repo.id]?.takeIf {
+                                        it.commitBranch == (item.repo.branch ?: item.snapshot?.defaultBranch)
+                                    },
                                     expanded = item.repo.id in state.expanded,
-                                    isChanged = item.repo.id in state.changedIds,
+                                    isChanged = item.snapshot?.activity?.hasUnread == true,
                                     updatable = item.repo.id in state.updatableIds,
                                     versionEpoch = state.versionEpoch,
                                     onToggle = { vm.toggleExpand(item.repo.id) },
-                                    onClick = {
-                                        vm.clearChanged(item.repo.id)
-                                        onOpenDetail(item.repo.id)
+                                    onClick = { leaveHome { onOpenDetail(item.repo.id) } },
+                                    readViewport = listBounds.takeIf {
+                                        lifecycleState == Lifecycle.State.RESUMED && sortSheet == null && !holdOrder
                                     },
+                                    onReleaseSeen = { vm.markReleaseSeen(item.repo.id, it) },
+                                    onCommitSeen = { sha, isHead -> vm.markCommitSeen(item.repo.id, sha, isHead) },
                                     onRetryExtras = { vm.retryCard(item.repo.id) },
                                 )
                             }
                         }
-                        // 到底提示：有内容就显示（含搜索过滤态）——闪现顾虑已被
-                        // footer 的 animateItem 淡入淡出兜住；过滤后滚到底同样需要终点确认
                         if (state.items.isNotEmpty()) {
                             item(key = "list-end") {
                                 io.candy.tick.ui.common.FooterText(
-                                    text = stringResource(R.string.list_end),
+                                    countLabel = R.plurals.footer_repositories,
                                     count = state.items.size,
-                                    // 与卡片同款淡入淡出：搜索→浏览切换时终点标记不跳现
-                                    modifier = Modifier.animateItem(
-                                        fadeInSpec = androidx.compose.animation.core.tween(Motion.MICRO),
-                                        fadeOutSpec = androidx.compose.animation.core.tween(Motion.MICRO),
-                                    ),
+                                    topPadding = 8.dp,
                                 )
                             }
                         }
@@ -468,44 +507,51 @@ fun ListScreen(
 
     }
 
-    SortSheet(
-        show = showSortSheet,
-        current = state.sortMode,
-        onSelect = {
-            vm.setSort(it)
-            showSortSheet = false
-        },
-        onDismiss = { showSortSheet = false },
-    )
+    sortSheet?.let { sheet ->
+        key(sheet) {
+            SortSheet(
+                show = sheet.open,
+                current = sheet.selected,
+                updatableCount = state.updatableIds.size,
+                onSelect = { mode ->
+                    if (sheet.open) {
+                        sheet.selected = sheet.selected.select(mode)
+                        vm.setSortOrder(sheet.selected)
+                    }
+                },
+                onDismiss = {
+                    if (sheet.open && sheet.selected != sheet.initial) {
+                        keepReadingOrder = sheet.selected.mode.usesSyncData
+                    }
+                    sheet.open = false
+                },
+                onDismissFinished = { if (!sheet.open && sortSheet === sheet) sortSheet = null },
+            )
+        }
+    }
 }
 
-/** 结果转变检测：Running→Done，或冷启动 10s 内的新鲜 Done；到位后按内容时长自动清空 */
+/** 完成反馈属于用户在首页目睹的这一轮同步。每次回到首页都从空状态开始。 */
 @Composable
-private fun rememberSyncResult(
-    status: SyncStatus,
-    consumedAt: Long,
-    onConsumed: (Long) -> Unit,
-): SyncStatus.Done? {
-    var result by remember { mutableStateOf<SyncStatus.Done?>(null) }
-    var prev by remember { mutableStateOf<SyncStatus?>(null) }
-    androidx.compose.runtime.LaunchedEffect(status, consumedAt) {
-        val fresh = status is SyncStatus.Done &&
-            System.currentTimeMillis() - status.at < 10_000
-        // 未消费闸门：at > consumedAt 才允许展示——导航往返重建后旧结果不复活
-        val unseen = (status as? SyncStatus.Done)?.at?.let { it > consumedAt } == true
-        when {
-            prev is SyncStatus.Running && status is SyncStatus.Done && unseen -> result = status
-            prev == null && fresh && unseen -> result = status // 冷启动竞态兜底
+private fun rememberSyncResult(vm: ListViewModel, lifecycle: Lifecycle): SyncStatus.Done? {
+    val result by produceState<SyncStatus.Done?>(null, vm, lifecycle) {
+        lifecycle.repeatOnLifecycle(Lifecycle.State.RESUMED) {
+            var observed: SyncStatus.Running? = null
+            try {
+                vm.syncStatus.collectLatest { status ->
+                    val completed = (status as? SyncStatus.Done)?.takeIf { it.run === observed }
+                    observed = status as? SyncStatus.Running
+                    value = completed
+                    if (completed != null) {
+                        delay(if (completed.changed > 0 || completed.failed > 0) 4_000L else 2_000L)
+                        value = null
+                    }
+                }
+            } finally {
+                value = null
+            }
         }
-        // 消费被展示的那个 result（而非强转当前 status——展示中若来新 Running 会崩）
-        result?.let { onConsumed(it.at) }
-        prev = status
     }
-    androidx.compose.runtime.LaunchedEffect(result) {
-        val r = result ?: return@LaunchedEffect
-        kotlinx.coroutines.delay(if (r.changed > 0 || r.failed > 0) 4_000L else 2_000L)
-        result = null
-    }
-    return result
+    return result?.takeIf { vm.titleSync.shouldAnimate(it.run) }
 }
 

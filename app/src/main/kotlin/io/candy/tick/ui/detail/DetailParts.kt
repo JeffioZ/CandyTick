@@ -2,7 +2,6 @@ package io.candy.tick.ui.detail
 
 import androidx.compose.animation.animateContentSize
 import androidx.compose.animation.togetherWith
-import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
@@ -18,33 +17,46 @@ import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.produceState
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.graphics.ImageBitmap
 import androidx.compose.ui.focus.focusRequester
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.semantics.selected
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.unit.dp
 import io.candy.tick.R
 import io.candy.tick.ui.common.OwnerRepoLine
+import io.candy.tick.ui.common.InputLimits
+import io.candy.tick.ui.common.SheetScrollToTopTitle
+import io.candy.tick.ui.common.TextFieldActionButton
 import io.candy.tick.ui.common.PrimaryButton
-import io.candy.tick.ui.common.RepoIconBlock
+import io.candy.tick.ui.common.AppLinkRow
+import io.candy.tick.ui.common.LinkedRepoAvatar
+import io.candy.tick.ui.common.rememberAppIconResult
+import io.candy.tick.ui.common.rememberMotionEnabled
+import io.candy.tick.ui.common.scrollToTop
 import io.candy.tick.ui.common.SectionDivider
 import io.candy.tick.ui.common.StarCount
 import io.candy.tick.ui.common.StatusBadge
-import io.candy.tick.ui.common.VersionStatusLine
+import io.candy.tick.ui.common.LinkedVersionSummary
 import io.candy.tick.ui.common.relTimeString
-import io.candy.tick.ui.common.toImageBitmap
-import io.candy.tick.ui.common.updateAvailable
+import io.candy.tick.ui.common.sourceErrorText
 import io.candy.tick.util.CountFormat
+import io.candy.tick.util.VersionCompare
+import kotlinx.coroutines.launch
 import io.candy.tick.data.model.statusAt
 import top.yukonga.miuix.kmp.basic.BasicComponent
 import top.yukonga.miuix.kmp.basic.Card
@@ -56,6 +68,13 @@ import androidx.compose.ui.graphics.vector.ImageVector
 import io.candy.tick.ui.common.Motion
 
 // ── 详情页子组件（自 DetailScreen 拆出：头部卡 / 分支弹层 / 移除确认）──
+
+@Composable
+internal fun downloadFailureText(failure: RepoDownloadState.Failed?): String {
+    val reason = failure?.error?.let { sourceErrorText(it) } ?: failure?.message
+    return if (reason.isNullOrBlank()) stringResource(R.string.settings_download_failed)
+    else stringResource(R.string.download_failed_reason, reason)
+}
 
 /**
  * 分支选择底部弹层：限高 60% 屏 + 平滑增高；分支多时给搜索框。
@@ -97,9 +116,19 @@ internal fun BranchPickerSheet(
     // show 直通（勿用 if 包裹组件）：关闭时组件仍在组合中，库的退场动画才能播放
     top.yukonga.miuix.kmp.window.WindowBottomSheet(
         show = show,
-        title = stringResource(R.string.branch_picker_title),
         onDismissRequest = onDismiss,
     ) {
+        val listState = rememberLazyListState()
+        val scope = rememberCoroutineScope()
+        val animate = rememberMotionEnabled()
+        fun filterBranches(value: String) {
+            if (value == query || value.length > InputLimits.SEARCH) return
+            query = value
+            listState.requestScrollToItem(0)
+        }
+        SheetScrollToTopTitle(stringResource(R.string.branch_picker_title)) {
+            scope.launch { listState.scrollToTop(animate) }
+        }
         Column(
             modifier = Modifier
                 .fillMaxWidth()
@@ -111,7 +140,7 @@ internal fun BranchPickerSheet(
             if (state.branches.size > 15) {
                 top.yukonga.miuix.kmp.basic.TextField(
                     value = query,
-                    onValueChange = { if (it.length <= io.candy.tick.ui.common.InputLimits.SEARCH) query = it },
+                    onValueChange = ::filterBranches,
                     label = stringResource(R.string.branch_search_hint),
                     singleLine = true,
                     // 回车收键盘：实时过滤已出结果，Done 不需要别的动作
@@ -122,21 +151,7 @@ internal fun BranchPickerSheet(
                         onDone = { keyboard?.hide() },
                     ),
                     trailingIcon = if (query.isNotEmpty()) {
-                        {
-                            io.candy.tick.ui.common.PressIconButton(
-                                onClick = { query = "" },
-                                contentDescription = stringResource(R.string.clear_input),
-                                // 44dp 行内档 + 右让 4dp：染色圆四向 8dp 均衡
-                                size = 44.dp,
-                                modifier = Modifier.padding(end = 4.dp),
-                            ) {
-                                Icon(
-                                    imageVector = ImageVector.vectorResource(R.drawable.ic_close),
-                                    contentDescription = null,
-                                    tint = MiuixTheme.colorScheme.onBackgroundVariant,
-                                )
-                            }
-                        }
+                        { TextFieldActionButton(onClick = { filterBranches("") }) }
                     } else null,
                     modifier = Modifier
                         .fillMaxWidth()
@@ -156,7 +171,7 @@ internal fun BranchPickerSheet(
                     textAlign = androidx.compose.ui.text.style.TextAlign.Center,
                 )
             }
-            LazyColumn(modifier = Modifier.weight(1f, fill = false)) {
+            LazyColumn(state = listState, modifier = Modifier.weight(1f, fill = false)) {
                 items(filtered, key = { it.name }) { b ->
                     // 点默认分支 = 存 null（保留「跟随默认」语义，上游改名自动跟）
                     BranchRow(b.name, b.name == currentViewed, tipDate = b.tipDate) {
@@ -285,9 +300,13 @@ internal fun BranchRow(
     )
 }
 
+private data class LinkRow(val packageName: String, val label: String, val suggested: Boolean)
+private data class HeaderApp(val icon: ImageBitmap?, val version: String?)
+
 @Composable
 internal fun HeaderCard(
     state: DetailViewModel.UiState,
+    localVersion: String?,
     onChangeLinked: () -> Unit,
     onUnlink: () -> Unit,
     onLinkSuggestion: () -> Unit,
@@ -299,11 +318,25 @@ internal fun HeaderCard(
     val snapshot = state.snapshot
     val scheme = MiuixTheme.colorScheme
     val context = LocalContext.current
+    val linked = remember(context, repo.linkedPackage, repo.autoNote, repo.noteName, state.installEpoch) {
+        repo.linkedPackage?.let {
+            val label = repo.noteName.takeIf { repo.autoNote } ?: io.candy.tick.util.labelOf(context, it) ?: it
+            LinkRow(it, label, false)
+        }
+    }
+    val link = linked ?: state.linkSuggestion?.let { LinkRow(it.first, it.second, true) }
+    val iconResult = rememberAppIconResult(link?.packageName)
+    // Keep the previous avatar and local version together while another app's icon is being read.
+    val headerApp by produceState(HeaderApp(null, localVersion), linked?.packageName, localVersion, iconResult) {
+        if (linked == null || iconResult != null) {
+            value = HeaderApp(if (linked != null) iconResult?.bitmap else null, localVersion)
+        }
+    }
     Card(modifier = Modifier.fillMaxWidth()) {
         // 双层间距体系：跨组 8dp（Spacer）、组内 6dp——头卡多组累加，组距收紧一档防松散
-        Column(modifier = Modifier.padding(horizontal = 16.dp, vertical = 8.dp)) {
+        Column(modifier = Modifier.padding(start = 16.dp, top = 8.dp, end = 16.dp)) {
             Row(verticalAlignment = Alignment.CenterVertically) {
-                RepoIconBlock(repo = repo, size = 56.dp, corner = 14.dp)
+                LinkedRepoAvatar(repo.owner, headerApp.icon)
                 Spacer(Modifier.width(12.dp))
                 Column(modifier = Modifier.weight(1f)) {
                     androidx.compose.foundation.layout.Row(
@@ -332,8 +365,8 @@ internal fun HeaderCard(
 
             // ── 信息组（描述；无描述时跨组 8dp 不叠加）——统计行与推送时间已分别
             // 迁往名称旁（star）与首页折叠卡，此处只承载描述 ──
-            Spacer(Modifier.height(8.dp))
             snapshot?.description?.takeIf { it.isNotBlank() }?.let {
+                Spacer(Modifier.height(8.dp))
                 Text(
                     text = it,
                     style = MiuixTheme.textStyles.body2,
@@ -346,51 +379,51 @@ internal fun HeaderCard(
             // star 挪名称旁，push 时间由首页折叠卡表达）
 
             // ── 版本分区（有 tag 时显示分隔线 + 版本行 + 操作按钮）──
-            snapshot?.latestReleaseTag?.let { tag ->
+            snapshot?.currentReleaseTag?.let { tag ->
                 Spacer(Modifier.height(8.dp))
                 SectionDivider()
                 Spacer(Modifier.height(6.dp))
-                VersionStatusLine(repo = repo, remoteTag = tag, installEpoch = state.installEpoch)
-
-                // 更新入口（有新版时头部直接行动）：下载 → 进度 → 安装
-                // PM 查询必须 remember：HeaderCard 随下载进度 tick 高频重组，
-                // 裸读 getPackageInfo = 每帧 Binder IPC（key 含 installEpoch，装完返回仍会重算）
-                val hasUpdate = remember(repo, tag, state.installEpoch) {
-                    io.candy.tick.ui.common.updateAvailable(context, repo, tag)
+                val displayedVersion = headerApp.version
+                val comparison = remember(tag, displayedVersion) {
+                    displayedVersion?.let { VersionCompare.compare(tag, it) }
                 }
+                LinkedVersionSummary(tag, displayedVersion, comparison)
+                val hasUpdate = comparison != null && comparison > 0
                 val downloadedMatches = repo.downloadedApk?.version == tag
                 val updatePhase = when {
                     state.download is RepoDownloadState.Active &&
                         state.download.fromHeader -> "progress"
                     // 失败相：此前头部无 failed 分支——失败回落"下载"按钮复原 + 错误条只在
                     // 版本 tab 的卡里（停留提交 tab 时不可见）→ 感知"点了没反应"
-                    // Failed 无 fromHeader 字段：releaseKey==最新 tag 即视为头部入口的失败
-                    state.download is RepoDownloadState.Failed &&
-                        state.download.releaseKey == tag -> "failed"
+                    hasUpdate && state.download is RepoDownloadState.Failed &&
+                        state.download.fromHeader && state.download.releaseKey == tag -> "failed"
                     hasUpdate && downloadedMatches -> "install"
                     hasUpdate -> "download"
                     else -> null // idle 不渲染（零占位）
                 }
-                if (updatePhase != null) {
-                    Spacer(Modifier.height(6.dp))
-                    androidx.compose.animation.AnimatedContent(
-                        targetState = updatePhase,
-                        transitionSpec = {
-                            ((androidx.compose.animation.fadeIn(androidx.compose.animation.core.tween(Motion.PHASE)) +
-                                androidx.compose.animation.slideInVertically(
-                                    animationSpec = androidx.compose.animation.core.tween(Motion.PHASE),
-                                ) { it / 6 }) togetherWith
-                                androidx.compose.animation.fadeOut(androidx.compose.animation.core.tween(Motion.PHASE)))
-                                // 尺寸动画显式 180 同拍：AnimatedContent 默认 SizeTransform 是
-                                // spring 暗桩，与外挂尺寸动画双层打架=切相卡顿根源（单源化）
-                                .using(
-                                    androidx.compose.animation.SizeTransform(clip = false) { _, _ ->
-                                        androidx.compose.animation.core.tween(Motion.PHASE)
-                                    },
-                                )
-                        },
-                        label = "updatePhase",
-                    ) { phase ->
+                androidx.compose.animation.AnimatedContent(
+                    targetState = updatePhase to state.download,
+                    modifier = Modifier.fillMaxWidth(),
+                    contentKey = { it.first },
+                    transitionSpec = {
+                        ((androidx.compose.animation.fadeIn(androidx.compose.animation.core.tween(Motion.PHASE)) +
+                            androidx.compose.animation.slideInVertically(
+                                animationSpec = androidx.compose.animation.core.tween(Motion.PHASE),
+                            ) { it / 6 }) togetherWith
+                            androidx.compose.animation.fadeOut(androidx.compose.animation.core.tween(Motion.PHASE)))
+                            // 尺寸动画显式 180 同拍：AnimatedContent 默认 SizeTransform 是
+                            // spring 暗桩，与外挂尺寸动画双层打架=切相卡顿根源（单源化）
+                            .using(
+                                androidx.compose.animation.SizeTransform(clip = true) { _, _ ->
+                                    androidx.compose.animation.core.tween(Motion.PHASE)
+                                },
+                            )
+                    },
+                    label = "updatePhase",
+                ) { (phase, transfer) ->
+                    if (phase == null) return@AnimatedContent
+                    val actionCurrent = phase == updatePhase && displayedVersion == localVersion
+                    Column(Modifier.fillMaxWidth().padding(top = 6.dp)) {
                         when (phase) {
                             "failed" -> androidx.compose.foundation.layout.Row(
                                 // 与版本卡 failed 相同款行内错误条：errorContainer 底 +
@@ -410,12 +443,7 @@ internal fun HeaderCard(
                                 )
                                 Spacer(Modifier.width(8.dp))
                                 Text(
-                                    text = stringResource(
-                                        R.string.download_failed_reason,
-                                        (state.download as? RepoDownloadState.Failed)?.let { f ->
-                                            f.error?.let { io.candy.tick.ui.common.sourceErrorText(it) } ?: f.message
-                                        } ?: stringResource(R.string.err_network),
-                                    ),
+                                    text = downloadFailureText(transfer as? RepoDownloadState.Failed),
                                     style = MiuixTheme.textStyles.footnote1,
                                     color = scheme.onErrorContainer,
                                     modifier = Modifier.weight(1f),
@@ -435,6 +463,7 @@ internal fun HeaderCard(
                                         .clip(RoundedCornerShape(8.dp))
                                         .background(retryTint, RoundedCornerShape(8.dp))
                                         .clickable(
+                                            enabled = actionCurrent,
                                             interactionSource = retrySrc,
                                             indication = null,
                                             onClick = onDownloadUpdate,
@@ -443,7 +472,7 @@ internal fun HeaderCard(
                                 )
                             }
                             "progress" -> Column {
-                                val active = state.download as? RepoDownloadState.Active
+                                val active = transfer as? RepoDownloadState.Active
                                 val p by androidx.compose.animation.core.animateFloatAsState(
                                     targetValue = active?.progress ?: 0f,
                                     animationSpec = androidx.compose.animation.core.tween(Motion.PROGRESS),
@@ -482,11 +511,13 @@ internal fun HeaderCard(
                                 text = stringResource(R.string.install_apk),
                                 onClick = onInstallUpdate,
                                 modifier = Modifier.fillMaxWidth(),
+                                enabled = actionCurrent,
                             )
                             "download" -> PrimaryButton(
                                 text = stringResource(R.string.download_update_action),
                                 onClick = onDownloadUpdate,
                                 modifier = Modifier.fillMaxWidth(),
+                                enabled = actionCurrent && state.download !is RepoDownloadState.Active,
                             )
                         }
                     }
@@ -496,168 +527,44 @@ internal fun HeaderCard(
             // ── 关联分区（始终存在，固定卡底）；前置 8dp 与上方版本区呼吸对称 ──
             Spacer(Modifier.height(8.dp))
             SectionDivider()
-            // 关联区紧凑：4 + 32dp 行高——与卡底间距收窄（此前 8+36 视觉上下皆空 18）
-            Spacer(Modifier.height(4.dp))
-            // 关联本机应用（可修改 / 解除）
-            val linkedLabel = repo.linkedPackage?.let {
-                io.candy.tick.util.labelOf(context, it) ?: it
-            }
-            // 关联区三态柔切换（180 转场档）：关联/解除/建议出现不再硬跳
-            androidx.compose.animation.AnimatedContent(
-                targetState = when {
-                    linkedLabel != null -> "linked"
-                    state.linkSuggestion != null -> "suggest"
-                    else -> "none"
-                },
-                transitionSpec = {
-                    ((androidx.compose.animation.fadeIn(androidx.compose.animation.core.tween(Motion.PHASE)) +
-                        androidx.compose.animation.slideInVertically(
-                            animationSpec = androidx.compose.animation.core.tween(Motion.PHASE),
-                        ) { it / 8 }) togetherWith
-                        androidx.compose.animation.fadeOut(androidx.compose.animation.core.tween(Motion.PHASE)))
-                        .using(
-                            androidx.compose.animation.SizeTransform(clip = false) { _, _ ->
-                                androidx.compose.animation.core.tween(Motion.PHASE)
-                            },
-                        )
-                },
-                label = "linkPhase",
-            ) { phase ->
-                Column {
-            if (phase == "linked" && linkedLabel != null) {
-                Row(verticalAlignment = Alignment.CenterVertically) {
-                    val appBitmap = io.candy.tick.ui.common.rememberAppIcon(repo.linkedPackage)
-                    appBitmap?.let {
-                        io.candy.tick.ui.common.AppIconImage(bitmap = it, size = 22.dp, corner = 6.dp)
-                        Spacer(Modifier.width(8.dp))
-                    }
-                    Text(
-                        text = stringResource(R.string.detail_linked_app, linkedLabel),
-                        style = MiuixTheme.textStyles.footnote1,
-                        color = scheme.onBackgroundVariant,
-                        modifier = Modifier.weight(1f),
-                    )
-                    // 动作图标对：44dp 行内紧凑档（Miuix IconButton 无按压多态，
-                    // 换 PressIconButton 圆形染色反馈；图标 14dp 与 footnote 协调）
-                    io.candy.tick.ui.common.PressIconButton(
-                        onClick = onChangeLinked,
-                        contentDescription = stringResource(R.string.detail_link_change),
-                        size = 44.dp,
-                    ) {
-                        Icon(
-                            // Link 锁链 =「关联」本命语义（换关联 = 重新建链）
-                            imageVector = ImageVector.vectorResource(R.drawable.ic_link),
-                            contentDescription = null,
-                            tint = scheme.onBackgroundVariant,
-                            modifier = Modifier.size(14.dp),
-                        )
-                    }
-                    // 相邻动作钮的触控缝（skill: touch-spacing；染色圆已内缩仍有余量）
-                    Spacer(Modifier.width(4.dp))
-                    io.candy.tick.ui.common.PressIconButton(
-                        onClick = onUnlink,
-                        contentDescription = stringResource(R.string.detail_unlink),
-                        size = 44.dp,
-                    ) {
-                        Icon(
-                            // unlink 断链 = 解除关联（minus 减号不表意）
-                            imageVector = ImageVector.vectorResource(R.drawable.ic_unlink),
-                            contentDescription = null,
-                            tint = scheme.onBackgroundVariant,
-                            modifier = Modifier.size(14.dp),
-                        )
-                    }
-                }
-            } else if (phase == "suggest" && state.linkSuggestion != null) {
-                // 关联建议：整行点按即关联（胶囊提示条 + 本机应用小图标）。
-                // 规格与 linked 态逐项对齐（skill: Content Jumping）——图标 22/6、间距 8dp、
-                // 垂直零内边距使胶囊行高 = 动作钮 44dp = linked 行高，SizeTransform 成了
-                // 无动画，建议出现/取消关联的偶发首帧跳变随之消失
-                val suggested = state.linkSuggestion
-                val appIcon = io.candy.tick.ui.common.rememberAppIcon(suggested?.first)
-                Row(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .clip(RoundedCornerShape(12.dp))
-                        // 薄荷 CTA 底（tertiaryContainer）：点击关联的行动语义，深浅两模式边界清晰
-                        .background(scheme.tertiaryContainer)
-                        .clickable(
-                            interactionSource = remember { androidx.compose.foundation.interaction.MutableInteractionSource() },
-                        ) { onLinkSuggestion() }
-                        .padding(horizontal = 12.dp),
-                    verticalAlignment = Alignment.CenterVertically,
-                ) {
-                    if (appIcon != null) {
-                        io.candy.tick.ui.common.AppIconImage(bitmap = appIcon, size = 22.dp, corner = 6.dp)
-                        Spacer(Modifier.width(8.dp))
-                    }
-                    Text(
-                        text = stringResource(R.string.detail_auto_link_hint, suggested.second),
-                        style = MiuixTheme.textStyles.footnote1,
-                        color = scheme.onPrimaryContainer,
-                        maxLines = 1,
-                        overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis,
-                        modifier = Modifier.weight(1f),
-                    )
-                    Spacer(Modifier.width(4.dp))
-                    // 「其他应用」入口：44dp/14dp——与 linked 态动作钮同规格。
-                    // 裸 ic_add 已去：同排「44dp 染色圆钮 + 无底裸图标」是用户实测的失衡感；
-                    // 行动语义由整行薄荷底 + 「点击关联」文案承担
-                    io.candy.tick.ui.common.PressIconButton(
-                        onClick = onChangeLinked,
-                        contentDescription = stringResource(R.string.detail_link_app_other),
-                        size = 44.dp,
-                    ) {
-                        Icon(
-                            imageVector = ImageVector.vectorResource(R.drawable.ic_more),
-                            contentDescription = null,
-                            tint = scheme.onBackgroundVariant,
-                            modifier = Modifier.size(14.dp),
-                        )
-                    }
-                }
-            } else {
-                // 未关联（也无建议）：选项行式入口——link 图标前缀 + chevron 尾缀表可点
-                // （skill: input-affordance），无底色不抢 suggest 态的薄荷行动语义
-                // （skill: primary-action 次要操作从属）；与 linked 态同一行语言
-                val (pressSrc, pressColor) = io.candy.tick.ui.common.rememberRowPressTint()
-                Row(
-                    verticalAlignment = Alignment.CenterVertically,
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .clip(RoundedCornerShape(10.dp))
-                        .background(pressColor, RoundedCornerShape(10.dp))
-                        .clickable(
-                            interactionSource = pressSrc,
-                            indication = null,
-                            onClick = onChangeLinked,
-                        )
-                        // v10 计入命中：行高 ~40dp 达标（触控缓冲带不越出关联区）
-                        .padding(horizontal = 8.dp, vertical = 10.dp),
-                ) {
-                    Icon(
-                        imageVector = ImageVector.vectorResource(R.drawable.ic_link),
-                        contentDescription = null,
-                        tint = scheme.onBackgroundVariant,
-                        modifier = Modifier.size(14.dp),
-                    )
-                    Spacer(Modifier.width(8.dp))
-                    Text(
-                        text = stringResource(R.string.detail_link_app),
-                        style = MiuixTheme.textStyles.footnote1,
-                        color = scheme.onBackgroundVariant,
-                        modifier = Modifier.weight(1f),
-                    )
-                    Icon(
-                        imageVector = ImageVector.vectorResource(R.drawable.ic_chevron_right),
-                        contentDescription = null,
-                        tint = scheme.onBackgroundVariant,
-                        modifier = Modifier.size(14.dp),
-                    )
-                }
-            }
-                }
-            }
+            LinkedAppRow(link, iconResult?.bitmap, onChangeLinked, onLinkSuggestion, onUnlink)
         }
+    }
+}
+
+@Composable
+private fun LinkedAppRow(
+    link: LinkRow?,
+    appIcon: ImageBitmap?,
+    onChangeLinked: () -> Unit,
+    onLinkSuggestion: () -> Unit,
+    onUnlink: () -> Unit,
+) {
+    val scheme = MiuixTheme.colorScheme
+    val suggested = link?.suggested == true
+    val linked = link != null && !suggested
+    AppLinkRow(
+        appIcon = appIcon,
+        onClick = when {
+            linked -> null
+            suggested -> onLinkSuggestion
+            else -> onChangeLinked
+        },
+        modifier = Modifier.padding(vertical = 8.dp),
+        suggested = suggested,
+        onChangeApp = if (link == null) null else onChangeLinked,
+        onUnlink = if (linked) onUnlink else null,
+    ) {
+        Text(
+            text = when {
+                link == null -> stringResource(R.string.detail_link_app)
+                suggested -> stringResource(R.string.detail_auto_link_hint, link.label)
+                else -> stringResource(R.string.detail_linked_app, link.label)
+            },
+            style = MiuixTheme.textStyles.footnote1,
+            color = if (suggested) scheme.onPrimaryContainer else scheme.onBackgroundVariant,
+            maxLines = 2,
+            overflow = TextOverflow.Ellipsis,
+        )
     }
 }

@@ -22,7 +22,8 @@ object AppMatcher {
 
     data class Candidate(val packageName: String, val label: String)
 
-    private fun norm(s: String) = s.lowercase().replace(Regex("[^a-z0-9]"), "")
+    private val nonAlphanumeric = Regex("[^a-z0-9]")
+    private fun norm(s: String) = s.lowercase().replace(nonAlphanumeric, "")
 
     /** 可启动应用池（launcher intent）：用户可见的应用才可能是关联对象 */
     private fun launcherApps(context: Context): List<Pair<String, String>> = runCatching {
@@ -68,10 +69,19 @@ object AppMatcher {
     }
 }
 
-/** 已安装应用的显示名（关联自动备注用） */
+/** PackageManager can return the package or component name when no display label was declared. */
+internal fun appDisplayName(packageName: String, label: CharSequence?): String? =
+    label?.toString()?.trim()?.takeIf {
+        it.isNotEmpty() && !it.equals(packageName, ignoreCase = true) &&
+            !it.startsWith("$packageName.", ignoreCase = true) && !it.startsWith("$packageName/", ignoreCase = true)
+    }
+
+/** 已安装应用的显示名。部分应用只在桌面入口声明名称。 */
 fun labelOf(context: Context, packageName: String): String? = runCatching {
     val pm = context.packageManager
-    pm.getApplicationLabel(pm.getApplicationInfo(packageName, 0)).toString()
+    appDisplayName(packageName, pm.getApplicationLabel(pm.getApplicationInfo(packageName, 0)))?.let { return@runCatching it }
+    val launcher = Intent(Intent.ACTION_MAIN).addCategory(Intent.CATEGORY_LAUNCHER).setPackage(packageName)
+    pm.queryIntentActivities(launcher, 0).firstNotNullOfOrNull { appDisplayName(packageName, it.loadLabel(pm)) }
 }.getOrNull()
 
 /** APK 文件的显示名（下载自动关联用；sourceDir 需回填否则 loadLabel 只给包名） */

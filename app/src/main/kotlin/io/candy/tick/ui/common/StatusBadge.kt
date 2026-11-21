@@ -95,6 +95,8 @@ private fun BadgeContainer(
 ) {
     Row(
         modifier = modifier
+            // Badge trails the repository identity; keep a gap even when its name fills the row.
+            .padding(start = 6.dp)
             .clip(CircleShape)
             .background(container)
             .padding(horizontal = 8.dp, vertical = 3.dp),

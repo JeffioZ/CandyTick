@@ -24,6 +24,8 @@ import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.receiveAsFlow
 import kotlinx.coroutines.flow.update
+import kotlinx.coroutines.flow.map
+import kotlinx.coroutines.flow.distinctUntilChanged
 import kotlinx.coroutines.withContext
 import kotlinx.coroutines.launch
 
@@ -33,6 +35,7 @@ class DetailViewModel(
     private val installManager: InstallManager,
     private val downloadHost: RepoDownloadHost,
     context: Context,
+    initialTab: DetailTab = DetailTab.COMMITS,
 ) : ViewModel() {
 
     // 下载四相收口 App 级 RepoDownloadHost（离开详情页不中断下载），页面只读绑定
@@ -41,7 +44,8 @@ class DetailViewModel(
     data class UiState(
         val repo: TrackedRepo? = null,
         val snapshot: RepoSnapshot? = null,
-        val refreshing: Boolean = false,
+        val manualRefresh: Boolean = false,
+        val snapshotLoading: Boolean = false,
         val banner: SourceError? = null,
         val tab: DetailTab = DetailTab.COMMITS,
         val linkSuggestion: Pair<String, String>? = null, // (包名, 应用标签)，唯一匹配时才有
@@ -50,6 +54,7 @@ class DetailViewModel(
         val commitsEnd: Boolean = false,
         val commitsFailed: Boolean = false,
         val releases: List<ReleaseRecord> = emptyList(),
+        val notificationRelease: ReleaseRecord? = null,
         val releasesLoading: Boolean = false,
         val releasesEnd: Boolean = false,
         val releasesFailed: Boolean = false,
@@ -63,12 +68,26 @@ class DetailViewModel(
         val branchesLoading: Boolean = false,
         val branchesFailed: Boolean = false,
         val installEpoch: Int = 0, // ON_RESUME 递增：安装完成后破除版本对比的重组跳过
-    )
+    ) {
+        val syncing: Boolean get() = snapshotLoading || commitsReloading || releasesReloading
+        val refreshing: Boolean get() = manualRefresh && syncing
+
+        /** A pull joins the active refresh and releases the header as the last request settles. */
+        internal fun withManualRefresh(requested: Boolean = manualRefresh): UiState {
+            val active = requested && syncing
+            return if (manualRefresh == active) this else copy(manualRefresh = active)
+        }
+
+        internal fun forNewBranch(): UiState = copy(
+            commits = emptyList(), commitsEnd = false, commitsFailed = false,
+            commitsLoading = false, commitsReloading = syncing,
+        )
+    }
 
     sealed interface Event {
         data class InstallResultEvent(val result: InstallManager.InstallResult) : Event
-        data class AutoLinked(val packageName: String) : Event
-        data object DownloadDeleted : Event
+        data class AutoLinked(val displayName: String) : Event
+        data object DownloadMissing : Event
     }
 
     /** 详情页浏览页签：提交 / 版本（一次只看一类，长列表不再互相挤压） */
@@ -77,63 +96,90 @@ class DetailViewModel(
     private val _events = Channel<Event>(Channel.BUFFERED)
     val events: Flow<Event> = _events.receiveAsFlow()
 
-    private val _state = MutableStateFlow(UiState())
+    private val _state = MutableStateFlow(repository.state.value.let { current ->
+        UiState(repo = current.repos.find { it.id == repoId }, snapshot = current.snapshots[repoId], tab = initialTab)
+    })
     val state: StateFlow<UiState> = _state.asStateFlow()
 
     private val appContext: Context = context.applicationContext
     private val apkDir: File = File(context.filesDir, "apks/$repoId")
-    private val tab = MutableStateFlow(DetailTab.COMMITS)
     private var commitsPage = 1
     private var releasesPage = 1
     private var commitsGen = 0 // 提交列表代数：切分支/刷新时 +1，迟到的旧响应作废
     private var releasesGen = 0 // 版本列表代数：刷新时 +1，迟到的旧页响应作废
-    private var autoLinkTried = false // 高置信自动关联只尝试一次
+    private data class LinkedAppKey(val owner: String, val repo: String, val pkg: String?, val dismissed: Boolean)
+
+    private fun TrackedRepo.linkKey() = LinkedAppKey(owner, repo, linkedPackage, autoLinkDismissed)
+
+    // A candidate belongs to the repository and installed apps, independently of the current link.
+    private var suggestionLookup: Pair<String, Int>? = null
+
+    private suspend fun resolveSuggestion(repo: String) {
+        val lookup = repo to _state.value.installEpoch
+        if (lookup == suggestionLookup) return
+        val candidate = withContext(Dispatchers.IO) {
+            io.candy.tick.util.AppMatcher.containmentSuggestion(appContext, repo)
+        }
+        if (repository.state.value.repos.find { it.id == repoId }?.repo != repo) return
+        if (suggestionLookup?.let { it.first == repo && it.second > lookup.second } == true) return
+        suggestionLookup = lookup
+        _state.update { it.copy(linkSuggestion = candidate?.let { app -> app.packageName to app.label }) }
+    }
 
     init {
         viewModelScope.launch {
             repository.state.collect { s ->
+                val tracked = s.repos.find { it.id == repoId }
                 _state.update {
-                    it.copy(repo = s.repos.find { r -> r.id == repoId }, snapshot = s.snapshots[repoId])
-                }
-                // 关联应用已卸载（可能发生在本 App 未运行时）：关联 = 对已装应用的事实
-                // 链接，失效即自动解除；autoClear 保留 dismissed 记忆——用户重装应用后
-                // auto-match 会自动重绑
-                val linked = _state.value.repo?.linkedPackage
-                if (linked != null &&
-                    runCatching { appContext.packageManager.getPackageInfo(linked, 0) }.isFailure
-                ) {
-                    repository.setLinkedPackage(repoId, null, autoClear = true)
-                    return@collect
-                }
-                if (!autoLinkTried) {
-                    val r = _state.value.repo ?: return@collect
-                    autoLinkTried = true
-                    // dismissed = 用户解除过：持久记忆（TrackedRepo.autoLinkDismissed），
-                    // 冷启动也不重绑——此前只有 VM 内的 autoLinkTried，杀进程归零后
-                    // 高置信规则重新命中又绑回（miuix demo 实测）
-                    if (r.linkedPackage == null && !r.autoLinkDismissed) {
-                        // 高置信自动关联（AppMatcher：标签/包名尾段/owner.repo 段；全机唯一才绑）
-                        val auto = withContext(Dispatchers.Default) {
-                            io.candy.tick.util.AppMatcher.bestAutoMatch(appContext, r.owner, r.repo)
-                        }
-                        if (auto != null) {
-                            repository.setLinkedPackage(repoId, auto.packageName, newLabel = auto.label)
-                            _events.send(Event.AutoLinked(auto.packageName))
-                            return@collect
-                        }
-                    }
-                }
-                if (_state.value.linkSuggestion == null && _state.value.repo?.linkedPackage == null) {
-                    val suggestion = computeLinkSuggestion()
-                    _state.update { if (it.linkSuggestion == null) it.copy(linkSuggestion = suggestion) else it }
+                    it.copy(
+                        repo = tracked,
+                        snapshot = s.snapshots[repoId],
+                        linkSuggestion = if (it.repo?.repo == tracked?.repo) it.linkSuggestion else null,
+                    )
                 }
             }
         }
         viewModelScope.launch {
-            tab.collect { t -> _state.update { it.copy(tab = t) } }
+            repository.state.map { state ->
+                state.repos.find { it.id == repoId }?.linkKey()
+            }.distinctUntilChanged().collect { key ->
+                if (key == null) return@collect
+                if (key.pkg != null) {
+                    val installed = withContext(Dispatchers.IO) {
+                        try {
+                            appContext.packageManager.getPackageInfo(key.pkg, 0)
+                            true
+                        } catch (_: android.content.pm.PackageManager.NameNotFoundException) {
+                            false
+                        } catch (_: SecurityException) {
+                            true // A visibility restriction is not evidence of an uninstall.
+                        }
+                    }
+                    if (!installed && repository.state.value.repos.find { it.id == repoId }?.linkKey() == key) {
+                        repository.setLinkedPackage(repoId, null, autoClear = true, expectedPackage = key.pkg)
+                    }
+                } else {
+                    val auto = if (key.dismissed) null else withContext(Dispatchers.IO) {
+                        io.candy.tick.util.AppMatcher.bestAutoMatch(appContext, key.owner, key.repo)
+                    }
+                    if (repository.state.value.repos.find { it.id == repoId }?.linkKey() != key) return@collect
+                    if (auto != null) {
+                        if (repository.setLinkedPackage(repoId, auto.packageName, newLabel = auto.label, onlyIfUnlinked = true)) {
+                            _events.send(Event.AutoLinked(auto.label.ifBlank { auto.packageName }))
+                        }
+                    } else {
+                        resolveSuggestion(key.repo)
+                    }
+                }
+            }
         }
         viewModelScope.launch {
-            installManager.results.collect { result ->
+            installManager.packageInstalled.collect { pkg ->
+                if (repository.state.value.repos.any { it.id == repoId && it.linkedPackage == pkg }) onAppResume()
+            }
+        }
+        viewModelScope.launch {
+            installManager.resultsFor(repoId).collect { result ->
                 _events.send(Event.InstallResultEvent(result))
             }
         }
@@ -143,30 +189,34 @@ class DetailViewModel(
                 _state.update { it.copy(download = m[repoId]) }
             }
         }
-        // 装后清理（事件驱动）：系统 PACKAGE_REPLACED/ADDED 广播带包名——装完瞬间触发，
-        // 双安装路径通吃（ACTION_VIEW 外部安装器无回调也覆盖）、包名精确匹配零推断；
-        // 此前版本比较推断法对不可比 tag（日期+hash）永远失灵
-        viewModelScope.launch {
-            installManager.packageInstalled.collect { pkg ->
-                val record = _state.value.repo?.downloadedApk ?: return@collect
-                // null（旧记录）无法精确匹配：宁可不清（下次下载新版本时有清旧文件兜底）
-                // 也不能放行——否则系统装任何无关 App 的广播都会误清本仓库的下载文件
-                if (record.packageName == null || record.packageName != pkg) return@collect
-                File(apkDir, record.fileName).delete()
-                repository.setDownloadedApk(repoId, null)
-                // 装完即撤本仓「发现新版」通知：使命已完成（不点通知直接装的场景，
-                // autoCancel 只在点击时生效——此前会一直挂在通知栏）
-                io.candy.tick.data.Notifications.cancelRepoUpdate(context, repoId)
-                // 会话态若挂着 Done 指向同文件，一并归位（版本卡回「下载」相；宿主 App 级）
-                downloadHost.clearIfVersion(repoId, record.version)
-            }
-        }
-        loadCommits()
-        loadReleases()
+
     }
 
     fun setTab(newTab: DetailTab) {
-        tab.value = newTab
+        _state.update { it.copy(tab = newTab) }
+    }
+
+    /** Lookup is scoped to the notification request in the screen. It never advances the history cursor. */
+    suspend fun findNotificationRelease(tag: String): SourceError? {
+        return try {
+            val release = repository.releaseByTag(repoId, tag)
+            if (release?.tagName != tag) return SourceError.NotFound
+            _state.update { it.copy(notificationRelease = release) }
+            null
+        } catch (e: io.candy.tick.data.SourceException) {
+            e.error
+        }
+    }
+
+    fun markVisibleActivity(releaseTags: Set<String> = emptySet(), commitShas: Set<String> = emptySet()) {
+        if (releaseTags.isEmpty() && commitShas.isEmpty()) return
+        val history = _state.value
+        val releaseHead = history.releases.take(RELEASES_PER_PAGE).firstOrNull { it.apkAssets.isNotEmpty() }
+            ?.tagName?.takeIf { it in releaseTags }
+        val commitHead = history.commits.firstOrNull()?.sha?.takeIf { it in commitShas }
+        viewModelScope.launch {
+            repository.markActivityRead(repoId, releaseTags, commitShas, releaseHead, commitHead)
+        }
     }
 
     /** 分支列表（选择器打开时懒加载，一次即缓存） */
@@ -193,110 +243,88 @@ class DetailViewModel(
             repository.setBranch(repoId, branch)
             commitsPage = 1
             commitsGen++
-            _state.update {
-                it.copy(
-                    commits = emptyList(), commitsEnd = false, commitsFailed = false,
-                    commitsLoading = false, commitsReloading = false,
-                )
-            }
+            _state.update { it.forNewBranch() }
             loadCommits()
         }
     }
 
-    /**
-     * 下拉刷新：刷新快照 + 原地重载提交 / Release 列表。
-     * silent（进入详情）：不点亮刷新头——首次进入时区域加载点已是唯一且正确的信号，
-     * 头部圆环 + 区域点同时转是实测「突兀」的来源；有缓存时内容原地保留、静默校准。
-     */
+    /** The header and both first pages are independent. Start each once for this visit,
+     * keeping previous results visible until their replacements arrive. */
     fun refresh(silent: Boolean = false) {
-        if (_state.value.refreshing || _state.value.commitsReloading) return
+        if (_state.value.syncing) {
+            // A user pull can take over the requests already started on entry.
+            if (!silent) _state.update { it.withManualRefresh(requested = true) }
+            return
+        }
+        commitsPage = 1
+        releasesPage = 1
+        commitsGen++
+        releasesGen++
+        _state.update {
+            it.copy(
+                manualRefresh = !silent,
+                snapshotLoading = true,
+                banner = null,
+                commitsLoading = false, commitsReloading = true, commitsEnd = false, commitsFailed = false,
+                releasesLoading = false, releasesReloading = true, releasesEnd = false, releasesFailed = false,
+            )
+        }
+        loadCommits()
+        loadReleases()
         viewModelScope.launch {
-            _state.update { it.copy(refreshing = !silent, banner = null) }
             val error = repository.refreshRepo(repoId)
-            if (error == null) {
-                commitsPage = 1
-                commitsGen++
-                releasesPage = 1
-                releasesGen++
-                _state.update {
-                    it.copy(
-                        // loading 一并复位：进入即刷新时 init 的在途响应会因 gen 不匹配作废、
-                        // 不复位的话下面的 loadCommits/loadReleases 被自家守卫挡回，
-                        // 在途响应又不认领 → 列表永久转圈（进入详情必现窗口）。
-                        // 列表不清空：旧内容原地保留（整页 loading 是突兀感根源），新数据
-                        // 到达由 page1 整页替换；reloading 压掉 footer 的重复小点
-                        commitsEnd = false, commitsFailed = false, commitsLoading = false, commitsReloading = true,
-                        releasesEnd = false, releasesFailed = false, releasesLoading = false, releasesReloading = true,
-                    )
-                }
-                loadCommits()
-                loadReleases()
-            } else {
-                _state.update { it.copy(banner = error) } // 旧数据保留
-            }
-            _state.update { it.copy(refreshing = false) }
+            _state.update { it.copy(snapshotLoading = false, banner = error).withManualRefresh() }
         }
     }
 
     fun loadCommits() {
-        val s = _state.value
-        if (s.commitsLoading || s.commitsEnd) return
+        val current = _state.value
+        if (current.commitsLoading || current.commitsEnd) return
+        val page = commitsPage
+        val gen = commitsGen
+        _state.update { it.copy(commitsLoading = true, commitsFailed = false) }
         viewModelScope.launch {
-            _state.update { it.copy(commitsLoading = true, commitsFailed = false) }
-            val page = commitsPage
-            val gen = commitsGen
-            val more = runCatching { repository.commits(repoId, page) }
-            if (gen != commitsGen) return@launch // 已切分支/刷新：旧响应作废
-                _state.update {
-                    when (val data = more.getOrNull()) {
-                        null -> it.copy(commitsLoading = false, commitsReloading = false, commitsFailed = true)
-                        else -> {
-                            if (data.isEmpty()) {
-                                it.copy(commitsLoading = false, commitsReloading = false, commitsEnd = true)
-                            } else {
-                                commitsPage = page + 1
-                                it.copy(
-                                    // page1 = 刷新重载：整页替换（旧内容保留期间防追加重复）；
-                                    // page>1 = 翻页追加
-                                    commits = if (page == 1) data else it.commits + data,
-                                    commitsLoading = false,
-                                    commitsReloading = false,
-                                    commitsEnd = data.size < COMMITS_PER_PAGE,
-                                )
-                            }
-                        }
-                    }
-                }
+            val data = try {
+                repository.commits(repoId, page)
+            } catch (e: kotlinx.coroutines.CancellationException) {
+                throw e
+            } catch (_: Exception) {
+                null
+            }
+            if (gen != commitsGen) return@launch
+            if (data != null) commitsPage = page + 1
+            _state.update {
+                it.copy(
+                    commits = mergePage(it.commits, page, data) { entry -> entry.sha },
+                    commitsLoading = false, commitsReloading = false,
+                    commitsFailed = data == null, commitsEnd = data != null && data.size < COMMITS_PER_PAGE,
+                ).withManualRefresh()
+            }
         }
     }
 
     fun loadReleases() {
-        val s = _state.value
-        if (s.releasesLoading || s.releasesEnd) return
+        val current = _state.value
+        if (current.releasesLoading || current.releasesEnd) return
+        val page = releasesPage
+        val gen = releasesGen
+        _state.update { it.copy(releasesLoading = true, releasesFailed = false) }
         viewModelScope.launch {
-            _state.update { it.copy(releasesLoading = true, releasesFailed = false) }
-            val page = releasesPage
-            val gen = releasesGen
-            val more = runCatching { repository.releases(repoId, page) }
-            if (gen != releasesGen) return@launch // 已刷新：旧页响应作废（loading 由新周期接管）
+            val data = try {
+                repository.releases(repoId, page)
+            } catch (e: kotlinx.coroutines.CancellationException) {
+                throw e
+            } catch (_: Exception) {
+                null
+            }
+            if (gen != releasesGen) return@launch
+            if (data != null) releasesPage = page + 1
             _state.update {
-                when (val data = more.getOrNull()) {
-                    null -> it.copy(releasesLoading = false, releasesReloading = false, releasesFailed = true)
-                    else -> {
-                        if (data.isEmpty()) {
-                            it.copy(releasesLoading = false, releasesReloading = false, releasesEnd = true)
-                        } else {
-                            releasesPage = page + 1
-                            it.copy(
-                                // page1 = 刷新重载：整页替换；page>1 = 翻页追加
-                                releases = if (page == 1) data else it.releases + data,
-                                releasesLoading = false,
-                                releasesReloading = false,
-                                releasesEnd = data.size < RELEASES_PER_PAGE,
-                            )
-                        }
-                    }
-                }
+                it.copy(
+                    releases = mergePage(it.releases, page, data) { entry -> entry.tagName },
+                    releasesLoading = false, releasesReloading = false,
+                    releasesFailed = data == null, releasesEnd = data != null && data.size < RELEASES_PER_PAGE,
+                ).withManualRefresh()
             }
         }
     }
@@ -307,13 +335,14 @@ class DetailViewModel(
 
     /** 下载 APK → App 级宿主（离开详情页不中断；完成落库/自动关联/自动安装均在宿主） */
     fun downloadAsset(release: ReleaseRecord, asset: ApkAsset, fromHeader: Boolean = false) {
+        markVisibleActivity(releaseTags = setOf(release.tagName))
         downloadHost.download(
             repoId = repoId,
             release = release,
             asset = asset,
             fromHeader = fromHeader,
-            onAutoLinked = { pkg ->
-                viewModelScope.launch { _events.send(Event.AutoLinked(pkg)) }
+            onAutoLinked = { displayName ->
+                viewModelScope.launch { _events.send(Event.AutoLinked(displayName)) }
             },
         )
     }
@@ -321,14 +350,7 @@ class DetailViewModel(
     /** 取消下载：停任务 + 清半成品，状态归位让动作区回到「下载」相 */
     fun cancelDownload() = downloadHost.cancel(repoId)
 
-    /** 未关联时的建议条：弱匹配（标签包含式）唯一命中才显示，用户点一下才生效 */
-    private suspend fun computeLinkSuggestion(): Pair<String, String>? = withContext(Dispatchers.Default) {
-        val repo = _state.value.repo ?: return@withContext null
-        io.candy.tick.util.AppMatcher.containmentSuggestion(appContext, repo.repo)
-            ?.let { it.packageName to it.label }
-    }
-
-    fun retryDownload(release: ReleaseRecord, asset: ApkAsset) = downloadAsset(release, asset, fromHeader = true)
+    fun retryDownload(release: ReleaseRecord, asset: ApkAsset) = downloadAsset(release, asset)
 
     /** 从安装器返回（ON_RESUME）：本机版本可能已变，递增 epoch 触发全部版本对比重算 */
     fun onAppResume() {
@@ -341,16 +363,16 @@ class DetailViewModel(
      */
     fun downloadUpdate() {
         val s = _state.value
-        val tag = s.snapshot?.latestReleaseTag ?: return
+        val tag = s.snapshot?.currentReleaseTag ?: return
         val release = s.releases.find { it.tagName == tag } ?: run {
-            tab.value = DetailTab.RELEASES
+            setTab(DetailTab.RELEASES)
             return
         }
         val (autoPick, _) = io.candy.tick.util.ApkPicker.pick(
             release.apkAssets, android.os.Build.SUPPORTED_ABIS.toList(),
         )
-        val asset = s.selectedAssets[release.tagName] ?: autoPick ?: run {
-            tab.value = DetailTab.RELEASES // 该 release 无 APK 资产
+        val asset = release.apkAssets.find { it.name == s.selectedAssets[release.tagName]?.name } ?: autoPick ?: run {
+            setTab(DetailTab.RELEASES) // 该 release 无 APK 资产
             return
         }
         // fromHeader 必传：头部入口的进度只在头部显示（此前漏传 → 点下载无进度条，
@@ -362,34 +384,57 @@ class DetailViewModel(
     fun installDownloaded(repo: TrackedRepo): Boolean {
         val record = repo.downloadedApk ?: return false
         val file = File(apkDir, record.fileName)
-        if (!file.exists()) return false
-        installManager.installApk(file)
+        if (!file.isFile) {
+            viewModelScope.launch {
+                downloadHost.deleteRecord(repoId, record)
+                _events.send(Event.DownloadMissing)
+            }
+            return false
+        }
+        installManager.installApk(file, repoId, record.displayAssetName)
         return true
     }
 
     /** 删除已下载的 APK（文件 + 记录；会话态一并清空，避免残留入口） */
     fun deleteDownloaded() {
-        downloadHost.clear(repoId)
+        val record = _state.value.repo?.downloadedApk ?: return
         viewModelScope.launch {
-            apkDir.listFiles()?.forEach { it.delete() }
-            repository.setDownloadedApk(repoId, null)
-            _events.send(Event.DownloadDeleted)
+            downloadHost.deleteRecord(repoId, record)
         }
     }
 
     /** 关联 / 解除；newLabel 供手选与建议路径传入（自定义备注由 autoNote 标记保护） */
     fun setLinkedApp(packageName: String?, newLabel: String? = null) {
         viewModelScope.launch {
-            repository.setLinkedPackage(repoId, packageName, newLabel)
+            if (packageName == null) {
+                val repo = _state.value.repo ?: return@launch
+                val previous = repo.linkedPackage ?: return@launch
+                // Prepare the next row while its current linked app is still visible.
+                resolveSuggestion(repo.repo)
+                repository.setLinkedPackage(repoId, null, expectedPackage = previous)
+            } else {
+                repository.setLinkedPackage(repoId, packageName, newLabel)
+            }
         }
     }
 
     /** 详情页删除入口（确认对话框后调用；下载的 APK 文件保留） */
-    fun removeRepo() {
+    fun removeRepo(onRemoved: () -> Unit) {
         // 退订清场：撤掉在跑的下载任务（否则孤儿 job 会继续下完并给已退订仓库自动装包）
         downloadHost.clear(repoId)
-        viewModelScope.launch { repository.removeRepo(repoId) }
+        viewModelScope.launch {
+            repository.removeRepo(repoId)
+            onRemoved()
+        }
     }
 
     fun dismissBanner() = _state.update { it.copy(banner = null) }
+}
+
+
+/** A new first page replaces the snapshot (including an empty page). Later pages can overlap
+ * when new commits/releases are published between requests. */
+internal fun <T, K> mergePage(previous: List<T>, page: Int, received: List<T>?, key: (T) -> K): List<T> {
+    if (received == null) return previous
+    return (if (page == 1) received else previous + received).distinctBy(key)
 }

@@ -3,7 +3,7 @@
     <string name="app_name">CandyTick</string>
 
     <!-- 主题三档 -->
-    <string name="theme_mode_system">System</string>
+    <string name="theme_mode_system">System default</string>
     <string name="theme_mode_light">Light</string>
     <string name="theme_mode_dark">Dark</string>
 
@@ -15,9 +15,10 @@
     <string name="refresh_done">Refresh complete</string>
     <string name="undo">Undo</string>
     <string name="pinned_a11y">Pinned</string>
-    <string name="removed">Removed</string>
+    <string name="removed">Repository removed</string>
     <string name="loading">Loading…</string>
     <string name="back">Back</string>
+    <string name="scroll_to_top">Scroll to top</string>
     <!-- 卡片滑动手势的无障碍替代动作（TalkBack 自定义操作菜单） -->
     <string name="action_pin">Pin to top</string>
     <string name="action_unpin">Unpin</string>
@@ -26,60 +27,107 @@
     <string name="add_repo">Add repository</string>
     <string name="settings_title">Settings</string>
     <string name="sort_title">Sort by</string>
-    <string name="sort_last_push">Recently active</string>
-    <string name="sort_status">Status</string>
-    <string name="sort_name">A-Z</string>
-    <string name="sort_name_desc">Z-A</string>
-    <string name="sort_updatable">Updates available</string>
-    <string name="sort_added">Recently added</string>
+    <string name="sort_last_push">Recent activity</string>
+    <string name="sort_status">Activity level</string>
+    <string name="sort_name">Repository name</string>
+    <string name="sort_updatable">Available updates</string>
+    <string name="sort_added">Date added</string>
+    <string name="sort_direction_hint">Tap the selected option to reverse the order</string>
+    <string name="sort_ascending">Ascending</string>
+    <string name="sort_descending">Descending</string>
+    <string name="sort_use_ascending">Sort in ascending order</string>
+    <string name="sort_use_descending">Sort in descending order</string>
+    <string name="sort_activity_newest">By commit or release date, newest first</string>
+    <string name="sort_activity_oldest">By commit or release date, oldest first</string>
+    <string name="sort_added_newest">Newest subscriptions first</string>
+    <string name="sort_added_oldest">Oldest subscriptions first</string>
+    <string name="sort_status_active">Active first, then most recent pushes</string>
+    <string name="sort_status_inactive">Archived first, then oldest pushes</string>
+    <string name="sort_name_az">A to Z by display name</string>
+    <string name="sort_name_za">Z to A by display name</string>
+    <string name="sort_no_updates">By recent activity when no updates are found</string>
+    <plurals name="sort_updates_first">
+        <item quantity="one">%1$d available update first, then by recent activity</item>
+        <item quantity="other">%1$d available updates first, then by recent activity</item>
+    </plurals>
+    <plurals name="sort_updates_last">
+        <item quantity="one">%1$d available update last, then by recent activity</item>
+        <item quantity="other">%1$d available updates last, then by recent activity</item>
+    </plurals>
     <string name="open_in_browser">Open in browser</string>
+    <string name="copy_repo_link">Copy repository link</string>
+    <string name="copy_repo_link_failed">Couldn\'t copy the repository link</string>
     <string name="detail_remove_repo">Remove repository</string>
     <string name="remove_confirm_title">Remove this repository?</string>
-    <string name="remove_confirm_body">Stop tracking %1$s. Downloaded packages will be cleaned up on next launch.</string>
+    <string name="remove_confirm_body">CandyTick will stop checking %1$s for updates. Packages downloaded from this repository will be removed the next time you open CandyTick.</string>
     <string name="action_cancel">Cancel</string>
     <string name="action_remove">Remove</string>
-    <string name="empty_title">No subscriptions yet</string>
-    <string name="empty_subtitle">Commit activity and new releases land here</string>
+    <string name="empty_title">No repositories yet</string>
+    <string name="empty_subtitle">Subscribe to see the latest commits and releases.</string>
     <string name="empty_cta">Add your first repository</string>
-    <string name="banner_old_data_kept">Showing saved data</string>
-    <string name="card_updatable">New release</string>
+    <string name="banner_old_data_kept">Saved details are still available.</string>
+    <string name="banner_dismiss">Dismiss notice</string>
+    <string name="banner_rate_limit_title">GitHub rate limit reached</string>
+    <string name="banner_retry_after">Try again %1$s.</string>
+    <string name="card_updatable">Update available</string>
     <string name="collapse_all">Collapse all</string>
-    <string name="card_last_push">pushed %1$s</string>
+    <string name="card_last_push">Last active %1$s</string>
+    <string name="card_last_release">Released %1$s</string>
+    <string name="card_last_commit">Last commit %1$s</string>
+    <string name="card_unread_release">New release</string>
+    <string name="card_unread_commit">New commits</string>
+    <string name="card_unread_both">New releases and commits</string>
+    <string name="card_activity_with_unread">%1$s · %2$s</string>
     <string name="card_details_failed">Couldn\'t load details</string>
-    <string name="card_refreshing">Fetching latest data</string>
+    <string name="card_refreshing">Refreshing repository details</string>
 
     <!-- 状态五色 + 失效 -->
     <string name="status_active">Active</string>
-    <string name="status_moderate">Fair</string>
+    <string name="status_moderate">Moderate activity</string>
     <string name="status_low">Low activity</string>
-    <string name="status_abandoned">Likely abandoned</string>
+    <string name="status_abandoned">Inactive</string>
     <string name="status_archived">Archived</string>
     <string name="status_unknown">Unknown</string>
     <string name="repo_inaccessible">Inaccessible</string>
 
     <!-- 版本行 -->
-    <string name="version_latest_only">latest %1$s</string>
-    <string name="version_incomparable_full">release %1$s · installed %2$s · cannot compare</string>
+    <string name="version_latest_only">Latest release: %1$s</string>
+    <string name="version_incomparable_full">Latest release %1$s · Installed %2$s</string>
     <string name="version_line">Up to date · %1$s</string>
+    <string name="version_installed_ahead">Installed %1$s · Latest release %2$s</string>
     <string name="version_update_available">Update available: %1$s</string>
+    <string name="version_local_current">Up to date</string>
+    <string name="version_release_label">Latest release</string>
+    <string name="version_installed_label">Installed</string>
+    <string name="version_local_newer">Newer than release</string>
 
     <!-- 四类失败 -->
     <string name="err_network">Network unavailable</string>
-    <string name="err_timeout">Timed out (15s)</string>
-    <string name="err_not_found">Repository not found or made private</string>
-    <string name="err_rate_limited">Rate limited · recovers in %1$s · add a token in Settings to raise it</string>
-    <string name="err_rate_limited_plain">Too many requests — try later or add a token in Settings</string>
-    <string name="err_http">Server error (%1$d)</string>
+    <string name="err_timeout">Request timed out</string>
+    <string name="err_not_found">Content not found or access denied</string>
+    <string name="err_rate_limited">GitHub request limit reached. Try again %1$s.</string>
+    <string name="err_rate_limited_plain">GitHub request limit reached. Try again later.</string>
+    <string name="err_http">Request failed (HTTP %1$d)</string>
 
     <!-- 相对时间（过去 → … ago；未来 → in …） -->
     <string name="rel_now">just now</string>
-    <string name="rel_until_soon">any moment now</string>
+    <string name="rel_until_soon">shortly</string>
+    <string name="rel_until_now">now</string>
 
     <!-- 下拉刷新（Miuix PullToRefresh 状态文案，跟库默认英文对位） -->
-    <string name="sync_result_updated">Synced · %1$d repos updated</string>
-    <string name="sync_result_failed_suffix"> · %1$d failed</string>
-    <string name="sync_result_all_failed">Sync failed · %1$d repos</string>
-    <string name="sync_result_partial_failed">%1$d repos failed to sync</string>
+    <plurals name="sync_result_updated">
+        <item quantity="one">%1$d repository has new activity</item>
+        <item quantity="other">%1$d repositories have new activity</item>
+    </plurals>
+    <string name="sync_result_with_failures">%1$s · %2$d failed</string>
+    <plurals name="sync_result_all_failed">
+        <item quantity="one">Sync failed for %1$d repository</item>
+        <item quantity="other">Sync failed for all %1$d repositories</item>
+    </plurals>
+    <plurals name="sync_result_partial_failed">
+        <item quantity="one">%1$d repository failed to sync</item>
+        <item quantity="other">%1$d repositories failed to sync</item>
+    </plurals>
     <plurals name="rel_minutes">
         <item quantity="one">%d min ago</item>
         <item quantity="other">%d mins ago</item>
@@ -130,94 +178,121 @@
     <string name="branch_no_match">No matching branches</string>
 
     <!-- 添加页 -->
-    <string name="add_input_hint">Paste link or search</string>
-    <string name="add_parse_error">Unrecognized · use a GitHub link or owner/repo</string>
+    <string name="add_input_hint">Paste a link or search repositories</string>
+    <string name="add_parse_error">Enter a GitHub repository URL or owner/repo</string>
     <string name="add_search_failed">Search failed</string>
-    <string name="add_search_empty">No match — try pasting the full link</string>
-    <string name="picker_search_app">Search apps</string>
+    <string name="add_search_empty">No repositories found</string>
+    <string name="add_search_empty_hint">Try a different keyword or paste a repository link.</string>
+    <string name="picker_search_app">Search by app name or package name</string>
     <string name="picker_no_match">No matching apps</string>
     <string name="clear_input">Clear input</string>
     <string name="add_guide_title">Paste a repository link, or search by keyword</string>
     <string name="add_guide_formats">github.com/owner/repo or owner/repo</string>
     <string name="add_back_to_results">Back to results</string>
-    <string name="add_open_existing">Open the existing repo</string>
+    <string name="add_open_existing">Open existing subscription</string>
     <string name="add_confirm">Add repository</string>
 
     <!-- 详情页 -->
-    <string name="detail_commits">Commits</string>
+    <string name="detail_commits">Commit history</string>
     <string name="detail_releases">Version history</string>
     <string name="detail_no_commits">No commits yet</string>
     <string name="detail_no_releases">No releases yet</string>
+    <string name="detail_release_from_notification">Release from notification</string>
+    <string name="detail_finding_release">Looking for release %1$s…</string>
+    <string name="detail_notified_release_missing">Release %1$s could not be found</string>
+    <string name="detail_notified_release_failed">Couldn’t load release %1$s</string>
     <string name="detail_select_asset_hint">Select a package to download</string>
     <string name="detail_no_apk">No APK provided</string>
-    <string name="detail_link_app">Link installed app</string>
+    <string name="detail_link_app">Link an installed app</string>
     <string name="detail_link_app_other">Choose another app</string>
-    <string name="detail_auto_link_hint">Installed "%1$s" · tap to link</string>
+    <string name="detail_auto_link_hint">Link to %1$s</string>
     <string name="detail_auto_linked">Auto-linked: %1$s</string>
     <string name="detail_linked_app">Linked: %1$s</string>
+    <string name="linked_app_pending">Linked app</string>
     <string name="detail_link_change">Change linked app</string>
     <string name="detail_unlink">Unlink</string>
     <string name="detail_delete_download">Delete downloaded package</string>
     <string name="toast_copied">Copied to clipboard</string>
     <string name="load_failed">Load failed</string>
-    <string name="status_error_subtitle">Network or API hiccup — try again in a moment</string>
-    <string name="list_end">the end</string>
-    <plurals name="list_end_count_items">
-        <item quantity="one">%1$s · %2$d item</item>
-        <item quantity="other">%1$s · %2$d items</item>
+    <string name="status_error_subtitle">Please try again later.</string>
+    <plurals name="footer_repositories">
+        <item quantity="one">End of list · %d repository</item>
+        <item quantity="other">End of list · %d repositories</item>
+    </plurals>
+    <plurals name="footer_search_results">
+        <item quantity="one">Showing %d result</item>
+        <item quantity="other">Showing %d results</item>
+    </plurals>
+    <plurals name="footer_search_complete">
+        <item quantity="one">End of list · %d result</item>
+        <item quantity="other">End of list · %d results</item>
+    </plurals>
+    <plurals name="footer_commits">
+        <item quantity="one">End of list · %d commit</item>
+        <item quantity="other">End of list · %d commits</item>
+    </plurals>
+    <plurals name="footer_releases">
+        <item quantity="one">End of list · %d release</item>
+        <item quantity="other">End of list · %d releases</item>
     </plurals>
     <string name="release_view_on_github">View full release notes</string>
-    <string name="release_current">Current</string>
+    <string name="release_current">Installed</string>
     <string name="asset_recommended">Recommended</string>
-    <string name="download_apk">Download</string>
+    <string name="download_apk">Download APK</string>
     <string name="download_failed_reason">Download failed · %1$s</string>
     <string name="download_progress_percent">%1$d%%</string>
 
     <string name="cancel">Cancel</string>
     <string name="install_apk">Install</string>
     <string name="install_done">Installed</string>
-    <string name="install_failed_format">Install failed · %1$s</string>
-    <string name="install_signature_mismatch">Signature mismatch · uninstall the existing app first (mixing F-Droid and GitHub builds?)</string>
+    <string name="install_failed_format">Installation failed · %1$s</string>
+    <string name="bundle_installer_required">A compatible split APK installer is required</string>
+    <string name="install_signature_mismatch">This package and the installed app have different signatures. Get the update from the original source.</string>
 
     <!-- 通知 -->
-    <string name="notif_channel_release">Repo new versions</string>
-    <string name="notif_channel_release_desc">Notifies when a subscribed repo publishes a release</string>
-    <string name="notif_channel_update">App updates</string>
-    <string name="notif_channel_update_desc">Notifies when an app update is ready to install</string>
-    <string name="notif_new_release">New release %1$s found</string>
-    <string name="notif_updates_summary">%1$d repos have new versions</string>
+    <string name="notif_channel_release">Repository releases</string>
+    <string name="notif_channel_release_desc">Notifies you when a repository you follow releases a new APK.</string>
+    <string name="notif_channel_update">CandyTick updates</string>
+    <string name="notif_channel_update_desc">When a CandyTick update is ready to install</string>
+    <string name="notif_new_release">New release: %1$s</string>
+    <string name="notif_updates_summary">%1$d repositories have new releases</string>
     <string name="notif_update_ready_title">CandyTick update</string>
-    <string name="notif_update_ready">Version %1$s downloaded · tap to install</string>
+    <string name="notif_update_ready">Version %1$s is ready to install in CandyTick settings.</string>
     <string name="notif_channel_sync">Background sync</string>
-    <string name="notif_channel_sync_desc">Foreground indicator while syncing on older Android versions</string>
+    <string name="notif_channel_sync_desc">Shown while repositories sync in the background.</string>
+    <string name="notif_syncing_repos">Syncing repositories</string>
     <string name="open_failed">Couldn\'t open the link</string>
-    <string name="picker_empty_apps">No launchable apps found</string>
+    <string name="picker_empty_apps">No apps available to link</string>
 
     <!-- 设置页 -->
     <string name="settings_appearance">Appearance</string>
     <string name="action_search">Search</string>
-    <string name="search_hint">Search</string>
-    <string name="search_no_results">No results for \"%1$s\"</string>
+    <string name="search_hint">Search subscribed repositories</string>
+    <string name="search_no_results">No repositories match “%1$s”</string>
     <string name="search_no_results_hint">Try a shorter keyword or check the spelling</string>
     <string name="close_search">Close search</string>
     <string name="search_clear">Clear search</string>
     <string name="settings_backup_group">Data</string>
     <string name="settings_export">Export subscriptions</string>
-    <string name="settings_export_summary">Copy to clipboard and share as JSON</string>
+    <string name="settings_export_summary">Copy the backup and open the share menu</string>
     <string name="settings_import">Import subscriptions</string>
-    <string name="settings_import_summary">Merge from a JSON file; existing data is kept</string>
-    <string name="import_result">Imported %1$d repositories</string>
-    <string name="import_no_new">Everything in the backup is already subscribed</string>
-    <string name="import_failed">Import failed · not a valid backup file</string>
+    <string name="settings_import_summary">Import a backup from a file or the clipboard</string>
+    <plurals name="import_result">
+        <item quantity="one">Imported %1$d repository</item>
+        <item quantity="other">Imported %1$d repositories</item>
+    </plurals>
+    <string name="import_no_new">No new subscriptions to import</string>
+    <string name="import_failed">Import failed. Use a CandyTick JSON backup.</string>
     <string name="import_from_file">From file</string>
     <string name="import_from_clipboard">From clipboard</string>
     <string name="settings_theme_mode">Theme</string>
     <string name="settings_sync_and_notify">Sync &amp; notifications</string>
-    <string name="settings_sync_frequency">Frequency</string>
-    <string name="settings_sync_wifi_only">Wi-Fi only sync</string>
+    <string name="settings_sync_frequency">Sync frequency</string>
+    <string name="settings_sync_wifi_only">Sync on Wi-Fi only</string>
+    <string name="settings_sync_wifi_only_summary">Applies only to automatic sync.</string>
     <string name="settings_token_row">GitHub token</string>
-    <string name="settings_token_hint_short">Optional · 60 → 5,000 req/h</string>
-    <string name="token_input_hint">Paste token</string>
+    <string name="settings_token_hint_short">Raises the API request limit</string>
+    <string name="token_input_hint">Paste a token</string>
     <string name="token_set">Set</string>
     <string name="token_unset">Not set</string>
     <string name="settings_language">Language</string>
@@ -225,65 +300,67 @@
     <string name="lang_chinese">简体中文</string>
     <string name="lang_english">English</string>
     <string name="settings_token_hint">Optional. Raises the API rate limit from 60 to 5,000 requests per hour.</string>
-    <string name="settings_token_test">Save &amp; verify</string>
-    <string name="token_help_link">How to get a token?</string>
+    <string name="settings_token_test">Verify and save</string>
+    <string name="remove_token">Remove token</string>
+    <string name="token_help_link">How to get a token</string>
     <string name="token_show">Show token</string>
     <string name="token_hide">Hide token</string>
     <string name="download_update_action">Download update</string>
-    <string name="settings_auto_install">Auto-install after download</string>
-    <string name="settings_auto_install_summary">Opens the system installer automatically — app updates included</string>
-    <string name="token_verified">✓ Verified</string>
-    <string name="token_invalid_short">✗ Invalid token</string>
-    <string name="token_network_error">Network error, try again</string>
-    <string name="settings_token_rejected">Token was rejected by GitHub (401) · requests are running anonymously</string>
-    <string name="settings_notifications">New version notifications</string>
+    <string name="settings_auto_install">Open installer after download</string>
+    <string name="settings_auto_install_summary">APKs and CandyTick updates</string>
+    <string name="token_verified">Token verified and saved</string>
+    <string name="token_invalid_short">Invalid token. Check it and try again.</string>
+    <string name="token_network_error">Couldn’t verify the token. Check your connection and try again.</string>
+    <string name="settings_token_rejected">GitHub rejected this token (401). Requests are now anonymous.</string>
+    <string name="settings_notifications">Update notifications</string>
 
     <!-- 权限 -->
-        <string name="settings_perm_install_unknown">Install unknown apps</string>
-    <string name="settings_perm_install_summary">Needed to install APKs and app updates</string>
+    <string name="settings_perm_install_unknown">App installation permission</string>
+    <string name="settings_perm_install_summary">Allow CandyTick to install unknown apps</string>
     <string name="settings_perm_notifications">Notification permission</string>
     <string name="perm_granted">Granted</string>
     <string name="perm_not_granted">Not granted</string>
     <string name="perm_not_required">Not required</string>
-    <string name="detail_need_install_permission">Grant "install unknown apps" in system settings first, then retry</string>
-    <string name="settings_app_updates">Auto-update</string>
+    <string name="detail_need_install_permission">Allow CandyTick to install unknown apps in system settings, then try again.</string>
+    <string name="settings_app_updates">Updates and installation</string>
     <string name="settings_current_version_title">Check for updates</string>
-    <string name="settings_update_found">Update available</string>
-    <string name="settings_self_update_check">Auto check for updates</string>
-    <string name="settings_self_update_download">Auto download</string>
+    <string name="settings_self_update_check">Check for CandyTick updates automatically</string>
+    <string name="settings_self_update_download">Download CandyTick updates automatically</string>
     <string name="settings_checking">Checking…</string>
-    <string name="settings_up_to_date">Up to date</string>
-    <string name="settings_download_update">Download &amp; install</string>
     <string name="settings_install_update">Install downloaded update</string>
-    <string name="settings_update_failed">Update check failed · try later</string>
-    <string name="settings_download_failed">Download failed · retry available</string>
-    <string name="settings_install_failed">Install failed · retry available</string>
-    <string name="settings_new_release_incomparable">New release %1$s · not comparable</string>
+    <string name="settings_update_failed">Update check failed</string>
+    <string name="settings_download_failed">Download failed</string>
+    <string name="settings_install_failed">Installation failed</string>
+    <string name="settings_new_release_incomparable">Release %1$s · Can’t compare versions</string>
     <string name="self_update_no_apk">No installable APK in this release</string>
     <string name="self_update_view_releases">View all releases on GitHub</string>
-    <string name="self_update_incomparable_note">Version not comparable — may or may not be newer</string>
-    <string name="self_update_install_failed_note">Install failed · package kept for retry</string>
+    <string name="self_update_incomparable_note">Can’t tell if this release is newer than your installed version.</string>
+    <string name="self_update_install_failed_note">The update file is still available. Try installing it again.</string>
 
     <!-- 关于 -->
     <string name="settings_about_group">About</string>
     <string name="settings_github_repo">GitHub repository</string>
     <string name="settings_license">License</string>
-        <string name="settings_cache_summary">Clear downloaded APKs and logs to free up space</string>
+    <string name="settings_cache_summary">Downloaded packages and crash logs</string>
     <string name="settings_cache_cleanup">Clear cache</string>
     <string name="settings_cache_apk">Downloaded APKs</string>
     <string name="settings_cache_crash_log">Crash log</string>
     <string name="settings_cache_cleaning">Cleaning…</string>
     <string name="settings_cache_clean_action">Clear selected</string>
     <string name="settings_cache_empty">Nothing to clear</string>
+    <string name="settings_cache_select_hint">Select what to clear</string>
     <string name="settings_cache_none">None</string>
     <string name="settings_cache_freed">Freed %1$s</string>
     <string name="settings_crash_log">Crash log</string>
-    <string name="settings_crash_log_summary">Share the log if the app crashed</string>
+    <string name="settings_crash_log_summary">Share the most recent crash log</string>
     <string name="crash_log_empty">No crash recorded</string>
 
     <!-- 同步频率 -->
-    <string name="frequency_on_open">On app open</string>
+    <string name="frequency_on_open">When the app opens</string>
     <string name="frequency_6h">Every 6 hours</string>
     <string name="frequency_12h">Every 12 hours</string>
     <string name="frequency_daily">Daily</string>
+    <string name="expand_details">Expand details</string>
+    <string name="collapse_details">Collapse details</string>
+    <string name="download_missing">Package not found. Download it again.</string>
 </resources>

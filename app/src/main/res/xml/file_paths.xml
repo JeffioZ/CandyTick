@@ -1,5 +1,6 @@
 <?xml version="1.0" encoding="utf-8"?>
 <paths>
-    <!-- APK 下载目录：filesDir/apks/{repoId} 与 filesDir/updates（自身更新经 session 不经此处，留全 filesDir 更稳） -->
-    <files-path name="downloads" path="." />
+    <!-- 只向安装器授权仓库安装包和自身更新包。 -->
+    <files-path name="repo_packages" path="apks/" />
+    <files-path name="self_updates" path="updates/" />
 </paths>

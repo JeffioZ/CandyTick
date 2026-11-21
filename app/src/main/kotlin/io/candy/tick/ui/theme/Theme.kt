@@ -159,7 +159,7 @@ fun CandyTickTheme(
             androidx.compose.foundation.LocalIndication provides indication,
         ) {
             SystemBars(dark = dark)
-            content()
+            io.candy.tick.ui.common.ProvideMotionPreference(content)
         }
     }
 }

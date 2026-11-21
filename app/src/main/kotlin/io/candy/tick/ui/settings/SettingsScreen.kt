@@ -11,9 +11,10 @@ import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.DisposableEffect
-import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -21,6 +22,7 @@ import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.platform.LocalResources
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.Lifecycle
@@ -35,11 +37,13 @@ import io.candy.tick.data.model.ThemeMode
 import io.candy.tick.data.Notifications
 import io.candy.tick.data.SelfUpdater
 import io.candy.tick.data.model.SyncFrequency
+import io.candy.tick.ui.common.CenteredScrollToTopBar
+import io.candy.tick.ui.common.rememberMotionEnabled
+import io.candy.tick.ui.common.scrollToTop
 import io.candy.tick.ui.theme.ChipAmber
 import io.candy.tick.ui.theme.ChipBlue
 import io.candy.tick.ui.theme.ChipOrange
 import io.candy.tick.ui.theme.ChipGreen
-import io.candy.tick.ui.theme.ChipMint
 import io.candy.tick.ui.theme.ChipPeriwinkle
 import io.candy.tick.ui.theme.ChipPink
 import io.candy.tick.ui.theme.ChipSand
@@ -47,9 +51,7 @@ import io.candy.tick.ui.theme.ChipSky
 import io.candy.tick.ui.theme.ChipSlate
 import io.candy.tick.ui.theme.ChipTeal
 import io.candy.tick.ui.theme.ChipViolet
-import top.yukonga.miuix.kmp.basic.Icon
 import top.yukonga.miuix.kmp.basic.Scaffold
-import top.yukonga.miuix.kmp.basic.SmallTopAppBar
 import top.yukonga.miuix.kmp.theme.MiuixTheme
 import top.yukonga.miuix.kmp.window.WindowBottomSheet
 import androidx.compose.ui.res.vectorResource
@@ -66,7 +68,6 @@ fun SettingsScreen(onBack: () -> Unit) {
             repository = app.container.repoRepository,
             githubApi = app.container.githubApi,
             selfUpdater = app.container.selfUpdater,
-            syncScheduler = app.container.syncScheduler,
             cacheManager = app.container.cacheManager,
         )
     }
@@ -75,27 +76,18 @@ fun SettingsScreen(onBack: () -> Unit) {
 
     // 检查更新的结果走全局 toast（与全 App 反馈同通道）：瞬时结论用胶囊；需要行动的
     // （发现新版 → UpdateSheet、下载/安装失败 → 各自重试入口）仍走既有路径
-    val upToDateMsg = stringResource(R.string.settings_up_to_date)
+    val upToDateMsg = stringResource(R.string.version_local_current)
     val checkFailedMsg = stringResource(R.string.settings_update_failed)
-    LaunchedEffect(state.selfUpdate) {
-        val su = state.selfUpdate
-        when (su) {
-            is SelfUpdater.State.UpToDate -> io.candy.tick.ui.common.Feedback.show(text = upToDateMsg)
-            is SelfUpdater.State.Failed -> if (su.reason == SelfUpdater.Reason.NETWORK) {
-                // 仅检查失败（NETWORK）弹 toast；下载/安装失败有自己的失败相展示
-                io.candy.tick.ui.common.Feedback.show(text = checkFailedMsg, isError = true)
-            }
-            else -> Unit
-        }
-    }
-    val scheme = MiuixTheme.colorScheme
     val context = LocalContext.current
+    val resources = LocalResources.current
     val scope = androidx.compose.runtime.rememberCoroutineScope()
+    val listState = rememberLazyListState()
+    val motionEnabled = rememberMotionEnabled()
     val clipboard = androidx.compose.ui.platform.LocalClipboardManager.current
     var showFrequencySheet by remember { mutableStateOf(false) }
     var showThemeSheet by remember { mutableStateOf(false) }
     var showLanguageSheet by remember { mutableStateOf(false) }
-    var showTokenDialog by remember { mutableStateOf(false) }
+    var showTokenDialog by rememberSaveable { mutableStateOf(false) }
     var tokenVisible by rememberSaveable { mutableStateOf(false) }
 
     val crashLogFile = remember {
@@ -132,15 +124,15 @@ fun SettingsScreen(onBack: () -> Unit) {
 
     fun importFromText(text: String?) {
         if (text.isNullOrBlank()) {
-            io.candy.tick.ui.common.Feedback.show(text = app.getString(R.string.import_failed), isError = true)
+            io.candy.tick.ui.common.Feedback.show(text = resources.getString(R.string.import_failed), isError = true)
             return
         }
         scope.launch {
             val added = vm.importSubscriptions(text)
             val msg = when {
-                added < 0 -> app.getString(R.string.import_failed)
-                added == 0 -> app.getString(R.string.import_no_new)
-                else -> app.getString(R.string.import_result, added)
+                added < 0 -> resources.getString(R.string.import_failed)
+                added == 0 -> resources.getString(R.string.import_no_new)
+                else -> resources.getQuantityString(R.plurals.import_result, added, added)
             }
             io.candy.tick.ui.common.Feedback.show(text = msg, isError = added < 0)
         }
@@ -162,7 +154,7 @@ fun SettingsScreen(onBack: () -> Unit) {
 
     fun shareCrashLog() {
         if (!crashLogExists()) {
-            io.candy.tick.ui.common.Feedback.show(text = app.getString(R.string.crash_log_empty))
+            io.candy.tick.ui.common.Feedback.show(text = resources.getString(R.string.crash_log_empty))
             return
         }
         val content = runCatching { crashLogFile.readText() }.getOrDefault("")
@@ -183,7 +175,7 @@ fun SettingsScreen(onBack: () -> Unit) {
             )
         }.onFailure {
             io.candy.tick.ui.common.Feedback.show(
-                text = app.getString(R.string.open_failed),
+                text = resources.getString(R.string.open_failed),
                 isError = true,
             )
         }
@@ -209,27 +201,16 @@ fun SettingsScreen(onBack: () -> Unit) {
     Scaffold(
         containerColor = androidx.compose.ui.graphics.Color.Transparent,
         topBar = {
-            SmallTopAppBar(
+            CenteredScrollToTopBar(
                 title = stringResource(R.string.settings_title),
-                color = androidx.compose.ui.graphics.Color.Transparent,
-                navigationIcon = {
-                    io.candy.tick.ui.common.PressIconButton(
-                        onClick = onBack,
-                        // 图标旁无文字的控件必须有可访问名称（icon-button a11y）
-                        contentDescription = stringResource(R.string.back),
-                    ) {
-                        Icon(
-                            imageVector = ImageVector.vectorResource(R.drawable.ic_back),
-                            contentDescription = null,
-                            tint = scheme.onBackground,
-                        )
-                    }
-                },
+                onBack = onBack,
+                onTitleClick = { scope.launch { listState.scrollToTop(motionEnabled) } },
             )
         },
     ) { padding ->
         // LazyColumn：只组合可见分组，冷启动首进不再一次性构建整页
-        androidx.compose.foundation.lazy.LazyColumn(
+        LazyColumn(
+            state = listState,
             modifier = Modifier
                 .fillMaxSize()
                 .padding(padding)
@@ -269,8 +250,9 @@ fun SettingsScreen(onBack: () -> Unit) {
                 RowDivider()
                 SwitchRow(
                     title = stringResource(R.string.settings_sync_wifi_only),
+                    summary = stringResource(R.string.settings_sync_wifi_only_summary),
                     checked = state.settings.wifiOnly,
-                    icon = ImageVector.vectorResource(R.drawable.ic_cloud),
+                    icon = ImageVector.vectorResource(R.drawable.ic_wifi),
                     iconTint = ChipSky,
                     onChange = vm::setWifiOnly,
                 )
@@ -279,28 +261,32 @@ fun SettingsScreen(onBack: () -> Unit) {
                 SettingRow(
                     title = stringResource(R.string.settings_token_row),
                     summary = stringResource(R.string.settings_token_hint_short),
-                    value = if (state.tokenInput.isNotBlank()) {
+                    value = if (!state.settings.githubToken.isNullOrBlank()) {
                         stringResource(R.string.token_set)
                     } else {
                         stringResource(R.string.token_unset)
                     },
                     icon = ImageVector.vectorResource(R.drawable.ic_lock),
                     iconTint = ChipOrange,
-                    onClick = { showTokenDialog = true },
+                    onClick = {
+                        vm.resetTokenDraft()
+                        tokenVisible = false
+                        showTokenDialog = true
+                    },
                 )
                 RowDivider()
                 // 通知 = 同步的结果输出，并入同步组（原孤组收敛）
                 SwitchRow(
                     title = stringResource(R.string.settings_notifications),
                     checked = state.settings.notificationsEnabled,
-                    icon = ImageVector.vectorResource(R.drawable.ic_messages),
+                    icon = ImageVector.vectorResource(R.drawable.ic_bell),
                     iconTint = ChipPink,
                     onChange = vm::setNotifications,
                 )
                 RowDivider()
                 // 通知权限 = 通知开关的先决条件：组尾附加（开关主体在前，不打断节奏）
                 SettingRow(
-                    icon = ImageVector.vectorResource(R.drawable.ic_email),
+                    icon = ImageVector.vectorResource(R.drawable.ic_shield),
                     iconTint = ChipViolet,
                     title = stringResource(R.string.settings_perm_notifications),
                     value = when {
@@ -345,7 +331,7 @@ fun SettingsScreen(onBack: () -> Unit) {
                     checked = state.settings.autoInstallDownload,
                     onChange = vm::setAutoInstallDownload,
                     summary = stringResource(R.string.settings_auto_install_summary),
-                    icon = ImageVector.vectorResource(R.drawable.ic_file_down),
+                    icon = ImageVector.vectorResource(R.drawable.ic_package),
                     iconTint = ChipGreen,
                 )
                 RowDivider()
@@ -370,16 +356,18 @@ fun SettingsScreen(onBack: () -> Unit) {
                     title = stringResource(R.string.settings_export),
                     summary = stringResource(R.string.settings_export_summary),
                     onClick = {
-                        val text = vm.exportSubscriptions()
-                        clipboard.setText(androidx.compose.ui.text.AnnotatedString(text))
-                        io.candy.tick.ui.common.Feedback.show(text = app.getString(R.string.toast_copied))
-                        runCatching {
-                            context.startActivity(
-                                Intent(Intent.ACTION_SEND)
-                                    .setType("text/plain")
-                                    .putExtra(Intent.EXTRA_TEXT, text)
-                                    .addFlags(Intent.FLAG_ACTIVITY_NEW_TASK),
-                            )
+                        scope.launch {
+                            val text = vm.exportSubscriptions()
+                            clipboard.setText(androidx.compose.ui.text.AnnotatedString(text))
+                            io.candy.tick.ui.common.Feedback.show(text = resources.getString(R.string.toast_copied))
+                            runCatching {
+                                context.startActivity(
+                                    Intent(Intent.ACTION_SEND)
+                                        .setType("text/plain")
+                                        .putExtra(Intent.EXTRA_TEXT, text)
+                                        .addFlags(Intent.FLAG_ACTIVITY_NEW_TASK),
+                                )
+                            }
                         }
                     },
                 )
@@ -418,12 +406,25 @@ fun SettingsScreen(onBack: () -> Unit) {
                     onClick = {
                         // 已下载/下载中：直接重开弹窗（重复检查会覆盖已下载文件）
                         when (state.selfUpdate) {
-                            is SelfUpdater.State.Downloaded, is SelfUpdater.State.Downloading -> Unit
+                            is SelfUpdater.State.Downloaded, is SelfUpdater.State.Downloading ->
+                                io.candy.tick.ui.common.UpdateSheetController.manualRequest = true
                             // 检查中：无操作（防重复请求烧限额），「正在检查…」已是反馈
                             is SelfUpdater.State.Checking -> return@SettingRow
-                            else -> vm.checkUpdate()
+                            else -> scope.launch {
+                                when (val result = vm.checkUpdate()) {
+                                    SelfUpdater.State.UpToDate ->
+                                        io.candy.tick.ui.common.Feedback.show(upToDateMsg)
+                                    is SelfUpdater.State.Failed -> if (result.reason == SelfUpdater.Reason.NETWORK) {
+                                        io.candy.tick.ui.common.Feedback.show(checkFailedMsg, isError = true)
+                                    } else {
+                                        io.candy.tick.ui.common.UpdateSheetController.manualRequest = true
+                                    }
+                                    is SelfUpdater.State.NewVersion, is SelfUpdater.State.Downloaded ->
+                                        io.candy.tick.ui.common.UpdateSheetController.manualRequest = true
+                                    else -> Unit
+                                }
+                            }
                         }
-                        io.candy.tick.ui.common.UpdateSheetController.manualRequest = true
                     },
                 )
                 RowDivider()
@@ -542,16 +543,7 @@ fun SettingsScreen(onBack: () -> Unit) {
         onToggleVisible = { tokenVisible = !tokenVisible },
         onTokenInput = vm::onTokenInput,
         onSaveAndTest = vm::saveAndTestToken,
-        onOpenHelp = {
-            runCatching {
-                context.startActivity(
-                    Intent(
-                        Intent.ACTION_VIEW,
-                        Uri.parse("https://docs.github.com/en/authentication/keeping-your-account-and-data-secure/managing-your-personal-access-tokens"),
-                    ).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK),
-                )
-            }
-        },
+        onOpenHelp = { openUrl("https://docs.github.com/en/authentication/keeping-your-account-and-data-secure/managing-your-personal-access-tokens") },
         onDismiss = {
             showTokenDialog = false
             vm.resetTokenDraft() // 退出=放弃未保存编辑：重置为已保存值，消灭幽灵草稿
@@ -595,7 +587,7 @@ private fun themeModeLabel(mode: ThemeMode): String = stringResource(
 /** 版本行 value：版本号常驻（用户始终可见），检查状态作前/后缀 */
 @Composable
 private fun versionRowValue(update: SelfUpdater.State, localVersion: String): String {
-    val upToDate = stringResource(R.string.settings_up_to_date)
+    val upToDate = stringResource(R.string.version_local_current)
     return when (update) {
         is SelfUpdater.State.Checking -> stringResource(R.string.settings_checking)
         is SelfUpdater.State.UpToDate -> "$upToDate · $localVersion"

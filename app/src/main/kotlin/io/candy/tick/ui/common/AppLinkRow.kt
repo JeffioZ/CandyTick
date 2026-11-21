@@ -1,0 +1,95 @@
+package io.candy.tick.ui.common
+
+import androidx.compose.animation.animateColorAsState
+import androidx.compose.animation.core.tween
+import androidx.compose.foundation.background
+import androidx.compose.foundation.clickable
+import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.heightIn
+import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.runtime.Composable
+import androidx.compose.runtime.getValue
+import androidx.compose.ui.Alignment
+import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clip
+import androidx.compose.ui.graphics.ImageBitmap
+import androidx.compose.ui.graphics.vector.ImageVector
+import androidx.compose.ui.res.stringResource
+import androidx.compose.ui.res.vectorResource
+import androidx.compose.ui.semantics.Role
+import androidx.compose.ui.unit.dp
+import io.candy.tick.R
+import top.yukonga.miuix.kmp.basic.Icon
+import top.yukonga.miuix.kmp.theme.MiuixTheme
+
+private val LinkActionSize = 44.dp
+
+@Composable
+internal fun AppLinkRow(
+    appIcon: ImageBitmap?,
+    onClick: (() -> Unit)?,
+    modifier: Modifier = Modifier,
+    suggested: Boolean = false,
+    onChangeApp: (() -> Unit)? = null,
+    onUnlink: (() -> Unit)? = null,
+    label: @Composable () -> Unit,
+) {
+    val scheme = MiuixTheme.colorScheme
+    val surface by animateColorAsState(
+        if (suggested) scheme.tertiaryContainer else scheme.surfaceContainer,
+        tween(Motion.MICRO),
+        label = "linkedAppSurface",
+    )
+    val (source, tint) = rememberRowPressTint(surface)
+    val rowAction = if (onClick == null) Modifier else Modifier.clickable(
+        interactionSource = source,
+        indication = null,
+        role = Role.Button,
+        onClick = onClick,
+    )
+    Row(
+        modifier.fillMaxWidth().clip(RoundedCornerShape(12.dp)).background(tint)
+            .then(rowAction).heightIn(min = 48.dp),
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
+        Box(Modifier.size(LinkActionSize), contentAlignment = Alignment.Center) {
+            if (appIcon == null) LinkGlyph(R.drawable.ic_link) else AppIconImage(appIcon, 22.dp, 6.dp)
+        }
+        Box(Modifier.weight(1f), contentAlignment = Alignment.CenterStart) { label() }
+        if (onChangeApp == null) {
+            Box(Modifier.size(LinkActionSize), contentAlignment = Alignment.Center) {
+                LinkGlyph(R.drawable.ic_chevron_right)
+            }
+        } else {
+            PressIconButton(
+                onClick = onChangeApp,
+                contentDescription = stringResource(
+                    if (suggested) R.string.detail_link_app_other else R.string.detail_link_change,
+                ),
+                size = LinkActionSize,
+            ) { LinkGlyph(if (suggested) R.drawable.ic_more else R.drawable.ic_link) }
+        }
+        if (onUnlink != null) {
+            PressIconButton(
+                onClick = onUnlink,
+                contentDescription = stringResource(R.string.detail_unlink),
+                size = LinkActionSize,
+            ) {
+                LinkGlyph(R.drawable.ic_unlink)
+            }
+        }
+    }
+}
+
+@Composable
+private fun LinkGlyph(icon: Int) {
+    Icon(
+        imageVector = ImageVector.vectorResource(icon),
+        contentDescription = null,
+        tint = MiuixTheme.colorScheme.onBackgroundVariant,
+        modifier = Modifier.size(14.dp),
+    )
+}

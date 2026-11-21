@@ -4,27 +4,32 @@ import io.candy.tick.data.model.ApkAsset
 import io.candy.tick.data.model.CommitRecord
 import io.candy.tick.data.model.ReleaseRecord
 import io.candy.tick.data.model.parseInstant
+import io.candy.tick.util.ApkPicker
 import java.io.File
 import java.io.IOException
 import java.io.InterruptedIOException
-import java.net.SocketTimeoutException
 import java.time.Instant
 import java.util.concurrent.TimeUnit
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.ensureActive
+import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.flow.StateFlow
+import kotlinx.coroutines.flow.asStateFlow
+import kotlinx.coroutines.suspendCancellableCoroutine
 import kotlinx.coroutines.withContext
 import kotlinx.serialization.Serializable
 import kotlinx.serialization.decodeFromString
 import kotlinx.serialization.json.Json
 import okhttp3.HttpUrl
+import okhttp3.Call
+import okhttp3.Callback
 import okhttp3.HttpUrl.Companion.toHttpUrl
 import okhttp3.OkHttpClient
 import okhttp3.Request
 import okhttp3.Response
 
 /**
- * GitHub REST 封装 —— 3 个 suspend 函数。
- * OkHttp 只允许出现在本文件（design.md「可升级性」：破坏性变更按文件整体替换）。
+ * GitHub REST 请求、条件缓存和安装包流式下载。
  */
 class GitHubApi(private val tokenProvider: () -> String?) {
 
@@ -35,36 +40,31 @@ class GitHubApi(private val tokenProvider: () -> String?) {
         .writeTimeout(TIMEOUT_S, TimeUnit.SECONDS)
         .callTimeout(TIMEOUT_S, TimeUnit.SECONDS) // 整体超时 15s（四类失败约定）
         .build()
+    private val downloadClient = client.newBuilder().callTimeout(0, TimeUnit.SECONDS).build()
 
     /** Token 被 GitHub 拒绝（401）过：已自动降级匿名，设置页提示用户清理 */
-    @Volatile
-    var tokenRejected: Boolean = false
-        private set
+    private val rejected = MutableStateFlow(false)
+    val tokenRejected: StateFlow<Boolean> = rejected.asStateFlow()
 
     /** 换新 Token 验证通过后清除降级标记 */
     fun clearTokenRejected() {
-        tokenRejected = false
+        rejected.value = false
     }
 
     suspend fun repoInfo(owner: String, repo: String, etag: String? = null): RepoInfoResult =
         withContext(Dispatchers.IO) {
             try {
-                val response = executeAuthenticated(request(apiUrl("repos", owner, repo), etag))
-                response.use {
+                readAuthenticated(request(apiUrl("repos", owner, repo), etag)) {
                     checkHttp(it)
                     when (it.code) {
                         304 -> RepoInfoResult.NotModified
                         else -> {
                             val gh = json.decodeFromString<GhRepo>(it.body.string())
-                            // 改名跟随：301 重定向后的最终 URL 即新 owner/repo
-                            val seg = it.request.url.pathSegments
-                            val finalOwner = if (seg.size >= 3 && seg[0] == "repos") seg[1] else owner
-                            val finalRepo = if (seg.size >= 3 && seg[0] == "repos") seg[2] else repo
-                            RepoInfoResult.Fetched(gh.toInfo(finalOwner, finalRepo, it.header("etag")))
+                            RepoInfoResult.Fetched(gh.toInfo(gh.owner.login, gh.name, it.header("etag")))
                         }
                     }
                 }
-            } catch (e: Throwable) {
+            } catch (e: Exception) {
                 rethrowMapped(e)
             }
         }
@@ -78,8 +78,8 @@ class GitHubApi(private val tokenProvider: () -> String?) {
                     .addQueryParameter("page", page.toString())
                     .apply { if (sha != null) addQueryParameter("sha", sha) }
                     .build()
-                val response = executeAuthenticated(request(url, etag = null))
-                response.use {
+                readAuthenticated(request(url, etag = null)) {
+                    if (it.isEmptyRepo()) return@readAuthenticated emptyList()
                     checkHttp(it)
                     json.decodeFromString<List<GhCommit>>(it.body.string()).map { c ->
                         CommitRecord(
@@ -93,7 +93,7 @@ class GitHubApi(private val tokenProvider: () -> String?) {
                         )
                     }
                 }
-            } catch (e: Throwable) {
+            } catch (e: Exception) {
                 rethrowMapped(e)
             }
         }
@@ -106,12 +106,11 @@ class GitHubApi(private val tokenProvider: () -> String?) {
                     .newBuilder()
                     .addQueryParameter("per_page", "100")
                     .build()
-                val response = executeAuthenticated(request(url, etag = null))
-                response.use {
+                readAuthenticated(request(url, etag = null)) {
                     checkHttp(it)
                     json.decodeFromString<List<GhBranch>>(it.body.string()).map { it.name }
                 }
-            } catch (e: Throwable) {
+            } catch (e: Exception) {
                 rethrowMapped(e)
             }
         }
@@ -124,20 +123,30 @@ class GitHubApi(private val tokenProvider: () -> String?) {
                     .addQueryParameter("per_page", perPage.toString())
                     .addQueryParameter("page", page.toString())
                     .build()
-                val response = executeAuthenticated(request(url, etag = null))
-                response.use {
+                readAuthenticated(request(url, etag = null)) {
                     checkHttp(it)
                     json.decodeFromString<List<GhRelease>>(it.body.string()).map(::toReleaseRecord)
                 }
-            } catch (e: Throwable) {
+            } catch (e: Exception) {
+                rethrowMapped(e)
+            }
+        }
+
+    suspend fun releaseByTag(owner: String, repo: String, tag: String): ReleaseRecord =
+        withContext(Dispatchers.IO) {
+            try {
+                val url = apiUrl("repos", owner, repo, "releases", "tags", tag)
+                readAuthenticated(request(url, etag = null)) {
+                    checkHttp(it)
+                    toReleaseRecord(json.decodeFromString<GhRelease>(it.body.string()))
+                }
+            } catch (e: Exception) {
                 rethrowMapped(e)
             }
         }
 
     /**
-     * 后台同步专用：release 列表 + ETag 条件请求——未变化的仓库 304 返回不计配额
-     * （匿名 60/h 下每仓每轮一次无条件的列表请求是全局限流的主因）。304 的语义由
-     * 调用方处理：tag 维持旧值，不写不比。
+     * 后台同步 release 列表使用 ETag。304 无需传输正文，已认证请求还可节省主配额。
      */
     suspend fun releasesForSync(owner: String, repo: String, etag: String? = null): SyncReleasesResult =
         withContext(Dispatchers.IO) {
@@ -146,8 +155,7 @@ class GitHubApi(private val tokenProvider: () -> String?) {
                     .newBuilder()
                     .addQueryParameter("per_page", RELEASES_PER_PAGE.toString())
                     .build()
-                val response = executeAuthenticated(request(url, etag))
-                response.use {
+                readAuthenticated(request(url, etag)) {
                     when (it.code) {
                         304 -> SyncReleasesResult.NotModified
                         else -> {
@@ -159,13 +167,13 @@ class GitHubApi(private val tokenProvider: () -> String?) {
                         }
                     }
                 }
-            } catch (e: Throwable) {
+            } catch (e: Exception) {
                 rethrowMapped(e)
             }
         }
 
     /**
-     * 后台同步专用：浏览分支 tip sha（per_page=1 条件请求——未变化的仓库 304 不计配额）。
+     * 后台同步专用：浏览分支 tip sha（per_page=1 条件请求）。
      * 「有新提交」的精确信号源：pushed_at 统计任意分支的推送（dev 推进会让它前进而
      * 浏览分支毫无动静），直接用它判定会误亮。branch = null 即默认分支。
      */
@@ -177,10 +185,11 @@ class GitHubApi(private val tokenProvider: () -> String?) {
                     .addQueryParameter("per_page", "1")
                     .apply { branch?.let { addQueryParameter("sha", it) } }
                     .build()
-                val response = executeAuthenticated(request(url, etag))
-                response.use {
+                readAuthenticated(request(url, etag)) {
                     when (it.code) {
                         304 -> SyncCommitTipResult.NotModified
+                        409 -> if (it.isEmptyRepo()) SyncCommitTipResult.Tip("", it.header("etag"))
+                            else throw SourceException(SourceError.Http(409))
                         else -> {
                             checkHttp(it)
                             val tip = json.decodeFromString<List<GhCommit>>(it.body.string()).firstOrNull()
@@ -193,7 +202,7 @@ class GitHubApi(private val tokenProvider: () -> String?) {
                         }
                     }
                 }
-            } catch (e: Throwable) {
+            } catch (e: Exception) {
                 rethrowMapped(e)
             }
         }
@@ -207,19 +216,18 @@ class GitHubApi(private val tokenProvider: () -> String?) {
                     .addQueryParameter("per_page", "1")
                     .addQueryParameter("sha", branch)
                     .build()
-                val response = executeAuthenticated(request(url, etag = null))
-                response.use {
+                readAuthenticated(request(url, etag = null)) {
                     checkHttp(it)
                     json.decodeFromString<List<GhCommit>>(it.body.string()).firstOrNull()
                         ?.let { c -> parseInstant(c.commit.committer?.date ?: c.commit.author?.date) }
                 }
-            } catch (e: Throwable) {
+            } catch (e: Exception) {
                 rethrowMapped(e)
             }
         }
 
     /** 搜索辅助（添加页；Search API） */
-    suspend fun search(query: String): List<RepoInfo> = withContext(Dispatchers.IO) {
+    suspend fun search(query: String): RepoSearchPage = withContext(Dispatchers.IO) {
         try {
             val url = BASE_URL.toHttpUrl().newBuilder()
                 .addPathSegment("search")
@@ -227,14 +235,15 @@ class GitHubApi(private val tokenProvider: () -> String?) {
                 .addQueryParameter("q", query.trim())
                 .addQueryParameter("per_page", "20")
                 .build()
-            val response = executeAuthenticated(request(url, etag = null))
-            response.use {
+            readAuthenticated(request(url, etag = null)) {
                 checkHttp(it)
-                json.decodeFromString<GhSearch>(it.body.string()).items.map { gh ->
-                    gh.toInfo(gh.owner.login, gh.name, etag = null)
-                }
+                val page = json.decodeFromString<GhSearch>(it.body.string())
+                RepoSearchPage(
+                    repositories = page.items.map { gh -> gh.toInfo(gh.owner.login, gh.name, etag = null) },
+                    isComplete = !page.incomplete_results && page.items.size == page.total_count,
+                )
             }
-        } catch (e: Throwable) {
+        } catch (e: Exception) {
             rethrowMapped(e)
         }
     }
@@ -244,10 +253,15 @@ class GitHubApi(private val tokenProvider: () -> String?) {
         withContext(Dispatchers.IO) {
             try {
                 dest.parentFile?.mkdirs()
-                val request = Request.Builder().url(url).apply {
-                    tokenProvider()?.takeIf { it.isNotBlank() }?.let { header("Authorization", "Bearer $it") }
+                val endpoint = url.toHttpUrl()
+                val request = Request.Builder().url(endpoint).apply {
+                    if (endpoint.isHttps && endpoint.host == "api.github.com" && endpoint.port == 443) {
+                        addToken()
+                        header("Accept", "application/octet-stream")
+                    }
                 }.build()
-                executeAuthenticated(request).use { response ->
+                val downloadContext = coroutineContext
+                readAuthenticated(request, downloadClient) { response ->
                     checkHttp(response)
                     val body = response.body
                     val total = body.contentLength()
@@ -255,21 +269,29 @@ class GitHubApi(private val tokenProvider: () -> String?) {
                         dest.outputStream().use { output ->
                             val buffer = ByteArray(64 * 1024)
                             var read = 0L
+                            var lastPercent = -1
                             while (true) {
                                 val n = input.read(buffer)
                                 if (n < 0) break
                                 // 协作取消：阻塞读不响应协程 cancel，循环里显式检查——
                                 // 否则被取消的旧任务会继续写盘（与新会话双写同文件）
-                                kotlin.coroutines.coroutineContext.ensureActive()
+                                downloadContext.ensureActive()
                                 output.write(buffer, 0, n)
                                 read += n
-                                if (total > 0) onProgress((read.toDouble() / total).toFloat().coerceIn(0f, 1f))
+                                if (total > 0) {
+                                    val progress = (read.toDouble() / total).toFloat().coerceIn(0f, 1f)
+                                    val percent = (progress * 100).toInt()
+                                    if (percent != lastPercent) {
+                                        lastPercent = percent
+                                        onProgress(progress)
+                                    }
+                                }
                             }
                         }
                     }
                 }
                 dest
-            } catch (e: Throwable) {
+            } catch (e: Exception) {
                 // 磁盘满等写盘失败此前裸抛 IOException，把 UI 协程直接带崩
                 rethrowMapped(e)
             }
@@ -283,7 +305,7 @@ class GitHubApi(private val tokenProvider: () -> String?) {
             .header("Authorization", "Bearer ${token.trim()}")
             .header("Accept", "application/vnd.github+json")
             .build()
-        execute(request).use {
+        readResponse(request, client) {
             when (it.code) {
                 200 -> true
                 401 -> false
@@ -302,38 +324,58 @@ class GitHubApi(private val tokenProvider: () -> String?) {
     private fun rethrowMapped(e: Throwable): Nothing = when (e) {
         is kotlinx.coroutines.CancellationException -> throw e
         is SourceException -> throw e
+        is InterruptedIOException -> throw SourceException(SourceError.Timeout, e)
         else -> throw SourceException(SourceError.NetworkUnreachable, e)
     }
 
     private fun request(url: HttpUrl, etag: String?): Request {
         val builder = Request.Builder().url(url)
         etag?.let { builder.header("If-None-Match", it) }
-        tokenProvider()?.takeIf { it.isNotBlank() }?.let { builder.header("Authorization", "Bearer $it") }
+        builder.addToken()
         builder.header("Accept", "application/vnd.github+json")
         return builder.build()
     }
 
-    private fun execute(request: Request): Response = try {
-        client.newCall(request).execute()
-    } catch (e: SocketTimeoutException) {
-        throw SourceException(SourceError.Timeout, e)
-    } catch (e: InterruptedIOException) { // callTimeout 到点
-        throw SourceException(SourceError.Timeout, e)
-    } catch (e: IOException) {
-        throw SourceException(SourceError.NetworkUnreachable, e)
+    private fun Request.Builder.addToken() {
+        if (!rejected.value) tokenProvider()?.takeIf { it.isNotBlank() }?.let { header("Authorization", "Bearer $it") }
     }
 
-    /**
-     * 坏 Token 自愈：带 Authorization 的请求收到 401 时，摘掉凭证匿名重发一次，
-     * 无效 Token 不阻断任何功能（validateToken 除外——它的职责就是测试凭证）。
-     */
-    private fun executeAuthenticated(request: Request): Response {
-        val response = execute(request)
-        if (response.code != 401 || request.header("Authorization") == null) return response
-        response.close()
-        tokenRejected = true
-        val anonymous = request.newBuilder().removeHeader("Authorization").build()
-        return execute(anonymous)
+    /** 在 OkHttp 调度器中读取完整响应，取消协程时同时中断排队、建连和读包。 */
+    private suspend fun <T> readResponse(request: Request, client: OkHttpClient, read: (Response) -> T): T =
+        suspendCancellableCoroutine { continuation ->
+            val call = client.newCall(request)
+            continuation.invokeOnCancellation { call.cancel() }
+            call.enqueue(object : Callback {
+                override fun onFailure(call: Call, e: IOException) {
+                    val error = if (e is InterruptedIOException) SourceError.Timeout else SourceError.NetworkUnreachable
+                    continuation.resumeWith(Result.failure(SourceException(error, e)))
+                }
+
+                override fun onResponse(call: Call, response: Response) {
+                    try {
+                        val result = response.use(read)
+                        continuation.resumeWith(Result.success(result))
+                    } catch (e: Exception) {
+                        continuation.resumeWith(Result.failure(e))
+                    }
+                }
+            })
+        }
+
+    private class RejectedToken : Exception()
+
+    private suspend fun <T> readAuthenticated(
+        request: Request,
+        httpClient: OkHttpClient = client,
+        read: (Response) -> T,
+    ): T = try {
+        readResponse(request, httpClient) {
+            if (it.code == 401 && request.header("Authorization") != null) throw RejectedToken()
+            read(it)
+        }
+    } catch (_: RejectedToken) {
+        if (request.header("Authorization") == "Bearer ${tokenProvider()}") rejected.value = true
+        readResponse(request.newBuilder().removeHeader("Authorization").build(), httpClient, read)
     }
 
     private fun checkHttp(response: Response) {
@@ -362,6 +404,9 @@ class GitHubApi(private val tokenProvider: () -> String?) {
         }
     }
 
+    private fun Response.isEmptyRepo(): Boolean =
+        code == 409 && peekBody(1024).string().contains("Git Repository is empty", ignoreCase = true)
+
     private fun apiUrl(vararg segments: String): HttpUrl =
         BASE_URL.toHttpUrl().newBuilder().apply { segments.forEach(::addPathSegment) }.build()
 
@@ -375,16 +420,12 @@ class GitHubApi(private val tokenProvider: () -> String?) {
         // 桌面资产（AppImage/msi/zip）混入会污染版本 tag 选取和下载候选列表；
         // .aab 不含（需 bundletool 转换，不可直接安装）
         apkAssets = r.assets
-            .filter { a ->
-                a.name.endsWith(".apk", true) ||
-                    a.name.endsWith(".apks", true) ||
-                    a.name.endsWith(".xapk", true) ||
-                    a.name.endsWith(".apkm", true)
-            }
+            .filter { a -> ApkPicker.isPackageAsset(a.name) && a.name == File(a.name).name }
             .map { a ->
                 ApkAsset(
                     name = a.name,
-                    url = a.browser_download_url,
+                    url = if (tokenProvider().isNullOrBlank() || rejected.value) a.browser_download_url
+                        else a.url ?: a.browser_download_url,
                     size = a.size,
                 )
             },
@@ -468,6 +509,7 @@ private data class GhRelease(
 @Serializable
 private data class GhAsset(
     val name: String = "",
+    val url: String? = null,
     val browser_download_url: String = "",
     val size: Long = 0,
 )
@@ -475,5 +517,6 @@ private data class GhAsset(
 @Serializable
 private data class GhSearch(
     val total_count: Int = 0,
+    val incomplete_results: Boolean = true,
     val items: List<GhRepo> = emptyList(),
 )

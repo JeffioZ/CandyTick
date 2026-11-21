@@ -15,30 +15,33 @@ import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.WindowInsets
+import androidx.compose.foundation.layout.WindowInsetsSides
 import androidx.compose.foundation.layout.fillMaxWidth
-import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.imePadding
+import androidx.compose.foundation.layout.navigationBars
+import androidx.compose.foundation.layout.only
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.layout.windowInsetsPadding
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.focus.focusRequester
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.stringResource
+import androidx.compose.ui.semantics.clearAndSetSemantics
 import androidx.compose.ui.unit.dp
 import io.candy.tick.R
 import io.candy.tick.data.SelfUpdater
 import io.candy.tick.ui.common.PrimaryButton
 import io.candy.tick.ui.common.SecondaryButton
-import top.yukonga.miuix.kmp.basic.Icon
+import io.candy.tick.ui.common.TextFieldActionButton
 import top.yukonga.miuix.kmp.basic.LinearProgressIndicator
 import top.yukonga.miuix.kmp.basic.Text
 import top.yukonga.miuix.kmp.basic.TextField
 import top.yukonga.miuix.kmp.theme.MiuixTheme
-import androidx.compose.ui.res.vectorResource
-import androidx.compose.ui.graphics.vector.ImageVector
 
 // ── 设置页弹窗与自身更新操作块（自 SettingsScreen 拆出）──
 
@@ -82,21 +85,23 @@ internal fun CacheCleanupSheet(
                     io.candy.tick.ui.common.LoadingDots(dotSize = 5.dp)
                 }
             } else {
-                // 逐类列出
-                CacheCleanupRow(
-                    label = stringResource(R.string.settings_cache_apk),
-                    sizeBytes = state.apkBytes,
-                    checked = cleanApk,
-                    onChecked = { cleanApk = it },
-                )
-                CacheCleanupRow(
-                    label = stringResource(R.string.settings_cache_crash_log),
-                    sizeBytes = state.crashLogBytes,
-                    checked = cleanCrash,
-                    onChecked = { cleanCrash = it },
-                )
-
-                Spacer(Modifier.height(8.dp))
+                Column(
+                    modifier = Modifier.padding(bottom = 8.dp),
+                    verticalArrangement = Arrangement.spacedBy(10.dp),
+                ) {
+                    CacheCleanupRow(
+                        label = stringResource(R.string.settings_cache_apk),
+                        sizeBytes = state.apkBytes,
+                        checked = cleanApk,
+                        onChecked = { cleanApk = it },
+                    )
+                    CacheCleanupRow(
+                        label = stringResource(R.string.settings_cache_crash_log),
+                        sizeBytes = state.crashLogBytes,
+                        checked = cleanCrash,
+                        onChecked = { cleanCrash = it },
+                    )
+                }
                 if (state.cleaning) {
                     // 清理中：轻量阻断（转圈 + 文案，防误触返回）
                     Box(
@@ -143,7 +148,13 @@ internal fun CacheCleanupSheet(
                     )
                     if (!hasSelection) {
                         Text(
-                            text = stringResource(R.string.settings_cache_empty),
+                            text = stringResource(
+                                if (state.apkBytes > 0 || state.crashLogBytes > 0) {
+                                    R.string.settings_cache_select_hint
+                                } else {
+                                    R.string.settings_cache_empty
+                                },
+                            ),
                             style = MiuixTheme.textStyles.footnote1,
                             color = scheme.onBackgroundVariant,
                             modifier = Modifier.fillMaxWidth(),
@@ -166,13 +177,14 @@ private fun CacheCleanupRow(
     val scheme = MiuixTheme.colorScheme
     val enabled = sizeBytes > 0
     top.yukonga.miuix.kmp.basic.BasicComponent(
-        modifier = Modifier.fillMaxWidth(),
+        modifier = Modifier.fillMaxWidth().switchSemantics(checked && enabled, enabled),
         title = label,
         summary = if (enabled) formatBytes(sizeBytes) else stringResource(R.string.settings_cache_none),
         onClick = if (enabled) { { onChecked(!checked) } } else null,
         endActions = {
             // 大小为 0 也保留 Switch（灰显）：行结构稳定不闪隐
             top.yukonga.miuix.kmp.basic.Switch(
+                modifier = Modifier.clearAndSetSemantics { },
                 checked = checked && enabled,
                 onCheckedChange = onChecked,
                 enabled = enabled,
@@ -260,7 +272,8 @@ internal fun TokenDialog(
             modifier = Modifier
                 .padding(horizontal = 16.dp)
                 .imePadding()
-                .padding(top = 4.dp, bottom = 16.dp),
+                .windowInsetsPadding(WindowInsets.navigationBars.only(WindowInsetsSides.Bottom))
+                .padding(top = 4.dp),
             verticalArrangement = Arrangement.spacedBy(10.dp),
         ) {
             // 说明（左对齐：sheet 内容语言；居中是对话框时代遗产）
@@ -289,21 +302,11 @@ internal fun TokenDialog(
                     keyboardType = androidx.compose.ui.text.input.KeyboardType.Password,
                 ),
                 trailingIcon = {
-                    io.candy.tick.ui.common.PressIconButton(
+                    TextFieldActionButton(
                         onClick = onToggleVisible,
-                        contentDescription = stringResource(
-                            if (tokenVisible) R.string.token_hide else R.string.token_show,
-                        ),
-                        // 44dp 行内档 + 右让 4dp：染色圆四向 8dp 均衡
-                        size = 44.dp,
-                        modifier = Modifier.padding(end = 4.dp),
-                    ) {
-                        Icon(
-                            imageVector = if (tokenVisible) ImageVector.vectorResource(R.drawable.ic_hide) else ImageVector.vectorResource(R.drawable.ic_show),
-                            contentDescription = null,
-                            tint = scheme.onBackgroundVariant,
-                        )
-                    }
+                        icon = if (tokenVisible) R.drawable.ic_hide else R.drawable.ic_show,
+                        actionLabel = if (tokenVisible) R.string.token_hide else R.string.token_show,
+                    )
                 },
             )
             // 验证结果 / 被拒提示（紧贴输入框；状态机见 VM 注释）
@@ -359,20 +362,21 @@ internal fun TokenDialog(
                 )
             }
             // 满宽主按钮（退出=放弃由 scrim/下拉/返回键承担，不再设取消按钮）
-            PrimaryButton(
-                text = stringResource(R.string.settings_token_test),
-                onClick = onSaveAndTest,
-                // 测试中禁用：此前连点会重复校验、多烧请求
-                enabled = state.tokenInput.isNotBlank() &&
-                    state.tokenTest != SettingsViewModel.TokenTest.TESTING,
-                modifier = Modifier.fillMaxWidth(),
-            )
-            // 帮助链接（底部辅助位：不插主操作流；全局文字链组件）
-            io.candy.tick.ui.common.LinkText(
-                text = stringResource(R.string.token_help_link),
-                onClick = onOpenHelp,
-                showIcon = true,
-            )
+            val removingToken = state.tokenInput.isBlank() && !state.settings.githubToken.isNullOrBlank()
+            Column {
+                PrimaryButton(
+                    text = stringResource(if (removingToken) R.string.remove_token else R.string.settings_token_test),
+                    onClick = onSaveAndTest,
+                    enabled = (state.tokenInput.isNotBlank() || removingToken) &&
+                        state.tokenTest != SettingsViewModel.TokenTest.TESTING,
+                    modifier = Modifier.fillMaxWidth(),
+                )
+                io.candy.tick.ui.common.LinkText(
+                    text = stringResource(R.string.token_help_link),
+                    onClick = onOpenHelp,
+                    showIcon = true,
+                )
+            }
         }
     }
 }

@@ -1,6 +1,7 @@
 package io.candy.tick.ui.list
 
 import androidx.compose.animation.core.Animatable
+import androidx.compose.animation.core.animate
 import androidx.compose.animation.core.tween
 import androidx.compose.foundation.background
 import androidx.compose.foundation.gestures.detectHorizontalDragGestures
@@ -10,11 +11,12 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.derivedStateOf
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableFloatStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
-import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.rememberUpdatedState
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -24,12 +26,16 @@ import androidx.compose.ui.draw.rotate
 import androidx.compose.ui.hapticfeedback.HapticFeedbackType
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.platform.LocalHapticFeedback
+import androidx.compose.ui.platform.LocalLayoutDirection
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.semantics.CustomAccessibilityAction
 import androidx.compose.ui.semantics.customActions
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.unit.IntOffset
+import androidx.compose.ui.unit.LayoutDirection
 import androidx.compose.ui.unit.dp
+import kotlinx.coroutines.CoroutineStart
+import kotlinx.coroutines.Job
 import kotlinx.coroutines.coroutineScope
 import kotlinx.coroutines.launch
 import kotlin.math.abs
@@ -41,160 +47,174 @@ import androidx.compose.ui.graphics.vector.ImageVector
 import io.candy.tick.R
 import io.candy.tick.ui.common.Motion
 
-/**
- * 卡片双向滑动操作：右滑删除（红容器 + 垃圾桶，过阈值删除 + Snackbar 撤销）、
- * 左滑置顶 toggle（薄荷容器 + 图钉；已置顶项为中性容器 + 斜置图钉 = 解除）。
- *
- * 手势工程（accompanist SwipeToDismiss 同款模式）：
- * - 判定期：累计位移 > 24dp 且横向占优（|dx|>|dy|）才接管并消费事件——
- *   此前零消费，垂直滚动 / 下拉刷新正常接管，斜划不误触（系统 8dp slop 太灵敏）
- * - 触发阈值 42% 宽度；越线那一拍单次震动确认（单手势防重入）
- * - 底层为单层方向驱动背景（offset 正负决定删除/置顶样式，图标随露出侧），
- *   16dp 圆角与卡片同款（原 CircleShape 内切圆只覆盖卡片中部，两侧图标被裁不可见）
- */
+/** 向末端滑动删除，向起始侧滑动置顶或取消置顶；松手时以卡片宽度的 42% 为阈值。 */
 @Composable
 fun SwipeToDelete(
     onDelete: () -> Unit,
     modifier: Modifier = Modifier,
     onPin: (() -> Unit)? = null,
     pinned: Boolean = false,
-    content: @Composable () -> Unit,
+    content: @Composable (Modifier) -> Unit,
 ) {
-    val scope = rememberCoroutineScope()
-    val offsetX = remember { Animatable(0f) }
+    var offsetX by remember { mutableFloatStateOf(0f) }
     // 删除消散进度：1=常态；删除时动画到 0（卡片缩回 + 粒子迸散），LibChecker 式 hero 特效
     val dissolve = remember { Animatable(1f) }
     val scheme = MiuixTheme.colorScheme
     val haptic = LocalHapticFeedback.current
+    val direction = LocalLayoutDirection.current
     // 减弱动态（系统动画=0）：删除消散瞬时完成（reduced-motion 尊重）
     val motionEnabled by rememberUpdatedState(io.candy.tick.ui.common.rememberMotionEnabled())
     // 手势块持有创建时的闭包（key 不变不重启）：不桥接最新值的话，
     // togglePin 会拿到置顶前的旧条目快照，导致「无法取消置顶」
     val currentOnDelete by rememberUpdatedState(onDelete)
     val currentOnPin by rememberUpdatedState(onPin)
-    // 手势判定状态：死区门槛内不动卡；单手势震动一次
-    var dragClaimed by remember { mutableStateOf(false) }
-    var dragTotal by remember { mutableStateOf(0f) }
-    var hapticFired by remember { mutableStateOf(false) }
+    var committing by remember { mutableStateOf(false) }
     // 读屏动作标签（pinned 变化触发重组，标签随状态切换）
     val pinActionLabel = stringResource(if (pinned) R.string.action_unpin else R.string.action_pin)
     val removeActionLabel = stringResource(R.string.action_remove)
 
-    // 无需约束尺寸（触发阈值在 pointerInput 里读 size.width）：普通 Box 即可
-    Box(modifier = modifier) {
+    // 手势挂在固定的槽位，只有前景卡片移动。拖动直接写位移，松手后才交给回位动画。
+    val swipe = Modifier.pointerInput(onPin != null, direction) {
+        val claimPx = 16.dp.toPx()
+        val toLogical = if (direction == LayoutDirection.Ltr) 1f else -1f
+        try {
+            coroutineScope {
+                var returnJob: Job? = null
+                var ignoreGesture = false
+                var dragClaimed = false
+                var dragTotal = 0f
+                var hapticFired = false
+
+                fun settle(deleting: Boolean = false, commit: (() -> Unit)? = null) {
+                    if (ignoreGesture || committing || offsetX == 0f) return
+                    committing = commit != null
+                    returnJob = launch(start = CoroutineStart.UNDISPATCHED) {
+                        try {
+                            if (motionEnabled) {
+                                coroutineScope {
+                                    if (deleting) launch { dissolve.animateTo(0f, tween(Motion.PROGRESS)) }
+                                    animate(
+                                        initialValue = offsetX,
+                                        targetValue = 0f,
+                                        animationSpec = tween(if (deleting) Motion.PANEL else Motion.PHASE, easing = Motion.Decelerate),
+                                    ) { value, _ -> offsetX = value }
+                                }
+                            } else if (deleting) {
+                                dissolve.snapTo(0f)
+                            }
+                            offsetX = 0f
+                        } finally {
+                            // 即使回位中条目离屏，已松手确认的动作也只提交一次。
+                            if (commit != null) {
+                                offsetX = 0f
+                                commit()
+                                committing = deleting
+                            }
+                        }
+                    }
+                }
+
+                detectHorizontalDragGestures(
+                    onDragStart = {
+                        ignoreGesture = committing
+                        if (!ignoreGesture) returnJob?.cancel()
+                        dragClaimed = false
+                        dragTotal = 0f
+                        hapticFired = false
+                    },
+                    onHorizontalDrag = { change, physicalDelta ->
+                        if (ignoreGesture) return@detectHorizontalDragGestures
+                        val delta = physicalDelta * toLogical
+                        if (!dragClaimed) {
+                            dragTotal += delta
+                            if (abs(dragTotal) < claimPx) return@detectHorizontalDragGestures
+                            dragClaimed = true
+                        }
+                        change.consume()
+                        val limit = size.width * 1.2f
+                        val min = if (currentOnPin != null) -limit else 0f
+                        offsetX = (offsetX + delta).coerceIn(min, limit)
+                        if (!hapticFired && abs(offsetX) > size.width * 0.42f) {
+                            hapticFired = true
+                            haptic.performHapticFeedback(HapticFeedbackType.LongPress)
+                        }
+                    },
+                    onDragEnd = {
+                        val threshold = size.width * 0.42f
+                        when {
+                            dragClaimed && offsetX > threshold -> settle(deleting = true, commit = currentOnDelete)
+                            dragClaimed && offsetX < -threshold -> settle(commit = currentOnPin)
+                            else -> settle()
+                        }
+                    },
+                    onDragCancel = { settle() },
+                )
+            }
+        } finally {
+            offsetX = 0f
+        }
+    }
+    Box(modifier = modifier.then(swipe)) {
         // 单层方向驱动背景：右滑露出删除（图标在左侧露出区），左滑露出置顶（右侧）
-        val movingRight = offsetX.value > 0f
-        val container = if (movingRight) {
-            scheme.errorContainer
-        } else {
-            if (pinned) scheme.secondaryVariant else scheme.primaryContainer
-        }
-        val onContainer = if (movingRight) {
-            scheme.onErrorContainer
-        } else {
-            if (pinned) scheme.onBackgroundVariant else scheme.onPrimaryContainer
-        }
-        Box(
-            modifier = Modifier
-                .matchParentSize()
-                .clip(RoundedCornerShape(16.dp))
-                .background(container),
-            contentAlignment = if (movingRight) Alignment.CenterStart else Alignment.CenterEnd,
-        ) {
-            Icon(
-                imageVector = if (movingRight) ImageVector.vectorResource(R.drawable.ic_delete) else ImageVector.vectorResource(R.drawable.ic_pin),
-                contentDescription = null,
-                tint = onContainer,
+        val revealedSide by remember { derivedStateOf { offsetX.roundToInt().compareTo(0) } }
+        if (revealedSide != 0) {
+            val movingRight = revealedSide > 0
+            Box(
                 modifier = Modifier
-                    .padding(start = if (movingRight) 24.dp else 0.dp, end = if (movingRight) 0.dp else 24.dp)
-                    .size(22.dp)
-                    .rotate(if (!movingRight && pinned) 45f else 0f),
-            )
+                    .matchParentSize()
+                    .clip(RoundedCornerShape(16.dp))
+                    .background(when {
+                        movingRight -> scheme.errorContainer
+                        pinned -> scheme.secondaryVariant
+                        else -> scheme.primaryContainer
+                    }),
+                contentAlignment = if (movingRight) Alignment.CenterStart else Alignment.CenterEnd,
+            ) {
+                Icon(
+                    imageVector = ImageVector.vectorResource(if (movingRight) R.drawable.ic_delete else R.drawable.ic_pin),
+                    contentDescription = null,
+                    tint = when {
+                        movingRight -> scheme.onErrorContainer
+                        pinned -> scheme.onBackgroundVariant
+                        else -> scheme.onPrimaryContainer
+                    },
+                    modifier = Modifier
+                        .padding(start = if (movingRight) 24.dp else 0.dp, end = if (movingRight) 0.dp else 24.dp)
+                        .size(22.dp)
+                        .rotate(if (!movingRight && pinned) 45f else 0f),
+                )
+            }
         }
         // 上层：内容随手势横移（负向 = 置顶方向）；删除时缩放淡出
         Box(
             modifier = Modifier
-                .offset { IntOffset(offsetX.value.roundToInt(), 0) }
+                .offset { IntOffset(offsetX.roundToInt(), 0) }
                 .graphicsLayer {
                     val d = dissolve.value
                     alpha = d
                     scaleX = 0.6f + 0.4f * d
                     scaleY = 0.6f + 0.4f * d
-                }
-                // 手势的读屏替代（skill: swipe-only 交互必须有非手势路径）：
-                // mergeDescendants 与卡内 clickable 合成一个焦点单元，
-                // 自定义操作把「置顶/解除置顶/移除」挂进 TalkBack 操作菜单，视觉零变化
-                .semantics(mergeDescendants = true) {
-                    customActions = buildList {
-                        currentOnPin?.let { pin ->
-                            add(CustomAccessibilityAction(pinActionLabel) { pin(); true })
-                        }
-                        add(CustomAccessibilityAction(removeActionLabel) { currentOnDelete(); true })
-                    }
-                }
-                .pointerInput(onPin != null) {
-                    // 死区门槛：系统 slop（~8dp）后再累计 16dp 才开始动卡——
-                    // 斜划/轻蹭不误触；框架的垂直取消（先竖向移动则交还列表滚动）内置处理。
-                    // 不自研手势循环：卡片 offset 移动布局节点后，手算 position 差值
-                    // 在移动坐标系里双重计数会颤抖（框架 dragAmount 已正确处理）
-                    val claimPx = 16.dp.toPx()
-                    val commitThreshold = size.width * 0.42f
-                    detectHorizontalDragGestures(
-                        onDragStart = { dragClaimed = false; dragTotal = 0f; hapticFired = false },
-                        onDragEnd = {
-                            scope.launch {
-                                when {
-                                    offsetX.value > commitThreshold -> {
-                                        if (motionEnabled) {
-                                            kotlinx.coroutines.coroutineScope {
-                                                launch { offsetX.animateTo(0f, tween(Motion.PANEL)) }
-                                                launch { dissolve.animateTo(0f, tween(Motion.PROGRESS)) }
-                                            }
-                                        } else {
-                                            offsetX.snapTo(0f)
-                                            dissolve.snapTo(0f)
-                                        }
-                                        currentOnDelete()
-                                        dissolve.snapTo(1f)
-                                    }
-                                    offsetX.value < -commitThreshold -> {
-                                        currentOnPin?.invoke()
-                                        offsetX.snapTo(0f)
-                                    }
-                                    else -> offsetX.animateTo(0f)
-                                }
-                            }
-                        },
-                        onDragCancel = { scope.launch { offsetX.animateTo(0f) } },
-                        onHorizontalDrag = { change, dragAmount ->
-                            if (!dragClaimed) {
-                                dragTotal += dragAmount
-                                if (abs(dragTotal) < claimPx) return@detectHorizontalDragGestures
-                                dragClaimed = true
-                            }
-                            change.consume()
-                            scope.launch {
-                                val min = if (onPin != null) -size.width * 1.2f else 0f
-                                offsetX.snapTo(
-                                    (offsetX.value + dragAmount).coerceIn(min, size.width * 1.2f),
-                                )
-                                if (!hapticFired && abs(offsetX.value) > commitThreshold) {
-                                    hapticFired = true
-                                    haptic.performHapticFeedback(HapticFeedbackType.LongPress)
-                                }
-                            }
-                        },
-                    )
                 },
         ) {
-            content()
+            content(Modifier.semantics {
+                customActions = buildList {
+                    currentOnPin?.let { pin ->
+                        add(CustomAccessibilityAction(pinActionLabel) {
+                            if (committing) false else { pin(); true }
+                        })
+                    }
+                    add(CustomAccessibilityAction(removeActionLabel) {
+                        if (committing) false else { currentOnDelete(); true }
+                    })
+                }
+            })
         }
         // 粒子层：删除消散时从卡片中心迸散（红/薄荷双色系，重力下坠），不随卡片缩放
         if (dissolve.value < 0.999f) {
             androidx.compose.foundation.Canvas(
                 modifier = Modifier
                     .matchParentSize()
-                    .offset { IntOffset(offsetX.value.roundToInt(), 0) },
+                    .offset { IntOffset(offsetX.roundToInt(), 0) },
             ) {
                 val p = 1f - dissolve.value
                 val accent = scheme.onErrorContainer
