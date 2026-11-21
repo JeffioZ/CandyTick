@@ -111,7 +111,7 @@ class SyncWorker(context: Context, params: WorkerParameters) : CoroutineWorker(c
                 !importedBaseline && after[tracked.id]?.let { SnapshotDiff.hasNewActivity(b, it) } == true
             } == true
         }
-        // tag 变化的仓库可能与 pushedAt 推进重合，取两者较大值（并集近似）并封顶总数
+        // tag 变化与 tip sha 变化的仓库可能重合，取两者较大值（并集近似）并封顶总数
         val changedCount = maxOf(snapshotChanged, tagChanged.get()).coerceAtMost(total)
         // 空仓库（无订阅）不进入信号链：保持 Idle，不弹「已是最新」
         if (total > 0) syncStatus.value = SyncStatus.Done(changed = changedCount, failed = errors.size, total = total)

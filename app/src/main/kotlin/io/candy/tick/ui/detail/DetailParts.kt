@@ -107,7 +107,7 @@ internal fun BranchPickerSheet(
             if (state.branches.size > 15) {
                 top.yukonga.miuix.kmp.basic.TextField(
                     value = query,
-                    onValueChange = { query = it },
+                    onValueChange = { if (it.length <= io.candy.tick.ui.common.InputLimits.SEARCH) query = it },
                     label = stringResource(R.string.branch_search_hint),
                     singleLine = true,
                     // 回车收键盘：实时过滤已出结果，Done 不需要别的动作

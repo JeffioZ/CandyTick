@@ -126,7 +126,7 @@ fun AddScreen(
             Spacer(Modifier.height(4.dp))
             TextField(
                 value = state.input,
-                onValueChange = vm::onInput,
+                onValueChange = { if (it.length <= io.candy.tick.ui.common.InputLimits.SEARCH) vm.onInput(it) },
                 label = stringResource(R.string.add_input_hint),
                 // 单行：IME 确定显示「搜索」而非换行；长链接也不会被折行截断
                 singleLine = true,

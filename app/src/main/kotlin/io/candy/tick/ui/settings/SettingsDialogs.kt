@@ -272,7 +272,7 @@ internal fun TokenDialog(
             // 输入框：单行密码式，眼睛切换在原生 trailingIcon 槽位（48dp 触控）
             TextField(
                 value = state.tokenInput,
-                onValueChange = onTokenInput,
+                onValueChange = { if (it.length <= io.candy.tick.ui.common.InputLimits.TOKEN) onTokenInput(it) },
                 label = stringResource(R.string.token_input_hint),
                 modifier = Modifier
                     .fillMaxWidth()

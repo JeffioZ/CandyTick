@@ -333,7 +333,9 @@ fun ListScreen(
                     ) {
                         top.yukonga.miuix.kmp.basic.TextField(
                             value = state.query,
-                            onValueChange = vm::setQuery,
+                            onValueChange = { if (it.length <= io.candy.tick.ui.common.InputLimits.SEARCH) vm.setQuery(it) },
+                            // singleLine 与全 App 输入框统一（此前列表过滤框会折行）
+                            singleLine = true,
                             label = stringResource(R.string.search_hint),
                             keyboardOptions = androidx.compose.foundation.text.KeyboardOptions(
                                 imeAction = androidx.compose.ui.text.input.ImeAction.Search,

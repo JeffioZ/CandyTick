@@ -161,6 +161,37 @@ class GitHubApi(private val tokenProvider: () -> String?) {
             }
         }
 
+    /**
+     * 后台同步专用：浏览分支 tip sha（per_page=1 条件请求——未变化的仓库 304 不计配额）。
+     * 「有新提交」的精确信号源：pushed_at 统计任意分支的推送（dev 推进会让它前进而
+     * 浏览分支毫无动静），直接用它判定会误亮。branch = null 即默认分支。
+     */
+    suspend fun commitsTip(owner: String, repo: String, branch: String?, etag: String? = null): SyncCommitTipResult =
+        withContext(Dispatchers.IO) {
+            try {
+                val url = apiUrl("repos", owner, repo, "commits")
+                    .newBuilder()
+                    .addQueryParameter("per_page", "1")
+                    .apply { branch?.let { addQueryParameter("sha", it) } }
+                    .build()
+                val response = executeAuthenticated(request(url, etag))
+                response.use {
+                    when (it.code) {
+                        304 -> SyncCommitTipResult.NotModified
+                        else -> {
+                            checkHttp(it)
+                            SyncCommitTipResult.Tip(
+                                sha = json.decodeFromString<List<GhCommit>>(it.body.string()).firstOrNull()?.sha ?: "",
+                                etag = it.header("etag"),
+                            )
+                        }
+                    }
+                }
+            } catch (e: Throwable) {
+                rethrowMapped(e)
+            }
+        }
+
     /** 搜索辅助（添加页；Search API） */
     suspend fun search(query: String): List<RepoInfo> = withContext(Dispatchers.IO) {
         try {

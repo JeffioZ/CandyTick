@@ -65,6 +65,11 @@ data class RepoSnapshot(
     val etag: String?,
     val latestReleaseTag: String? = null,
     val releasesEtag: String? = null, // release 列表条件请求（后台同步用；304 不计配额）
+    // 浏览分支的 tip 指纹（「有新提交」的精确信号源）：GitHub pushed_at 统计任意分支
+    // 的推送——dev 推进会让它前进而浏览分支毫无动静（InstallerX-Revived 实例），
+    // 直接用它判定会误亮且详情页无从查证。null = 基线缺失（首次/切分支/导入），只记录不亮灯
+    val lastCommitSha: String? = null,
+    val commitsEtag: String? = null, // tip 条件请求（per_page=1；304 不计配额）
 )
 
 @Serializable

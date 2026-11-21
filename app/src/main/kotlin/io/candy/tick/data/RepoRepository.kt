@@ -185,36 +185,64 @@ class RepoRepository(
     /** 刷新单仓库快照；返回 null = 成功（含 304），非空 = 该仓库的错误 */
     suspend fun refreshRepo(id: Long): SourceError? {
         val tracked = trackedOrNull(id) ?: return null
-        val etag = store.state.value.snapshots[id]?.etag
+        val old = store.state.value.snapshots[id]
+        val etag = old?.etag
         return try {
+            // tip 检查时机：基线缺失（首次/切分支/导入）必须立基线；repoInfo 200 =
+            // pushed_at 前进（任意分支的推送都可能）→ 复查浏览分支 tip；304 → 内容
+            // 未变，tip 也未变（除非基线缺失）
+            var tipNeeded = old?.lastCommitSha == null
             when (val result = provider(tracked.provider).repoInfo(tracked.owner, tracked.repo, etag)) {
                 RepoInfoResult.NotModified -> {
                     store.update { s ->
-                        val old = s.snapshots[id] ?: return@update s
-                        s.copy(snapshots = s.snapshots + (id to old.copy(lastSyncAt = Instant.now())))
+                        val cur = s.snapshots[id] ?: return@update s
+                        s.copy(snapshots = s.snapshots + (id to cur.copy(lastSyncAt = Instant.now())))
                     }
-                    null
                 }
                 is RepoInfoResult.Fetched -> {
+                    tipNeeded = true
                     val info = result.info
                     val renamed = tracked.owner != info.owner || tracked.repo != info.repo
-                    // latestReleaseTag 是跨刷新的累积状态（SyncWorker 维护），替换快照时必须保留；
-                    // previousTag 的读取必须在 update 的 transform 内——否则与 SyncWorker 的
-                    // setLatestReleaseTag 并发时会用旧值覆盖新值（重复通知竞态的根因）
+                    // latestReleaseTag / lastCommitSha 是跨刷新的累积状态（并发同步路径维护），
+                    // 替换快照时必须保留；读取必须在 update 的 transform 内——否则与
+                    // 并发写入会互相用旧值覆盖新值（重复通知竞态的根因）
                     store.update { s ->
-                        val previousTag = s.snapshots[id]?.latestReleaseTag
+                        val cur = s.snapshots[id]
                         s.copy(
                             repos = if (renamed) {
                                 s.repos.map { if (it.id == id) it.copy(owner = info.owner, repo = info.repo) else it }
                             } else {
                                 s.repos
                             },
-                            snapshots = s.snapshots + (id to info.toSnapshot().copy(latestReleaseTag = previousTag)),
+                            snapshots = s.snapshots + (id to info.toSnapshot().copy(
+                                latestReleaseTag = cur?.latestReleaseTag,
+                                lastCommitSha = cur?.lastCommitSha,
+                                commitsEtag = cur?.commitsEtag,
+                            )),
                         )
                     }
-                    null
                 }
             }
+            if (tipNeeded) {
+                // 浏览分支 tip 条件请求：304（浏览分支没动，dev 推进不在此列）→ 免配额
+                // 不亮灯；200 → sha 变化经 SnapshotDiff 点亮。失败静默：基线保留下轮重试，
+                // 不拖垮 repoInfo 的成功
+                runCatching {
+                    when (val tip = provider(tracked.provider).commitTipForSync(tracked.owner, tracked.repo, tracked.branch, old?.commitsEtag)) {
+                        is SyncCommitTipResult.Tip -> store.update { s ->
+                            val cur = s.snapshots[id] ?: return@update s
+                            s.copy(
+                                snapshots = s.snapshots + (id to cur.copy(
+                                    lastCommitSha = tip.sha,
+                                    commitsEtag = tip.etag,
+                                )),
+                            )
+                        }
+                        else -> Unit // 304 / 无能力源：基线保持
+                    }
+                }
+            }
+            null
         } catch (e: SourceException) {
             e.error // 快照不动 = 旧数据保留
         }
@@ -231,7 +259,18 @@ class RepoRepository(
 
     /** 浏览分支（null = 仓库默认分支；仅影响提交视图，状态/版本仍按仓库级） */
     suspend fun setBranch(id: Long, branch: String?) = store.update { s ->
-        s.copy(repos = s.repos.map { if (it.id == id) it.copy(branch = branch) else it })
+        val old = s.snapshots[id]
+        s.copy(
+            repos = s.repos.map { if (it.id == id) it.copy(branch = branch) else it },
+            // 切分支 = 换了 tip 观测对象：旧分支的指纹不再有意义，清基线让下轮
+            // sync 重新立（首次记录不亮灯）。窗口内并发的 sync 读到旧基线 → tip
+            // 相同不亮，无副作用
+            snapshots = if (old != null) {
+                s.snapshots + (id to old.copy(lastCommitSha = null, commitsEtag = null))
+            } else {
+                s.snapshots
+            },
+        )
     }
 
     /** 置顶 / 取消置顶（null = 取消；时间戳保证置顶组内顺序稳定） */

@@ -165,6 +165,9 @@ private fun ReleaseCard(
                         // clip 在 clickable 前：按压色块圆角化（与首页触发行同款 10dp）
                         .clip(RoundedCornerShape(10.dp))
                         .clickable { notesExpanded = !notesExpanded }
+                        // 内缩 8dp：按下色块与 tag 文字/箭头的左右间隙对称（此前色块
+                        // 贴 tag 文字、右侧却有空隙；与首页触发行 8dp 对齐）
+                        .padding(horizontal = 8.dp)
                 } else {
                     Modifier.fillMaxWidth()
                 },

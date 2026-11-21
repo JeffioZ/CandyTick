@@ -29,6 +29,13 @@ interface SourceProvider {
     suspend fun releasesForSync(owner: String, repo: String, etag: String? = null): SyncReleasesResult =
         SyncReleasesResult.Page(releases(owner, repo), etag = null)
 
+    /**
+     * 后台同步专用：浏览分支 tip sha（per_page=1 条件请求，304 不计配额）。
+     * 「有新提交」的精确信号源——pushed_at 统计任意分支的推送，直接用它会误亮。
+     * branch = null 即默认分支（与详情页提交列表的口径一致）。无对应能力的源返回 null。
+     */
+    suspend fun commitTipForSync(owner: String, repo: String, branch: String?, etag: String? = null): SyncCommitTipResult? = null
+
     /** 分支列表（提交视图的分支切换；无对应能力的源返回空） */
     suspend fun branches(owner: String, repo: String): List<String> = emptyList()
 
@@ -78,6 +85,12 @@ sealed interface SyncReleasesResult {
     data object NotModified : SyncReleasesResult
 }
 
+/** 后台同步的分支 tip 拉取结果：Tip.sha 空串 = 分支存在但无提交（立为基线） */
+sealed interface SyncCommitTipResult {
+    data class Tip(val sha: String, val etag: String?) : SyncCommitTipResult
+    data object NotModified : SyncCommitTipResult
+}
+
 /** 四类失败（design.md「状态与反馈」；UI 分文案，错误可行动） */
 sealed interface SourceError {
     data object NetworkUnreachable : SourceError
@@ -104,6 +117,9 @@ class GitHubProvider(private val api: GitHubApi) : SourceProvider {
 
     override suspend fun releasesForSync(owner: String, repo: String, etag: String?) =
         api.releasesForSync(owner, repo, etag)
+
+    override suspend fun commitTipForSync(owner: String, repo: String, branch: String?, etag: String?) =
+        api.commitsTip(owner, repo, branch, etag)
 
     override suspend fun branches(owner: String, repo: String) = api.branches(owner, repo)
 

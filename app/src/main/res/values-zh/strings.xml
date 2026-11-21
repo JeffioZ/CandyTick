@@ -30,7 +30,7 @@
     <string name="sort_status">维护状态</string>
     <string name="sort_name">A-Z</string>
     <string name="sort_name_desc">Z-A</string>
-    <string name="sort_updatable">有更新</string>
+    <string name="sort_updatable">可用更新</string>
     <string name="sort_added">最近添加</string>
     <string name="open_in_browser">在浏览器打开</string>
     <string name="detail_remove_repo">移除仓库</string>

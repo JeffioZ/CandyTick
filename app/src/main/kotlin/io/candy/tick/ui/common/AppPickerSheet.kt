@@ -166,7 +166,7 @@ fun AppPickerSheet(
             if (apps.size > 15) {
                 TextField(
                     value = query,
-                    onValueChange = { query = it },
+                    onValueChange = { if (it.length <= io.candy.tick.ui.common.InputLimits.SEARCH) query = it },
                     label = stringResource(R.string.picker_search_app),
                     singleLine = true,
                     modifier = Modifier
