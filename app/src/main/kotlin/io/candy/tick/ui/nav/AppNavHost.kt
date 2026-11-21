@@ -1,9 +1,8 @@
 package io.candy.tick.ui.nav
 
+import androidx.compose.animation.core.LinearEasing
 import androidx.compose.animation.core.LinearOutSlowInEasing
 import androidx.compose.animation.core.tween
-import androidx.compose.animation.fadeIn
-import androidx.compose.animation.fadeOut
 import androidx.compose.animation.slideInHorizontally
 import androidx.compose.animation.slideOutHorizontally
 import androidx.compose.animation.togetherWith
@@ -68,7 +67,9 @@ fun AppNavHost(
         }
     }
     fun close(key: NavKey) {
-        backStack.remove(key)
+        // pop 语义优先：正常路径（key 在栈顶）随返回转场退出；通知热启动叠栈时 key
+        // 非栈顶（此时无转场可言），退回精确移除以免破坏返回路径
+        if (backStack.lastOrNull() == key) backStack.removeLastOrNull() else backStack.remove(key)
     }
     // 大屏/折叠屏适配（单点规则，全部页面共用）：背景全宽 + 内容列限宽 640dp 居中——
     // 手机（<600dp）与现状零差异；折叠展开/平板的行长落回可读区间（65-75 字符）。
@@ -82,40 +83,49 @@ fun AppNavHost(
         NavDisplay(
             backStack = backStack,
             onBack = { backStack.removeLastOrNull() },
-            // 对称水平推移（25% 行程等距）：轻快落位感——不对称行程+双向 fade 的旧组合
-            // 中间帧两页半透明叠加（背景透出=「漂」感）；对称等速 + 减速曲线是系统 Activity 手感
+            // 覆盖式转场（Android/HyperOS 系统惯例）：新页 100% 不透明滑入、旧页 25% 视差
+            // 平移、全程无 fade——两页任何瞬间都不互相透明，交叉淡化时代的顶栏按钮
+            // 「残留/遮挡」物理消失。前置：每页自备不透明背景（entryProvider 内包裹）。
             transitionSpec = {
-            (slideInHorizontally(initialOffsetX = { it / 4 }, animationSpec = navSpec()) +
-                fadeIn(navSpec())) togetherWith
-                (slideOutHorizontally(targetOffsetX = { -it / 4 }, animationSpec = exitSpec()) +
-                    fadeOut(exitSpec()))
+            slideInHorizontally(initialOffsetX = { it }, animationSpec = navSpec()) togetherWith
+                slideOutHorizontally(targetOffsetX = { -it / 4 }, animationSpec = navSpec())
             },
-            // 返回：与前进镜像（旧页从左滑回，当前页滑向右侧）
+            // 返回：与前进镜像（详情页 100% 滑出右侧，下层页从 -25% 归位）
             popTransitionSpec = { popTransform() },
-            // 预测性返回（Android 14+ 手势预览阶段共用同一形态）
-            predictivePopTransitionSpec = { popTransform() },
+            // 预测性返回：预览帧被系统按手势进度逐帧 seek——必须线性（缓动会让位移 ≠
+            // 手指，100% 行程下放大成「前段不动、后段猛冲」），与 pop 的缓动曲线分开
+            predictivePopTransitionSpec = { predTransform() },
             entryProvider = { key: NavKey ->
             NavEntry(key) { k ->
-                when (k) {
-                    RouteHome -> ListScreen(
-                        onAdd = { backStack.add(RouteAdd) },
-                        onOpenDetail = { backStack.add(RouteDetail(it)) },
-                        onOpenSettings = { backStack.add(RouteSettings) },
-                    )
-                    RouteAdd -> AddScreen(
-                        onClose = { close(k) },
-                        onAdded = { id ->
-                            close(k)
-                            backStack.add(RouteDetail(id))
-                        },
-                    )
-                    RouteSettings -> SettingsScreen(
-                        onBack = { close(k) },
-                    )
-                    is RouteDetail -> DetailScreen(
-                        repoId = k.repoId,
-                        onBack = { close(k) },
-                    )
+                // 每页自备不透明背景（覆盖式转场前置）：背景画在页与页之间而非最外层，
+                // 否则 100% 滑入的透明页会把旧页整块透出来（评审阻断项）。640dp 列外的
+                // 留白仍由外层 Box 负责（同色，视觉零变化）
+                Box(
+                    Modifier
+                        .fillMaxSize()
+                        .background(top.yukonga.miuix.kmp.theme.MiuixTheme.colorScheme.background),
+                ) {
+                    when (k) {
+                        RouteHome -> ListScreen(
+                            onAdd = { backStack.add(RouteAdd) },
+                            onOpenDetail = { backStack.add(RouteDetail(it)) },
+                            onOpenSettings = { backStack.add(RouteSettings) },
+                        )
+                        RouteAdd -> AddScreen(
+                            onClose = { close(k) },
+                            onAdded = { id ->
+                                close(k)
+                                backStack.add(RouteDetail(id))
+                            },
+                        )
+                        RouteSettings -> SettingsScreen(
+                            onBack = { close(k) },
+                        )
+                        is RouteDetail -> DetailScreen(
+                            repoId = k.repoId,
+                            onBack = { close(k) },
+                        )
+                    }
                 }
             }
             },
@@ -128,12 +138,11 @@ fun AppNavHost(
 /** 减速曲线（页面「落位」感），260ms——比旧 300ms 轻快，比组件动效（220 档）长半档 */
 private fun <T> navSpec() = tween<T>(durationMillis = 260, easing = LinearOutSlowInEasing)
 
-/** 退出档 = 进场的 ~65%（skill: exit-faster-than-enter）——旧页更快让位，两页叠加
- *  窗口收窄，首页顶栏按钮群在转场中的「残留/遮挡」感随之消失 */
-private fun <T> exitSpec() = tween<T>(durationMillis = 170, easing = LinearOutSlowInEasing)
-
 private fun popTransform() =
-    (slideInHorizontally(initialOffsetX = { -it / 4 }, animationSpec = navSpec()) +
-        fadeIn(navSpec())) togetherWith
-        (slideOutHorizontally(targetOffsetX = { it / 4 }, animationSpec = exitSpec()) +
-            fadeOut(exitSpec()))
+    slideInHorizontally(initialOffsetX = { -it / 4 }, animationSpec = navSpec()) togetherWith
+        slideOutHorizontally(targetOffsetX = { it }, animationSpec = navSpec())
+
+/** 预测性返回：手势 seek 逐帧驱动，线性曲线保证位移与手指一致 */
+private fun predTransform() =
+    slideInHorizontally(initialOffsetX = { -it / 4 }, animationSpec = tween(260, easing = LinearEasing)) togetherWith
+        slideOutHorizontally(targetOffsetX = { it }, animationSpec = tween(260, easing = LinearEasing))

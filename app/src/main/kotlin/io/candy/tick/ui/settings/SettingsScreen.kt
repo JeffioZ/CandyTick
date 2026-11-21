@@ -13,6 +13,7 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.DisposableEffect
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -71,6 +72,22 @@ fun SettingsScreen(onBack: () -> Unit) {
     }
     val state by vm.state.collectAsStateWithLifecycle()
     val cacheState by vm.cacheState.collectAsStateWithLifecycle()
+
+    // 检查更新的结果走全局 toast（与全 App 反馈同通道）：瞬时结论用胶囊；需要行动的
+    // （发现新版 → UpdateSheet、下载/安装失败 → 各自重试入口）仍走既有路径
+    val upToDateMsg = stringResource(R.string.settings_up_to_date)
+    val checkFailedMsg = stringResource(R.string.settings_update_failed)
+    LaunchedEffect(state.selfUpdate) {
+        val su = state.selfUpdate
+        when (su) {
+            is SelfUpdater.State.UpToDate -> io.candy.tick.ui.common.Feedback.show(text = upToDateMsg)
+            is SelfUpdater.State.Failed -> if (su.reason == SelfUpdater.Reason.NETWORK) {
+                // 仅检查失败（NETWORK）弹 toast；下载/安装失败有自己的失败相展示
+                io.candy.tick.ui.common.Feedback.show(text = checkFailedMsg, isError = true)
+            }
+            else -> Unit
+        }
+    }
     val scheme = MiuixTheme.colorScheme
     val context = LocalContext.current
     val scope = androidx.compose.runtime.rememberCoroutineScope()

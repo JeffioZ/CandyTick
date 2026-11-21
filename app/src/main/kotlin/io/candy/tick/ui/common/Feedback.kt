@@ -43,7 +43,9 @@ import top.yukonga.miuix.kmp.theme.MiuixTheme
 import io.candy.tick.ui.common.Motion
 
 /**
- * 全局统一瞬时反馈：顶部居中悬浮胶囊（✓/✕ + 文字 + 可选动作），顶栏下方。
+ * 全局统一瞬时反馈：顶部居中悬浮白卡胶囊（✓/✕ + 文字 + 可选动作），顶栏下方。
+ * 配色 = V3 白卡（用户选定）：卡片语言同族、主题色只在语义图标与撤销动作上——
+ * 取代整颗薄荷容器（主题色大面积出现与 UI 配色不搭）。
  * 取代此前并存的三套通道（顶部结果胶囊 / Miuix Snackbar / 系统 Toast）——
  * 位置、配色、动效全应用一致；skill 准则：无动作 2.2s、有动作 4.5s 自动消失，统一动效 token。
  */
@@ -113,44 +115,43 @@ fun FeedbackHost() {
             exit = fadeOut(tween(Motion.PANEL)) + slideOutVertically(tween(Motion.PANEL)) { -it },
         ) {
             shown?.let { m ->
-                // 语义容器：成功=品牌薄荷（primaryContainer 系），错误=红容器（与错误横幅同语言）。
-                // 整颗胶囊说结果的颜色，替代之前的灰底灰字（中性浮层在薄荷品牌里发闷无主）
-                val container = if (m.isError) scheme.errorContainer else scheme.primaryContainer
-                val onContainer = if (m.isError) scheme.onErrorContainer else scheme.onPrimaryContainer
+                // 卡片语言对齐（用户选定 V3 后追加）：底色/圆角/无边框 = 首页卡片同款
+                // （surfaceContainer + 16dp 圆角 + 无描边），仅保留 2dp 轻影承担悬浮语义；
+                // 主题色只在语义图标（成功 Mint700 / 失败红）与撤销动作上
+                val iconTint = if (m.isError) scheme.onErrorContainer else scheme.primaryVariant
+                val textTint = scheme.onSurfaceContainer
                 Row(
                     modifier = Modifier
                         .padding(top = 0.dp)
-                        // 2dp 轻阴影（M3 snackbar 档再降一档）：4dp 在浅色下发闷显脏；
-                        // 深色下阴影本就近乎不可见，同值无需分叉
-                        .shadow(2.dp, RoundedCornerShape(20.dp))
-                        .clip(RoundedCornerShape(20.dp))
-                        .background(container)
+                        .shadow(2.dp, RoundedCornerShape(16.dp))
+                        .clip(RoundedCornerShape(16.dp))
+                        .background(scheme.surfaceContainer)
                         // 读屏直播（Polite）：同步结果/安装结果此前 TalkBack 完全无感知
                         .semantics { liveRegion = LiveRegionMode.Polite }
                         .padding(start = 14.dp, end = 12.dp, top = 10.dp, bottom = 10.dp),
                     verticalAlignment = Alignment.CenterVertically,
                 ) {
-                    // 状态符 Lucide 单源（与 SyncDots 结果符同库同规格 14dp）
+                    // 状态符 Lucide 单源（与 SyncDots 结果符同库同规格 14dp）：语义色
                     top.yukonga.miuix.kmp.basic.Icon(
                         imageVector = ImageVector.vectorResource(
                             if (m.isError) io.candy.tick.R.drawable.ic_close else io.candy.tick.R.drawable.ic_check,
                         ),
                         contentDescription = null,
-                        tint = onContainer,
+                        tint = iconTint,
                         modifier = Modifier.size(14.dp),
                     )
                     Spacer(Modifier.width(6.dp))
                     Text(
                         text = m.text,
                         style = MiuixTheme.textStyles.footnote1,
-                        color = onContainer,
+                        color = textTint,
                     )
                     m.actionLabel?.let { label ->
                         Spacer(Modifier.width(4.dp))
                         Text(
                             text = label,
                             style = MiuixTheme.textStyles.footnote1,
-                            color = onContainer,
+                            color = scheme.primaryVariant,
                             fontWeight = androidx.compose.ui.text.font.FontWeight.Medium,
                             modifier = Modifier
                                 .clip(RoundedCornerShape(8.dp))

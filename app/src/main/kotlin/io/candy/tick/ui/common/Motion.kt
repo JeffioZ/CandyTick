@@ -25,8 +25,9 @@ import top.yukonga.miuix.kmp.anim.DecelerateEasing
  * 不各自手调；AnimatedValue 重定向天然可取消（skill: cancellable transitions）。
  *
  * 不并入的两处例外：
- * - 导航转场 260ms LinearOutSlowInEasing（AppNavHost.navSpec）：刻意镜像系统
- *   Activity 手感，页面级一次性转场；
+ * - 导航转场（AppNavHost.navSpec）：覆盖式全滑入——新页 100% 不透明滑入 + 旧页 25%
+ *   视差、无 fade，这才是系统 Activity 的真实形态（交叉淡化时代「镜像 Activity」的
+ *   说法并不成立）；predictive 返回另用线性曲线（手势 seek 要求位移与手指一致）；
  * - LoadingDots 900ms / EchoPing 2400ms：装饰循环（受 rememberMotionEnabled 降级保护）。
  */
 object Motion {

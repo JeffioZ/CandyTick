@@ -92,6 +92,9 @@ fun DetailScreen(repoId: Long, onBack: () -> Unit) {
     val autoLinkedFmt = stringResource(R.string.detail_auto_linked)
     val needPermMsg = stringResource(R.string.detail_need_install_permission)
     val openFailedMsg = stringResource(R.string.open_failed)
+    // busy = 静默/手动刷新进行中：顶栏动作钮整组让位给波点（actions 槽）的信号源；
+    // 声明在 Screen 级——topBar（actions）与内容区两个作用域都要读
+    val busy = state.refreshing || state.commitsReloading || state.releasesReloading
 
     // 每次进入静默刷新一轮：DetailViewModel 同 key 跨进入保留（navigation3 复用），
     // init 的加载不会重跑——上次访问的数据会顶着「缓存」出现。silent = 不点亮刷新头：
@@ -130,13 +133,13 @@ fun DetailScreen(repoId: Long, onBack: () -> Unit) {
                     title = "", // 标题左对齐走 navigationIcon 槽位（与首页一致；右侧三个动作图标下居中会被挤偏）
                     navigationIcon = {
                         // 槽位 wrap-content 但约束 = 顶栏全宽（miuix TopAppBarLayout measure
-                        // minWidth 归零）：用 BoxWithConstraints 自算标题 cap，长仓库名截断时
-                        // dots 固定槽仍站在槽内——此前裸 widthIn(180) 长名会把 dots 挤进
-                        // actions 区（用户实测「重叠感」）
+                        // minWidth 归零）：用 BoxWithConstraints 自算标题 cap。loading 已改走
+                        // 顶栏下缘细线（bottomContent，M3 appbar-progress 模式），标题预算
+                        // 全额恢复——此前 36dp 固定槽把长名压出提前省略号（用户不喜欢）
                         androidx.compose.foundation.layout.BoxWithConstraints {
                             // actions 预留 = 最多 3×44dp 钮 + 2×8dp 缝（分支钮只在提交页签出现，
-                            // 取最大档）；再加 back 48 + 双缝 14 + dots 槽 36
-                            val titleMax = (maxWidth - 48.dp - 8.dp - 6.dp - 36.dp - 148.dp)
+                            // 取最大档）；再加 back 48 + 呼吸缝 8
+                            val titleMax = (maxWidth - 48.dp - 8.dp - 148.dp)
                                 .coerceIn(120.dp, 180.dp)
                             androidx.compose.foundation.layout.Row(
                                 verticalAlignment = Alignment.CenterVertically,
@@ -171,80 +174,115 @@ fun DetailScreen(repoId: Long, onBack: () -> Unit) {
                                             indication = null,
                                         ) { scope.launch { detailListState.animateScrollToItem(0) } },
                                 )
-                                // 静默刷新反馈：与首页同一套 SyncDots（36dp 固定槽 + 防闪延迟，
-                                // 提到 ui/common 共用）；6dp 间距 = 首页同款。silent 进入/刷新
-                                // 不点亮刷新头，这里就是唯一信号——零反馈曾是静默校准的盲区
-                                Spacer(Modifier.width(6.dp))
-                                io.candy.tick.ui.common.SyncDots(
-                                    running = state.refreshing || state.commitsReloading || state.releasesReloading,
-                                    done = null, // 详情静默刷新没有结果事件，只做波点
-                                )
                             }
                         }
                     },
+                    // 静默刷新反馈：2dp 薄荷线改走「覆盖式」——画在内容层顶部、盖在顶栏
+                    // 与内容的既有空隙（13dp）头 2dp 上，零高度影响（bottomContent 版会
+                    // 撑高顶栏 2dp 并让指示器配平偏 2dp）。silent 进入/刷新不点亮刷新头，
+                    // 这里是唯一信号
                     actions = {
-                        // 浏览器打开仓库（安卓规范：顶栏动作图标）
-                        io.candy.tick.ui.common.PressIconButton(
-                            onClick = {
-                                val url = state.snapshot?.htmlUrl ?: repo?.let {
-                                    "https://github.com/${it.owner}/${it.repo}"
-                                } ?: return@PressIconButton
-                                runCatching {
-                                    context.startActivity(
-                                        android.content.Intent(android.content.Intent.ACTION_VIEW, android.net.Uri.parse(url))
-                                            .addFlags(android.content.Intent.FLAG_ACTIVITY_NEW_TASK),
-                                    )
-                                }.onFailure { io.candy.tick.ui.common.Feedback.show(text = openFailedMsg, isError = true) }
-                            },
-                            contentDescription = stringResource(R.string.open_in_browser),
-                        ) {
-                            // globe =「打开网页」本命语义；此前 external-link 观感近「分享」
-                            // （skill icons：glyph 按用途选，带文字的 LinkText 保留 external-link）
-                            Icon(
-                                imageVector = ImageVector.vectorResource(R.drawable.ic_globe),
-                                contentDescription = null,
-                                tint = scheme.onBackground,
-                            )
-                        }
-                        // 切换浏览分支（仅提交视图有分支语义；Release tab 隐藏，避免点了无效果的控件）
-                        // 宽度+透明度过渡：tab 切换时图标个数不再突跳
+                        // busy 时动作钮整组让位给波点（用户提案，垃圾桶位）：按钮淡出收起 →
+                        // 波点在右缘淡入展开 → 完成后反向；收展都锚定右缘（End），与垃圾桶位
+                        // 无缝交接。busy ~1s 内动作暂不可用（刷新为短事务，可接受）
                         androidx.compose.animation.AnimatedVisibility(
-                            visible = state.tab == DetailViewModel.DetailTab.COMMITS,
+                            visible = !busy,
                             enter = androidx.compose.animation.fadeIn(
-                                androidx.compose.animation.core.tween(Motion.PHASE),
+                                androidx.compose.animation.core.tween(Motion.MICRO),
                             ) + androidx.compose.animation.expandHorizontally(
-                                animationSpec = androidx.compose.animation.core.tween(Motion.PHASE),
+                                animationSpec = androidx.compose.animation.core.tween(Motion.MICRO),
+                                expandFrom = androidx.compose.ui.Alignment.End,
                             ),
                             exit = androidx.compose.animation.fadeOut(
-                                androidx.compose.animation.core.tween(Motion.PHASE),
+                                androidx.compose.animation.core.tween(Motion.MICRO),
                             ) + androidx.compose.animation.shrinkHorizontally(
-                                animationSpec = androidx.compose.animation.core.tween(Motion.PHASE),
+                                animationSpec = androidx.compose.animation.core.tween(Motion.MICRO),
+                                shrinkTowards = androidx.compose.ui.Alignment.End,
                             ),
                         ) {
-                            io.candy.tick.ui.common.PressIconButton(
-                                onClick = {
-                                    showBranchSheet = true
-                                    vm.loadBranches()
-                                },
-                                contentDescription = stringResource(R.string.branch_picker_title),
-                            ) {
-                                Icon(
-                                    imageVector = ImageVector.vectorResource(R.drawable.ic_git_branch),
-                                    contentDescription = null,
-                                    tint = scheme.onBackground,
-                                )
+                            androidx.compose.foundation.layout.Row {
+                                // 浏览器打开仓库（安卓规范：顶栏动作图标）
+                                io.candy.tick.ui.common.PressIconButton(
+                                    onClick = {
+                                        val url = state.snapshot?.htmlUrl ?: repo?.let {
+                                            "https://github.com/${it.owner}/${it.repo}"
+                                        } ?: return@PressIconButton
+                                        runCatching {
+                                            context.startActivity(
+                                                android.content.Intent(android.content.Intent.ACTION_VIEW, android.net.Uri.parse(url))
+                                                    .addFlags(android.content.Intent.FLAG_ACTIVITY_NEW_TASK),
+                                            )
+                                        }.onFailure { io.candy.tick.ui.common.Feedback.show(text = openFailedMsg, isError = true) }
+                                    },
+                                    contentDescription = stringResource(R.string.open_in_browser),
+                                ) {
+                                    // globe =「打开网页」本命语义；此前 external-link 观感近「分享」
+                                    // （skill icons：glyph 按用途选，带文字的 LinkText 保留 external-link）
+                                    Icon(
+                                        imageVector = ImageVector.vectorResource(R.drawable.ic_globe),
+                                        contentDescription = null,
+                                        tint = scheme.onBackground,
+                                    )
+                                }
+                                // 切换浏览分支（仅提交视图有分支语义；Release tab 隐藏，避免点了无效果的控件）
+                                // 宽度+透明度过渡：tab 切换时图标个数不再突跳
+                                androidx.compose.animation.AnimatedVisibility(
+                                    visible = state.tab == DetailViewModel.DetailTab.COMMITS,
+                                    enter = androidx.compose.animation.fadeIn(
+                                        androidx.compose.animation.core.tween(Motion.PHASE),
+                                    ) + androidx.compose.animation.expandHorizontally(
+                                        animationSpec = androidx.compose.animation.core.tween(Motion.PHASE),
+                                    ),
+                                    exit = androidx.compose.animation.fadeOut(
+                                        androidx.compose.animation.core.tween(Motion.PHASE),
+                                    ) + androidx.compose.animation.shrinkHorizontally(
+                                        animationSpec = androidx.compose.animation.core.tween(Motion.PHASE),
+                                    ),
+                                ) {
+                                    io.candy.tick.ui.common.PressIconButton(
+                                        onClick = {
+                                            showBranchSheet = true
+                                            vm.loadBranches()
+                                        },
+                                        contentDescription = stringResource(R.string.branch_picker_title),
+                                    ) {
+                                        Icon(
+                                            imageVector = ImageVector.vectorResource(R.drawable.ic_git_branch),
+                                            contentDescription = null,
+                                            tint = scheme.onBackground,
+                                        )
+                                    }
+                                }
+                                // 移除订阅（destructive → 确认对话框；底部文字按钮已移除）
+                                io.candy.tick.ui.common.PressIconButton(
+                                    onClick = { showRemoveDialog = true },
+                                    contentDescription = stringResource(R.string.detail_remove_repo),
+                                ) {
+                                    Icon(
+                                        imageVector = ImageVector.vectorResource(R.drawable.ic_delete),
+                                        contentDescription = null,
+                                        tint = scheme.onBackground,
+                                    )
+                                }
                             }
                         }
-                        // 移除订阅（destructive → 确认对话框；底部文字按钮已移除）
-                        io.candy.tick.ui.common.PressIconButton(
-                            onClick = { showRemoveDialog = true },
-                            contentDescription = stringResource(R.string.detail_remove_repo),
+                        androidx.compose.animation.AnimatedVisibility(
+                            visible = busy,
+                            enter = androidx.compose.animation.fadeIn(
+                                androidx.compose.animation.core.tween(Motion.MICRO),
+                            ) + androidx.compose.animation.expandHorizontally(
+                                animationSpec = androidx.compose.animation.core.tween(Motion.MICRO),
+                                expandFrom = androidx.compose.ui.Alignment.End,
+                            ),
+                            exit = androidx.compose.animation.fadeOut(
+                                androidx.compose.animation.core.tween(Motion.MICRO),
+                            ) + androidx.compose.animation.shrinkHorizontally(
+                                animationSpec = androidx.compose.animation.core.tween(Motion.MICRO),
+                                shrinkTowards = androidx.compose.ui.Alignment.End,
+                            ),
                         ) {
-                            Icon(
-                                imageVector = ImageVector.vectorResource(R.drawable.ic_delete),
-                                contentDescription = null,
-                                tint = scheme.onBackground,
-                            )
+                            // 主界面同款波点（loading 动画语言全 App 统一）
+                            io.candy.tick.ui.common.LoadingDots(color = scheme.primaryVariant)
                         }
                     },
                     scrollBehavior = scrollBehavior,
@@ -261,6 +299,7 @@ fun DetailScreen(repoId: Long, onBack: () -> Unit) {
             topAppBarScrollBehavior = scrollBehavior,
             modifier = Modifier.padding(padding),
         ) {
+            androidx.compose.foundation.layout.Box(Modifier.fillMaxSize()) {
             LazyColumn(
                 state = detailListState,
                 modifier = Modifier.fillMaxSize(),
@@ -430,6 +469,7 @@ fun DetailScreen(repoId: Long, onBack: () -> Unit) {
                 }
             }
         }
+    }
     }
 
     }
