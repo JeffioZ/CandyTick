@@ -39,6 +39,18 @@ object AppMatcher {
         val repoN = norm(repo)
         val ownerN = norm(owner)
         if (repoN.isEmpty()) return null
+        // 自荐：本应用自己的仓库直接指向自身。launcher 池刻意排除自身（给别的仓库找
+        // 关联对象时匹配到自己没有意义），此处按 owner/repo 显式补回——大小写不敏感
+        if (repoN == norm(io.candy.tick.data.SelfUpdater.APP_REPO) &&
+            ownerN == norm(io.candy.tick.data.SelfUpdater.APP_OWNER)
+        ) {
+            val label = appDisplayName(
+                context.packageName,
+                runCatching { context.applicationInfo.loadLabel(context.packageManager) }.getOrNull(),
+            )
+            // 回落用应用名资源而非包名：Detail 自动关联路径会把 label 直接存库并弹 toast
+            return Candidate(context.packageName, label ?: context.getString(io.candy.tick.R.string.app_name))
+        }
         val hits = launcherApps(context).mapNotNull { (pkg, label) ->
             val lastSeg = pkg.substringAfterLast('.').lowercase()
             val segments = pkg.split('.').map { norm(it) }.filter { it.isNotEmpty() }

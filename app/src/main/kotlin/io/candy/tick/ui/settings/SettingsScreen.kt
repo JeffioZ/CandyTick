@@ -17,6 +17,7 @@ import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.DisposableEffect
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -70,8 +71,11 @@ import androidx.compose.ui.graphics.vector.ImageVector
 private const val REPO_URL = "https://github.com/JeffioZ/CandyTick"
 private const val LICENSE_URL = "https://github.com/JeffioZ/CandyTick/blob/main/LICENSE"
 
+/** 「数据」分组在 LazyColumn 的条目序号（appearance/sync/appupdate 之后的第 4 项）；增删分组时同步 */
+private const val DATA_GROUP_INDEX = 3
+
 @Composable
-fun SettingsScreen(onBack: () -> Unit) {
+fun SettingsScreen(onBack: () -> Unit, autoOpenImport: Boolean = false) {
     val app = LocalContext.current.applicationContext as CandyTickApp
     val vm: SettingsViewModel = viewModel {
         SettingsViewModel(
@@ -124,8 +128,20 @@ fun SettingsScreen(onBack: () -> Unit) {
         onDispose { lifecycleOwner.lifecycle.removeObserver(observer) }
     }
 
-    var showImportDialog by remember { mutableStateOf(false) }
+    // rememberSaveable：空态「导入直达」拉起后旋转屏幕浮层不丢（此前 remember 旋转即关）
+    var showImportDialog by rememberSaveable { mutableStateOf(false) }
     var showCacheCleanup by remember { mutableStateOf(false) }
+    // 空态「导入已有订阅」直达：先定位到数据分组（弹窗关闭时导入/导出行已在屏上），
+    // 再自动拉起导入浮层。一次性消费（rememberSaveable）：旋转/返回重进不重复拉起；
+    // scrollToItem 挂起等待首次布局，无需 totalItemsCount 门禁
+    var importAutoOpened by rememberSaveable { mutableStateOf(false) }
+    LaunchedEffect(autoOpenImport) {
+        if (!autoOpenImport || importAutoOpened) return@LaunchedEffect
+        listState.scrollToItem(DATA_GROUP_INDEX)
+        showImportDialog = true
+        // 消费标记最后落：先置位时若此刻进程被杀/组合销毁，恢复后标记已 true 而浮层未开——直达静默失效
+        importAutoOpened = true
+    }
 
     fun showImportResult(added: Int) {
         val msg = when {

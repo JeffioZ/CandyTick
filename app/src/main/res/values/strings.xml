@@ -76,7 +76,7 @@
     <string name="banner_old_data_kept">Saved details are still available.</string>
     <string name="banner_dismiss">Dismiss notice</string>
     <string name="banner_rate_limit_title">GitHub rate limit reached</string>
-    <string name="banner_retry_after">Try again %1$s.</string>
+    <string name="banner_retry_after">Try again %1$s · A token in Settings raises the limit</string>
     <string name="card_updatable">Update available</string>
     <string name="collapse_all">Collapse all</string>
     <string name="card_last_push">Last active %1$s</string>
@@ -115,7 +115,7 @@
     <string name="err_timeout">Request timed out</string>
     <string name="err_not_found">Content not found or access denied</string>
     <string name="err_token_rejected">Token is invalid or lacks access to this repo. Check it in Settings.</string>
-    <string name="err_rate_limited">GitHub request limit reached. Try again %1$s.</string>
+    <string name="err_rate_limited">GitHub request limit reached. Try again %1$s; a token in Settings raises the limit.</string>
     <string name="err_rate_limited_plain">GitHub request limit reached. Try again later.</string>
     <string name="err_http">Request failed (HTTP %1$d)</string>
 
@@ -303,6 +303,7 @@
     <string name="close_search">Close search</string>
     <string name="search_clear">Clear search</string>
     <string name="toast_subscription_added">Subscription added</string>
+    <string name="empty_import">Import subscriptions</string>
     <string name="settings_backup_group">Data</string>
     <string name="settings_export">Export subscriptions</string>
     <string name="settings_export_summary">Share a JSON backup. Small backups are also copied.</string>

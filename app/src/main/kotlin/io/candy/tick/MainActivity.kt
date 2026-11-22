@@ -52,7 +52,7 @@ class MainActivity : ComponentActivity() {
                 releaseTag = intent.getStringExtra(Notifications.EXTRA_NAV_RELEASE_TAG)?.takeIf { it.isNotBlank() },
                 releaseRequestId = UUID.randomUUID().toString(),
             )
-            intent.getBooleanExtra(Notifications.EXTRA_NAV_SETTINGS, false) -> RouteSettings
+            intent.getBooleanExtra(Notifications.EXTRA_NAV_SETTINGS, false) -> RouteSettings()
             intent.action == Notifications.ACTION_NAV_HOME -> RouteHome
             else -> return
         }

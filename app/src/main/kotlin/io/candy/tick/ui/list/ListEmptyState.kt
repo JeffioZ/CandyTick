@@ -26,9 +26,9 @@ import io.candy.tick.ui.common.rememberMotionEnabled
 import top.yukonga.miuix.kmp.basic.Text
 import top.yukonga.miuix.kmp.theme.MiuixTheme
 
-/** 首页空态：插画 + 「添加第一个仓库」CTA（引导只在空态） */
+/** 首页空态：插画 + 「添加第一个仓库」CTA + 弱化的导入入口（引导只在空态） */
 @Composable
-internal fun EmptyState(onAdd: () -> Unit, modifier: Modifier = Modifier) {
+internal fun EmptyState(onAdd: () -> Unit, onImport: () -> Unit, modifier: Modifier = Modifier) {
     val scheme = MiuixTheme.colorScheme
     Column(
         modifier = modifier
@@ -59,6 +59,12 @@ internal fun EmptyState(onAdd: () -> Unit, modifier: Modifier = Modifier) {
         PrimaryButton(
             text = stringResource(R.string.empty_cta),
             onClick = onAdd,
+        )
+        // 弱化的次级入口（CTA 之下、同色系次级文字）：主行动仍是「添加第一个仓库」
+        Spacer(Modifier.height(12.dp))
+        io.candy.tick.ui.common.LinkText(
+            text = stringResource(R.string.empty_import),
+            onClick = onImport,
         )
         Spacer(Modifier.weight(1.22f))
     }

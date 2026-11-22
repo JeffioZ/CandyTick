@@ -22,8 +22,10 @@ import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.State
 import androidx.compose.runtime.derivedStateOf
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.produceState
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.alpha
@@ -190,10 +192,27 @@ internal fun LazyItemScope.HistoryFooter(
         !reloading && loading && showPagingIndicator -> HistoryFooterState.Paging
         else -> HistoryFooterState.Idle
     }
+    // 防闪烁闩锁：Retrying 相位最短驻留 300ms——快速失败时 loading 一闪而过（Motion.PROGRESS 档）
+    var shownPhase by remember { mutableStateOf(phase) }
+    var retryShownAt by remember { mutableStateOf(0L) }
+    LaunchedEffect(phase) {
+        when {
+            phase == HistoryFooterState.Retrying -> {
+                retryShownAt = android.os.SystemClock.elapsedRealtime()
+                shownPhase = phase
+            }
+            shownPhase == HistoryFooterState.Retrying -> {
+                val remaining = Motion.PROGRESS - (android.os.SystemClock.elapsedRealtime() - retryShownAt)
+                if (remaining > 0) delay(remaining)
+                shownPhase = phase
+            }
+            else -> shownPhase = phase
+        }
+    }
     val duration = if (rememberMotionEnabled()) Motion.PHASE else 0
     val emptySpace = Modifier.fillParentMaxHeight(0.45f)
     AnimatedContent(
-        targetState = phase to displayedCount,
+        targetState = shownPhase to displayedCount,
         contentKey = { it.first },
         modifier = modifier.fillMaxWidth(),
         contentAlignment = Alignment.TopCenter,

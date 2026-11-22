@@ -2,6 +2,7 @@ package io.candy.tick.ui.common
 
 import androidx.annotation.DrawableRes
 import androidx.annotation.StringRes
+import androidx.compose.animation.core.tween
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
@@ -167,10 +168,21 @@ internal fun TextFieldActionButton(
         containerColor = if (dark) DarkFieldActionContainer else colors.surfaceContainer,
         border = if (dark) BorderStroke(1.dp, DarkFieldActionOutline) else null,
     ) {
-        Icon(
-            imageVector = ImageVector.vectorResource(icon),
-            contentDescription = null,
-            tint = if (dark) colors.onSurfaceSecondary else colors.onBackgroundVariant,
-        )
+        // 图标交叉淡入（令牌显隐等条件换图）：瞬切会与按压色块的 ~100ms 保持期打架
+        androidx.compose.animation.Crossfade(
+            targetState = icon,
+            animationSpec = if (rememberMotionEnabled()) {
+                tween(Motion.MICRO)
+            } else {
+                androidx.compose.animation.core.snap()
+            },
+            label = "fieldActionIcon",
+        ) { res ->
+            Icon(
+                imageVector = ImageVector.vectorResource(res),
+                contentDescription = null,
+                tint = if (dark) colors.onSurfaceSecondary else colors.onBackgroundVariant,
+            )
+        }
     }
 }

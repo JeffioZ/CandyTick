@@ -36,7 +36,7 @@ data object RouteHome : AppRoute
 data object RouteAdd : AppRoute
 
 @Serializable
-data object RouteSettings : AppRoute
+data class RouteSettings(val focusImport: Boolean = false) : AppRoute
 
 @Serializable
 data class RouteDetail(
@@ -71,7 +71,21 @@ fun AppNavHost(
         onNavConsumed(target)
     }
     fun openFromHome(key: NavKey) {
-        if (backStack.lastOrNull() == RouteHome) backStack.add(key)
+        when (backStack.lastOrNull()) {
+            RouteHome -> backStack.add(key)
+            null -> {
+                backStack.add(RouteHome)
+                backStack.add(key)
+            }
+            else -> {
+                // 兜底：栈顶异常不是 Home（真机复现过导入订阅后首页点击全部失效、重启才恢复）。
+                // 不弹栈直接入栈——转场窗口（260ms）内旧页仍可点，弹栈会误清刚 push 的页面
+                //（Add 页已填内容会丢）；卡死态下 push 后目标页正常出现，栈里残留一页可逐层退回。
+                // 同 key 去重：转场窗口内的重复点击不得叠出两份同页（返回时首按看似无反应）
+                android.util.Log.w("AppNavHost", "openFromHome top=${backStack.lastOrNull()} unexpected, pushing above it")
+                if (backStack.lastOrNull() != key) backStack.add(key)
+            }
+        }
     }
     fun goBackFrom(key: NavKey) {
         if (backStack.size > 1 && backStack.last() == key) backStack.removeLastOrNull()
@@ -118,7 +132,8 @@ fun AppNavHost(
                             RouteHome -> ListScreen(
                                 onAdd = { openFromHome(RouteAdd) },
                                 onOpenDetail = { openFromHome(RouteDetail(it)) },
-                                onOpenSettings = { openFromHome(RouteSettings) },
+                                onOpenSettings = { openFromHome(RouteSettings()) },
+                                onOpenImport = { openFromHome(RouteSettings(focusImport = true)) },
                             )
                             RouteAdd -> AddScreen(
                                 onClose = { goBackFrom(k) },
@@ -129,8 +144,9 @@ fun AppNavHost(
                                     else backStack.remove(k)
                                 },
                             )
-                            RouteSettings -> SettingsScreen(
+                            is RouteSettings -> SettingsScreen(
                                 onBack = { goBackFrom(k) },
+                                autoOpenImport = k.focusImport,
                             )
                             is RouteDetail -> DetailScreen(
                                 repoId = k.repoId,

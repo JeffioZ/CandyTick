@@ -1,13 +1,17 @@
 package io.candy.tick.ui.list
 
+import androidx.compose.animation.AnimatedContent
 import androidx.compose.animation.EnterTransition
 import androidx.compose.animation.ExitTransition
+import androidx.compose.animation.SizeTransform
 import androidx.compose.animation.core.MutableTransitionState
+import androidx.compose.animation.core.snap
 import androidx.compose.animation.core.tween
 import androidx.compose.animation.expandHorizontally
 import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
 import androidx.compose.animation.shrinkHorizontally
+import androidx.compose.animation.togetherWith
 import androidx.compose.foundation.interaction.DragInteraction
 import androidx.compose.foundation.layout.BoxWithConstraints
 import androidx.compose.foundation.layout.heightIn
@@ -108,6 +112,7 @@ fun ListScreen(
     onAdd: () -> Unit,
     onOpenDetail: (Long) -> Unit,
     onOpenSettings: () -> Unit,
+    onOpenImport: () -> Unit,
 ) {
     val app = LocalContext.current.applicationContext as CandyTickApp
     val resources = LocalResources.current
@@ -171,6 +176,8 @@ fun ListScreen(
     val listState = androidx.compose.foundation.lazy.rememberLazyListState()
     val emptyScroll = rememberScrollState()
     val showingEmpty = state.items.isEmpty() && !state.refreshing
+    // 标题「已在顶部」判定：derivedStateOf 只在越过边界时重组标题（canScrollBackward 逐帧变）
+    val homeAtTop by remember { androidx.compose.runtime.derivedStateOf { !listState.canScrollBackward && !listState.isScrollInProgress } }
     val scope = androidx.compose.runtime.rememberCoroutineScope()
     val haptic = androidx.compose.ui.platform.LocalHapticFeedback.current
     val motionEnabled = rememberMotionEnabled()
@@ -268,11 +275,25 @@ fun ListScreen(
                                 ScrollToTopTitle(
                                     text = stringResource(R.string.app_name),
                                     modifier = Modifier.weight(1f, fill = false),
+                                    actionLabel = if (homeAtTop && !showingEmpty &&
+                                        state.items.count { it.repo.id in state.expanded } > 0
+                                    ) R.string.collapse_all else R.string.scroll_to_top,
                                     onClick = {
                                         keepReadingOrder = false
-                                        scope.launch {
-                                            if (showingEmpty) emptyScroll.scrollToTop(motionEnabled)
-                                            else listState.scrollToTop(motionEnabled)
+                                        // 已在顶部再点一下：收起全部展开卡片（此前是空操作）。
+                                        // 门禁只认「当前可见列表里」确有展开项——搜索过滤掉的展开卡
+                                        // 不算数（收起不可见内容没有反馈），无可见展开时维持无操作。
+                                        // 判空与内容分支同源（items.isEmpty()，不含 refreshing）——
+                                        // 空列表刷新期间屏幕是空态，滚的必须是空态自己的 scroll
+                                        val empty = state.items.isEmpty()
+                                        val atTop = if (empty) {
+                                            emptyScroll.value == 0 && !emptyScroll.isScrollInProgress
+                                        } else homeAtTop
+                                        val visibleExpanded = if (empty) 0 else state.items.count { it.repo.id in state.expanded }
+                                        when {
+                                            atTop && visibleExpanded > 0 -> vm.collapseAll()
+                                            empty -> scope.launch { emptyScroll.scrollToTop(motionEnabled) }
+                                            else -> scope.launch { listState.scrollToTop(motionEnabled) }
                                         }
                                     },
                                 )
@@ -319,37 +340,76 @@ fun ListScreen(
                                     )
                                 }
                             }
-                            io.candy.tick.ui.common.PressIconButton(
-                                onClick = {
-                                    if (showSearch) closeSearch() else showSearch = true
-                                },
-                                contentDescription = stringResource(
-                                    if (showSearch) R.string.close_search else R.string.action_search,
-                                ),
+                            // 空态（非搜索会话）隐藏搜索/排序：零订阅时两者都无对象可作用，
+                            // 顶栏聚焦「设置 + 添加」引导；首个订阅加入后淡入回归。
+                            // 判空不看 refreshing——空列表下拉刷新不该让按钮冒头再缩回
+                            androidx.compose.animation.AnimatedVisibility(
+                                visible = state.items.isNotEmpty() || showSearch,
+                                // 时序与「全部收起」钮同款：入场先展开后渐显（delay PRESS），
+                                // 退场先渐显完（MICRO）再收宽——收快显慢会让图标盖到相邻按钮上
+                                enter = if (motionEnabled) {
+                                    androidx.compose.animation.expandHorizontally(
+                                        tween(Motion.PRESS), expandFrom = Alignment.Start, clip = false,
+                                    ) + androidx.compose.animation.fadeIn(tween(Motion.MICRO, delayMillis = Motion.PRESS))
+                                } else EnterTransition.None,
+                                exit = if (motionEnabled) {
+                                    androidx.compose.animation.fadeOut(tween(Motion.MICRO)) +
+                                        androidx.compose.animation.shrinkHorizontally(
+                                            tween(Motion.PRESS, delayMillis = Motion.MICRO),
+                                            shrinkTowards = Alignment.Start, clip = false,
+                                        )
+                                } else ExitTransition.None,
                             ) {
-                                // 激活态换返回箭头（= 退出搜索模式，与系统返回同语义）：
-                                // 此前用 X 与输入框「清空」钮同形（skill: X=modal close 语义撞车）
-                                Icon(
-                                    imageVector = if (showSearch) {
-                                        ImageVector.vectorResource(R.drawable.ic_back)
-                                    } else {
-                                        ImageVector.vectorResource(R.drawable.ic_search)
-                                    },
-                                    contentDescription = null,
-                                    tint = if (showSearch) scheme.primaryVariant else scheme.onBackground,
-                                    modifier = Modifier.size(24.dp), // 顶栏动作图标统一 24dp
-                                )
-                            }
-                            io.candy.tick.ui.common.PressIconButton(
-                                onClick = { sortSheet = SortSheetSession(vm.storedSortOrder) },
-                                contentDescription = stringResource(R.string.sort_title),
-                            ) {
-                                Icon(
-                                    imageVector = ImageVector.vectorResource(R.drawable.ic_sort),
-                                    contentDescription = null,
-                                    tint = scheme.onBackground,
-                                    modifier = Modifier.size(24.dp), // 顶栏动作图标统一 24dp
-                                )
+                                Row {
+                                    io.candy.tick.ui.common.PressIconButton(
+                                        onClick = {
+                                            if (showSearch) closeSearch() else showSearch = true
+                                        },
+                                        contentDescription = stringResource(
+                                            if (showSearch) R.string.close_search else R.string.action_search,
+                                        ),
+                                    ) {
+                                        // 激活态换返回箭头（= 退出搜索模式，与系统返回同语义）：
+                                        // 此前用 X 与输入框「清空」钮同形（skill: X=modal close 语义撞车）。
+                                        // 换脸与按压染色同拍（collectPressTint：松手保持 80ms → 150ms 淡出）：
+                                        // 保持期内什么都不变（按压读作完成），之后「暗圈退、旧脸退、新脸进」
+                                        // 三位一体落在同一 80→230ms 窗口——不会出现「还按着就换脸」。24dp 钉死无尺寸跳
+                                        AnimatedContent(
+                                            targetState = showSearch,
+                                            transitionSpec = {
+                                                if (motionEnabled) {
+                                                    (
+                                                        fadeIn(tween(Motion.MICRO, delayMillis = Motion.PRESS)) togetherWith
+                                                            fadeOut(tween(Motion.MICRO, delayMillis = Motion.PRESS))
+                                                        ).using(SizeTransform(clip = false))
+                                                } else {
+                                                    fadeIn(snap()) togetherWith fadeOut(snap())
+                                                }
+                                            },
+                                            label = "searchToggle",
+                                        ) { active ->
+                                            Icon(
+                                                imageVector = ImageVector.vectorResource(
+                                                    if (active) R.drawable.ic_back else R.drawable.ic_search,
+                                                ),
+                                                contentDescription = null,
+                                                tint = if (active) scheme.primaryVariant else scheme.onBackground,
+                                                modifier = Modifier.size(24.dp), // 顶栏动作图标统一 24dp
+                                            )
+                                        }
+                                    }
+                                    io.candy.tick.ui.common.PressIconButton(
+                                        onClick = { sortSheet = SortSheetSession(vm.storedSortOrder) },
+                                        contentDescription = stringResource(R.string.sort_title),
+                                    ) {
+                                        Icon(
+                                            imageVector = ImageVector.vectorResource(R.drawable.ic_sort),
+                                            contentDescription = null,
+                                            tint = scheme.onBackground,
+                                            modifier = Modifier.size(24.dp), // 顶栏动作图标统一 24dp
+                                        )
+                                    }
+                                }
                             }
                             io.candy.tick.ui.common.PressIconButton(
                                 onClick = { leaveHome(onOpenSettings) },
@@ -440,11 +500,21 @@ fun ListScreen(
                             hasSavedDetails = state.items.any { it.error != null && it.snapshot != null },
                             onRetry = ::refresh,
                             onDismiss = vm::clearBanner,
-                            modifier = Modifier.padding(horizontal = 16.dp),
+                            // 上 7 + 内衬 6 = 13：与下方（内衬 6 + 列表顶隙 7）对称，
+                            // 列表顶隙由 banner 在场时 13→7 联动（见 LazyColumn contentPadding）
+                            modifier = Modifier.padding(start = 16.dp, end = 16.dp, top = 7.dp),
                         )
                     }
-                    if (showingEmpty) {
-                        BoxWithConstraints(Modifier.weight(1f).fillMaxWidth()) {
+                    // 内容切换（空态 ⇄ 列表）：Crossfade 220 表层档；判空只看 items——
+                    // 此前判空含 !refreshing，空列表下拉刷新会把内容闪切成空 LazyColumn 再切回
+                    androidx.compose.animation.Crossfade(
+                        targetState = state.items.isEmpty(),
+                        animationSpec = if (motionEnabled) tween(Motion.PANEL) else snap(),
+                        modifier = Modifier.weight(1f).fillMaxWidth(),
+                        label = "homeContent",
+                    ) { contentEmpty ->
+                        if (contentEmpty) {
+                        BoxWithConstraints(Modifier.fillMaxSize()) {
                             val viewport = Modifier.fillMaxWidth()
                                 .verticalScroll(emptyScroll)
                                 .heightIn(min = maxHeight)
@@ -458,7 +528,11 @@ fun ListScreen(
                                     modifier = viewport,
                                 )
                             } else {
-                                EmptyState(onAdd = { leaveHome(onAdd) }, modifier = viewport)
+                                EmptyState(
+                                    onAdd = { leaveHome(onAdd) },
+                                    onImport = { leaveHome(onOpenImport) },
+                                    modifier = viewport,
+                                )
                             }
                         }
                     } else {
@@ -473,8 +547,9 @@ fun ListScreen(
                                 start = 16.dp,
                                 end = 16.dp,
                                 // top 13 = 4 基线 + 9：补偿 PullToRefresh contentPadding——
-                                // 刷新指示器（环+文字）的上下隙对称（实测上 20/下 10.7 → 均衡）
-                                top = 13.dp,
+                                // 刷新指示器（环+文字）的上下隙对称（实测上 20/下 10.7 → 均衡）；
+                                // 横幅在场时 13→7：横幅下衬 6 + 7 = 13，与横幅上方对称
+                                top = if (state.banner != null) 7.dp else 13.dp,
                                 bottom = 32.dp,
                             ),
                             verticalArrangement = HomeListArrangement,
@@ -521,6 +596,7 @@ fun ListScreen(
                             }
                         }
                         }
+                    }
                     }
                 }
             }

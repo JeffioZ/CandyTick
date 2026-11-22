@@ -2,17 +2,14 @@ package io.candy.tick.ui.common
 
 import android.os.SystemClock
 import androidx.compose.animation.AnimatedVisibility
+import androidx.compose.animation.EnterTransition
+import androidx.compose.animation.ExitTransition
 import androidx.compose.animation.core.tween
 import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
-import androidx.compose.animation.slideInVertically
-import androidx.compose.animation.slideOutVertically
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
-import androidx.compose.foundation.LocalIndication
-import androidx.compose.foundation.indication
-import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
@@ -156,7 +153,7 @@ fun FeedbackHost() {
     }
 
     // 顶部居中、顶栏之下：状态栏 + 标准顶栏高（64dp）+ 间距，避开标题/动作区；
-    // 不与拇指区/手势条/键盘争地盘。动效自上滑入、向上滑出（与原同步胶囊一致）
+    // 不与拇指区/手势条/键盘争地盘。动效为原位淡入淡出——可交互目标不移动（见 AnimatedVisibility 注释）
     Box(
         modifier = Modifier
             .fillMaxSize()
@@ -166,8 +163,10 @@ fun FeedbackHost() {
     ) {
         AnimatedVisibility(
             visible = visible,
-            enter = fadeIn(tween(Motion.PANEL)) + slideInVertically(tween(Motion.PANEL)) { -it },
-            exit = fadeOut(tween(Motion.PANEL)) + slideOutVertically(tween(Motion.PANEL)) { -it },
+            // 原位淡入淡出（不再自上滑入）：胶囊出现在最终位置——可交互目标不移动，
+            // 快速反应点撤销不会点在「落点前」；关闭系统动画的用户直接显隐
+            enter = if (rememberMotionEnabled()) fadeIn(tween(Motion.PANEL)) else EnterTransition.None,
+            exit = if (rememberMotionEnabled()) fadeOut(tween(Motion.PANEL)) else ExitTransition.None,
         ) {
             shown?.let { m ->
                 val iconTint = if (m.isError) scheme.onErrorContainer else scheme.primaryVariant
@@ -201,7 +200,10 @@ fun FeedbackHost() {
                     )
                     m.actionLabel?.let { label ->
                         Spacer(Modifier.width(4.dp))
-                        val press = remember { MutableInteractionSource() }
+                        // 按压反馈升到 App 标准（rememberRowPressTint：快按即显 + 80ms 保持 + 16%），
+                        // 与图标钮/卡片同手感——此前 MiuixIndication 库默认（~10%、渐变）快按几乎不可见
+                        val pillBackground = if (dark) scheme.surfaceContainerHigh else scheme.surfaceContainer
+                        val (press, pressColor) = rememberRowPressTint(surface = pillBackground)
                         Box(
                             modifier = Modifier
                                 .clickable(interactionSource = press, indication = null, role = Role.Button) {
@@ -210,7 +212,7 @@ fun FeedbackHost() {
                                 .sizeIn(minWidth = 48.dp, minHeight = 48.dp)
                                 .padding(vertical = feedbackActionInset)
                                 .clip(feedbackActionShape)
-                                .indication(press, LocalIndication.current)
+                                .background(pressColor, feedbackActionShape)
                                 .padding(horizontal = 8.dp),
                             contentAlignment = Alignment.Center,
                         ) {

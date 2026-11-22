@@ -162,6 +162,9 @@ class ListViewModel(
             workerSync.collectLatest { status ->
                 // The worker owns repository metadata. An expanded card may still be fetching the
                 // messages for that SHA. Keep this page's indicator until those rows settle too.
+                // 后台整轮同步全成功时收起旧的失败横幅（横幅只在手动刷新路径赋值）。
+                // 必须在 awaitExpandedPreviews 之前：collectLatest 会被下一状态取消，挂起之后清理可能被跳过
+                if (status is SyncStatus.Done && status.failed == 0) banner.value = null
                 if (status is SyncStatus.Done) awaitExpandedPreviews()
                 if (status is SyncStatus.Running && refreshing.value) titleSync.pullOwnedRun = status
                 homeSync.value = status
@@ -330,7 +333,8 @@ class ListViewModel(
     }
 
     private suspend fun refreshRepositories() {
-        banner.value = null
+        // 不在刷新开头清横幅：重试期间横幅先消失再回来 = 闪烁。
+        // 手动刷新成功由本函数收尾赋值清空；后台整轮成功在 worker 完成处清（见 init）
         silentLoaded.value = emptySet()
         // A pre-existing card request may only be reading commits. Delegate the release
         // check solely to the full previews started by this pull.

@@ -65,6 +65,8 @@ fun LazyListScope.releaseList(
     contentModifier: Modifier,
     localVersion: String?,
     htmlBase: String,
+    expandedNotes: Set<String>,
+    onToggleNotes: (String) -> Unit,
     showPagingIndicator: Boolean,
     animateRefreshChanges: Boolean,
     onLoadMore: () -> Unit,
@@ -99,6 +101,8 @@ fun LazyListScope.releaseList(
             localVersion = localVersion,
             htmlBase = htmlBase,
             fromNotification = release.tagName == notificationTag,
+            notesExpanded = release.tagName in expandedNotes,
+            onToggleNotes = { onToggleNotes(release.tagName) },
             onRead = { onRead(release.tagName) },
             onSelectAsset = onSelectAsset,
             onDownload = onDownload,
@@ -131,6 +135,8 @@ private fun ReleaseCard(
     localVersion: String?,
     htmlBase: String,
     fromNotification: Boolean,
+    notesExpanded: Boolean,
+    onToggleNotes: () -> Unit,
     onRead: () -> Unit,
     onSelectAsset: (String, ApkAsset) -> Unit,
     onDownload: (ReleaseRecord, ApkAsset) -> Unit,
@@ -148,10 +154,9 @@ private fun ReleaseCard(
     val releaseTransfer = state.download?.takeIf { it.releaseKey == release.tagName }
     val preferredName = state.selectedAssets[release.tagName]?.name ?: releaseTransfer?.assetName ?: saved?.displayAssetName
     val selected = candidates.find { it.name == preferredName } ?: autoPick
-    // 更新日志展开态：body 有内容才可展开（chevron 提示）
+    // 更新日志展开态：body 有内容才可展开（chevron 提示）；
+    // 展开集合提升到页面级（滚出屏/跨页签保持，且标题可一键全收起）
     val hasNotes = release.body.isNotBlank()
-    // rememberSaveable：列表项滚出屏销毁后回来保持展开态（remember 会丢）
-    var notesExpanded by androidx.compose.runtime.saveable.rememberSaveable(release.tagName) { mutableStateOf(false) }
     val cardInset = 6.dp
     val sectionGap = 4.dp
     Card(modifier.fillMaxWidth()) {
@@ -167,7 +172,7 @@ private fun ReleaseCard(
                 expanded = notesExpanded,
                 onToggleNotes = {
                     onRead()
-                    notesExpanded = !notesExpanded
+                    onToggleNotes()
                 },
             )
             if (fromNotification) {
@@ -374,7 +379,8 @@ private fun ReleaseHeader(
         ).heightIn(min = 48.dp)
     } else Modifier
     Column(
-        Modifier.fillMaxWidth().then(expandAction).padding(vertical = 4.dp),
+        // 按压块内 8dp 对称内衬（与首页卡片展开行同款）：文字与 chevron 都不贴色块边缘
+        Modifier.fillMaxWidth().then(expandAction).padding(start = 8.dp, end = 8.dp, top = 4.dp, bottom = 4.dp),
         verticalArrangement = Arrangement.spacedBy(2.dp, Alignment.CenterVertically),
     ) {
         Text(

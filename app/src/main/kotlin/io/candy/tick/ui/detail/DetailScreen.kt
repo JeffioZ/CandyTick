@@ -8,7 +8,9 @@ import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
 import androidx.compose.animation.togetherWith
 import androidx.compose.animation.EnterExitState
+import androidx.compose.animation.core.animateDpAsState
 import androidx.compose.animation.core.animateFloatAsState
+import androidx.compose.animation.core.snap
 import androidx.compose.animation.core.tween
 import androidx.compose.foundation.interaction.DragInteraction
 import androidx.compose.foundation.layout.Arrangement
@@ -92,6 +94,8 @@ fun DetailScreen(
     var interacted by rememberSaveable(repoId) { mutableStateOf(false) }
     var browsing by rememberSaveable(repoId, releaseRequestId) { mutableStateOf(releaseRequestId == null) }
     var positioned by rememberSaveable(repoId, releaseRequestId) { mutableStateOf(false) }
+    // 版本更新日志的展开集合（页面级持有：滚出屏保持、跨页签保持，标题「已在顶部再点一下」可全收起）
+    var expandedNotes by rememberSaveable(repoId) { mutableStateOf(setOf<String>()) }
     var savedTab by rememberSaveable(repoId, releaseRequestId) {
         mutableStateOf(if (releaseRequestId == null) DetailViewModel.DetailTab.COMMITS else DetailViewModel.DetailTab.RELEASES)
     }
@@ -135,6 +139,9 @@ fun DetailScreen(
     }
     val tag = releaseTag?.takeIf { releaseRequestId != null }
     val extraRelease = state.notificationRelease?.takeIf { it.tagName == tag }
+    val releaseTagNames = remember(state.releases, extraRelease) {
+        (state.releases + listOfNotNull(extraRelease)).mapTo(HashSet()) { it.tagName }
+    }
     val releases = remember(state.releases, extraRelease) {
         if (extraRelease == null) state.releases else {
             val fromPage = state.releases.firstOrNull { it.tagName == extraRelease.tagName }
@@ -193,6 +200,8 @@ fun DetailScreen(
     val scope = androidx.compose.runtime.rememberCoroutineScope()
     // 列表状态提升：点标题回顶部需要驱动滚动动画（真实滚动让折叠顶栏自动展开）
     val detailListState = androidx.compose.foundation.lazy.rememberLazyListState()
+    // 标题「已在顶部」判定：derivedStateOf 只在越过边界时重组标题
+    val detailAtTop by remember { derivedStateOf { !detailListState.canScrollBackward && !detailListState.isScrollInProgress } }
     val lookupTag = tag?.takeIf { awaitingTag && pageAvailable && localTarget == null }
     val obscured = showAppPicker || showBranchSheet || showRemoveDialog
     val accessibility = remember(context) { context.getSystemService(android.view.accessibility.AccessibilityManager::class.java) }
@@ -372,9 +381,21 @@ fun DetailScreen(
                             Box(Modifier.weight(1f).padding(end = 4.dp)) {
                                 ScrollToTopTitle(
                                     text = repo?.let { it.noteName ?: it.repo } ?: stringResource(R.string.detail_title),
+                                    actionLabel = if (detailAtTop && !commitsTab &&
+                                        expandedNotes.count { it in releaseTagNames } > 0
+                                    ) R.string.collapse_all else R.string.scroll_to_top,
                                     onClick = {
                                         browsing = true
-                                        scope.launch { detailListState.scrollToTop(motion) }
+                                        // 已在顶部再点一下：收起版本页签全部展开的更新日志。
+                                        // 提交页签无展开内容 → 维持无操作（不碰另一页签的展开——不可见的变更没有反馈）；
+                                        // 门禁只认当前列表里确有展开项——集合可能残留已翻页/刷新掉的 tag，
+                                        // 只剩残留时点了没反应，判空必须用交集
+                                        val visibleNotesExpanded = expandedNotes.count { it in releaseTagNames }
+                                        if (detailAtTop && !commitsTab && visibleNotesExpanded > 0) {
+                                            expandedNotes = emptySet()
+                                        } else {
+                                            scope.launch { detailListState.scrollToTop(motion) }
+                                        }
                                     },
                                 )
                             }
@@ -493,6 +514,11 @@ fun DetailScreen(
                     }
                 }
                 item(key = HISTORY_TABS_KEY) {
+                    val tabsTopPadding by animateDpAsState(
+                        targetValue = if (state.banner != null) 0.dp else 8.dp,
+                        animationSpec = if (motion) tween(Motion.PHASE) else snap(),
+                        label = "tabsTop",
+                    )
                     DetailTabs(
                         selected = tab,
                         position = tabPosition,
@@ -503,7 +529,12 @@ fun DetailScreen(
                             vm.setTab(selected)
                             browsing = true
                         },
-                        modifier = Modifier.padding(vertical = 8.dp),
+                        // 错误横幅在场时页签顶部留白归零：横幅内衬 6 + item 间距 10 = 16dp，
+                        // 与横幅上方 10+6=16 对齐；随横幅 180ms 尺寸过渡同拍动画，避免两段跳动
+                        modifier = Modifier.padding(
+                            top = tabsTopPadding,
+                            bottom = 8.dp,
+                        ),
                     )
                 }
                 if (lookupTag != null) {
@@ -550,6 +581,10 @@ fun DetailScreen(
                         contentModifier = historyRowModifier,
                         localVersion = localVersion,
                         htmlBase = htmlBase,
+                        expandedNotes = expandedNotes,
+                        onToggleNotes = { tag ->
+                            expandedNotes = if (tag in expandedNotes) expandedNotes - tag else expandedNotes + tag
+                        },
                         showPagingIndicator = pullIdle,
                         animateRefreshChanges = animateChanges,
                         onLoadMore = vm::loadReleases,

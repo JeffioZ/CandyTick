@@ -54,12 +54,13 @@ internal fun ScrollToTopTitle(
     text: String,
     onClick: (() -> Unit)?,
     modifier: Modifier = Modifier,
+    actionLabel: Int = R.string.scroll_to_top,
     style: TextStyle = MiuixTheme.textStyles.title4,
     color: Color = MiuixTheme.colorScheme.onBackground,
 ) {
     Box(
         modifier = modifier
-            .titleAction(onClick)
+            .titleAction(onClick, actionLabel)
             .sizeIn(minWidth = 48.dp, minHeight = 48.dp),
         contentAlignment = Alignment.Center,
     ) {
@@ -102,7 +103,7 @@ internal fun SheetScrollToTopTitle(text: String, canScroll: Boolean, scrollToTop
 }
 
 @Composable
-private fun Modifier.titleAction(onClick: (() -> Unit)?): Modifier {
+private fun Modifier.titleAction(onClick: (() -> Unit)?, actionLabel: Int = R.string.scroll_to_top): Modifier {
     if (onClick == null) return semantics { heading() }
     var focused by remember { mutableStateOf(false) }
     val focusRing = if (focused && LocalInputModeManager.current.inputMode == InputMode.Keyboard) {
@@ -114,7 +115,7 @@ private fun Modifier.titleAction(onClick: (() -> Unit)?): Modifier {
         .clickable(
             interactionSource = null,
             indication = null,
-            onClickLabel = stringResource(R.string.scroll_to_top),
+            onClickLabel = stringResource(actionLabel),
             role = Role.Button,
             onClick = onClick,
         )
@@ -166,7 +167,15 @@ internal fun CenteredScrollToTopBar(title: String, onBack: () -> Unit, onTitleCl
 
 internal suspend fun LazyListState.scrollToTop(animated: Boolean) {
     if (!canScrollBackward && !isScrollInProgress) return
-    if (animated) animateScrollToItem(0) else scrollToItem(0)
+    if (!animated) {
+        scrollToItem(0)
+        return
+    }
+    // 长距离先跳到目标附近再动画收尾：直达 0 的长动画途经未测量内容
+    //（如第一个版本展开的更新日志）时会中途重新估算目标，表现为
+    //「先滚到一半停顿、再滚到顶」的两段式
+    if (firstVisibleItemIndex > 1) scrollToItem(1)
+    animateScrollToItem(0)
 }
 
 internal suspend fun ScrollState.scrollToTop(animated: Boolean) {
