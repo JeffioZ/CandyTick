@@ -23,7 +23,7 @@
     <string name="refresh_done">刷新完成</string>
     <string name="undo">撤销</string>
     <string name="pinned_a11y">已置顶</string>
-    <string name="removed">已移除仓库</string>
+    <string name="removed_named">已移除 %1$s</string>
     <string name="loading">加载中…</string>
     <string name="back">返回</string>
     <string name="scroll_to_top">回到顶部</string>
@@ -127,6 +127,7 @@
         <item quantity="other">%1$d 个仓库有更新</item>
     </plurals>
     <string name="sync_result_with_failures">%1$s，%2$d 个仓库同步失败</string>
+    <string name="sync_rate_limited_until">请求已达上限，%1$s可重试</string>
     <plurals name="sync_result_all_failed">
         <item quantity="other">%1$d 个仓库均未能同步</item>
     </plurals>

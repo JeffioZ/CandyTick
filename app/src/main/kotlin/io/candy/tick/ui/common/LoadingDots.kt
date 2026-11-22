@@ -163,9 +163,9 @@ fun SyncDots(
                     is SyncStatus.Running -> LoadingDots(contentDescription = null)
                     is SyncStatus.Done -> {
                         val icon = when {
-                            status.allFailed -> R.drawable.ic_close
+                            status.allFailed -> R.drawable.ic_close_circle
                             status.failed > 0 -> R.drawable.ic_info
-                            else -> R.drawable.ic_check
+                            else -> R.drawable.ic_check_circle
                         }
                         val tint = when {
                             status.allFailed -> scheme.onErrorContainer
@@ -176,7 +176,9 @@ fun SyncDots(
                             imageVector = ImageVector.vectorResource(icon),
                             contentDescription = null,
                             tint = tint,
-                            modifier = Modifier.size(14.dp),
+                            // 14→16：带圈字形在 14dp 下内勾仅 ~4.7dp 不易辨；16 与 toast 状态符同口径
+                            //（18dp 槽位留 1dp 呼吸边）
+                            modifier = Modifier.size(16.dp),
                         )
                     }
                 }

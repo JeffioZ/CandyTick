@@ -57,7 +57,7 @@ internal fun OptionRow(label: String, selected: Boolean, summary: String? = null
         endActions = {
             if (selected) {
                 Icon(
-                    imageVector = ImageVector.vectorResource(R.drawable.ic_check),
+                    imageVector = ImageVector.vectorResource(R.drawable.ic_check_circle),
                     contentDescription = null,
                     tint = MiuixTheme.colorScheme.primaryVariant,
                     modifier = Modifier.size(20.dp),

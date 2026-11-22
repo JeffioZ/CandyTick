@@ -67,7 +67,9 @@ val CandyLightColors = lightColorScheme(
     onSurfaceContainerHigh = LightTextTertiary,
     surfaceContainerHighest = LightSurfaceHighest,
     onSurfaceContainerHighest = LightTextPrimary,
-    outline = LightOutline,
+    // 输入框未聚焦描边（miuix TextField 取 outline 槽）：LightOutline(E4E8E6) 对页面底仅
+    // 1.14:1 几乎不可见；C9D1CD ≈1.4:1——淡而可辨，与 toast 描边同源。dividerLine 是独立槽不受影响
+    outline = LightFeedbackOutline,
     dividerLine = LightDivider,
     windowDimming = LightWindowDimming,
     sliderKeyPoint = LightSliderKeyPoint,

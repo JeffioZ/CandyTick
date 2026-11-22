@@ -122,7 +122,14 @@ class SyncWorker(context: Context, params: WorkerParameters) : CoroutineWorker(c
                         }
                     }
                 }
-                is RepoRepository.SyncTagOutcome.Failed -> errors.putIfAbsent(tracked.id, outcome.error)
+                is RepoRepository.SyncTagOutcome.Failed -> {
+                    // 错误分级覆盖：不可访问(404/无权) > 限流 > 瞬时网络。putIfAbsent 会让
+                    // 快照阶段的网络错误掩盖 tag 阶段新拿到的限流/404——后者更有诊断价值
+                    val existing = errors[tracked.id]
+                    if (existing == null || errorSeverity(outcome.error) > errorSeverity(existing)) {
+                        errors[tracked.id] = outcome.error
+                    }
+                }
                 else -> Unit
             }
         }
@@ -143,8 +150,18 @@ class SyncWorker(context: Context, params: WorkerParameters) : CoroutineWorker(c
                 after[tracked.id]?.let { SnapshotDiff.hasNewActivity(b, it) } == true
             } == true
         }
-        // 空仓库（无订阅）不进入信号链：保持 Idle，不弹「已是最新」
-        if (total > 0) syncStatus.value = SyncStatus.Done(run, changed = changedCount, failed = errors.size, total = total)
+        // 空仓库（无订阅）不进入信号链：保持 Idle，不弹「已是最新」。
+        // 整轮全挂且全为限流时携带恢复时间：首页胶囊据此报「已达上限」而非笼统「同步失败」
+        val rateLimitErrors = errors.values.filterIsInstance<SourceError.RateLimited>()
+        val allRateLimited = total > 0 && errors.size >= total && rateLimitErrors.size == errors.size
+        if (total > 0) syncStatus.value = SyncStatus.Done(
+            run,
+            changed = changedCount,
+            failed = errors.size,
+            total = total,
+            rateLimited = allRateLimited,
+            rateLimitRetryAt = rateLimitErrors.mapNotNull { it.retryAt }.maxOrNull(),
+        )
 
         // 4) 自身更新（检查默认开；自动下载按设置入队）
         val updateSettings = container.appStateStore.state.value.settings
@@ -179,5 +196,11 @@ class SyncWorker(context: Context, params: WorkerParameters) : CoroutineWorker(c
     private companion object {
         // 周期任务与「每次打开」使用不同唯一名，设置切换时两者仍可能交叠。
         val syncLock = Mutex()
+    }
+
+    private fun errorSeverity(error: SourceError): Int = when (error) {
+        is SourceError.NotFound, is SourceError.TokenRejected -> 2
+        is SourceError.RateLimited -> 1
+        else -> 0
     }
 }

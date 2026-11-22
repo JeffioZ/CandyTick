@@ -22,6 +22,13 @@ class PaletteContrastTest {
         assertContrast(LightOnErrorContainer, LightSurface, 3f)
     }
 
+    @Test fun lightFieldStrokeStaysSubtlyVisible() {
+        // 未聚焦输入框描边（Theme outline 槽 → LightFeedbackOutline）对实际字段底色：
+        // 淡而可辨的下限（原 LightOutline 仅 1.14:1 几乎不可见）
+        assertContrast(LightFeedbackOutline, LightSecondaryContainer, 1.3f)
+        assertContrast(LightFeedbackOutline, LightBackground, 1.3f)
+    }
+
     @Test fun darkFeedbackTextActionsAndStatusIconsStayReadable() {
         assertContrast(DarkFeedbackOutline, DarkSurfaceHigh, 2.2f)
         assertContrast(DarkTextPrimary, DarkSurfaceHigh, 4.5f)

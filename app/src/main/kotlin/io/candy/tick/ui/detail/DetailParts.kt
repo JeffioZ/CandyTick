@@ -181,7 +181,15 @@ internal fun HeaderCard(
                 repo = repo.repo,
                 title = repo.noteName ?: repo.repo,
                 stars = snapshot?.stars,
-                badge = { StatusBadge(snapshot?.statusAt() ?: io.candy.tick.data.model.RepoStatus.UNKNOWN) },
+                // 源明确不可访问时与首页同口径翻「不可访问」徽章（成功刷新经 refresh() 复位）；
+                // 瞬时失败不翻——快照活跃度仍真实
+                badge = {
+                    if (state.sourceGone) {
+                        io.candy.tick.ui.common.InaccessibleBadge()
+                    } else {
+                        StatusBadge(snapshot?.statusAt() ?: io.candy.tick.data.model.RepoStatus.UNKNOWN)
+                    }
+                },
             ) {
                 LinkedRepoAvatar(repo.owner, headerApp.icon)
             }

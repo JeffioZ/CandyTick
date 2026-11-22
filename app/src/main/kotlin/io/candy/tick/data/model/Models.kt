@@ -82,14 +82,17 @@ data class RepoActivity(
         visibleReleaseHead: String?,
         visibleCommitHead: String?,
     ): RepoActivity {
-        val readTags = (if (visibleReleaseHead == null) releaseTags else releaseTags + visibleReleaseHead)
-            .intersect(unreadReleaseTags)
-        val readShas = (if (visibleCommitHead == null) commitShas else commitShas + visibleCommitHead)
-            .intersect(unreadCommitShas)
-        // 首页/详情可能先显示新 head，稍后条件请求才更新快照。只记近期的 head 和
-        // 已确认的未读事件；浏览过的普通历史条目不进持久状态。
-        val recentTags = rememberViewed(recentlyViewedReleases, readTags, visibleReleaseHead)
-        val recentShas = rememberViewed(recentlyViewedCommits, readShas, visibleCommitHead)
+        val ackTags = if (visibleReleaseHead == null) releaseTags else releaseTags + visibleReleaseHead
+        val ackShas = if (visibleCommitHead == null) commitShas else commitShas + visibleCommitHead
+        val readTags = ackTags.intersect(unreadReleaseTags)
+        val readShas = ackShas.intersect(unreadCommitShas)
+        // 记忆记录「看过的全部」而非「已读的」：页面可能先于同步显示新内容（限额窗口内
+        // 刷新失败时尤其如此），此刻行还不在 unread 里、与 unread 的交集为空——若只记交集，
+        // 非 head 的行会被漏记，恢复后的同步 discover 把它重新点亮（真机两例：限额恢复首刷）。
+        // unread 清除仍按交集。排序契约：详情路径已保证从旧到新；首页单行/整批路径顺序
+        // 不保证（128 容量下 >128 未读积压才可能误淘汰，边缘场景）
+        val recentTags = rememberViewed(recentlyViewedReleases, ackTags)
+        val recentShas = rememberViewed(recentlyViewedCommits, ackShas)
         if (readTags.isEmpty() && readShas.isEmpty() &&
             recentTags === recentlyViewedReleases && recentShas === recentlyViewedCommits
         ) return this
@@ -101,10 +104,14 @@ data class RepoActivity(
         )
     }
 
-    private fun rememberViewed(previous: List<String>, read: Set<String>, head: String?): List<String> {
-        if (read.isEmpty() && (head == null || head in previous)) return previous
-        val acknowledged = if (head == null) read else read + head
-        return (previous.filterNot { it in acknowledged } + acknowledged).takeLast(32)
+    private fun rememberViewed(previous: List<String>, acknowledged: Set<String>): List<String> {
+        if (acknowledged.isEmpty()) return previous
+        // 幂等：本次确认的条目已全在记忆中 → 不产生新 List（否则每次滚动停稳都落一次盘）
+        if (previous.containsAll(acknowledged)) return previous
+        // 容量 128（≈4 页）：跨批次浏览的追加顺序与内容新旧无关（下滚批次更旧、上滚更新），
+        // 小容量会把最新行先淘汰——真机复现过「已读变未读」。128 覆盖两次同步之间的
+        // 全部浏览量，淘汰只发生在跨会话累积（新会话的行追加在尾端、必留存）
+        return (previous.filterNot { it in acknowledged } + acknowledged).takeLast(128)
     }
 }
 

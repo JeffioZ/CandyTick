@@ -113,6 +113,11 @@ sealed interface SourceError {
 
 class SourceException(val error: SourceError, cause: Throwable? = null) : Exception(cause)
 
+/** 「仓库不可访问」判定：只有源明确说「没了/无权」才算；网络/超时/限流是瞬时失败，
+ *  不该把徽章翻成不可访问（首页卡片与详情页据此同口径，快照状态继续表达活跃度） */
+val SourceError.isInaccessible: Boolean
+    get() = this is SourceError.NotFound || this is SourceError.TokenRejected
+
 /** GitHub 实现：纯委托，OkHttp 细节收敛在 GitHubApi.kt */
 class GitHubProvider(private val api: GitHubApi) : SourceProvider {
     override val name = PROVIDER_GITHUB

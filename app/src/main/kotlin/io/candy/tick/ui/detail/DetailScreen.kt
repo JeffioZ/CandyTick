@@ -488,11 +488,11 @@ fun DetailScreen(
                             onInstallUpdate = { repo?.downloadedApk?.let(vm::installDownloaded) },
                             onCancelDownload = vm::cancelDownload,
                         )
-                        // 错误横幅出现/消失过渡（220 表层档）：刷新失败/恢复不再硬跳
+                        // 错误横幅出现/消失过渡（220 表层档，与首页同款统一）：刷新失败/恢复不再硬跳
                         AnimatedContent(
                             targetState = state.banner,
                             transitionSpec = {
-                                val duration = if (motion) Motion.PHASE else 0
+                                val duration = if (motion) Motion.PANEL else 0
                                 (fadeIn(tween(duration)) togetherWith fadeOut(tween(duration))).using(
                                     androidx.compose.animation.SizeTransform { _, _ -> tween(duration) },
                                 )
@@ -685,7 +685,8 @@ private fun LazyListLayoutInfo.isReleaseInFocus(key: String): Boolean {
 }
 
 private fun LazyListLayoutInfo.visibleHistoryKeys(titleHeight: Int): Set<String> =
-    visibleItemsInfo.mapNotNullTo(mutableSetOf()) { item ->
+    // asReversed：从旧到新收集——已读记忆容量从旧端淘汰，可见集合的最新行必须排在最后
+    visibleItemsInfo.asReversed().mapNotNullTo(mutableSetOf()) { item ->
         val key = item.key as? String ?: return@mapNotNullTo null
         val titleEnd = item.offset + minOf(titleHeight, item.size)
         key.takeIf {

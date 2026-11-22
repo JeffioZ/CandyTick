@@ -58,7 +58,6 @@ import androidx.compose.ui.platform.LocalResources
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.semantics.clearAndSetSemantics
 import androidx.compose.ui.unit.dp
-import androidx.compose.ui.unit.Density
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.lifecycle.compose.currentStateAsState
 import androidx.lifecycle.Lifecycle
@@ -88,19 +87,6 @@ import androidx.compose.ui.graphics.vector.ImageVector
 import io.candy.tick.ui.common.Motion
 import io.candy.tick.ui.common.rememberMotionEnabled
 
-/** A short home list keeps its end marker at the bottom of the available viewport. */
-private object HomeListArrangement : Arrangement.Vertical {
-    override val spacing = 8.dp
-
-    override fun Density.arrange(totalSize: Int, sizes: IntArray, outPositions: IntArray) {
-        val gap = spacing.roundToPx()
-        var top = 0
-        sizes.forEachIndexed { index, height ->
-            outPositions[index] = if (index == sizes.lastIndex) maxOf(top, totalSize - height) else top
-            top += height + gap
-        }
-    }
-}
 
 private class SortSheetSession(val initial: SortOrder) {
     var open by mutableStateOf(true)
@@ -154,7 +140,19 @@ fun ListScreen(
             // 此前 failed>0 && changed==0 即判 allFailed，5 中 1 失败也弹红色全挂文案
             when {
                 d.allFailed -> io.candy.tick.ui.common.Feedback.show(
-                    text = resources.getQuantityString(R.plurals.sync_result_all_failed, d.failed, d.failed),
+                    text = if (d.rateLimited) {
+                        // 限流是唯一「可行动」的后台失败（等恢复时间/去配令牌）：报因不报数。
+                        // 胶囊是瞬时的，直接给绝对时刻（relTimeUntilString 是组合函数，此处不可用）
+                        d.rateLimitRetryAt?.let {
+                            // 同一天只给时刻；跨午夜补日期（否则 00:32 读起来像已经过去的时间）
+                            val zone = java.time.ZoneId.systemDefault()
+                            val pattern = if (it.atZone(zone).toLocalDate() == java.time.LocalDate.now(zone)) "HH:mm" else "MM-dd HH:mm"
+                            val clock = java.time.format.DateTimeFormatter.ofPattern(pattern).withZone(zone).format(it)
+                            resources.getString(R.string.sync_rate_limited_until, clock)
+                        } ?: resources.getString(R.string.err_rate_limited_plain)
+                    } else {
+                        resources.getQuantityString(R.plurals.sync_result_all_failed, d.failed, d.failed)
+                    },
                     isError = true,
                 )
                 d.failed > 0 && d.changed == 0 -> io.candy.tick.ui.common.Feedback.show(
@@ -181,6 +179,12 @@ fun ListScreen(
     val scope = androidx.compose.runtime.rememberCoroutineScope()
     val haptic = androidx.compose.ui.platform.LocalHapticFeedback.current
     val motionEnabled = rememberMotionEnabled()
+    // 列表顶隙随横幅在场 13↔7：与横幅出入场（220 表层档）同拍动画，内容不再跳变
+    val listTopGap by androidx.compose.animation.core.animateDpAsState(
+        targetValue = if (state.banner != null) 7.dp else 13.dp,
+        animationSpec = if (motionEnabled) tween(Motion.PANEL) else snap(),
+        label = "listTopGap",
+    )
     // A foreground sync can start after the sheet closes. Keep the just-shown ranking
     // through that update, until the user scrolls, refreshes or leaves this visit.
     // The sort's own requestScrollToItem(0) is not a user drag.
@@ -218,14 +222,16 @@ fun ListScreen(
         showSearch = false
     }
     androidx.activity.compose.BackHandler(enabled = showSearch, onBack = ::closeSearch)
-    val removedMsg = stringResource(R.string.removed)
+    val removedNamedMsg = stringResource(R.string.removed_named)
     val undoLabel = stringResource(R.string.undo)
 
     LaunchedEffect(Unit) {
         vm.events.collect { event ->
             when (event) {
                 is ListViewModel.Event.Removed -> io.candy.tick.ui.common.Feedback.show(
-                    text = removedMsg,
+                    // 带仓库名：连续删除时每次替换肉眼可见——通用文案在连删场景
+                    // 看起来像同一条胶囊卡住没走（真机反馈）
+                    text = removedNamedMsg.format(event.repo.noteName ?: event.repo.repo),
                     actionLabel = undoLabel,
                     onAction = { vm.restore(event.repo, event.snapshot) },
                     // 滑删撤销是唯一救回手段：默认 4.5s 偏短，破坏性撤销放宽到 7s
@@ -494,27 +500,38 @@ fun ListScreen(
                             }
                         }
                     }
-                    state.banner?.let { error ->
-                        ErrorBanner(
-                            error = error,
-                            hasSavedDetails = state.items.any { it.error != null && it.snapshot != null },
-                            onRetry = ::refresh,
-                            onDismiss = vm::clearBanner,
-                            // 上 7 + 内衬 6 = 13：与下方（内衬 6 + 列表顶隙 7）对称，
-                            // 列表顶隙由 banner 在场时 13→7 联动（见 LazyColumn contentPadding）
-                            modifier = Modifier.padding(start = 16.dp, end = 16.dp, top = 7.dp),
-                        )
+                    // 横幅出入场：fade + 高度渐变（与详情页同款 220 表层档）——
+                    // 此前硬切 + 列表顶隙瞬变，出现/消失时下方内容跳变突兀
+                    AnimatedContent(
+                        targetState = state.banner,
+                        transitionSpec = {
+                            val duration = if (motionEnabled) Motion.PANEL else 0
+                            (
+                                fadeIn(tween(duration)) togetherWith
+                                    fadeOut(tween(duration))
+                                ).using(
+                                    SizeTransform { _, _ -> tween(duration) },
+                                )
+                        },
+                        label = "homeBanner",
+                    ) { error ->
+                        if (error != null) {
+                            ErrorBanner(
+                                error = error,
+                                hasSavedDetails = state.items.any { it.error != null && it.snapshot != null },
+                                onRetry = ::refresh,
+                                onDismiss = vm::clearBanner,
+                                // 上 7 + 内衬 6 = 13：与下方（内衬 6 + 列表顶隙 7）对称，
+                                // 列表顶隙由 banner 在场时 13→7 联动（见 LazyColumn contentPadding，同拍动画）
+                                modifier = Modifier.padding(start = 16.dp, end = 16.dp, top = 7.dp),
+                            )
+                        }
                     }
-                    // 内容切换（空态 ⇄ 列表）：Crossfade 220 表层档；判空只看 items——
-                    // 此前判空含 !refreshing，空列表下拉刷新会把内容闪切成空 LazyColumn 再切回
-                    androidx.compose.animation.Crossfade(
-                        targetState = state.items.isEmpty(),
-                        animationSpec = if (motionEnabled) tween(Motion.PANEL) else snap(),
-                        modifier = Modifier.weight(1f).fillMaxWidth(),
-                        label = "homeContent",
-                    ) { contentEmpty ->
-                        if (contentEmpty) {
-                        BoxWithConstraints(Modifier.fillMaxSize()) {
+                    // 内容切换（空态 ⇄ 列表）：直接切换——Crossfade 包裹与行动画/布局系统
+                    // 交互后真机出现「首仓库卡片沉到屏底」（回归），润色不值得这个风险。
+                    // 语义修复保留：判空只看 items（此前含 !refreshing，空列表下拉刷新会闪切）
+                    if (state.items.isEmpty()) {
+                        BoxWithConstraints(Modifier.weight(1f).fillMaxWidth()) {
                             val viewport = Modifier.fillMaxWidth()
                                 .verticalScroll(emptyScroll)
                                 .heightIn(min = maxHeight)
@@ -536,6 +553,10 @@ fun ListScreen(
                             }
                         }
                     } else {
+                        // footer 在场判定（「≥2 张卡且已完整滚过第一张」=内容确实溢出且在翻卡）。
+                        // 注：短列表 footer 不再渲染（用户决策「一屏能显示完不出」），原为钉底设计
+                        // 服务的 HomeListArrangement 已随之删除——溢出列表用普通 8dp 排列即可
+                        val footerVisible = state.items.size >= 2 && listState.firstVisibleItemIndex > 0
                         LazyColumn(
                             state = listState,
                             modifier = Modifier.fillMaxSize().layoutBounds(listBounds).then(
@@ -548,11 +569,11 @@ fun ListScreen(
                                 end = 16.dp,
                                 // top 13 = 4 基线 + 9：补偿 PullToRefresh contentPadding——
                                 // 刷新指示器（环+文字）的上下隙对称（实测上 20/下 10.7 → 均衡）；
-                                // 横幅在场时 13→7：横幅下衬 6 + 7 = 13，与横幅上方对称
-                                top = if (state.banner != null) 7.dp else 13.dp,
+                                // 横幅在场时 13→7（listTopGap 同拍动画）：横幅下衬 6 + 7 = 13，与横幅上方对称
+                                top = listTopGap,
                                 bottom = 32.dp,
                             ),
-                            verticalArrangement = HomeListArrangement,
+                            verticalArrangement = Arrangement.spacedBy(8.dp),
                         ) {
                         items(rows.items, key = { it.repo.id }) { item ->
                             SwipeToDelete(
@@ -586,7 +607,8 @@ fun ListScreen(
                                 )
                             }
                         }
-                        if (state.items.isNotEmpty()) {
+                        // 「已到底」的「项」是仓库卡片：只在「≥2 张卡且已完整滚过第一张」时渲染
+                        if (footerVisible) {
                             item(key = "list-end") {
                                 io.candy.tick.ui.common.FooterText(
                                     countLabel = R.plurals.footer_repositories,
@@ -596,7 +618,6 @@ fun ListScreen(
                             }
                         }
                         }
-                    }
                     }
                 }
             }

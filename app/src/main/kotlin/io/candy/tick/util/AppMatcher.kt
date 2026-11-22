@@ -34,6 +34,15 @@ object AppMatcher {
             .toList()
     }.getOrDefault(emptyList())
 
+    /** 本应用自身的候选（label 回落应用名资源，不露包名）；launcher 池排除自身，需要时显式构造 */
+    fun selfCandidate(context: Context): Candidate {
+        val label = appDisplayName(
+            context.packageName,
+            runCatching { context.applicationInfo.loadLabel(context.packageManager) }.getOrNull(),
+        )
+        return Candidate(context.packageName, label ?: context.getString(io.candy.tick.R.string.app_name))
+    }
+
     /** 高置信候选：三条规则任一命中；命中多个不同包则放弃（宁可不绑） */
     fun bestAutoMatch(context: Context, owner: String, repo: String): Candidate? {
         val repoN = norm(repo)
@@ -44,12 +53,7 @@ object AppMatcher {
         if (repoN == norm(io.candy.tick.data.SelfUpdater.APP_REPO) &&
             ownerN == norm(io.candy.tick.data.SelfUpdater.APP_OWNER)
         ) {
-            val label = appDisplayName(
-                context.packageName,
-                runCatching { context.applicationInfo.loadLabel(context.packageManager) }.getOrNull(),
-            )
-            // 回落用应用名资源而非包名：Detail 自动关联路径会把 label 直接存库并弹 toast
-            return Candidate(context.packageName, label ?: context.getString(io.candy.tick.R.string.app_name))
+            return selfCandidate(context)
         }
         val hits = launcherApps(context).mapNotNull { (pkg, label) ->
             val lastSeg = pkg.substringAfterLast('.').lowercase()

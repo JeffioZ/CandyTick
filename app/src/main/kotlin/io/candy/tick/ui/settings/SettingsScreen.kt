@@ -436,14 +436,14 @@ fun SettingsScreen(onBack: () -> Unit, autoOpenImport: Boolean = false) {
                     iconTint = ChipOrange,
                     title = stringResource(R.string.settings_crash_log),
                     summary = stringResource(R.string.settings_crash_log_summary),
-                    // 存在性标记 Lucide 化（与全 App 勾符单源；此前是 Unicode 文字"✓"）
+                    // 存在性标记 Lucide 带圈勾（与全 App 结果符单源；此前是 Unicode 文字"✓"）
                     trailing = if (crashLogPresent) {
                         {
                             top.yukonga.miuix.kmp.basic.Icon(
-                                imageVector = ImageVector.vectorResource(R.drawable.ic_check),
+                                imageVector = ImageVector.vectorResource(R.drawable.ic_check_circle),
                                 contentDescription = null,
                                 tint = MiuixTheme.colorScheme.primaryVariant,
-                                modifier = Modifier.size(14.dp),
+                                modifier = Modifier.size(16.dp),
                             )
                         }
                     } else null,

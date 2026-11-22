@@ -182,14 +182,15 @@ fun FeedbackHost() {
                         .padding(start = 14.dp, end = if (m.actionLabel == null) 14.dp else feedbackActionInset),
                     verticalAlignment = Alignment.CenterVertically,
                 ) {
-                    // 状态符 Lucide 单源（与 SyncDots 结果符同库同规格 14dp）：语义色
+                    // 状态符 Lucide 带圈版（circle-check/circle-x，与 SyncDots 结果符同库同口径）：
+                    // 语义色；16dp——圈占视觉重量，比裸符的 14dp 大一档保证内部字形可辨
                     top.yukonga.miuix.kmp.basic.Icon(
                         imageVector = ImageVector.vectorResource(
-                            if (m.isError) io.candy.tick.R.drawable.ic_close else io.candy.tick.R.drawable.ic_check,
+                            if (m.isError) io.candy.tick.R.drawable.ic_close_circle else io.candy.tick.R.drawable.ic_check_circle,
                         ),
                         contentDescription = null,
                         tint = iconTint,
-                        modifier = Modifier.size(14.dp),
+                        modifier = Modifier.size(16.dp),
                     )
                     Spacer(Modifier.width(6.dp))
                     Text(

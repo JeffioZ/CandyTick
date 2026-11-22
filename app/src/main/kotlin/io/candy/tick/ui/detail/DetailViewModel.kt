@@ -12,6 +12,7 @@ import io.candy.tick.data.InstallManager
 import io.candy.tick.data.RELEASES_PER_PAGE
 import io.candy.tick.data.RepoRepository
 import io.candy.tick.data.SourceError
+import io.candy.tick.data.isInaccessible
 import io.candy.tick.data.model.ApkAsset
 import io.candy.tick.data.model.BranchInfo
 import io.candy.tick.data.model.CommitRecord
@@ -50,6 +51,8 @@ class DetailViewModel(
         val manualRefresh: Boolean = false,
         val snapshotLoading: Boolean = false,
         val banner: SourceError? = null,
+        /** 源已明确不可访问（404/Token 无权）：徽章与首页同口径翻「不可访问」，成功刷新即复位 */
+        val sourceGone: Boolean = false,
         val tab: DetailTab = DetailTab.COMMITS,
         val linkSuggestion: Pair<String, String>? = null, // (包名, 应用标签)，唯一匹配时才有
         val commits: List<CommitRecord> = emptyList(),
@@ -143,6 +146,7 @@ class DetailViewModel(
             _state.value = shown.copy(
                 repo = store.repos.firstOrNull { it.id == repoId }, snapshot = store.snapshots[repoId],
                 manualRefresh = false, snapshotLoading = next.snapshotLoading, banner = next.banner,
+                sourceGone = next.sourceGone,
                 commits = next.commits, commitsEnd = next.commitsEnd, commitsFailed = next.commitsFailed,
                 commitsLoading = next.commitsLoading, commitsReloading = next.commitsReloading, commitsPagingPaused = next.commitsPagingPaused,
                 releases = next.releases, releasesEnd = next.releasesEnd, releasesFailed = next.releasesFailed,
@@ -160,11 +164,19 @@ class DetailViewModel(
     // A candidate belongs to the repository and installed apps, independently of the current link.
     private var suggestionLookup: Pair<String, Int>? = null
 
-    private suspend fun resolveSuggestion(repo: String) {
+    private suspend fun resolveSuggestion(owner: String, repo: String) {
         val lookup = repo to _state.value.installEpoch
         if (lookup == suggestionLookup) return
         val candidate = withContext(Dispatchers.IO) {
-            io.candy.tick.util.AppMatcher.containmentSuggestion(appContext, repo)
+            // 自家仓库：containment 的应用池排除自身，永远找不到——显式自荐。
+            // 手动取消关联只压「自动重连」（dismissed），建议条仍应给出手动重连入口
+            if (owner.equals(io.candy.tick.data.SelfUpdater.APP_OWNER, ignoreCase = true) &&
+                repo.equals(io.candy.tick.data.SelfUpdater.APP_REPO, ignoreCase = true)
+            ) {
+                io.candy.tick.util.AppMatcher.selfCandidate(appContext)
+            } else {
+                io.candy.tick.util.AppMatcher.containmentSuggestion(appContext, repo)
+            }
         }
         if (repository.state.value.repos.find { it.id == repoId }?.repo != repo) return
         if (suggestionLookup?.let { it.first == repo && it.second > lookup.second } == true) return
@@ -219,7 +231,7 @@ class DetailViewModel(
                             _events.send(Event.AutoLinked(auto.label.ifBlank { auto.packageName }))
                         }
                     } else {
-                        resolveSuggestion(key.repo)
+                        resolveSuggestion(key.owner, key.repo)
                     }
                 }
             }
@@ -369,7 +381,13 @@ class DetailViewModel(
             } catch (_: Exception) {
                 SourceError.NetworkUnreachable
             }
-            updateHistory { it.copy(snapshotLoading = false, banner = error).withManualRefresh() }
+            updateHistory {
+                it.copy(
+                    snapshotLoading = false,
+                    banner = error,
+                    sourceGone = error?.isInaccessible == true,
+                ).withManualRefresh()
+            }
         }
     }
 
@@ -405,6 +423,8 @@ class DetailViewModel(
                     commitsLoading = false, commitsReloading = false,
                     commitsPagingPaused = commitCursor.pagingPaused && !result.end,
                     commitsFailed = data == null, commitsEnd = result.end,
+                    // 任一页加载成功即证明配额可用：滞留的限流横幅随之收起（不再等下一轮仓库刷新）
+                    banner = if (data != null && it.banner is SourceError.RateLimited) null else it.banner,
                 ).withManualRefresh()
             }
         }
@@ -439,6 +459,8 @@ class DetailViewModel(
                     releasesLoading = false, releasesReloading = false,
                     releasesPagingPaused = releaseCursor.pagingPaused && !result.end,
                     releasesFailed = data == null, releasesEnd = result.end,
+                    // 同 loadCommits：加载成功即证明配额可用，限流横幅收起
+                    banner = if (data != null && it.banner is SourceError.RateLimited) null else it.banner,
                 ).withManualRefresh()
             }
         }
@@ -523,7 +545,7 @@ class DetailViewModel(
                 val repo = _state.value.repo ?: return@launch
                 val previous = repo.linkedPackage ?: return@launch
                 // Prepare the next row while its current linked app is still visible.
-                resolveSuggestion(repo.repo)
+                resolveSuggestion(repo.owner, repo.repo)
                 repository.setLinkedPackage(repoId, null, expectedPackage = previous)
             } else {
                 repository.setLinkedPackage(repoId, packageName, newLabel)

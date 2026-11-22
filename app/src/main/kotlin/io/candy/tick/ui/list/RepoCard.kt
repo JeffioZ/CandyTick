@@ -1,5 +1,6 @@
 package io.candy.tick.ui.list
 
+import io.candy.tick.data.isInaccessible
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.LocalIndication
@@ -95,7 +96,11 @@ fun RepoCard(
                     repo = item.repo.repo,
                     title = item.repo.noteName ?: item.repo.repo,
                     titleMaxLines = Int.MAX_VALUE,
-                    badge = { if (item.error != null) InaccessibleBadge() else StatusBadge(item.status) },
+                    // 只有「确实不可访问」（404/Token 无权）才翻徽章；网络/限流等瞬时失败
+                    // 不翻——快照状态仍真实（上次成功同步的活跃度），此前一律翻造成与详情页矛盾
+                    badge = {
+                        if (item.error?.isInaccessible == true) InaccessibleBadge() else StatusBadge(item.status)
+                    },
                 ) {
                     io.candy.tick.ui.common.RepoIconBlock(repo = item.repo, installedVersion = item.installedVersion)
                 }

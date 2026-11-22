@@ -2,12 +2,22 @@ package io.candy.tick.data
 
 import io.candy.tick.data.model.RepoSnapshot
 import io.candy.tick.data.model.ApkPublication
+import java.time.Instant
 
 /** 首页只显示已开始执行的自动同步。每轮有独立身份，供页面判断是否已离开过。 */
 sealed interface SyncStatus {
     data object Idle : SyncStatus
     class Running : SyncStatus
-    data class Done(val run: Running, val changed: Int, val failed: Int, val total: Int = 0) : SyncStatus {
+    data class Done(
+        val run: Running,
+        val changed: Int,
+        val failed: Int,
+        val total: Int = 0,
+        /** 整轮失败且全部为限流：首页胶囊改报「已达上限」而非笼统「同步失败」 */
+        val rateLimited: Boolean = false,
+        /** 限流恢复时间（多个仓取最晚）；限流但拿不到时间时为 null */
+        val rateLimitRetryAt: Instant? = null,
+    ) : SyncStatus {
         val allFailed: Boolean get() = total > 0 && failed >= total
     }
 }
