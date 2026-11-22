@@ -57,7 +57,6 @@ fun RepoCard(
     pageRefreshing: Boolean = false,
     isChanged: Boolean = false,
     updatable: Boolean = false,
-    versionEpoch: Int = 0, // ON_RESUME 递增：安装后版本行重算
     onToggle: () -> Unit,
     onClick: () -> Unit,
     readViewport: LayoutBoundsHolder?,
@@ -244,7 +243,7 @@ fun RepoCard(
                     ) {
                         // 卡中卡信息面板：展开内容有容器底，与折叠态主信息分层
                         ExpandedDetails(
-                            item, extras, releaseTag, versionEpoch, onRetryExtras, readViewport.takeIf { expanded },
+                            item, extras, releaseTag, onRetryExtras, readViewport.takeIf { expanded },
                             onReleaseSeen, onCommitSeen,
                         )
                         // 展开面板底部与卡片顶部各留 8dp。
@@ -260,7 +259,6 @@ private fun ExpandedDetails(
     item: ListViewModel.RepoListItem,
     extras: ListViewModel.CardExtras?,
     releaseTag: String?,
-    versionEpoch: Int,
     onRetry: (() -> Unit)?,
     readViewport: LayoutBoundsHolder?,
     onReleaseSeen: (String) -> Unit,
@@ -321,9 +319,9 @@ private fun ExpandedDetails(
             val observe = activity != null && (releaseTag in activity.unreadReleaseTags ||
                 releaseTag !in activity.recentlyViewedReleases)
             VersionStatusLine(
-                repo = item.repo,
                 remoteTag = releaseTag,
-                installEpoch = versionEpoch,
+                installed = item.installedVersion,
+                comparison = item.comparisonFor(releaseTag),
                 modifier = Modifier.whenRowSeen(readViewport.takeIf { observe }) { onReleaseSeen(releaseTag) },
             )
         }

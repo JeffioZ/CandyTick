@@ -100,6 +100,7 @@
     <string name="version_release_label">Latest release</string>
     <string name="version_installed_label">Installed</string>
     <string name="version_local_newer">Newer than release</string>
+    <string name="version_order_unknown">Can\'t compare</string>
 
     <!-- 四类失败 -->
     <string name="err_network">Network unavailable</string>

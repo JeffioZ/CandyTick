@@ -46,6 +46,7 @@ import io.candy.tick.ui.common.DownloadProgress
 import io.candy.tick.ui.common.relTimeString
 import io.candy.tick.ui.theme.MonoTokenStyle
 import io.candy.tick.util.ApkPicker
+import io.candy.tick.util.VersionCompare
 import top.yukonga.miuix.kmp.basic.Card
 import top.yukonga.miuix.kmp.basic.Text
 import top.yukonga.miuix.kmp.theme.MiuixTheme
@@ -174,7 +175,7 @@ private fun ReleaseCard(
                 release = release,
                 hasPackages = candidates.isNotEmpty(),
                 hasNotes = hasNotes,
-                current = localVersion != null && io.candy.tick.util.VersionCompare.matchesTag(release.tagName, localVersion),
+                current = localVersion != null && VersionCompare.matchesTag(release.tagName, localVersion),
                 expanded = notesExpanded,
                 onToggleNotes = {
                     onRead()
@@ -354,7 +355,7 @@ private fun ReleaseHeader(
 ) {
     val scheme = MiuixTheme.colorScheme
     val name = release.name?.trim()?.takeIf {
-        it.isNotEmpty() && !it.trimStart('v', 'V').equals(release.tagName.trimStart('v', 'V'), ignoreCase = true)
+        it.isNotEmpty() && !VersionCompare.displayVersion(it).equals(VersionCompare.displayVersion(release.tagName), ignoreCase = true)
     }
     val published = release.publishedAt?.let { relTimeString(it) }
     val noPackage = if (hasPackages) null else stringResource(R.string.detail_no_apk)

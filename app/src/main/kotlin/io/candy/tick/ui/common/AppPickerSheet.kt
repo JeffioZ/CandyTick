@@ -16,6 +16,8 @@ import androidx.compose.foundation.layout.wrapContentHeight
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.lazy.rememberLazyListState
+import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.verticalScroll
 import top.yukonga.miuix.kmp.basic.Text
 import top.yukonga.miuix.kmp.theme.MiuixTheme
 import androidx.compose.runtime.Composable
@@ -102,7 +104,9 @@ fun AppPickerSheet(
     BackHandler(enabled = show && !open, onBack = onDismiss)
     // displayed is retained until the exit animation finishes.
     val page = displayed ?: return
-    val maxSheetHeight = LocalConfiguration.current.screenHeightDp.dp * 0.6f
+    val windowHeight = LocalConfiguration.current.screenHeightDp.dp
+    val maxSheetHeight = windowHeight * 0.6f
+    val scrollSearchField = windowHeight < 480.dp
     val listState = key(page) { rememberLazyListState() }
 
     // show 直通（勿用 if 包裹）：退场动画依赖组件持续组合
@@ -160,7 +164,7 @@ fun AppPickerSheet(
                     subtitle = stringResource(R.string.status_error_subtitle),
                     actionLabel = stringResource(R.string.retry),
                     onAction = { page.retry++ },
-                    modifier = Modifier.fillMaxSize(),
+                    modifier = Modifier.fillMaxSize().verticalScroll(rememberScrollState()).wrapContentHeight(),
                 )
                 return@Column
             }
@@ -177,7 +181,7 @@ fun AppPickerSheet(
                 )
                 return@Column
             }
-            if (searchable) {
+            val searchField: @Composable () -> Unit = {
                 TextField(
                     value = query,
                     onValueChange = ::filterApps,
@@ -191,7 +195,9 @@ fun AppPickerSheet(
                         .padding(horizontal = 16.dp),
                 )
             }
+            if (searchable && !scrollSearchField) searchField()
             LazyColumn(state = listState) {
+                if (searchable && scrollSearchField) item(key = 0) { searchField() }
                 if (searchable && filtered.isEmpty()) {
                     item {
                         Text(

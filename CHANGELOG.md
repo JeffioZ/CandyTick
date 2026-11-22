@@ -37,6 +37,8 @@
 - 开启 CandyTick 自身更新的自动下载后，使用移动数据时也能下载新版。仓库自动同步仍遵循单独的网络设置。
 - 首页排序浮层的标题和选项上移，与其他浮层的标题间距一致。
 - 首页同步时，三点出现后才会显示完成图标。刷新期间，已展开的仓库卡片会保留活动时间和已有提交。详情页顶部的三点只跟随当前页签和仓库概况的加载状态。
+- 首页和详情页的版本摘要统一省略数字前的 `v`，方便对照本机版本。版本历史保留仓库的原始标签。
+- 横屏或分屏时可滚动设置浮层，键盘弹出后也能找到保存按钮。窗口较矮时，自身更新的下载按钮会排在更新说明前面。
 
 ### 修复
 
@@ -46,6 +48,7 @@
 - 在设置中点一次「通知权限」即可进入系统设置。系统无法打开权限设置、分享菜单或文件选择器时，应用会给出提示。
 - 下载缺少文件大小的安装包时，会显示「正在下载」，避免进度一直停在 0%。
 - 修复了自动同步与下拉刷新重叠时，刷新提示提前收起、展开卡片偶尔仍显示旧提交的问题。
+- 修复相同的打包版本偶尔无法比对的问题。同一版本号末尾的 Git 提交哈希不同时，保留两边的版本信息供核对。
 
 ### English summary
 
@@ -58,6 +61,8 @@
 - The sort sheet now uses the same title spacing as other sheets. Tapping notification permission in Settings opens the system settings on the first tap. CandyTick shows a message if a settings page, share menu, or file picker is unavailable.
 - The home screen shows a sync result icon only after the loading dots have appeared. Expanded cards keep their activity times and commits visible during refresh. When a pull-to-refresh overlaps with automatic sync, the indicator waits for expanded cards to catch up. The detail header tracks the repository overview and the selected tab.
 - Downloads show “Downloading…” when the package size is unknown. The percentage appears when the size is available.
+- Version summaries omit the `v` prefix before a number, while release history preserves the original tag. Identical packaging labels now match, and different Git hashes on the same version no longer imply an update.
+- Settings sheets scroll in short windows so their actions remain reachable with the keyboard open. In short windows the CandyTick update sheet places the download button above the release notes.
 
 ## [0.4.2] - 2026-11-20
 

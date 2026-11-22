@@ -258,7 +258,7 @@ fun DetailScreen(
     val needPermMsg = stringResource(R.string.detail_need_install_permission)
     val missingDownloadMsg = stringResource(R.string.download_missing)
     val localVersion = remember(context, state.repo, state.installEpoch) {
-        state.repo?.let { io.candy.tick.ui.common.localVersionName(context, it) }
+        state.repo?.let { io.candy.tick.util.installedVersionName(context, it) }
     }
 
     LaunchedEffect(Unit) { vm.refresh(silent = true) }

@@ -1,6 +1,5 @@
 package io.candy.tick.ui.common
 
-import android.content.Context
 import androidx.compose.animation.AnimatedContent
 import androidx.compose.animation.animateContentSize
 import androidx.compose.animation.core.tween
@@ -18,7 +17,6 @@ import androidx.compose.foundation.layout.width
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.remember
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.semantics.semantics
@@ -26,38 +24,26 @@ import androidx.compose.ui.text.rememberTextMeasurer
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import io.candy.tick.R
-import io.candy.tick.data.model.TrackedRepo
 import io.candy.tick.ui.theme.MonoTokenStyle
 import io.candy.tick.util.VersionCompare
 import top.yukonga.miuix.kmp.basic.Text
 import top.yukonga.miuix.kmp.theme.MiuixTheme
 
-/** 本机已装版本（仅关联应用后可查） */
-fun localVersionName(context: Context, repo: TrackedRepo): String? =
-    repo.linkedPackage?.let { pkg ->
-        runCatching { context.packageManager.getPackageInfo(pkg, 0).versionName }.getOrNull()
-    }?.takeIf { it.isNotBlank() }?.let { VersionCompare.installedName(it, repo) }
-
 /**
  * 首页展开卡显示紧凑的版本摘要，详情页将发布版本和本机状态分别展示。
  */
 @Composable
-fun VersionStatusLine(repo: TrackedRepo, remoteTag: String, installEpoch: Int = 0, modifier: Modifier = Modifier) {
-    // installEpoch 仅供重组（参数变化破除 skip）：本机版本读 PackageManager 非响应式，
-    // 安装完成后需要外部信号强制重算（ON_RESUME 递增）
+fun VersionStatusLine(remoteTag: String, installed: String?, comparison: Int?, modifier: Modifier = Modifier) {
     val scheme = MiuixTheme.colorScheme
-    val context = LocalContext.current
-    // PM 查询记住：本组件在首页展开卡与详情头卡随同步/下载进度高频重组，
-    // 裸读 getPackageInfo = 每帧 Binder IPC（installEpoch 是 ON_RESUME 装完重算信号）
-    val local = remember(context, repo, installEpoch) { localVersionName(context, repo) }
-    val cmp = if (local != null) VersionCompare.compare(remoteTag, local) else null
-    val highlight = cmp != null && cmp > 0
+    val release = VersionCompare.displayVersion(remoteTag)
+    val local = installed?.let(VersionCompare::displayVersion)
+    val highlight = comparison != null && comparison > 0
     val text = when {
-        local == null -> stringResource(R.string.version_latest_only, remoteTag)
-        cmp == null -> stringResource(R.string.version_incomparable_full, remoteTag, local)
-        highlight -> stringResource(R.string.version_update_available, remoteTag)
-        cmp < 0 -> stringResource(R.string.version_installed_ahead, local, remoteTag)
-        else -> stringResource(R.string.version_line, remoteTag)
+        local == null -> stringResource(R.string.version_latest_only, release)
+        comparison == null -> stringResource(R.string.version_incomparable_full, release, local)
+        highlight -> stringResource(R.string.version_update_available, release)
+        comparison < 0 -> stringResource(R.string.version_installed_ahead, local, release)
+        else -> stringResource(R.string.version_line, release)
     }
     Text(
         text = text,
@@ -96,7 +82,7 @@ internal fun LinkedVersionSummary(remoteTag: String, local: String?, comparison:
         ) { (version, order) ->
             if (version != null) {
                 val status = when {
-                    order == null -> null
+                    order == null -> stringResource(R.string.version_order_unknown)
                     order > 0 -> stringResource(R.string.card_updatable)
                     order < 0 -> stringResource(R.string.version_local_newer)
                     else -> stringResource(R.string.version_local_current)
@@ -129,7 +115,7 @@ private fun VersionRow(
             horizontalArrangement = Arrangement.spacedBy(8.dp),
         ) {
             Text(
-                text = version,
+                text = VersionCompare.displayVersion(version),
                 modifier = Modifier.alignByBaseline(),
                 style = MonoTokenStyle,
                 color = scheme.onBackground,

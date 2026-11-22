@@ -8,7 +8,7 @@ import io.candy.tick.data.model.TrackedRepo
  * 规则来源：
  * - SemVer 2.0.0（semver.org）：预发布 < 正式版；build 元数据（+…）不参与排序；
  *   数字标识符 < 字母标识符；预发布字段多者大（alpha < alpha.1）
- * - Debian policy（deb-version(7)）：`~` 排在一切之前（1.0~rc1 < 1.0~ < 1.0），
+ * - Debian policy（deb-version(7)）：`~` 排在一切之前（1.0~ < 1.0~rc1 < 1.0），
  *   F-Droid 系应用的 versionName 常见此写法
  * - Obtainium 实战教训（lib/utils/version_normalization.dart）：OS 报告的 versionName
  *   常带打包后缀（1.6.15-debug / 0.9.108 strip / 1.0.5-release+26090410），
@@ -20,8 +20,8 @@ import io.candy.tick.data.model.TrackedRepo
  *
  * 两个已知的保守权衡（宁可不比，不要比错）：
  * - 数字开头的 dash 后缀（"1.2-4" 这类构建号，Obtainium #946 场景）按预发布参与排序，
- *   与干净版本 "1.2" 比较时判为更旧——方向安全（不会误报更新）
- * - 同一主版本的未知渠道或构建后缀只可辨认是否相同，不猜两者的发布顺序。
+ *   与干净版本 "1.2" 比较时判为更旧。
+ * - 同一数字基线下的不同 Git 哈希、同一主版本的未知渠道只可辨认是否相同。
  *
  * 不可比（返回 null）：主版本没有可辨认的数字开头，或同一基线带有不明渠道标识。
  */
@@ -36,10 +36,17 @@ object VersionCompare {
         "build", "signed", "unsigned", "universal", "nogms",
     )
 
-    /** 仅当 v/V 后紧跟数字才剥（"v26.11" ✓ / "vbeta1" ✗） */
-    private val LEADING_V = Regex("^[vV](?=\\d)")
     private val PRERELEASE_STAGE = Regex("(?:alpha|beta|rc|pre|preview|dev|nightly|snapshot)\\d*", RegexOption.IGNORE_CASE)
     private val WHITESPACE = Regex("\\s+")
+    private val COMMIT_HASH = Regex("[0-9a-fA-F]{7,64}")
+
+    /** 版本摘要只去掉数字前的一个 v/V，保留渠道和构建号。 */
+    fun displayVersion(raw: String): String {
+        val name = raw.trim()
+        return if (name.length >= 2 && (name[0] == 'v' || name[0] == 'V') && name[1] in '0'..'9') {
+            name.substring(1)
+        } else name
+    }
 
     /** 有些 APK 把产品名也写入 versionName。只移除完整匹配的应用名或仓库名。 */
     fun installedName(raw: String, repo: TrackedRepo): String {
@@ -51,19 +58,18 @@ object VersionCompare {
             !(repo.autoNote && prefix.equals(repo.noteName, ignoreCase = true))
         ) return name
         val version = name.substring(space + 1)
-        return if (version.replaceFirst(LEADING_V, "").firstOrNull()?.isDigit() == true) version else name
+        return if (displayVersion(version).firstOrNull()?.isDigit() == true) version else name
     }
 
     /** 版本历史标注具体的安装版本，须保留构建和渠道标识。 */
     fun matchesTag(remote: String, local: String): Boolean {
-        val tag = remote.trim().replaceFirst(LEADING_V, "")
-        return tag.isNotEmpty() && tag == local.trim().replaceFirst(LEADING_V, "")
+        val tag = displayVersion(remote)
+        return tag.isNotEmpty() && tag == displayVersion(local)
     }
 
     /** 排序前归一化：下划线 → 连字符；v/V 前缀；丢弃 +build（SemVer：build 不参与排序） */
-    private fun normalize(version: String): String = version.trim()
+    private fun normalize(version: String): String = displayVersion(version)
         .replace('_', '-')
-        .replaceFirst(LEADING_V, "")
         .substringBefore('+')
 
     /**
@@ -71,9 +77,13 @@ object VersionCompare {
      * @return 正数 = remote 更新；0 = 一致；null = 无法比较
      */
     fun compare(remote: String, local: String): Int? {
-        val r = parse(normalize(remote), dropPackaging = false)
-        val l = parse(normalize(local), dropPackaging = true)
-        if (r == null || l == null) return if (matchesTag(remote, local)) 0 else null
+        if (matchesTag(remote, local)) return 0
+        val normalizedRemote = normalize(remote)
+        val normalizedLocal = normalize(local)
+        val r = parse(normalizedRemote, dropPackaging = false) ?: return null
+        val l = parse(normalizedLocal, dropPackaging = true) ?: return null
+        if (normalizedRemote == normalizedLocal) return 0
+        if (differentCommitHashes(r.first, l.first)) return null
         val mainCmp = compareLists(r.first, l.first, padZero = true)
         if (mainCmp != 0) return mainCmp
         // A vendor suffix may identify another build or channel rather than an earlier release.
@@ -84,6 +94,20 @@ object VersionCompare {
             r.second.isEmpty() -> 1
             l.second.isEmpty() -> -1
             else -> compareLists(r.second, l.second, padZero = false)
+        }
+    }
+
+    /** 数字基线后的 Git 哈希（如 26.11.caccb78）能辨认构建，无法排序。纯数字尾段仍按版本号处理。 */
+    private fun differentCommitHashes(remote: List<String>, local: List<String>): Boolean {
+        if (remote.size < 2 || remote.size != local.size) return false
+        val a = remote.last()
+        val b = local.last()
+        if (a.equals(b, ignoreCase = true) || !COMMIT_HASH.matches(a) || !COMMIT_HASH.matches(b)) return false
+        if (a.all(Char::isDigit) && b.all(Char::isDigit)) return false
+        return (0 until remote.lastIndex).all { i ->
+            val x = remote[i]
+            val y = local[i]
+            x.all(Char::isDigit) && y.all(Char::isDigit) && compareSegment(x, y) == 0
         }
     }
 

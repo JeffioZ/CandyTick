@@ -16,8 +16,8 @@ import androidx.core.content.ContextCompat
 import io.candy.tick.MainActivity
 import io.candy.tick.R
 import io.candy.tick.data.model.AppState
-import io.candy.tick.ui.common.localVersionName
 import io.candy.tick.util.VersionCompare
+import io.candy.tick.util.installedVersionName
 
 /** 通知封装：渠道两枚；13+ 运行时权限检查（被拒 → 设置页常驻提醒，不反复弹窗） */
 object Notifications {
@@ -184,7 +184,7 @@ object Notifications {
             // since the foreground may already have seen a newer, as-yet unannounced release.
             val tag = entry.notification.extras.getString(EXTRA_NAV_RELEASE_TAG)
                 ?: repo?.let { state.snapshots[it.id]?.latestReleaseTag }
-            val local = repo?.let { localVersionName(context, it) }
+            val local = repo?.let { installedVersionName(context, it) }
             val installed = tag != null && local != null && VersionCompare.compare(tag, local)?.let { it <= 0 } == true
             val noPublishedApk = repo?.let { state.snapshots[it.id] }?.let {
                 it.releaseBaselineKnown && it.currentReleaseTag == null

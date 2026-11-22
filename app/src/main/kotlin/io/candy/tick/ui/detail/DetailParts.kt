@@ -14,6 +14,8 @@ import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.lazy.rememberLazyListState
+import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
@@ -79,7 +81,9 @@ internal fun BranchPickerSheet(
     onLoadBranches: () -> Unit,
 ) {
     val scheme = MiuixTheme.colorScheme
-    val maxSheetHeight = androidx.compose.ui.platform.LocalConfiguration.current.screenHeightDp.dp * 0.6f
+    val windowHeight = androidx.compose.ui.platform.LocalConfiguration.current.screenHeightDp.dp
+    val maxSheetHeight = windowHeight * 0.6f
+    val scrollSearchField = windowHeight < 480.dp
     var query by remember { mutableStateOf("") }
     // sheet 关闭即清搜索词：消灭幽灵草稿（与 Token sheet 同一治理原则）
     androidx.compose.runtime.LaunchedEffect(show) {
@@ -136,7 +140,7 @@ internal fun BranchPickerSheet(
                 // 「默认 spring 不可控且在体系外」）；缩放=0 时 tween 瞬时完成自动退化
                 .animateContentSize(androidx.compose.animation.core.tween(Motion.PANEL)),
         ) {
-            if (searchable) {
+            val searchField: @Composable () -> Unit = {
                 top.yukonga.miuix.kmp.basic.TextField(
                     value = query,
                     onValueChange = ::filterBranches,
@@ -158,19 +162,20 @@ internal fun BranchPickerSheet(
                         .focusRequester(branchFocus),
                 )
             }
-            // 搜索无结果：轻量居中提示（与分支/应用弹层同一处理）
-            if (listReady && filtered.isEmpty() && missingSelection == null) {
-                Text(
-                    text = stringResource(if (keyword.isEmpty()) R.string.branch_empty else R.string.branch_no_match),
-                    style = MiuixTheme.textStyles.footnote1,
-                    color = scheme.onBackgroundVariant,
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .padding(vertical = 32.dp),
-                    textAlign = androidx.compose.ui.text.style.TextAlign.Center,
-                )
-            }
+            if (searchable && !scrollSearchField) searchField()
             LazyColumn(state = listState, modifier = Modifier.weight(1f, fill = false)) {
+                if (searchable && scrollSearchField) item(key = 0) { searchField() }
+                if (listReady && filtered.isEmpty() && missingSelection == null) {
+                    item {
+                        Text(
+                            text = stringResource(if (keyword.isEmpty()) R.string.branch_empty else R.string.branch_no_match),
+                            style = MiuixTheme.textStyles.footnote1,
+                            color = scheme.onBackgroundVariant,
+                            modifier = Modifier.fillMaxWidth().padding(vertical = 32.dp),
+                            textAlign = androidx.compose.ui.text.style.TextAlign.Center,
+                        )
+                    }
+                }
                 items(filtered, key = { it.name }) { b ->
                     // 点默认分支 = 存 null（保留「跟随默认」语义，上游改名自动跟）
                     OptionRow(b.name, b.name == currentViewed, summary = b.tipDate?.let { relTimeString(it) }) {
@@ -206,6 +211,7 @@ internal fun BranchPickerSheet(
                     onAction = onLoadBranches,
                     modifier = Modifier
                         .fillMaxWidth()
+                        .verticalScroll(rememberScrollState())
                         .padding(vertical = 20.dp),
                 )
             }
@@ -230,6 +236,7 @@ internal fun RemoveRepoDialog(
     ) {
         Column(
             modifier = Modifier
+                .verticalScroll(rememberScrollState())
                 .padding(horizontal = 16.dp)
                 .padding(top = 4.dp, bottom = 16.dp),
             verticalArrangement = Arrangement.spacedBy(10.dp),

@@ -2,6 +2,7 @@ package io.candy.tick.util
 
 import android.content.Context
 import android.content.Intent
+import io.candy.tick.data.model.TrackedRepo
 
 /**
  * 本机应用 ↔ 仓库 自动配对（Obtainium 静默体验的本地化实现）。
@@ -75,6 +76,13 @@ internal fun appDisplayName(packageName: String, label: CharSequence?): String? 
         it.isNotEmpty() && !it.equals(packageName, ignoreCase = true) &&
             !it.startsWith("$packageName.", ignoreCase = true) && !it.startsWith("$packageName/", ignoreCase = true)
     }
+
+internal fun installedVersionName(context: Context, packageName: String): String? =
+    runCatching { context.packageManager.getPackageInfo(packageName, 0).versionName }
+        .getOrNull()?.takeIf { it.isNotBlank() }
+
+internal fun installedVersionName(context: Context, repo: TrackedRepo): String? =
+    repo.linkedPackage?.let { installedVersionName(context, it) }?.let { VersionCompare.installedName(it, repo) }
 
 /** 已安装应用的显示名。部分应用只在桌面入口声明名称。 */
 fun labelOf(context: Context, packageName: String): String? = runCatching {

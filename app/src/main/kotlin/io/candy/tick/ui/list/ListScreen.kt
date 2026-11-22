@@ -8,6 +8,7 @@ import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
 import androidx.compose.animation.shrinkHorizontally
 import androidx.compose.foundation.interaction.DragInteraction
+import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.layout.BoxWithConstraints
 import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.rememberScrollState
@@ -24,6 +25,7 @@ import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.RowScope
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxWidth
@@ -68,6 +70,7 @@ import top.yukonga.miuix.kmp.basic.Icon
 import top.yukonga.miuix.kmp.basic.MiuixScrollBehavior
 import top.yukonga.miuix.kmp.basic.Scaffold
 import top.yukonga.miuix.kmp.basic.SmallTopAppBar
+import top.yukonga.miuix.kmp.basic.TopAppBarDefaults
 import top.yukonga.miuix.kmp.basic.Text
 import top.yukonga.miuix.kmp.basic.rememberPullToRefreshState
 import top.yukonga.miuix.kmp.basic.rememberTopAppBarState
@@ -240,120 +243,125 @@ fun ListScreen(
             containerColor = androidx.compose.ui.graphics.Color.Transparent,
             topBar = {
                 SmallTopAppBar(
-                    title = "", // 标题走 navigationIcon 槽位实现左对齐（内置 title 居中）
+                    title = "",
                     color = Color.Transparent,
                     scrollBehavior = scrollBehavior,
-                    navigationIcon = {
-                        Row(verticalAlignment = Alignment.CenterVertically) {
-                            ScrollToTopTitle(
-                                text = stringResource(R.string.app_name),
-                                onClick = {
-                                    keepReadingOrder = false
-                                    scope.launch {
-                                        if (showingEmpty) emptyScroll.scrollToTop(motionEnabled)
-                                        else listState.scrollToTop(motionEnabled)
-                                    }
-                                },
-                            )
-                            Spacer(Modifier.width(6.dp))
-                            // 离开时连同最短显示时长和退出动画一并结束，快速返回也不带回上一帧。
-                            androidx.compose.runtime.key(vm.titleSync.interruptedRun, vm.titleSync.pullOwnedRun, state.refreshing) {
-                                io.candy.tick.ui.common.SyncDots(
-                                    running = (syncStatus as? SyncStatus.Running)?.takeIf {
-                                        !state.refreshing && vm.titleSync.shouldAnimate(it)
-                                    },
-                                    done = syncResult?.takeIf { !state.refreshing && vm.titleSync.shouldAnimate(it.run) },
-                                )
-                            }
-                        }
-                    },
                     actions = {
                         val canCollapse = state.expanded.size >= 2 &&
                             state.items.count { it.repo.id in state.expanded } >= 2
-                        // Reserve the slot before fading in; release it only after the pressed circle has faded.
-                        androidx.compose.animation.AnimatedVisibility(
-                            visible = canCollapse,
-                            enter = if (motionEnabled) {
-                                expandHorizontally(tween(Motion.PRESS), expandFrom = Alignment.End, clip = false) +
-                                    fadeIn(tween(Motion.MICRO, delayMillis = Motion.PRESS))
-                            } else EnterTransition.None,
-                            exit = if (motionEnabled) {
-                                fadeOut(tween(Motion.MICRO)) +
-                                    shrinkHorizontally(
-                                        tween(Motion.PRESS, delayMillis = Motion.MICRO),
-                                        shrinkTowards = Alignment.End,
-                                        clip = false,
+                        HomeBarRow(canCollapse) {
+                            Row(
+                                modifier = Modifier.weight(1f),
+                                verticalAlignment = Alignment.CenterVertically,
+                            ) {
+                                ScrollToTopTitle(
+                                    text = stringResource(R.string.app_name),
+                                    modifier = Modifier.weight(1f, fill = false),
+                                    onClick = {
+                                        keepReadingOrder = false
+                                        scope.launch {
+                                            if (showingEmpty) emptyScroll.scrollToTop(motionEnabled)
+                                            else listState.scrollToTop(motionEnabled)
+                                        }
+                                    },
+                                )
+                                Spacer(Modifier.width(6.dp))
+                                // 离开时连同最短显示时长和退出动画一并结束，快速返回也不带回上一帧。
+                                androidx.compose.runtime.key(vm.titleSync.interruptedRun, vm.titleSync.pullOwnedRun, state.refreshing) {
+                                    io.candy.tick.ui.common.SyncDots(
+                                        modifier = Modifier.width(18.dp),
+                                        running = (syncStatus as? SyncStatus.Running)?.takeIf {
+                                            !state.refreshing && vm.titleSync.shouldAnimate(it)
+                                        },
+                                        done = syncResult?.takeIf { !state.refreshing && vm.titleSync.shouldAnimate(it.run) },
                                     )
-                            } else ExitTransition.None,
-                        ) {
+                                }
+                            }
+                            // Reserve the slot before fading in; release it only after the pressed circle has faded.
+                            androidx.compose.animation.AnimatedVisibility(
+                                visible = canCollapse,
+                                enter = if (motionEnabled) {
+                                    expandHorizontally(tween(Motion.PRESS), expandFrom = Alignment.End, clip = false) +
+                                        fadeIn(tween(Motion.MICRO, delayMillis = Motion.PRESS))
+                                } else EnterTransition.None,
+                                exit = if (motionEnabled) {
+                                    fadeOut(tween(Motion.MICRO)) +
+                                        shrinkHorizontally(
+                                            tween(Motion.PRESS, delayMillis = Motion.MICRO),
+                                            shrinkTowards = Alignment.End,
+                                            clip = false,
+                                        )
+                                } else ExitTransition.None,
+                            ) {
+                                io.candy.tick.ui.common.PressIconButton(
+                                    onClick = { if (canCollapse) vm.collapseAll() },
+                                    contentDescription = stringResource(R.string.collapse_all),
+                                    modifier = if (canCollapse) Modifier else Modifier
+                                        .clearAndSetSemantics { }
+                                        .focusProperties { canFocus = false },
+                                ) {
+                                    Icon(
+                                        imageVector = ImageVector.vectorResource(R.drawable.ic_collapse_all),
+                                        contentDescription = null,
+                                        tint = scheme.onBackground,
+                                        modifier = Modifier.size(24.dp), // 顶栏动作图标统一 24dp
+                                    )
+                                }
+                            }
                             io.candy.tick.ui.common.PressIconButton(
-                                onClick = { if (canCollapse) vm.collapseAll() },
-                                contentDescription = stringResource(R.string.collapse_all),
-                                modifier = if (canCollapse) Modifier else Modifier
-                                    .clearAndSetSemantics { }
-                                    .focusProperties { canFocus = false },
+                                onClick = {
+                                    if (showSearch) vm.setQuery("")
+                                    showSearch = !showSearch
+                                },
+                                contentDescription = stringResource(
+                                    if (showSearch) R.string.close_search else R.string.action_search,
+                                ),
+                            ) {
+                                // 激活态换返回箭头（= 退出搜索模式，与系统返回同语义）：
+                                // 此前用 X 与输入框「清空」钮同形（skill: X=modal close 语义撞车）
+                                Icon(
+                                    imageVector = if (showSearch) {
+                                        ImageVector.vectorResource(R.drawable.ic_back)
+                                    } else {
+                                        ImageVector.vectorResource(R.drawable.ic_search)
+                                    },
+                                    contentDescription = null,
+                                    tint = if (showSearch) scheme.primaryVariant else scheme.onBackground,
+                                    modifier = Modifier.size(24.dp), // 顶栏动作图标统一 24dp
+                                )
+                            }
+                            io.candy.tick.ui.common.PressIconButton(
+                                onClick = { sortSheet = SortSheetSession(vm.storedSortOrder) },
+                                contentDescription = stringResource(R.string.sort_title),
                             ) {
                                 Icon(
-                                    imageVector = ImageVector.vectorResource(R.drawable.ic_collapse_all),
+                                    imageVector = ImageVector.vectorResource(R.drawable.ic_sort),
                                     contentDescription = null,
                                     tint = scheme.onBackground,
                                     modifier = Modifier.size(24.dp), // 顶栏动作图标统一 24dp
                                 )
                             }
-                        }
-                        io.candy.tick.ui.common.PressIconButton(
-                            onClick = {
-                                if (showSearch) vm.setQuery("")
-                                showSearch = !showSearch
-                            },
-                            contentDescription = stringResource(
-                                if (showSearch) R.string.close_search else R.string.action_search,
-                            ),
-                        ) {
-                            // 激活态换返回箭头（= 退出搜索模式，与系统返回同语义）：
-                            // 此前用 X 与输入框「清空」钮同形（skill: X=modal close 语义撞车）
-                            Icon(
-                                imageVector = if (showSearch) {
-                                    ImageVector.vectorResource(R.drawable.ic_back)
-                                } else {
-                                    ImageVector.vectorResource(R.drawable.ic_search)
-                                },
-                                contentDescription = null,
-                                tint = if (showSearch) scheme.primaryVariant else scheme.onBackground,
-                                modifier = Modifier.size(24.dp), // 顶栏动作图标统一 24dp
-                            )
-                        }
-                        io.candy.tick.ui.common.PressIconButton(
-                            onClick = { sortSheet = SortSheetSession(vm.storedSortOrder) },
-                            contentDescription = stringResource(R.string.sort_title),
-                        ) {
-                            Icon(
-                                imageVector = ImageVector.vectorResource(R.drawable.ic_sort),
-                                contentDescription = null,
-                                tint = scheme.onBackground,
-                                modifier = Modifier.size(24.dp), // 顶栏动作图标统一 24dp
-                            )
-                        }
-                        io.candy.tick.ui.common.PressIconButton(
-                            onClick = { leaveHome(onOpenSettings) },
-                            contentDescription = stringResource(R.string.settings_title),
-                        ) {
-                            Icon(
-                                imageVector = ImageVector.vectorResource(R.drawable.ic_settings),
-                                contentDescription = null,
-                                tint = scheme.onBackground,
-                            )
-                        }
-                        // 主操作：添加仓库（顶栏最右，替代 FAB）
-                        io.candy.tick.ui.common.PressIconButton(
-                            onClick = { leaveHome(onAdd) },
-                            contentDescription = stringResource(R.string.add_repo),
-                        ) {
-                            Icon(
-                                imageVector = ImageVector.vectorResource(R.drawable.ic_add),
-                                contentDescription = null,
-                                tint = scheme.primaryVariant,
-                            )
+                            io.candy.tick.ui.common.PressIconButton(
+                                onClick = { leaveHome(onOpenSettings) },
+                                contentDescription = stringResource(R.string.settings_title),
+                            ) {
+                                Icon(
+                                    imageVector = ImageVector.vectorResource(R.drawable.ic_settings),
+                                    contentDescription = null,
+                                    tint = scheme.onBackground,
+                                )
+                            }
+                            // 主操作：添加仓库（顶栏最右，替代 FAB）
+                            io.candy.tick.ui.common.PressIconButton(
+                                onClick = { leaveHome(onAdd) },
+                                contentDescription = stringResource(R.string.add_repo),
+                            ) {
+                                Icon(
+                                    imageVector = ImageVector.vectorResource(R.drawable.ic_add),
+                                    contentDescription = null,
+                                    tint = scheme.primaryVariant,
+                                )
+                            }
                         }
                     },
                 )
@@ -478,7 +486,6 @@ fun ListScreen(
                                     pageRefreshing = state.refreshing || vm.titleSync.shouldAnimate(syncStatus),
                                     isChanged = item.snapshot?.activity?.hasUnread == true,
                                     updatable = item.repo.id in state.updatableIds,
-                                    versionEpoch = state.versionEpoch,
                                     onToggle = { vm.toggleExpand(item.repo.id) },
                                     onClick = { leaveHome { onOpenDetail(item.repo.id) } },
                                     readViewport = listBounds.takeIf {
@@ -530,6 +537,18 @@ fun ListScreen(
                 onDismissFinished = { if (!sheet.open && sortSheet === sheet) sortSheet = null },
             )
         }
+    }
+}
+
+/** Keep the title and buttons in one measured row. Very narrow windows can scroll to every action. */
+@Composable
+private fun HomeBarRow(canCollapse: Boolean, content: @Composable RowScope.() -> Unit) {
+    BoxWithConstraints(Modifier.fillMaxWidth().padding(start = TopAppBarDefaults.NavigationIconPadding)) {
+        val minimum = 48.dp * (if (canCollapse) 6 else 5) // Title plus four or five touch targets.
+        val row = if (maxWidth < minimum) {
+            Modifier.horizontalScroll(rememberScrollState()).width(minimum)
+        } else Modifier.fillMaxWidth()
+        Row(row, verticalAlignment = Alignment.CenterVertically, content = content)
     }
 }
 

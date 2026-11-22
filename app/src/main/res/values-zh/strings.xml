@@ -98,6 +98,7 @@
     <string name="version_release_label">最新发布</string>
     <string name="version_installed_label">本机版本</string>
     <string name="version_local_newer">本机较新</string>
+    <string name="version_order_unknown">无法判断新旧</string>
 
     <!-- 四类失败 -->
     <string name="err_network">网络不可用</string>

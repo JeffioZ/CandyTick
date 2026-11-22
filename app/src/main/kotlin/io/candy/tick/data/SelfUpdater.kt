@@ -7,6 +7,7 @@ import io.candy.tick.data.model.DownloadedApk
 import io.candy.tick.data.model.ReleaseRecord
 import io.candy.tick.util.ApkPicker
 import io.candy.tick.util.VersionCompare
+import io.candy.tick.util.installedVersionName
 import java.io.File
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.CancellationException
@@ -69,7 +70,8 @@ class SelfUpdater(
 
     private suspend fun discardInstalledDownload() {
         val saved = savedDownload() ?: return
-        if (VersionCompare.compare(saved.tag, localVersionName())?.let { it <= 0 } != true) return
+        val installed = localVersionName() ?: return
+        if (VersionCompare.compare(saved.tag, installed)?.let { it <= 0 } != true) return
         saved.file.delete()
         store.update { it.copy(downloadedSelfUpdate = null) }
         Notifications.cancelSelfUpdateReady(context)
@@ -83,7 +85,8 @@ class SelfUpdater(
         _state.value = State.Checking
         try {
             val latest = githubApi.releases(APP_OWNER, APP_REPO, 1, perPage = 1).firstOrNull()
-            val comparison = latest?.let { VersionCompare.compare(it.tagName, localVersionName()) }
+            val installed = localVersionName()
+            val comparison = if (latest != null && installed != null) VersionCompare.compare(latest.tagName, installed) else null
             if (latest == null || (comparison != null && comparison <= 0)) {
                 lastNewVersion = null
                 _state.value = State.UpToDate
@@ -204,8 +207,7 @@ class SelfUpdater(
         }.getOrDefault(false)
     }
 
-    fun localVersionName(): String =
-        runCatching { context.packageManager.getPackageInfo(context.packageName, 0).versionName }.getOrNull() ?: "0"
+    fun localVersionName(): String? = installedVersionName(context, context.packageName)
 
     companion object {
         // 本仓库 Releases 即更新源（remote 接好后如有出入改这两行）

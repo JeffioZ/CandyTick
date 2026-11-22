@@ -3,8 +3,10 @@ package io.candy.tick.ui.common
 import androidx.compose.animation.togetherWith
 import androidx.compose.foundation.background
 import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.ui.draw.clip
 import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.BoxWithConstraints
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
@@ -26,6 +28,7 @@ import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
@@ -81,33 +84,36 @@ fun UpdateSheet(
     }
 
     // show 直通（勿用 if 包裹）：退场动画依赖组件持续组合（与全 App 弹层同一约定）
-    val notesScroll = key(release?.tag) { rememberScrollState() }
+    val scroll = key(release?.tag) { rememberScrollState() }
     WindowBottomSheet(
         show = show,
         onDismissRequest = {
             show = false
             (state as? SelfUpdater.State.NewVersion)?.let { dismissedTag = it.tag }
         },
-        onDismissFinished = { scope.launch { notesScroll.scrollTo(0) } },
+        onDismissFinished = { scope.launch { scroll.scrollTo(0) } },
         startAction = {
             SheetScrollToTopTitle(
                 text = stringResource(R.string.notif_update_ready_title),
-                canScroll = !release?.notes.isNullOrBlank() && notesScroll.canScrollBackward,
-                scrollToTop = notesScroll::scrollToTop,
+                canScroll = scroll.canScrollBackward,
+                scrollToTop = scroll::scrollToTop,
             )
         },
     ) {
-        Column(
+        BoxWithConstraints(
             modifier = Modifier
                 .padding(horizontal = 16.dp)
                 .padding(top = 4.dp),
         ) {
+            // Keep the action ahead of the notes when a full notes pane would crowd it out.
+            val notesHeight = 280.dp
+            val shortBody = maxHeight < notesHeight + 160.dp * LocalDensity.current.fontScale
             // 四相柔切换（与仓库下载四相同款 180 档）：新版 → 进度 → 安装 / 失败不硬跳。
             // Failed 此前映射 idle 只渲染空白——下载失败时弹窗只剩标题，看起来像界面坏了
             androidx.compose.animation.AnimatedContent(
                 targetState = state,
                 contentKey = { it::class },
-                modifier = Modifier.fillMaxWidth(),
+                modifier = Modifier.fillMaxWidth().then(if (shortBody) Modifier.verticalScroll(scroll) else Modifier),
                 transitionSpec = {
                     ((androidx.compose.animation.fadeIn(androidx.compose.animation.core.tween(Motion.PHASE)) +
                         androidx.compose.animation.slideInVertically(
@@ -148,19 +154,22 @@ fun UpdateSheet(
                                     color = MiuixTheme.colorScheme.onBackgroundVariant,
                                 )
                             }
-                            s.notes?.let { notes ->
-                                val slug = "${SelfUpdater.APP_OWNER}/${SelfUpdater.APP_REPO}"
-                                ReleaseNotesBody(
-                                    markdown = notes,
-                                    repoSlug = slug,
-                                    repoUrl = "https://github.com/$slug",
-                                    tag = s.tag,
-                                    maxHeight = 280.dp,
-                                    spaceAfter = sectionGap,
-                                    showSource = false,
-                                    scrollState = notesScroll,
-                                )
+                            val releaseNotes: @Composable () -> Unit = {
+                                s.notes?.let { notes ->
+                                    val slug = "${SelfUpdater.APP_OWNER}/${SelfUpdater.APP_REPO}"
+                                    ReleaseNotesBody(
+                                        markdown = notes,
+                                        repoSlug = slug,
+                                        repoUrl = "https://github.com/$slug",
+                                        tag = s.tag,
+                                        maxHeight = if (shortBody) null else notesHeight,
+                                        spaceAfter = sectionGap,
+                                        showSource = false,
+                                        scrollState = scroll,
+                                    )
+                                }
                             }
+                            if (!shortBody) releaseNotes()
                             if (s.asset == null) {
                                 Column {
                                     Text(
@@ -191,6 +200,7 @@ fun UpdateSheet(
                                     modifier = Modifier.fillMaxWidth(),
                                 )
                             }
+                            if (shortBody) releaseNotes()
                         }
                         is SelfUpdater.State.Downloading -> DownloadProgress(phase.progress)
                         is SelfUpdater.State.Downloaded -> {

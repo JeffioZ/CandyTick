@@ -18,6 +18,7 @@ import io.candy.tick.data.model.ReleaseRecord
 import io.candy.tick.data.model.TrackedRepo
 import io.candy.tick.data.model.statusAt
 import io.candy.tick.util.VersionCompare
+import io.candy.tick.util.installedVersionName
 import java.time.Instant
 import kotlinx.coroutines.CoroutineStart
 import kotlinx.coroutines.CancellationException
@@ -73,8 +74,14 @@ class ListViewModel(
         val repo: TrackedRepo,
         val snapshot: RepoSnapshot?,
         val error: SourceError?,
-        val updateAvailable: Boolean = false,
+        val installedVersion: String? = null,
     ) {
+        private val releaseComparison = snapshot?.currentReleaseTag?.let { tag ->
+            installedVersion?.let { VersionCompare.compare(tag, it) }
+        }
+        val updateAvailable get() = releaseComparison != null && releaseComparison > 0
+        fun comparisonFor(tag: String): Int? = if (tag == snapshot?.currentReleaseTag) releaseComparison
+            else installedVersion?.let { VersionCompare.compare(tag, it) }
         val status: RepoStatus get() = snapshot?.statusAt() ?: RepoStatus.UNKNOWN
         private val commitDate = snapshot?.lastCommitDate
         val releaseIsLatest = snapshot?.latestApk?.publishedAt?.let { commitDate == null || it >= commitDate } == true
@@ -102,7 +109,6 @@ class ListViewModel(
         val banner: SourceError? = null,
         val expanded: Set<Long> = emptySet(),
         val updatableIds: Set<Long> = emptySet(), // 有可比新版的仓库（折叠卡直显标识）
-        val versionEpoch: Int = 0, // ON_RESUME 递增：破除版本行/对比的重组跳过
         val cards: Map<Long, CardExtras> = emptyMap(),
     ) {
         val isEmpty: Boolean get() = items.isEmpty() && !refreshing && query.isBlank()
@@ -135,9 +141,7 @@ class ListViewModel(
         repository.state.map { state -> state.repos.mapNotNull { it.linkedPackage }.toSet() }.distinctUntilChanged(),
         resumeTick,
     ) { packages, _ ->
-        packages.associateWith { pkg ->
-            runCatching { context.packageManager.getPackageInfo(pkg, 0).versionName }.getOrNull()
-        }
+        packages.associateWith { pkg -> installedVersionName(context, pkg) }
     }.flowOn(Dispatchers.IO)
 
 
@@ -225,10 +229,8 @@ class ListViewModel(
         versions: Map<String, String?>,
     ): Map<Long, RepoListItem> = repos.associate { repo ->
         val snapshot = snapshots[repo.id]
-        val tag = snapshot?.currentReleaseTag
         val installed = versions[repo.linkedPackage]?.let { VersionCompare.installedName(it, repo) }
-        val update = tag != null && installed != null && (VersionCompare.compare(tag, installed) ?: 0) > 0
-        repo.id to RepoListItem(repo, snapshot, error = null, updateAvailable = update)
+        repo.id to RepoListItem(repo, snapshot, error = null, installedVersion = installed)
     }
 
     /** A network batch writes each repo separately. Display each result, but rank existing rows
@@ -258,17 +260,12 @@ class ListViewModel(
         )
     }
     private val feedback = combine(refreshing, banner) { loading, error -> loading to error }
-    private val extras = combine(expanded, cards, resumeTick) { exp, crds, tick ->
-        CardState(exp, crds, tick)
-    }
-
-    val state: StateFlow<UiState> = combine(ordered, feedback, extras) { list, (loading, error), info ->
+    val state: StateFlow<UiState> = combine(ordered, feedback, expanded, cards) { list, (loading, error), expandedIds, previews ->
         list.copy(
             refreshing = loading,
             banner = error,
-            expanded = info.expanded,
-            versionEpoch = info.versionEpoch,
-            cards = info.cards,
+            expanded = expandedIds,
+            cards = previews,
         )
     }.flowOn(Dispatchers.Default).stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), initialUiState())
 
@@ -281,12 +278,6 @@ class ListViewModel(
             sortOrder = order,
         )
     }
-
-    private data class CardState(
-        val expanded: Set<Long>,
-        val cards: Map<Long, CardExtras>,
-        val versionEpoch: Int,
-    )
 
     private fun sortedItems(
         rows: OrderRows, query: String, errors: Map<Long, SourceError>,

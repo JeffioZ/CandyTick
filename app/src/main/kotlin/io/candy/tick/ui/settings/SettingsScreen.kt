@@ -12,6 +12,8 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.rememberLazyListState
+import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.getValue
@@ -52,6 +54,7 @@ import io.candy.tick.ui.theme.ChipSky
 import io.candy.tick.ui.theme.ChipSlate
 import io.candy.tick.ui.theme.ChipTeal
 import io.candy.tick.ui.theme.ChipViolet
+import io.candy.tick.util.VersionCompare
 import io.candy.tick.util.openAppSettings
 import top.yukonga.miuix.kmp.basic.Scaffold
 import top.yukonga.miuix.kmp.theme.MiuixTheme
@@ -459,7 +462,7 @@ fun SettingsScreen(onBack: () -> Unit) {
         title = stringResource(R.string.settings_sync_frequency),
         onDismissRequest = { showFrequencySheet = false },
     ) {
-        Column {
+        Column(Modifier.verticalScroll(rememberScrollState())) {
             FrequencyRow(SyncFrequency.ON_OPEN, state.settings.syncFrequency, vm::setSyncFrequency) { showFrequencySheet = false }
             FrequencyRow(SyncFrequency.EVERY_6_HOURS, state.settings.syncFrequency, vm::setSyncFrequency) { showFrequencySheet = false }
             FrequencyRow(SyncFrequency.EVERY_12_HOURS, state.settings.syncFrequency, vm::setSyncFrequency) { showFrequencySheet = false }
@@ -472,7 +475,7 @@ fun SettingsScreen(onBack: () -> Unit) {
         title = stringResource(R.string.settings_theme_mode),
         onDismissRequest = { showThemeSheet = false },
     ) {
-        Column {
+        Column(Modifier.verticalScroll(rememberScrollState())) {
             OptionRow(stringResource(R.string.theme_mode_system), state.settings.themeMode == ThemeMode.SYSTEM) {
                 vm.setThemeMode(ThemeMode.SYSTEM); showThemeSheet = false
             }
@@ -490,7 +493,7 @@ fun SettingsScreen(onBack: () -> Unit) {
         title = stringResource(R.string.settings_language),
         onDismissRequest = { showLanguageSheet = false },
     ) {
-        Column {
+        Column(Modifier.verticalScroll(rememberScrollState())) {
             OptionRow(stringResource(R.string.lang_system), languageTag().isEmpty()) {
                 applyLanguage(""); showLanguageSheet = false
             }
@@ -572,7 +575,8 @@ private fun themeModeLabel(mode: ThemeMode): String = stringResource(
 
 /** 版本行 value：版本号常驻（用户始终可见），检查状态作前/后缀 */
 @Composable
-private fun versionRowValue(update: SelfUpdater.State, localVersion: String): String {
+private fun versionRowValue(update: SelfUpdater.State, installed: String?): String {
+    val localVersion = installed?.let(VersionCompare::displayVersion) ?: stringResource(R.string.status_unknown)
     val upToDate = stringResource(R.string.version_local_current)
     return when (update) {
         is SelfUpdater.State.Checking -> stringResource(R.string.settings_checking)
@@ -580,11 +584,11 @@ private fun versionRowValue(update: SelfUpdater.State, localVersion: String): St
         is SelfUpdater.State.NewVersion ->
             // 无法比较版本：明说「无法比较」，不宣称「有更新」（design.md:183）
             if (update.incomparable) {
-                stringResource(R.string.settings_new_release_incomparable, update.tag)
+                stringResource(R.string.settings_new_release_incomparable, VersionCompare.displayVersion(update.tag))
             } else {
-                update.tag
+                VersionCompare.displayVersion(update.tag)
             }
-        is SelfUpdater.State.Downloaded -> update.tag
+        is SelfUpdater.State.Downloaded -> VersionCompare.displayVersion(update.tag)
         is SelfUpdater.State.Failed ->
             // 失败细分（此前下载失败被显示成「检查失败」）
             stringResource(

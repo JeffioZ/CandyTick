@@ -36,7 +36,7 @@ class SettingsViewModel(
         val tokenInput: String = "",
         val tokenTest: TokenTest? = null,
         val tokenRejected: Boolean = false,
-        val localVersion: String = "0",
+        val localVersion: String? = null,
     )
 
     // 回填已保存的 Token：重进设置页能看到现值，而非空白

@@ -146,7 +146,7 @@ class SyncWorker(context: Context, params: WorkerParameters) : CoroutineWorker(c
 
     /** 本机已装版本 ≥ tag（降级/重发同名 release 不吵）：可比较且 ≤ 0 才算已最新；不可比仍通知 */
     private fun alreadyUpToDate(tracked: io.candy.tick.data.model.TrackedRepo, tag: String): Boolean {
-        val local = io.candy.tick.ui.common.localVersionName(applicationContext, tracked) ?: return false
+        val local = io.candy.tick.util.installedVersionName(applicationContext, tracked) ?: return false
         return io.candy.tick.util.VersionCompare.compare(tag, local)?.let { it <= 0 } == true
     }
 

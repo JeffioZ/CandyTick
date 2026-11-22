@@ -4,6 +4,7 @@ import androidx.compose.animation.togetherWith
 import androidx.compose.foundation.ScrollState
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
+import androidx.compose.foundation.layout.wrapContentHeight
 import io.candy.tick.data.model.statusAt
 import io.candy.tick.util.CountFormat
 import androidx.compose.foundation.layout.Arrangement
@@ -29,6 +30,7 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -93,11 +95,17 @@ fun AddScreen(
     val scope = rememberCoroutineScope()
     val animateScroll = rememberMotionEnabled()
     val keyboardController = androidx.compose.ui.platform.LocalSoftwareKeyboardController.current
-    // 进页即聚焦：本页唯一目的就是输入（等一帧布局稳定，防未挂载崩溃）
+    var initialFocusPending by rememberSaveable { mutableStateOf(true) }
     val inputFocus = remember { androidx.compose.ui.focus.FocusRequester() }
-    androidx.compose.runtime.LaunchedEffect(Unit) {
-        kotlinx.coroutines.delay(100)
-        runCatching { inputFocus.requestFocus() }
+    LaunchedEffect(showPreview) {
+        if (showPreview) {
+            initialFocusPending = false
+            keyboardController?.hide()
+        } else if (initialFocusPending) {
+            initialFocusPending = false
+            kotlinx.coroutines.delay(100)
+            runCatching { inputFocus.requestFocus() }
+        }
     }
 
     // 预览态的系统返回 = 揭走预览浮层（与「返回搜索结果」按钮同语义），而非退出添加页；
@@ -183,10 +191,7 @@ fun AddScreen(
                 androidx.compose.foundation.layout.Box(
                     modifier = if (showPreview) Modifier.clearAndSetSemantics { } else Modifier,
                 ) {
-                    SearchContent(state, resultsReveal, resultsScroll, onRetry = vm::submit, onPick = {
-                        keyboardController?.hide()
-                        vm.pickResult(it)
-                    })
+                    SearchContent(state, resultsReveal, resultsScroll, onRetry = vm::submit, onPick = vm::pickResult)
                 }
 
                 // 预览浮层：背景=页面底色完整遮挡底层；内容超高可滚（键盘弹出兜底）
@@ -304,7 +309,7 @@ private fun SearchContent(
             // 失败要有出路（skill error-recovery）：重试走同一条提交路径
             actionLabel = stringResource(R.string.retry),
             onAction = onRetry,
-            modifier = Modifier.fillMaxSize(),
+            modifier = Modifier.fillMaxSize().wrapContentHeight().verticalScroll(rememberScrollState()),
         )
         resultsScroll != null -> LazyColumn(
             state = resultsScroll,

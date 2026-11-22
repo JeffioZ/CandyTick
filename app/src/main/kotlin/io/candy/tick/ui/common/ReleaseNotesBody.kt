@@ -43,7 +43,7 @@ internal fun ReleaseNotesBody(
     repoSlug: String?,
     repoUrl: String,
     tag: String,
-    maxHeight: Dp,
+    maxHeight: Dp?,
     spaceAfter: Dp,
     showSource: Boolean = true,
     scrollState: ScrollState = rememberScrollState(),
@@ -58,7 +58,7 @@ internal fun ReleaseNotesBody(
             BasicText(
                 text = notes,
                 style = MiuixTheme.textStyles.body2.copy(color = scheme.onBackground),
-                modifier = Modifier.heightIn(max = maxHeight).verticalScroll(scrollState),
+                modifier = if (maxHeight == null) Modifier else Modifier.heightIn(max = maxHeight).verticalScroll(scrollState),
             )
         }
         if (showSource || ReleaseNotes.isPreview(markdown)) {
