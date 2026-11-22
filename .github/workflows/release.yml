@@ -91,9 +91,12 @@ jobs:
           apksigner=$(find "$ANDROID_HOME/build-tools" -name apksigner -type f | sort -V | tail -n 1)
           # Signing certificate of the publicly distributed v0.4.2 APK.
           release_cert=af65b854edac67a07735417a12d7d96d39fbf1d6f4ab0c1018529e209a6452fd
+          # 逐行比较：新版 apksigner 对多签名方案可能把同一证书打印成多行 Signer 摘要，
+          # 整串相等比较会被多余换行误杀（v0.5.0 首跑即此）。指纹本身公开，直接输出便于定论
           certs=$("$apksigner" verify --print-certs "$apk" |
             sed -nE 's/^Signer #[0-9]+ certificate SHA-256 digest: ([0-9a-f]+)$/\1/p')
-          if [[ "$certs" != "$release_cert" ]]; then
+          echo "signer digests: [${certs//$'\n'/, }]"
+          if [[ -z "$certs" ]] || grep -qv "^$release_cert$" <<<"$certs"; then
             echo "::error::APK signing certificate does not match the published release"
             exit 1
           fi
