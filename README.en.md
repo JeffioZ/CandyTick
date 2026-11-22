@@ -1,67 +1,62 @@
-[简体中文](README.md) | English
-
 <div align="center">
 
 # CandyTick
 
-**Track GitHub repo health & updates**
-*GitHub 仓库维护状态追踪与新版本安装*
+Follow GitHub repositories on Android, browse commits and releases, and find updates for your installed apps.
 
-[![License](https://img.shields.io/badge/License-GPL--3.0-blue)](LICENSE)
-[![Stars](https://img.shields.io/github/stars/JeffioZ/CandyTick?style=flat&color=yellow)](https://github.com/JeffioZ/CandyTick/stargazers)
-![Platform](https://img.shields.io/badge/Android-3DDC84?logo=android&logoColor=white)
-![API](https://img.shields.io/badge/API-29%2B-9E9E9E)
+**[Download APK](https://github.com/JeffioZ/CandyTick/releases/latest)** · [Release notes](https://github.com/JeffioZ/CandyTick/releases) · [简体中文](README.md)
 
-Track GitHub repositories and their maintenance status; download and install new releases when available.
-
-[![Download](https://img.shields.io/github/v/release/JeffioZ/CandyTick?style=for-the-badge&label=Download&logo=github&color=1fb574)](https://github.com/JeffioZ/CandyTick/releases)
+Android 10+ · One APK for 32- and 64-bit ARM
 
 </div>
 
+## Follow your first repository
+
+1. Tap **+** at the top right of the home screen. Paste a GitHub URL, enter a repository name such as `LibChecker/LibChecker`, or search by keyword.
+2. Tap **Add repository** in the preview. You can follow public repositories without signing in.
+
 <p align="center">
-  <img src="docs/fastlane/metadata/android/en-US/images/phoneScreenshots/1.png" width="270" />
-  <img src="docs/fastlane/metadata/android/en-US/images/phoneScreenshots/2.png" width="270" />
+  <a href="docs/fastlane/metadata/android/en-US/images/phoneScreenshots/1.png"><img src="docs/fastlane/metadata/android/en-US/images/phoneScreenshots/1.png" width="36%" alt="Home screen in light mode showing followed repositories and their activity levels"></a>
+  &ensp;
+  <a href="docs/fastlane/metadata/android/en-US/images/phoneScreenshots/2.png"><img src="docs/fastlane/metadata/android/en-US/images/phoneScreenshots/2.png" width="36%" alt="The same repository list in dark mode"></a>
 </p>
 
-## Features
+## Keep up with repositories
 
-### Tracking
+These features describe the main branch. See [unreleased changes](CHANGELOG.md#未发布) for what’s coming in the next release.
 
-- See how recently a repository received a push. Activity levels range from Active to Inactive. Archived repositories have their own label.
-- Commit history and release history; commits can be browsed on any branch
-- Sync on app open or on a schedule, optionally only on unmetered networks. Tap a new-package notification to open the matching release. Reading it clears that release's unread marker.
-- Search, sorting, pinning, delete with undo
+- **Browse commits and releases.** Switch branches to see their commits. Release notes support tables, code blocks, task lists, and links to GitHub issues. Open long notes on GitHub to read them in full.
+- **Organize your home screen.** Search, pin, or remove repositories. You can undo a removal. Sort by recent activity, available updates, activity level, date added, or repository name. Tap the selected option again to reverse the order.
+- **See how active a project is.** Activity levels reflect the time since the last push. Archived repositories have their own label.
+- **Sync repositories.** Sync when the app opens or on a schedule. You can limit automatic sync to unmetered networks. Manual refresh also works on mobile data.
+- **Read update notifications.** Tap an APK notification for a single repository to open that release. This clears only its unread marker. Update availability still depends on the version installed on your device.
 
-### Versions & install
+## Update an installed app
 
-- Read Markdown tables, code blocks, task lists, and linked issue references in release notes. Long notes have a preview and a link to the full text.
-- Link an installed app for version comparison, with the title following the app name; matching installed apps are recognized automatically
-- Version comparison covers common formats (x.y.z, CalVer, pre-release); if a version can't be compared, it says so
-- Follow download progress, cancel a download, or have the installer open automatically when the download finishes
-- Recommends packages by device architecture. Standard APKs open in the system installer. APKS / XAPK / APKM bundles require a compatible third-party installer.
+CandyTick tries to match each repository to an app on your device. You can also choose one yourself. Once linked, the repository shows the app’s name and how its installed version compares with the release. CandyTick recognizes common version numbers, date-based versions, and prereleases. If it can’t compare two versions, it says so.
 
-### Data & experience
+When a release has several packages, CandyTick recommends ones that match your device’s architecture. You can track or cancel a download and choose to open the installer when the download finishes. Standard APKs use the system installer. APKS, XAPK, and APKM bundles need a compatible third-party installer.
 
-- No account needed; an optional GitHub token raises the rate limit (60 → 5,000 req/h)
-- Subscriptions can be exported and merged back in
-- Clean up downloaded packages and crash logs
-- CandyTick can check for and download its own updates automatically, then install without a prompt when Android permits it.
-- Light & dark themes, English / 简体中文; tablet and foldable friendly (bounded content column, free orientation)
+## Settings and backups
 
-## Building
+- **Back up subscriptions.** Export your subscriptions and cached repository details to JSON. Importing skips repositories you already follow. Backups exclude personal settings, GitHub tokens, and downloaded packages.
+- **Free up space.** Clear downloaded packages or crash logs in Settings.
+- **GitHub token.** If you often hit GitHub’s request limit, add a token in Settings to raise your [API rate limit](https://docs.github.com/en/rest/using-the-rest-api/rate-limits-for-the-rest-api).
+- **Update CandyTick.** CandyTick can check for its own updates automatically. Enable automatic downloads to get them over Wi-Fi or mobile data. With **Open installer after download** enabled, CandyTick can install its own updates without a prompt when Android allows it.
+- **Language and appearance.** Choose English or Simplified Chinese and a light or dark theme. The layout supports tablets, foldables, and landscape orientation.
 
-JDK 17+:
+## Build from source
 
-```bash
+Release builds use JDK 21. See the [app build configuration](app/build.gradle.kts) for the required Android SDK platform. Run the following command from the project root to build a debug APK.
+
+```sh
 bash gradlew assembleDebug
 ```
 
-In Windows PowerShell, run `.\gradlew.bat assembleDebug`.
+In Windows PowerShell, run `.\gradlew.bat assembleDebug`. The APK is written to `app/build/outputs/apk/debug/app-debug.apk`.
 
-## Tech stack
+CandyTick uses Kotlin, Jetpack Compose, [Miuix](https://github.com/compose-miuix-ui/miuix), Navigation 3, OkHttp, and WorkManager. It renders release notes with [commonmark-java](https://github.com/commonmark/commonmark-java) and stores subscriptions locally as JSON.
 
-Kotlin · Compose + [Miuix](https://github.com/compose-miuix-ui/miuix) · Navigation 3 · OkHttp · WorkManager · [commonmark-java](https://github.com/commonmark/commonmark-java) (Markdown) · single JSON state file (no Room / no KSP)
+## License and credits
 
-## License
-
-[GPL-3.0](LICENSE) · Version comparison and APK selection are informed by [Obtainium](https://github.com/ImranR98/Obtainium) · UI icons come from [Lucide](https://lucide.dev). The [bundled license](app/src/main/assets/licenses/lucide.txt) includes the Lucide and Feather notices.
+CandyTick is licensed under [GPL-3.0](LICENSE). [Obtainium](https://github.com/ImranR98/Obtainium) inspired the version comparison and package selection. Interface icons come from [Lucide](https://lucide.dev). The app includes the [Lucide and Feather license notices](app/src/main/assets/licenses/lucide.txt).

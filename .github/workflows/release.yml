@@ -8,75 +8,100 @@ on:
 permissions:
   contents: write
 
+defaults:
+  run:
+    shell: bash
+
+concurrency:
+  group: release-${{ github.ref }}
+  cancel-in-progress: false
+
 jobs:
   build:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
 
-      - uses: actions/setup-java@v5
+      - name: Extract release notes from CHANGELOG
+        run: |
+          notes="$RUNNER_TEMP/release-notes.md"
+          awk -v header="## [${GITHUB_REF_NAME#v}]" '
+            /^## \[/ {
+              if (found) exit
+              found = (index($0, header) == 1)
+              next
+            }
+            found { print }
+          ' CHANGELOG.md > "$notes"
+          if ! grep -q '[^[:space:]]' "$notes"; then
+            echo "::error::No release notes found for $GITHUB_REF_NAME in CHANGELOG.md"
+            exit 1
+          fi
+
+      - uses: actions/setup-java@d1374f8ac74474200d16ef8ecee22c7ae7a51880 # v6.3.0
         with:
           distribution: temurin
           java-version: 21
 
       - name: Setup Gradle
-        uses: gradle/actions/setup-gradle@v4
-
-      - name: Fix gradlew permission
-        run: chmod +x gradlew
+        uses: gradle/actions/setup-gradle@8da46b539cd8fe6ab27ca75128919a18d757604c # v6.4.1
 
       - name: Accept Android SDK licenses
         run: |
-          yes | "$ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager" --licenses > /dev/null 2>&1 || true
+          # sdkmanager closes stdin once it has all answers, which can send SIGPIPE to yes.
+          { yes || true; } | "$ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager" --licenses > /dev/null
 
-      - name: Decode keystore
+      - name: Prepare release signing
         env:
           KEYSTORE_BASE64: ${{ secrets.KEYSTORE_BASE64 }}
           STORE_PASSWORD: ${{ secrets.KEYSTORE_PASSWORD }}
           KEY_ALIAS: ${{ secrets.KEY_ALIAS }}
           KEY_PASSWORD: ${{ secrets.KEY_PASSWORD }}
         run: |
+          : "${KEYSTORE_BASE64:?Missing KEYSTORE_BASE64}" "${STORE_PASSWORD:?Missing KEYSTORE_PASSWORD}"
+          : "${KEY_ALIAS:?Missing KEY_ALIAS}" "${KEY_PASSWORD:?Missing KEY_PASSWORD}"
           umask 077
-          printf '%s' "$KEYSTORE_BASE64" | base64 -d > candytick-release.keystore
-          printf 'storeFile=candytick-release.keystore\nstorePassword=%s\nkeyAlias=%s\nkeyPassword=%s\n' \
-            "$STORE_PASSWORD" "$KEY_ALIAS" "$KEY_PASSWORD" > keystore.properties
+          keystore="$RUNNER_TEMP/candytick-release.keystore"
+          printf '%s' "$KEYSTORE_BASE64" | base64 --decode > "$keystore"
+          printf 'storeFile=%s\nstorePassword=%s\nkeyAlias=%s\nkeyPassword=%s\n' \
+            "$keystore" "$STORE_PASSWORD" "$KEY_ALIAS" "$KEY_PASSWORD" > keystore.properties
 
       - name: Build release APK
-        run: ./gradlew assembleRelease --no-daemon --no-configuration-cache
+        run: bash gradlew :app:assembleRelease --no-daemon --no-configuration-cache
 
-      - name: Check APK version against release tag
-        run: |
-          VERSION=$(jq -er '.elements[0].versionName' app/build/outputs/apk/release/output-metadata.json)
-          test "$GITHUB_REF_NAME" = "v$VERSION"
-
-      - name: Extract release notes from CHANGELOG
-        run: |
-          TAG="${GITHUB_REF#refs/tags/}"
-          VERSION="${TAG#v}"
-          # 提取该版本段落（## [X.Y.Z] 到下一个 ## 前），去掉段落标题行
-          # index 匹配而非正则：规避 awk 对 \[ 转义的平台差异
-          awk -v ver="$VERSION" '
-            index($0, "## [") == 1 { p = (index($0, "## [" ver "]") == 1) }
-            p
-          ' CHANGELOG.md | tail -n +2 | sed -e '/./,$!d' > release_notes.md
-          test -s release_notes.md
-          echo "--- notes for $VERSION ---"
-          cat release_notes.md
-
-      - name: Clean up secrets
+      - name: Clean up signing files
         if: always()
-        run: |
-          rm -f candytick-release.keystore keystore.properties
+        run: rm -f "$RUNNER_TEMP/candytick-release.keystore" keystore.properties
 
-      - name: Rename APK
+      - name: Verify and stage release APK
         run: |
-          TAG="${GITHUB_REF#refs/tags/}"
-          cp app/build/outputs/apk/release/app-release.apk "candytick-${TAG}.apk"
+          dir=app/build/outputs/apk/release
+          output_file=$(jq -er --arg version "${GITHUB_REF_NAME#v}" '
+            select(.applicationId == "io.candy.tick" and .variantName == "release") |
+            .elements | select(length == 1) | .[0] |
+            select(.versionName == $version and .type == "SINGLE" and .filters == []) |
+            .outputFile | select(test("^[^/]+\\.apk$"))
+          ' "$dir/output-metadata.json") || {
+            echo "::error::Expected a single release APK matching tag $GITHUB_REF_NAME"
+            exit 1
+          }
+          apk="$dir/$output_file"
+          apksigner=$(find "$ANDROID_HOME/build-tools" -name apksigner -type f | sort -V | tail -n 1)
+          # Signing certificate of the publicly distributed v0.4.2 APK.
+          release_cert=af65b854edac67a07735417a12d7d96d39fbf1d6f4ab0c1018529e209a6452fd
+          certs=$("$apksigner" verify --print-certs "$apk" |
+            sed -nE 's/^Signer #[0-9]+ certificate SHA-256 digest: ([0-9a-f]+)$/\1/p')
+          if [[ "$certs" != "$release_cert" ]]; then
+            echo "::error::APK signing certificate does not match the published release"
+            exit 1
+          fi
+          cp -- "$apk" "$RUNNER_TEMP/candytick-$GITHUB_REF_NAME.apk"
 
       - name: Create GitHub Release
-        uses: softprops/action-gh-release@v2
+        uses: softprops/action-gh-release@8a0cd651e5b2365bd640854a3fa5dfc70e4875f3 # v3.0.4
         with:
-          files: candytick-*.apk
-          body_path: release_notes.md
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          files: ${{ runner.temp }}/candytick-${{ github.ref_name }}.apk
+          fail_on_unmatched_files: true
+          body_path: ${{ runner.temp }}/release-notes.md

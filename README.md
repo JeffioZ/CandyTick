@@ -1,67 +1,62 @@
-简体中文 | [English](README.en.md)
-
 <div align="center">
 
 # CandyTick
 
-**GitHub 仓库维护状态追踪与新版本安装**
-*Track repo health & updates*
+在 Android 上订阅 GitHub 仓库，跟进提交和版本发布，为已安装的应用查找更新。
 
-[![License](https://img.shields.io/badge/License-GPL--3.0-blue)](LICENSE)
-[![Stars](https://img.shields.io/github/stars/JeffioZ/CandyTick?style=flat&color=yellow)](https://github.com/JeffioZ/CandyTick/stargazers)
-![Platform](https://img.shields.io/badge/Android-3DDC84?logo=android&logoColor=white)
-![API](https://img.shields.io/badge/API-29%2B-9E9E9E)
+**[下载最新版 APK](https://github.com/JeffioZ/CandyTick/releases/latest)** · [更新日志](CHANGELOG.md) · [English](README.en.md)
 
-订阅 GitHub 仓库，跟踪维护状态；有新版本时可以下载安装。
-
-[![Download](https://img.shields.io/github/v/release/JeffioZ/CandyTick?style=for-the-badge&label=%E4%B8%8B%E8%BD%BD%E6%9C%80%E6%96%B0%E7%89%88&logo=github&color=1fb574)](https://github.com/JeffioZ/CandyTick/releases)
+Android 10 及以上 · 32 位与 64 位 ARM 通用
 
 </div>
 
+## 添加第一个仓库
+
+1. 点首页右上角的 **＋**。粘贴 GitHub 链接、输入 `LibChecker/LibChecker` 这样的仓库名，或按关键词搜索。
+2. 在预览中点 **添加仓库** 即可订阅。公开仓库无需登录。
+
 <p align="center">
-  <img src="docs/fastlane/metadata/android/zh-CN/images/phoneScreenshots/1.png" width="270" />
-  <img src="docs/fastlane/metadata/android/zh-CN/images/phoneScreenshots/2.png" width="270" />
+  <a href="docs/fastlane/metadata/android/zh-CN/images/phoneScreenshots/1.png"><img src="docs/fastlane/metadata/android/zh-CN/images/phoneScreenshots/1.png" width="36%" alt="浅色模式下的首页，列出订阅的仓库及其活跃程度"></a>
+  &ensp;
+  <a href="docs/fastlane/metadata/android/zh-CN/images/phoneScreenshots/2.png"><img src="docs/fastlane/metadata/android/zh-CN/images/phoneScreenshots/2.png" width="36%" alt="深色模式下的同一份仓库列表"></a>
 </p>
 
-## 功能
+## 浏览仓库动态
 
-### 追踪
+以下介绍主分支的功能，尚未发布的改动列在更新日志顶部。
 
-- 按最近推送时间显示活跃程度，分为活跃、活跃度一般、较少更新和久未更新。已归档的仓库单独标记。
-- 提交历史与版本历史，提交可切换分支查看
-- 打开应用时或按设定周期同步，可限制自动同步使用非计费网络。点新版安装包通知可直达对应版本，阅读后只清除该版本的未读标记
-- 搜索、排序、置顶、删除（可撤销）
+- **查看提交和版本。** 在详情页切换分支可查看该分支的提交。版本历史里可以阅读发布说明，包括表格、代码块和任务列表，也可以点开关联的 GitHub Issue。较长的说明可在 GitHub 阅读全文。
+- **整理首页。** 可以搜索、置顶或移除仓库，误删后可撤销。支持按最近活动、可用更新、活跃程度、添加时间或仓库名称排序。再点一次当前选项即可反向排列。
+- **判断活跃程度。** 仓库的活跃程度取决于最近一次推送的时间，已归档的仓库会单独标记。
+- **同步仓库。** 打开应用时或按设定的周期自动同步，可限制为仅使用非计费网络。手动刷新可以使用移动数据。
+- **查看更新通知。** 点开单个仓库的新版安装包通知，会定位到对应版本，只清除这次发布的未读标记。「可更新」由本机安装的版本决定。
 
-### 版本与安装
+## 更新已安装的应用
 
-- 更新日志支持 Markdown 表格、代码块、任务列表和可点击的 Issue 引用；长日志提供预览和完整原文入口
-- 关联本机应用后自动比对版本，标题跟随应用名；已装的对应应用会自动识别
-- 版本比较支持常见格式（x.y.z、日期式、预发布版），比不了的会直接说明
-- 下载时可查看进度或取消，也可以设置为下载完成后自动打开安装程序
-- 多安装包时按设备架构推荐候选。标准 APK 可交给系统安装器，APKS / XAPK / APKM 需要支持相应格式的第三方安装器
+CandyTick 会尝试将仓库与本机应用关联，也可以手动选择。关联后，仓库会显示应用名，并将本机版本与发布版本进行比较。常见版本号、日期版本和预发布版本均可比较，遇到无法判断的格式会给出提示。
 
-### 数据与体验
+同一版本有多个安装包时，CandyTick 会根据设备架构推荐。下载过程中可查看进度或取消，也可设置为下载完成后打开安装程序。标准 APK 使用系统安装程序，APKS、XAPK 和 APKM 需要兼容的第三方安装程序。
 
-- 无需注册，可选 GitHub Token 提高限额（60 → 5000 次/小时）
-- 订阅可导出、合并导入
-- 清理已下载的安装包与崩溃日志
-- 应用自身更新支持自动检查和下载，系统允许时可免确认安装
-- 深浅色主题、中英双语；适配平板与折叠屏（内容列限宽，横竖屏自由）
+## 设置与备份
 
-## 构建
+- **备份订阅。** 可将订阅列表及仓库概况导出为 JSON，导入时会跳过已订阅的仓库。个人设置、GitHub 令牌和已下载的安装包不包含在备份中。
+- **清理存储空间。** 可分别清理已下载的安装包和崩溃日志。
+- **GitHub 令牌。** 如果经常遇到请求次数限制，可在设置中添加令牌以提高 [API 请求限额](https://docs.github.com/zh/rest/using-the-rest-api/rate-limits-for-the-rest-api)。
+- **更新 CandyTick。** 可自动检查自身更新。开启自动下载后，Wi-Fi 和移动数据均可用于下载新版。同时开启「下载后打开安装程序」时，若系统允许，CandyTick 可免确认安装自身更新。
+- **语言与外观。** 提供简体中文和英文，支持深浅色主题、横屏、平板与折叠屏。
 
-JDK 17+：
+## 从源码构建
 
-```bash
+发布构建使用 JDK 21，所需 Android SDK 平台见[应用构建配置](app/build.gradle.kts)。在项目根目录运行以下命令即可生成调试包。
+
+```sh
 bash gradlew assembleDebug
 ```
 
-Windows PowerShell 下运行 `.\gradlew.bat assembleDebug`。
+在 Windows PowerShell 中运行 `.\gradlew.bat assembleDebug`。调试包生成在 `app/build/outputs/apk/debug/app-debug.apk`。
 
-## 技术栈
+项目使用 Kotlin、Jetpack Compose、[Miuix](https://github.com/compose-miuix-ui/miuix)、Navigation 3、OkHttp 和 WorkManager。发布说明由 [commonmark-java](https://github.com/commonmark/commonmark-java) 解析，订阅数据以 JSON 保存在本机。
 
-Kotlin · Compose + [Miuix](https://github.com/compose-miuix-ui/miuix) · Navigation 3 · OkHttp · WorkManager · [commonmark-java](https://github.com/commonmark/commonmark-java)（Markdown 解析）· 单 JSON 状态文件（无 Room / 无 KSP）
+## 许可与致谢
 
-## 许可
-
-[GPL-3.0](LICENSE) · 版本比较与 APK 选择的思路参考了 [Obtainium](https://github.com/ImranR98/Obtainium) · UI 图标取自 [Lucide](https://lucide.dev)，[随包许可](app/src/main/assets/licenses/lucide.txt)包含 Lucide 和 Feather 的署名。
+CandyTick 以 [GPL-3.0](LICENSE) 发布。版本比较和安装包选择参考了 [Obtainium](https://github.com/ImranR98/Obtainium)。界面图标来自 [Lucide](https://lucide.dev)，应用内附有 [Lucide 和 Feather 的许可声明](app/src/main/assets/licenses/lucide.txt)。

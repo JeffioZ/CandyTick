@@ -3,18 +3,21 @@ agp = "9.5.2"
 kotlin = "2.4.21"
 composeBom = "2026.11.01"
 activityCompose = "1.13.0"
+annotation = "1.11.0"
 coreKtx = "1.19.1"
 splashscreen = "1.2.0"
 lifecycle = "2.11.1"
 navigation3 = "1.2.2"
 work = "2.12.0"
 okhttp = "5.5.1"
+kotlinxCoroutines = "1.11.0"
 kotlinxSerialization = "1.13.0"
 miuix = "0.9.4"
 commonmark = "0.33.0"
 junit = "4.13.2"
 
 [libraries]
+androidx-annotation = { module = "androidx.annotation:annotation", version.ref = "annotation" }
 androidx-core-ktx = { group = "androidx.core", name = "core-ktx", version.ref = "coreKtx" }
 androidx-core-splashscreen = { group = "androidx.core", name = "core-splashscreen", version.ref = "splashscreen" }
 androidx-activity-compose = { group = "androidx.activity", name = "activity-compose", version.ref = "activityCompose" }
@@ -33,6 +36,7 @@ compose-foundation = { group = "androidx.compose.foundation", name = "foundation
 miuix-ui = { group = "top.yukonga.miuix.kmp", name = "miuix-ui", version.ref = "miuix" }
 
 okhttp = { group = "com.squareup.okhttp3", name = "okhttp", version.ref = "okhttp" }
+kotlinx-coroutines-android = { module = "org.jetbrains.kotlinx:kotlinx-coroutines-android", version.ref = "kotlinxCoroutines" }
 kotlinx-serialization-json = { group = "org.jetbrains.kotlinx", name = "kotlinx-serialization-json", version.ref = "kotlinxSerialization" }
 
 commonmark = { group = "org.commonmark", name = "commonmark", version.ref = "commonmark" }
