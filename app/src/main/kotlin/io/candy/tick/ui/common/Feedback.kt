@@ -201,10 +201,11 @@ fun FeedbackHost() {
                     )
                     m.actionLabel?.let { label ->
                         Spacer(Modifier.width(4.dp))
-                        // 按压反馈升到 App 标准（rememberRowPressTint：快按即显 + 80ms 保持 + 16%），
-                        // 与图标钮/卡片同手感——此前 MiuixIndication 库默认（~10%、渐变）快按几乎不可见
-                        val pillBackground = if (dark) scheme.surfaceContainerHigh else scheme.surfaceContainer
-                        val (press, pressColor) = rememberRowPressTint(surface = pillBackground)
+                        // 取消钮带常显浅底（比胶囊底深一档）：文字墨迹→色块的间隙在不同
+                        // 名称长度下观感漂移（长基线挤间隙的光学错觉），色块→色块则是
+                        // 硬等距——左 4dp（Spacer）= 右 4dp（胶囊内衬），与长度无关（真机两轮反馈）
+                        val chipColor = if (dark) scheme.surfaceContainerHighest else scheme.surfaceContainerHigh
+                        val (press, pressColor) = rememberRowPressTint(surface = chipColor)
                         Box(
                             modifier = Modifier
                                 .clickable(interactionSource = press, indication = null, role = Role.Button) {
@@ -213,6 +214,7 @@ fun FeedbackHost() {
                                 .sizeIn(minWidth = 48.dp, minHeight = 48.dp)
                                 .padding(vertical = feedbackActionInset)
                                 .clip(feedbackActionShape)
+                                // 单层：pressColor 静止时 == chipColor（常显浅底），按下时向深色插值
                                 .background(pressColor, feedbackActionShape)
                                 .padding(horizontal = 8.dp),
                             contentAlignment = Alignment.Center,

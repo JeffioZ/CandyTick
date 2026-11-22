@@ -54,12 +54,30 @@ internal fun DownloadProgress(progress: Float?, sizeBytes: Long = 0, onCancel: (
                     animationSpec = tween(Motion.PROGRESS, easing = LinearEasing),
                     label = "downloadProgress",
                 )
-                LinearProgressIndicator(progress = bar, modifier = Modifier.fillMaxWidth())
+                // 取消钮与进度条同线居中（不是与「条+标签」整块居中——那会让钮偏高于条）；
+                // 条→钮 16dp = 钮→卡片内容缘 16dp（卡内衬），两侧等距（真机反馈）。
+                // 代价：48dp 触摸区使本行高≈72（条+标签分组）——「大小未知→已知」的罕见
+                // 瞬间块高 +24 一次；相位间切换走 AnimatedContent 高度动画不受影响
+                Row(
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.spacedBy(16.dp),
+                ) {
+                    LinearProgressIndicator(progress = bar, modifier = Modifier.weight(1f))
+                    if (onCancel != null) {
+                        CompactTextAction(onClick = onCancel, enabled = cancelEnabled, alignment = Alignment.Center) {
+                            Text(
+                                text = stringResource(R.string.cancel),
+                                style = MiuixTheme.textStyles.footnote1,
+                                color = scheme.primaryVariant,
+                            )
+                        }
+                    }
+                }
                 Text(label, style = MiuixTheme.textStyles.footnote2, color = scheme.onBackgroundVariant)
             }
         }
-        if (onCancel != null) {
-            CompactTextAction(onClick = onCancel, enabled = cancelEnabled) {
+        if (onCancel != null && progress == null) {
+            CompactTextAction(onClick = onCancel, enabled = cancelEnabled, alignment = Alignment.Center) {
                 Text(
                     text = stringResource(R.string.cancel),
                     style = MiuixTheme.textStyles.footnote1,

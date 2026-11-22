@@ -445,16 +445,8 @@ fun ListScreen(
         ) { padding ->
             Box(modifier = Modifier.padding(padding)) {
             // 松手触发刷新：轻触感确认（HyperOS 下拉刷新惯例）
-            io.candy.tick.ui.common.CandyPullToRefresh(
-                requestState = vm.manualRefresh,
-                refreshing = { it },
-                onRefresh = {
-                    haptic.performHapticFeedback(HapticFeedbackType.LongPress)
-                    refresh()
-                },
-                pullToRefreshState = pullState,
-                topAppBarScrollBehavior = scrollBehavior,
-            ) {
+            // 下拉刷新只包列表分支：空态没有任何订阅可刷，接下拉是死手势
+            // （拉了只看到空刷新动画）——指示器原点随之下移到列表区，语义也更准
                 Column(modifier = Modifier.fillMaxSize()) {
                     androidx.compose.animation.AnimatedVisibility(
                         visibleState = searchVisibility,
@@ -553,10 +545,16 @@ fun ListScreen(
                             }
                         }
                     } else {
-                        // footer 在场判定（「≥2 张卡且已完整滚过第一张」=内容确实溢出且在翻卡）。
-                        // 注：短列表 footer 不再渲染（用户决策「一屏能显示完不出」），原为钉底设计
-                        // 服务的 HomeListArrangement 已随之删除——溢出列表用普通 8dp 排列即可
-                        val footerVisible = state.items.size >= 2 && listState.firstVisibleItemIndex > 0
+                        io.candy.tick.ui.common.CandyPullToRefresh(
+                            requestState = vm.manualRefresh,
+                            refreshing = { it },
+                            onRefresh = {
+                                haptic.performHapticFeedback(HapticFeedbackType.LongPress)
+                                refresh()
+                            },
+                            pullToRefreshState = pullState,
+                            topAppBarScrollBehavior = scrollBehavior,
+                        ) {
                         LazyColumn(
                             state = listState,
                             modifier = Modifier.fillMaxSize().layoutBounds(listBounds).then(
@@ -607,15 +605,14 @@ fun ListScreen(
                                 )
                             }
                         }
-                        // 「已到底」的「项」是仓库卡片：只在「≥2 张卡且已完整滚过第一张」时渲染
-                        if (footerVisible) {
-                            item(key = "list-end") {
-                                io.candy.tick.ui.common.FooterText(
-                                    countLabel = R.plurals.footer_repositories,
-                                    count = state.items.size,
-                                    topPadding = 8.dp,
-                                )
-                            }
+                        // 列表末尾标记：始终渲染、紧跟最后一张卡（用户定案——不做按屏判定，
+                        // 颜色在 FooterText 内整体弱化以降噪）。topPadding 24：8 间距 + 24
+                        // = 32，与底部 contentPadding 32 上下对称（原版节奏）
+                        item(key = "list-end") {
+                            io.candy.tick.ui.common.FooterText(
+                                countLabel = R.plurals.footer_repositories,
+                                count = state.items.size,
+                            )
                         }
                         }
                     }

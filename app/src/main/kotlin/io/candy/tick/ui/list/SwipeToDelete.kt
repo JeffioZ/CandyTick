@@ -90,12 +90,16 @@ fun SwipeToDelete(
                     returnJob = launch(start = CoroutineStart.UNDISPATCHED) {
                         try {
                             if (motionEnabled) {
-                                coroutineScope {
-                                    if (deleting) launch { dissolve.animateTo(0f, tween(Motion.PROGRESS)) }
+                                if (deleting) {
+                                    // 删除：卡停在松手位置原地消散——不回位。回位动画方向与
+                                    // 手势相反（左滑松手后卡向右飞回再消失），且 300ms 消散对
+                                    // 220ms 回位的时长差会多出一段「位置停了还在淡」的两段感
+                                    dissolve.animateTo(0f, tween(Motion.PROGRESS))
+                                } else {
                                     animate(
                                         initialValue = offsetX,
                                         targetValue = 0f,
-                                        animationSpec = tween(if (deleting) Motion.PANEL else Motion.PHASE, easing = Motion.Decelerate),
+                                        animationSpec = tween(Motion.PHASE, easing = Motion.Decelerate),
                                     ) { value, _ -> offsetX = value }
                                 }
                             } else if (deleting) {

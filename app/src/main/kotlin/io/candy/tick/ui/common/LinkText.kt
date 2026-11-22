@@ -79,6 +79,9 @@ internal fun CompactTextAction(
     hitAreaPadding: PaddingValues = PaddingValues(0.dp),
     enabled: Boolean = true,
     surface: Color = MiuixTheme.colorScheme.surfaceContainer,
+    // 行内文字链用默认 Start（墨迹贴文本流）；行尾独立动作传 Center——48dp 触摸区内
+    // 芯片居中后墨迹两侧对称，与邻居/卡片边缘的视觉间距相等（DownloadProgress 取消钮）
+    alignment: Alignment = Alignment.CenterStart,
     content: @Composable RowScope.() -> Unit,
 ) {
     val (source, tint) = rememberRowPressTint(surface)
@@ -87,7 +90,7 @@ internal fun CompactTextAction(
             .clickable(enabled = enabled, interactionSource = source, indication = null, role = Role.Button, onClick = onClick)
             .sizeIn(minWidth = 48.dp, minHeight = 48.dp)
             .padding(hitAreaPadding),
-        contentAlignment = Alignment.CenterStart,
+        contentAlignment = alignment,
     ) {
         Row(
             modifier = Modifier

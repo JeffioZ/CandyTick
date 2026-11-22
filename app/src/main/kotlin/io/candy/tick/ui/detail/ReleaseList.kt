@@ -263,7 +263,9 @@ private fun ReleaseCard(
                     when (phase) {
                         "downloaded" -> Row(
                             modifier = Modifier.fillMaxWidth(),
-                            horizontalArrangement = Arrangement.spacedBy(8.dp),
+                            // 16：安装钮→删除圆钮墨迹距 = 16+4(内缩) = 20，圆钮墨迹→卡缘 = 4+16(卡衬) = 20，
+                            // 两侧等距（此前 8+4=12 vs 20 不对称，真机反馈）；按钮宽度由 weight 吸收 -8dp
+                            horizontalArrangement = Arrangement.spacedBy(16.dp),
                             verticalAlignment = Alignment.CenterVertically,
                         ) {
                             Box(modifier = Modifier.weight(1f)) {

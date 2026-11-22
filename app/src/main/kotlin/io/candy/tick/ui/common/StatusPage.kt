@@ -167,9 +167,10 @@ fun StatusPage(
 /** 在列表末尾显示当前列表的数量与单位。 */
 @Composable
 fun FooterText(@PluralsRes countLabel: Int, count: Int, modifier: Modifier = Modifier, topPadding: Dp = 24.dp) {
-    // 列表终点标记：文字两侧短线（dividerLine 与卡内分隔线同源）——印刷式「线·文·线」
-    // 终点语言；保持最弱层级（footnote2 + 分隔线色）不与内容争夺注意力
+    // 列表终点标记：文字两侧短线与文字同色——印刷式「线·文·线」终点语言；
+    // 常驻弱化：次级文字色 75% 透明（线同色），要「在」但不与内容争注意力
     val scheme = MiuixTheme.colorScheme
+    val footerColor = scheme.onBackgroundVariant.copy(alpha = 0.75f)
     Row(
         verticalAlignment = Alignment.CenterVertically,
         horizontalArrangement = Arrangement.Center,
@@ -182,14 +183,14 @@ fun FooterText(@PluralsRes countLabel: Int, count: Int, modifier: Modifier = Mod
                 .width(24.dp)
                 .height(1.5.dp)
                 .clip(RoundedCornerShape(1.dp))
-                .background(scheme.dividerLine),
+                .background(footerColor),
         )
         Spacer(Modifier.width(10.dp))
         Text(
             text = pluralStringResource(countLabel, count, count),
             modifier = Modifier.weight(1f, fill = false),
             style = MiuixTheme.textStyles.footnote2,
-            color = scheme.onBackgroundVariant,
+            color = footerColor,
             textAlign = TextAlign.Center,
         )
         Spacer(Modifier.width(10.dp))
@@ -198,7 +199,7 @@ fun FooterText(@PluralsRes countLabel: Int, count: Int, modifier: Modifier = Mod
                 .width(24.dp)
                 .height(1.5.dp)
                 .clip(RoundedCornerShape(1.dp))
-                .background(scheme.dividerLine),
+                .background(footerColor),
         )
     }
 }

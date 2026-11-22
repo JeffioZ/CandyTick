@@ -139,9 +139,12 @@ class AppStateStore internal constructor(filesDir: File, noBackupDir: File) {
         if (_loadStatus.value != LoadStatus.READY) return null
         val current = _state.value
         if (corruptReset && current.repos.isEmpty()) return null
+        // 只导仓库基础信息（含关联包名/备注/置顶；不含已下载包记录）。快照是同步机器的
+        // 内脏（ETag/基线/上次已知状态），跨设备无意义且 schema 一变旧备份就解析失败；
+        // 裸导入 = 全新添加语义：首刷静默立基线不误亮未读，无网时卡片为现成的无徽章骨架态。
+        // snapshots 字段保留于数据类（默认空）——旧版完整备份仍照常导入（带基线压制）
         val sanitized = SubscriptionBackup(
             repos = current.repos.map { it.copy(downloadedApk = null) },
-            snapshots = current.snapshots.mapValues { (_, snapshot) -> snapshot.copy(activity = RepoActivity()) },
         )
         return json.encodeToString(sanitized)
     }
