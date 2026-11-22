@@ -34,7 +34,6 @@ import io.candy.tick.data.SelfUpdater
 import io.candy.tick.ui.theme.MonoTokenStyle
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import kotlinx.coroutines.launch
-import top.yukonga.miuix.kmp.basic.LinearProgressIndicator
 import top.yukonga.miuix.kmp.basic.Text
 import top.yukonga.miuix.kmp.theme.MiuixTheme
 import top.yukonga.miuix.kmp.window.WindowBottomSheet
@@ -69,12 +68,12 @@ fun UpdateSheet(
     var dismissedTag by remember { mutableStateOf<String?>(null) }
     val scope = rememberCoroutineScope()
 
-    LaunchedEffect(UpdateSheetController.manualRequest, state) {
-        val s = state
+    val release = state as? SelfUpdater.State.NewVersion
+    LaunchedEffect(UpdateSheetController.manualRequest, release) {
         if (UpdateSheetController.manualRequest) {
             UpdateSheetController.manualRequest = false
             show = true
-        } else if (s is SelfUpdater.State.NewVersion && s.tag != dismissedTag && !s.incomparable) {
+        } else if (release != null && release.tag != dismissedTag && !release.incomparable) {
             // 自动检查发现新版：每版本自动弹一次；无法比较版本不弹（不宣称「有更新」，
             // design.md:183）——入口在设置页版本行，用户主动点开再看
             show = true
@@ -82,22 +81,22 @@ fun UpdateSheet(
     }
 
     // show 直通（勿用 if 包裹）：退场动画依赖组件持续组合（与全 App 弹层同一约定）
+    val notesScroll = key(release?.tag) { rememberScrollState() }
     WindowBottomSheet(
         show = show,
         onDismissRequest = {
             show = false
             (state as? SelfUpdater.State.NewVersion)?.let { dismissedTag = it.tag }
         },
+        onDismissFinished = { scope.launch { notesScroll.scrollTo(0) } },
+        startAction = {
+            SheetScrollToTopTitle(
+                text = stringResource(R.string.notif_update_ready_title),
+                canScroll = !release?.notes.isNullOrBlank() && notesScroll.canScrollBackward,
+                scrollToTop = notesScroll::scrollToTop,
+            )
+        },
     ) {
-        val release = state as? SelfUpdater.State.NewVersion
-        val notesScroll = key(release?.tag) { rememberScrollState() }
-        val animated = rememberMotionEnabled()
-        SheetScrollToTopTitle(
-            text = stringResource(R.string.notif_update_ready_title),
-            onClick = if (!release?.notes.isNullOrBlank() && notesScroll.canScrollBackward) {
-                { scope.launch { notesScroll.scrollToTop(animated) } }
-            } else null,
-        )
         Column(
             modifier = Modifier
                 .padding(horizontal = 16.dp)
@@ -105,15 +104,9 @@ fun UpdateSheet(
         ) {
             // 四相柔切换（与仓库下载四相同款 180 档）：新版 → 进度 → 安装 / 失败不硬跳。
             // Failed 此前映射 idle 只渲染空白——下载失败时弹窗只剩标题，看起来像界面坏了
-            val phase = when (state) {
-                is SelfUpdater.State.NewVersion -> "new"
-                is SelfUpdater.State.Downloading -> "dl"
-                is SelfUpdater.State.Downloaded -> "done"
-                is SelfUpdater.State.Failed -> "failed"
-                else -> "idle"
-            }
             androidx.compose.animation.AnimatedContent(
-                targetState = phase,
+                targetState = state,
+                contentKey = { it::class },
                 modifier = Modifier.fillMaxWidth(),
                 transitionSpec = {
                     ((androidx.compose.animation.fadeIn(androidx.compose.animation.core.tween(Motion.PHASE)) +
@@ -129,17 +122,18 @@ fun UpdateSheet(
                         )
                 },
                 label = "updatePhase",
-            ) { ph ->
+            ) { phase ->
                 val sectionGap = 10.dp
-                val linkAtBottom = ph == "new" && release != null && release.asset == null
+                val linkAtBottom = phase is SelfUpdater.State.NewVersion && phase.asset == null
                 Column(
                     modifier = if (linkAtBottom) {
                         Modifier.windowInsetsPadding(WindowInsets.navigationBars.only(WindowInsetsSides.Bottom))
                     } else Modifier.padding(bottom = 16.dp),
                     verticalArrangement = Arrangement.spacedBy(sectionGap),
                 ) {
-                    when (ph) {
-                        "new" -> (state as? SelfUpdater.State.NewVersion)?.let { s ->
+                    when (phase) {
+                        is SelfUpdater.State.NewVersion -> {
+                            val s = phase
                             // 醒目版本 tag：一眼看到升到什么
                             Text(
                                 text = s.tag,
@@ -174,19 +168,12 @@ fun UpdateSheet(
                                         style = MiuixTheme.textStyles.footnote1,
                                         color = MiuixTheme.colorScheme.onBackgroundVariant,
                                     )
-                                    val releasesCtx = androidx.compose.ui.platform.LocalContext.current
+                                    val uriHandler = rememberReleaseUriHandler()
                                     LinkText(
                                         text = stringResource(R.string.self_update_view_releases),
                                         onClick = {
                                             val slug = "${SelfUpdater.APP_OWNER}/${SelfUpdater.APP_REPO}"
-                                            runCatching {
-                                                releasesCtx.startActivity(
-                                                    android.content.Intent(
-                                                        android.content.Intent.ACTION_VIEW,
-                                                        android.net.Uri.parse("https://github.com/$slug/releases"),
-                                                    ).addFlags(android.content.Intent.FLAG_ACTIVITY_NEW_TASK),
-                                                )
-                                            }
+                                            uriHandler.openUri("https://github.com/$slug/releases")
                                         },
                                         showIcon = true,
                                     )
@@ -205,35 +192,21 @@ fun UpdateSheet(
                                 )
                             }
                         }
-                        "dl" -> (state as? SelfUpdater.State.Downloading)?.let { st ->
-                            val p by androidx.compose.animation.core.animateFloatAsState(
-                                targetValue = st.progress,
-                                animationSpec = androidx.compose.animation.core.tween(Motion.PROGRESS),
-                                label = "updateDl",
-                            )
-                            LinearProgressIndicator(
-                                progress = p,
-                                modifier = Modifier.fillMaxWidth(),
-                            )
+                        is SelfUpdater.State.Downloading -> DownloadProgress(phase.progress)
+                        is SelfUpdater.State.Downloaded -> {
                             Text(
-                                text = stringResource(R.string.download_progress_percent, (p * 100).toInt()),
-                                style = MiuixTheme.textStyles.footnote2,
-                                color = MiuixTheme.colorScheme.onBackgroundVariant,
-                            )
-                        }
-                        "done" -> (state as? SelfUpdater.State.Downloaded)?.let { st ->
-                            Text(
-                                text = st.tag,
+                                text = phase.tag,
                                 style = MonoTokenStyle.copy(fontWeight = FontWeight.Bold),
                                 color = MiuixTheme.colorScheme.primaryVariant,
                             )
                             PrimaryButton(
                                 text = stringResource(R.string.settings_install_update),
-                                onClick = { selfUpdater.install(st.file) },
+                                onClick = { selfUpdater.install(phase.file) },
                                 modifier = Modifier.fillMaxWidth(),
                             )
                         }
-                        "failed" -> (state as? SelfUpdater.State.Failed)?.let { f ->
+                        is SelfUpdater.State.Failed -> {
+                            val f = phase
                             // 失败相（此前是空白 + 弹窗只剩标题）：错误条 + 对应出路
                             val scheme = MiuixTheme.colorScheme
                             Text(
@@ -269,7 +242,18 @@ fun UpdateSheet(
                                 else -> Unit
                             }
                         }
-                        else -> {
+                        SelfUpdater.State.Checking -> Row(
+                            horizontalArrangement = Arrangement.spacedBy(6.dp),
+                            verticalAlignment = Alignment.CenterVertically,
+                        ) {
+                            LoadingDots(contentDescription = null)
+                            Text(stringResource(R.string.settings_checking), style = MiuixTheme.textStyles.footnote1)
+                        }
+                        SelfUpdater.State.UpToDate -> Text(
+                            stringResource(R.string.version_local_current),
+                            style = MiuixTheme.textStyles.footnote1,
+                        )
+                        SelfUpdater.State.Idle -> {
                             // 关闭竞态兜底（state 已流转到弹窗外相）
                             Spacer(Modifier.height(8.dp))
                         }

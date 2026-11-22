@@ -23,7 +23,6 @@ import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.semantics.clearAndSetSemantics
 import androidx.compose.ui.semantics.disabled
 import androidx.compose.ui.semantics.role
-import androidx.compose.ui.semantics.selected
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.semantics.toggleableState
 import androidx.compose.ui.state.ToggleableState
@@ -31,6 +30,7 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import io.candy.tick.R
 import io.candy.tick.data.model.SyncFrequency
+import io.candy.tick.ui.common.OptionRow
 import io.candy.tick.ui.theme.MonoTokenStyle
 import top.yukonga.miuix.kmp.basic.BasicComponent
 import top.yukonga.miuix.kmp.basic.Card
@@ -38,7 +38,6 @@ import top.yukonga.miuix.kmp.basic.Icon
 import top.yukonga.miuix.kmp.basic.Switch
 import top.yukonga.miuix.kmp.basic.Text
 import top.yukonga.miuix.kmp.theme.MiuixTheme
-import androidx.compose.ui.res.vectorResource
 
 private val RowSideInset = 16.dp
 private val IconChipSize = 30.dp
@@ -186,30 +185,4 @@ internal fun FrequencyRow(
     OptionRow(frequencyLabel(option), option == current) {
         onSelect(option); onDone()
     }
-}
-
-/** 选择行（底部弹层用）：BasicComponent + Check 图标 + 选中态语义（TalkBack 播报「已选中」） */
-@Composable
-internal fun OptionRow(label: String, selected: Boolean, onClick: () -> Unit) {
-    BasicComponent(
-        // 库已给 Role/onClick 语义，这里补 selected：✓ 图标是纯视觉，读屏用户原本无法感知选中
-        modifier = Modifier
-            .fillMaxWidth()
-            .semantics { this.selected = selected },
-        title = label,
-        endActions = {
-            if (selected) {
-                Icon(
-                    imageVector = ImageVector.vectorResource(R.drawable.ic_check),
-                    contentDescription = null,
-                    tint = MiuixTheme.colorScheme.primaryVariant,
-                    modifier = Modifier.size(20.dp), // intrinsic 26dp，统一选中标记 20dp
-                )
-            }
-        },
-        onClick = onClick,
-        insideMargin = PaddingValues(
-            start = 16.dp, end = 16.dp, top = 14.dp, bottom = 14.dp,
-        ),
-    )
 }

@@ -8,7 +8,9 @@ import android.content.IntentFilter
 import android.content.pm.PackageInstaller
 import android.os.Build
 import androidx.core.content.ContextCompat
+import io.candy.tick.R
 import io.candy.tick.util.ApkPicker
+import io.candy.tick.util.openAppSettings
 import java.io.File
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
@@ -117,15 +119,12 @@ class InstallManager(private val context: Context, private val scope: CoroutineS
     }.getOrDefault(false)
 
     /** 打开本应用的「安装未知应用」系统授权页 */
-    fun openInstallPermissionSettings() {
-        runCatching {
-            val intent = Intent(
-                android.provider.Settings.ACTION_MANAGE_UNKNOWN_APP_SOURCES,
-                android.net.Uri.parse("package:${context.packageName}"),
-            ).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
-            context.startActivity(intent)
-        }
-    }
+    fun openInstallPermissionSettings(): Boolean = context.openAppSettings(
+        Intent(
+            android.provider.Settings.ACTION_MANAGE_UNKNOWN_APP_SOURCES,
+            android.net.Uri.fromParts("package", context.packageName, null),
+        ),
+    )
 
     /**
      * 仓库 APK 安装入口：ACTION_VIEW + content URI——经系统 resolver 路由，
@@ -168,8 +167,12 @@ class InstallManager(private val context: Context, private val scope: CoroutineS
             if (silentSelfUpdate) {
                 results.tryEmit(Event(null, InstallResult.Failed(null, false)))
             } else {
-                openInstallPermissionSettings()
-                results.tryEmit(Event(repoId, InstallResult.NeedsInstallPermission))
+                val result = if (openInstallPermissionSettings()) {
+                    InstallResult.NeedsInstallPermission
+                } else {
+                    InstallResult.Failed(context.getString(R.string.system_settings_unavailable), false)
+                }
+                results.tryEmit(Event(repoId, result))
             }
             return
         }

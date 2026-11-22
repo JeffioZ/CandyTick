@@ -150,7 +150,7 @@ class SettingsViewModel(
     // ---- 缓存清理 ----
 
     data class CacheState(
-        val scanning: Boolean = false,
+        val scanning: Boolean = true,
         val apkBytes: Long = 0, // 仓库 + 自身更新安装包合计（浮层一行展示）
         val crashLogBytes: Long = 0,
         val cleaning: Boolean = false,
@@ -164,9 +164,10 @@ class SettingsViewModel(
     fun scanCache() {
         cacheScan?.cancel()
         cacheScan = viewModelScope.launch {
-            _cacheState.value = CacheState(scanning = true)
+            _cacheState.value = CacheState()
             val scan = withContext(Dispatchers.IO) { cacheManager.scan() }
             _cacheState.value = CacheState(
+                scanning = false,
                 apkBytes = scan.repoApkBytes + scan.updateApkBytes,
                 crashLogBytes = scan.crashLogBytes,
             )

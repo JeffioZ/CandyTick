@@ -2,18 +2,22 @@
 
 # CandyTick
 
+![Android 10 及以上（API 29+）](https://img.shields.io/badge/Android-10%2B%20%28API%2029%2B%29-32674F?logo=android&logoColor=white)
+[![GPL-3.0 许可证](https://img.shields.io/badge/License-GPL--3.0-3C6284)](LICENSE)
+[![GitHub 星标数](https://img.shields.io/github/stars/JeffioZ/CandyTick?style=flat&label=Stars&color=806119)](https://github.com/JeffioZ/CandyTick/stargazers)
+
 在 Android 上订阅 GitHub 仓库，跟进提交和版本发布，为已安装的应用查找更新。
 
-**[下载最新版 APK](https://github.com/JeffioZ/CandyTick/releases/latest)** · [更新日志](CHANGELOG.md) · [English](README.en.md)
+[![下载最新版 APK](https://img.shields.io/github/v/release/JeffioZ/CandyTick?style=for-the-badge&label=%E4%B8%8B%E8%BD%BD%20APK&logo=github&logoColor=white&color=14755B)](https://github.com/JeffioZ/CandyTick/releases/latest)
 
-Android 10 及以上 · 32 位与 64 位 ARM 通用
+32 位与 64 位 ARM 通用 · [更新日志](CHANGELOG.md) · [English](README.en.md)
 
 </div>
 
 ## 添加第一个仓库
 
-1. 点首页右上角的 **＋**。粘贴 GitHub 链接、输入 `LibChecker/LibChecker` 这样的仓库名，或按关键词搜索。
-2. 在预览中点 **添加仓库** 即可订阅。公开仓库无需登录。
+1. 点首页右上角的 **＋**，粘贴 GitHub 仓库链接，或输入仓库名（如 `LibChecker/LibChecker`）。也可以按关键词搜索。
+2. 确认预览中的仓库，点 **添加仓库**。订阅公开仓库无需登录。
 
 <p align="center">
   <a href="docs/fastlane/metadata/android/zh-CN/images/phoneScreenshots/1.png"><img src="docs/fastlane/metadata/android/zh-CN/images/phoneScreenshots/1.png" width="36%" alt="浅色模式下的首页，列出订阅的仓库及其活跃程度"></a>
@@ -23,31 +27,22 @@ Android 10 及以上 · 32 位与 64 位 ARM 通用
 
 ## 浏览仓库动态
 
-以下介绍主分支的功能，尚未发布的改动列在更新日志顶部。
+- **查看最近改动。** 按分支浏览提交记录，在版本历史中阅读发布说明。首页会标出仓库的活跃程度和归档状态。
+- **整理订阅。** 可以把常看的仓库置顶，按名称搜索，或让有可用更新的仓库排在前面。
+- **接收更新提醒。** CandyTick 可定期同步仓库，并在发现新版安装包时通知你。开启「仅 Wi-Fi 同步」后，仍可使用移动数据手动刷新。
+- **备份与迁移。** 将订阅和仓库概况导出为 JSON，换机后即可导入。导入时会跳过已订阅的仓库。
 
-- **查看提交和版本。** 在详情页切换分支可查看该分支的提交。版本历史里可以阅读发布说明，包括表格、代码块和任务列表，也可以点开关联的 GitHub Issue。较长的说明可在 GitHub 阅读全文。
-- **整理首页。** 可以搜索、置顶或移除仓库，误删后可撤销。支持按最近活动、可用更新、活跃程度、添加时间或仓库名称排序。再点一次当前选项即可反向排列。
-- **判断活跃程度。** 仓库的活跃程度取决于最近一次推送的时间，已归档的仓库会单独标记。
-- **同步仓库。** 打开应用时或按设定的周期自动同步，可限制为仅使用非计费网络。手动刷新可以使用移动数据。
-- **查看更新通知。** 点开单个仓库的新版安装包通知，会定位到对应版本，只清除这次发布的未读标记。「可更新」由本机安装的版本决定。
+如果经常看到 GitHub 请求次数已达上限的提示，可以在设置中添加 GitHub 令牌，提高 [API 请求限额](https://docs.github.com/zh/rest/using-the-rest-api/rate-limits-for-the-rest-api)。
 
 ## 更新已安装的应用
 
-CandyTick 会尝试将仓库与本机应用关联，也可以手动选择。关联后，仓库会显示应用名，并将本机版本与发布版本进行比较。常见版本号、日期版本和预发布版本均可比较，遇到无法判断的格式会给出提示。
+CandyTick 会尝试识别仓库对应的本机应用，对比已安装版本和仓库发布的版本。你也可以在仓库详情页手动关联应用。
 
-同一版本有多个安装包时，CandyTick 会根据设备架构推荐。下载过程中可查看进度或取消，也可设置为下载完成后打开安装程序。标准 APK 使用系统安装程序，APKS、XAPK 和 APKM 需要兼容的第三方安装程序。
-
-## 设置与备份
-
-- **备份订阅。** 可将订阅列表及仓库概况导出为 JSON，导入时会跳过已订阅的仓库。个人设置、GitHub 令牌和已下载的安装包不包含在备份中。
-- **清理存储空间。** 可分别清理已下载的安装包和崩溃日志。
-- **GitHub 令牌。** 如果经常遇到请求次数限制，可在设置中添加令牌以提高 [API 请求限额](https://docs.github.com/zh/rest/using-the-rest-api/rate-limits-for-the-rest-api)。
-- **更新 CandyTick。** 可自动检查自身更新。开启自动下载后，Wi-Fi 和移动数据均可用于下载新版。同时开启「下载后打开安装程序」时，若系统允许，CandyTick 可免确认安装自身更新。
-- **语言与外观。** 提供简体中文和英文，支持深浅色主题、横屏、平板与折叠屏。
+在版本历史里选择安装包并下载。如果同一版本提供多个安装包，CandyTick 会根据设备架构推荐匹配项。普通 APK 可用系统安装程序打开，APKS、XAPK 和 APKM 需要兼容的第三方安装程序。
 
 ## 从源码构建
 
-发布构建使用 JDK 21，所需 Android SDK 平台见[应用构建配置](app/build.gradle.kts)。在项目根目录运行以下命令即可生成调试包。
+发布构建使用 JDK 21，所需 Android SDK 平台见[应用构建配置](app/build.gradle.kts)。要试用主分支上[尚未发布的改动](CHANGELOG.md#未发布)，可在项目根目录构建调试包。
 
 ```sh
 bash gradlew assembleDebug
@@ -55,8 +50,10 @@ bash gradlew assembleDebug
 
 在 Windows PowerShell 中运行 `.\gradlew.bat assembleDebug`。调试包生成在 `app/build/outputs/apk/debug/app-debug.apk`。
 
-项目使用 Kotlin、Jetpack Compose、[Miuix](https://github.com/compose-miuix-ui/miuix)、Navigation 3、OkHttp 和 WorkManager。发布说明由 [commonmark-java](https://github.com/commonmark/commonmark-java) 解析，订阅数据以 JSON 保存在本机。
+## 致谢
 
-## 许可与致谢
+CandyTick 的界面使用 [Miuix](https://github.com/compose-miuix-ui/miuix) 和 [Lucide 图标](https://lucide.dev)。版本比较和安装包选择参考了 [Obtainium](https://github.com/ImranR98/Obtainium)。
 
-CandyTick 以 [GPL-3.0](LICENSE) 发布。版本比较和安装包选择参考了 [Obtainium](https://github.com/ImranR98/Obtainium)。界面图标来自 [Lucide](https://lucide.dev)，应用内附有 [Lucide 和 Feather 的许可声明](app/src/main/assets/licenses/lucide.txt)。
+## 许可证
+
+CandyTick 采用 [GNU 通用公共许可证第 3 版](LICENSE)。

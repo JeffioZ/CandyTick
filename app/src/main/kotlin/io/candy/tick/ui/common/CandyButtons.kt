@@ -8,6 +8,8 @@ import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.combinedClickable
 import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.shape.CircleShape
@@ -24,13 +26,14 @@ import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import io.candy.tick.R
-import io.candy.tick.ui.theme.DarkFeedbackOutline
 import io.candy.tick.ui.theme.DarkFieldActionContainer
+import io.candy.tick.ui.theme.DarkFieldActionOutline
 import io.candy.tick.ui.theme.LocalDarkTheme
 import top.yukonga.miuix.kmp.basic.Button
 import top.yukonga.miuix.kmp.basic.ButtonDefaults
 import top.yukonga.miuix.kmp.basic.Icon
 import top.yukonga.miuix.kmp.basic.Text
+import top.yukonga.miuix.kmp.theme.LocalContentColor
 import top.yukonga.miuix.kmp.theme.MiuixTheme
 
 /**
@@ -44,14 +47,23 @@ fun PrimaryButton(
     onClick: () -> Unit,
     modifier: Modifier = Modifier,
     enabled: Boolean = true,
+    busyText: String? = null,
 ) {
+    val showBusy = busyText != null && rememberBusyIndicator(true)
     Button(
         onClick = onClick,
         modifier = modifier,
-        enabled = enabled,
+        enabled = enabled && busyText == null,
         colors = ButtonDefaults.buttonColorsPrimary(),
     ) {
-        Text(text = text, style = MiuixTheme.textStyles.button)
+        if (showBusy) {
+            Row(horizontalArrangement = Arrangement.spacedBy(8.dp), verticalAlignment = Alignment.CenterVertically) {
+                LoadingDots(color = LocalContentColor.current, contentDescription = null)
+                Text(text = busyText, style = MiuixTheme.textStyles.button)
+            }
+        } else {
+            Text(text = text, style = MiuixTheme.textStyles.button)
+        }
     }
 }
 
@@ -140,7 +152,7 @@ internal fun TextFieldActionButton(
         size = 44.dp,
         modifier = Modifier.padding(end = 4.dp),
         containerColor = if (dark) DarkFieldActionContainer else colors.surfaceContainer,
-        border = if (dark) BorderStroke(1.dp, DarkFeedbackOutline) else null,
+        border = if (dark) BorderStroke(1.dp, DarkFieldActionOutline) else null,
     ) {
         Icon(
             imageVector = ImageVector.vectorResource(icon),

@@ -35,7 +35,7 @@ sealed interface RepoDownloadState {
     data class Active(
         override val releaseKey: String,
         override val assetName: String,
-        val progress: Float,
+        val progress: Float?,
         val fromHeader: Boolean = false, // 头部入口下载：进度只在头部显示，卡片不重复
     ) : RepoDownloadState
 
@@ -120,11 +120,11 @@ class RepoDownloadHost(
         val fileId = java.util.UUID.randomUUID().toString()
         val dest = File(dir, "$fileId.$extension")
         val part = File(dir, "$fileId.part")
-        val active = RepoDownloadState.Active(release.tagName, asset.name, 0f, fromHeader)
+        val active = RepoDownloadState.Active(release.tagName, asset.name, if (asset.size > 0) 0f else null, fromHeader)
         _states.update { it + (repoId to active) }
         val job = scope.launch(start = CoroutineStart.LAZY) {
             try {
-                githubApi.download(asset.url, part) { p ->
+                githubApi.download(asset, part) { p ->
                     _states.update { states ->
                         if (jobGens[repoId] == gen && states[repoId] is RepoDownloadState.Active) {
                             states + (repoId to active.copy(progress = p))

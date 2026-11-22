@@ -38,14 +38,15 @@ import androidx.compose.ui.text.buildAnnotatedString
 import androidx.compose.ui.text.withStyle
 import androidx.compose.ui.unit.dp
 import io.candy.tick.R
+import io.candy.tick.ui.common.InlineErrorRow
 import io.candy.tick.data.model.ApkAsset
 import io.candy.tick.data.model.ReleaseRecord
 import io.candy.tick.ui.common.PrimaryButton
+import io.candy.tick.ui.common.DownloadProgress
 import io.candy.tick.ui.common.relTimeString
 import io.candy.tick.ui.theme.MonoTokenStyle
 import io.candy.tick.util.ApkPicker
 import top.yukonga.miuix.kmp.basic.Card
-import top.yukonga.miuix.kmp.basic.LinearProgressIndicator
 import top.yukonga.miuix.kmp.basic.Text
 import top.yukonga.miuix.kmp.theme.MiuixTheme
 import androidx.compose.ui.res.vectorResource
@@ -301,102 +302,18 @@ private fun ReleaseCard(
                                 )
                             }
                         }
-                        "progress" -> Column {
-                            val active = transfer as? RepoDownloadState.Active
-                            val animatedProgress by androidx.compose.animation.core.animateFloatAsState(
-                                targetValue = active?.progress ?: 0f,
-                                animationSpec = androidx.compose.animation.core.tween(Motion.PROGRESS),
-                                label = "releaseDl",
-                            )
-                            LinearProgressIndicator(
-                                progress = animatedProgress,
-                                modifier = Modifier.fillMaxWidth(),
-                            )
-                            Row(verticalAlignment = Alignment.CenterVertically) {
-                                Text(
-                                    text = stringResource(
-                                        R.string.download_progress_percent,
-                                        (animatedProgress * 100).toInt(),
-                                    ) + (
-                                        // 大小参考（asset 带 size 时）：大文件不再「不知要等多久」
-                                        candidates.find { it.name == active?.assetName && it.size > 0 }?.let { a ->
-                                            val totalMb = a.size / (1024f * 1024f)
-                                            String.format(
-                                                java.util.Locale.US, " · %.1f/%.0f MB",
-                                                totalMb * animatedProgress, totalMb,
-                                            )
-                                        } ?: ""
-                                        ),
-                                    style = MiuixTheme.textStyles.footnote2,
-                                    color = scheme.onBackgroundVariant,
-                                    modifier = Modifier.weight(1f),
-                                )
-                                // 取消：文字链而非 X 图标（「取消」语义直白；点击后回「下载」相即反馈）；
-                                // 按压染色多态
-                                val (cancelSrc, cancelTint) = io.candy.tick.ui.common.rememberRowPressTint()
-                                Text(
-                                    text = stringResource(R.string.cancel),
-                                    style = MiuixTheme.textStyles.footnote1,
-                                    color = scheme.primaryVariant,
-                                    modifier = Modifier
-                                        .clip(RoundedCornerShape(8.dp))
-                                        .background(cancelTint, RoundedCornerShape(8.dp))
-                                        .clickable(
-                                            interactionSource = cancelSrc,
-                                            indication = null,
-                                            onClick = onCancelDownload,
-                                        )
-                                        .padding(horizontal = 8.dp, vertical = 4.dp),
-                                )
-                            }
-                        }
-                        "failed" -> Row(
-                            verticalAlignment = Alignment.CenterVertically,
-                            modifier = Modifier
-                                .fillMaxWidth()
-                                // 行内错误条（行内色块家族统一参数：圆角12/icon16/gap8/padding h12 v10）：
-                                // 与 progress 相「状态 + 右侧行动链」对仗；错误与重试同条
-                                // （skill: error-recovery，恢复路径紧邻错误；全宽大按钮改轻量链）
-                                .clip(RoundedCornerShape(12.dp))
-                                .background(scheme.errorContainer)
-                                .padding(horizontal = 12.dp, vertical = 10.dp),
-                        ) {
-                            val failed = transfer as? RepoDownloadState.Failed
-                            Icon(
-                                imageVector = ImageVector.vectorResource(R.drawable.ic_info),
-                                contentDescription = null,
-                                tint = scheme.onErrorContainer,
-                                modifier = Modifier.size(16.dp),
-                            )
-                            Spacer(Modifier.width(8.dp))
-                            Text(
-                                text = downloadFailureText(failed),
-                                style = MiuixTheme.textStyles.footnote1,
-                                color = scheme.onErrorContainer,
-                                maxLines = 2,
-                                overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis,
-                                modifier = Modifier.weight(1f),
-                            )
-                            Spacer(Modifier.width(8.dp))
-                            // 重试链：下划线表可点（红底上保持条内单色）；按压染色多态
-                            val (retrySrc, retryTint) = io.candy.tick.ui.common.rememberRowPressTint()
-                            Text(
-                                text = stringResource(R.string.retry),
-                                style = MiuixTheme.textStyles.footnote1.copy(
-                                    textDecoration = androidx.compose.ui.text.style.TextDecoration.Underline,
-                                ),
-                                color = scheme.onErrorContainer,
-                                modifier = Modifier
-                                    .clip(RoundedCornerShape(8.dp))
-                                    .background(retryTint, RoundedCornerShape(8.dp))
-                                    .clickable(
-                                        interactionSource = retrySrc,
-                                        indication = null,
-                                        onClick = { selected?.let { onRetry(release, it) } },
-                                    )
-                                    .padding(horizontal = 8.dp, vertical = 4.dp),
+                        "progress" -> {
+                            val active = transfer as RepoDownloadState.Active
+                            DownloadProgress(
+                                progress = active.progress,
+                                sizeBytes = candidates.find { it.name == active.assetName }?.size ?: 0L,
+                                onCancel = onCancelDownload,
                             )
                         }
+                        "failed" -> InlineErrorRow(
+                            message = downloadFailureText(transfer as? RepoDownloadState.Failed),
+                            onRetry = { selected?.let { onRetry(release, it) } },
+                        )
                         else -> {
                             val sel = selected
                             if (sel != null) {

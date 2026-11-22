@@ -46,7 +46,7 @@ import top.yukonga.miuix.kmp.theme.MiuixTheme
 fun PressableCard(
     onClick: () -> Unit,
     modifier: Modifier = Modifier,
-    cornerRadius: Dp = 16.dp,
+    cornerRadius: Dp = CardDefaults.CornerRadius,
     interactionModifier: Modifier = Modifier,
     content: @Composable ColumnScope.() -> Unit,
 ) {

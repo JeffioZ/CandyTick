@@ -140,9 +140,8 @@ fun ListScreen(
         syncResult?.let { d ->
             // 三分位：全挂（failed>=total）才叫「同步失败」；部分失败无更新如实报数——
             // 此前 failed>0 && changed==0 即判 allFailed，5 中 1 失败也弹红色全挂文案
-            val allFailed = d.total > 0 && d.failed >= d.total
             when {
-                allFailed -> io.candy.tick.ui.common.Feedback.show(
+                d.allFailed -> io.candy.tick.ui.common.Feedback.show(
                     text = resources.getQuantityString(R.plurals.sync_result_all_failed, d.failed, d.failed),
                     isError = true,
                 )
@@ -258,10 +257,12 @@ fun ListScreen(
                             )
                             Spacer(Modifier.width(6.dp))
                             // 离开时连同最短显示时长和退出动画一并结束，快速返回也不带回上一帧。
-                            androidx.compose.runtime.key(vm.titleSync.interruptedRun) {
+                            androidx.compose.runtime.key(vm.titleSync.interruptedRun, vm.titleSync.pullOwnedRun, state.refreshing) {
                                 io.candy.tick.ui.common.SyncDots(
-                                    running = vm.titleSync.shouldAnimate(syncStatus) && !state.refreshing,
-                                    done = syncResult,
+                                    running = (syncStatus as? SyncStatus.Running)?.takeIf {
+                                        !state.refreshing && vm.titleSync.shouldAnimate(it)
+                                    },
+                                    done = syncResult?.takeIf { !state.refreshing && vm.titleSync.shouldAnimate(it.run) },
                                 )
                             }
                         }
@@ -471,9 +472,10 @@ fun ListScreen(
                                     interactionModifier = swipeActions,
                                     item = item,
                                     extras = state.cards[item.repo.id]?.takeIf {
-                                        it.commitBranch == (item.repo.branch ?: item.snapshot?.defaultBranch)
+                                        it.addedAt == item.repo.addedAt && it.commitBranch == (item.repo.branch ?: item.snapshot?.defaultBranch)
                                     },
                                     expanded = item.repo.id in state.expanded,
+                                    pageRefreshing = state.refreshing || vm.titleSync.shouldAnimate(syncStatus),
                                     isChanged = item.snapshot?.activity?.hasUnread == true,
                                     updatable = item.repo.id in state.updatableIds,
                                     versionEpoch = state.versionEpoch,
@@ -552,6 +554,7 @@ private fun rememberSyncResult(vm: ListViewModel, lifecycle: Lifecycle): SyncSta
             }
         }
     }
-    return result?.takeIf { vm.titleSync.shouldAnimate(it.run) }
+    // A pull can own the visual result while update counts and errors still reach the user.
+    return result?.takeUnless { it.run === vm.titleSync.interruptedRun }
 }
 

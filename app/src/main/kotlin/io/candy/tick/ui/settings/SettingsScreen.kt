@@ -1,9 +1,8 @@
 package io.candy.tick.ui.settings
 
-import android.Manifest
 import android.content.Intent
 import android.net.Uri
-import android.os.Build
+import android.provider.Settings
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.layout.Column
@@ -38,7 +37,9 @@ import io.candy.tick.data.Notifications
 import io.candy.tick.data.SelfUpdater
 import io.candy.tick.data.model.SyncFrequency
 import io.candy.tick.ui.common.CenteredScrollToTopBar
+import io.candy.tick.ui.common.Feedback
 import io.candy.tick.ui.common.rememberMotionEnabled
+import io.candy.tick.ui.common.OptionRow
 import io.candy.tick.ui.common.scrollToTop
 import io.candy.tick.ui.theme.ChipAmber
 import io.candy.tick.ui.theme.ChipBlue
@@ -51,6 +52,7 @@ import io.candy.tick.ui.theme.ChipSky
 import io.candy.tick.ui.theme.ChipSlate
 import io.candy.tick.ui.theme.ChipTeal
 import io.candy.tick.ui.theme.ChipViolet
+import io.candy.tick.util.openAppSettings
 import top.yukonga.miuix.kmp.basic.Scaffold
 import top.yukonga.miuix.kmp.theme.MiuixTheme
 import top.yukonga.miuix.kmp.window.WindowBottomSheet
@@ -101,7 +103,6 @@ fun SettingsScreen(onBack: () -> Unit) {
     var notifGranted by remember { mutableStateOf(Notifications.canNotify(app)) }
     // 崩溃日志存在性走状态（ON_RESUME 刷新），避免每次重组都在主线程查磁盘
     var crashLogPresent by remember { mutableStateOf(false) } // ON_RESUME 注册即刷新
-    var askedNotifOnce by rememberSaveable { mutableStateOf(false) }
     val lifecycleOwner = LocalLifecycleOwner.current
     DisposableEffect(lifecycleOwner) {
         val observer = LifecycleEventObserver { _, event ->
@@ -114,10 +115,6 @@ fun SettingsScreen(onBack: () -> Unit) {
         lifecycleOwner.lifecycle.addObserver(observer)
         onDispose { lifecycleOwner.lifecycle.removeObserver(observer) }
     }
-
-    val permissionLauncher = rememberLauncherForActivityResult(
-        ActivityResultContracts.RequestPermission(),
-    ) { notifGranted = Notifications.canNotify(app) }
 
     var showImportDialog by remember { mutableStateOf(false) }
     var showCacheCleanup by remember { mutableStateOf(false) }
@@ -152,19 +149,25 @@ fun SettingsScreen(onBack: () -> Unit) {
         }
     }
 
-    fun shareCrashLog() {
-        if (!crashLogExists()) {
-            io.candy.tick.ui.common.Feedback.show(text = resources.getString(R.string.crash_log_empty))
-            return
-        }
-        val content = runCatching { crashLogFile.readText() }.getOrDefault("")
+    fun shareText(text: String) {
         runCatching {
             context.startActivity(
                 Intent(Intent.ACTION_SEND)
                     .setType("text/plain")
-                    .putExtra(Intent.EXTRA_TEXT, content)
+                    .putExtra(Intent.EXTRA_TEXT, text)
                     .addFlags(Intent.FLAG_ACTIVITY_NEW_TASK),
             )
+        }.onFailure {
+            Feedback.show(resources.getString(R.string.share_unavailable), isError = true)
+        }
+    }
+
+    fun shareCrashLog() {
+        val content = runCatching { crashLogFile.readText() }.getOrNull()
+        if (content.isNullOrEmpty()) {
+            Feedback.show(resources.getString(R.string.crash_log_empty))
+        } else {
+            shareText(content)
         }
     }
 
@@ -177,16 +180,6 @@ fun SettingsScreen(onBack: () -> Unit) {
             io.candy.tick.ui.common.Feedback.show(
                 text = resources.getString(R.string.open_failed),
                 isError = true,
-            )
-        }
-    }
-
-    fun openNotificationSettings() {
-        runCatching {
-            context.startActivity(
-                Intent(android.provider.Settings.ACTION_APP_NOTIFICATION_SETTINGS)
-                    .putExtra(android.provider.Settings.EXTRA_APP_PACKAGE, context.packageName)
-                    .addFlags(Intent.FLAG_ACTIVITY_NEW_TASK),
             )
         }
     }
@@ -289,18 +282,12 @@ fun SettingsScreen(onBack: () -> Unit) {
                     icon = ImageVector.vectorResource(R.drawable.ic_shield),
                     iconTint = ChipViolet,
                     title = stringResource(R.string.settings_perm_notifications),
-                    value = when {
-                        Build.VERSION.SDK_INT < 33 -> permText(2)
-                        notifGranted -> permText(1)
-                        else -> permText(0)
-                    },
+                    value = permText(notifGranted),
                     onClick = {
-                        if (Build.VERSION.SDK_INT >= 33 && !askedNotifOnce) {
-                            askedNotifOnce = true
-                            permissionLauncher.launch(Manifest.permission.POST_NOTIFICATIONS)
-                        } else {
-                            // 二次点击 / 永久拒绝兜底：直达应用通知设置
-                            openNotificationSettings()
+                        val intent = Intent(Settings.ACTION_APP_NOTIFICATION_SETTINGS)
+                            .putExtra(Settings.EXTRA_APP_PACKAGE, context.packageName)
+                        if (!context.openAppSettings(intent)) {
+                            Feedback.show(resources.getString(R.string.system_settings_unavailable), isError = true)
                         }
                     },
                 )
@@ -341,8 +328,12 @@ fun SettingsScreen(onBack: () -> Unit) {
                     iconTint = ChipGreen,
                     title = stringResource(R.string.settings_perm_install_unknown),
                     summary = stringResource(R.string.settings_perm_install_summary),
-                    value = permText(if (installPermGranted) 1 else 0),
-                    onClick = { app.container.installManager.openInstallPermissionSettings() },
+                    value = permText(installPermGranted),
+                    onClick = {
+                        if (!app.container.installManager.openInstallPermissionSettings()) {
+                            Feedback.show(resources.getString(R.string.system_settings_unavailable), isError = true)
+                        }
+                    },
                 )
             }
             }
@@ -360,14 +351,7 @@ fun SettingsScreen(onBack: () -> Unit) {
                             val text = vm.exportSubscriptions()
                             clipboard.setText(androidx.compose.ui.text.AnnotatedString(text))
                             io.candy.tick.ui.common.Feedback.show(text = resources.getString(R.string.toast_copied))
-                            runCatching {
-                                context.startActivity(
-                                    Intent(Intent.ACTION_SEND)
-                                        .setType("text/plain")
-                                        .putExtra(Intent.EXTRA_TEXT, text)
-                                        .addFlags(Intent.FLAG_ACTIVITY_NEW_TASK),
-                                )
-                            }
+                            shareText(text)
                         }
                     },
                 )
@@ -526,7 +510,11 @@ fun SettingsScreen(onBack: () -> Unit) {
             showImportDialog = false
             // mime 放宽：第三方渠道下发的 .json 常被标成 text/plain 或 octet-stream，
             // 单 application/json 会让人在文件选择器里选不到自己的备份
-            importLauncher.launch(arrayOf("application/json", "text/plain", "application/octet-stream"))
+            runCatching {
+                importLauncher.launch(arrayOf("application/json", "text/plain", "application/octet-stream"))
+            }.onFailure {
+                Feedback.show(resources.getString(R.string.file_picker_unavailable), isError = true)
+            }
         },
         onFromClipboard = {
             showImportDialog = false
@@ -561,10 +549,8 @@ fun SettingsScreen(onBack: () -> Unit) {
             crashLogPresent = crashLogExists()
             freed
         },
-        onDismiss = {
-            showCacheCleanup = false
-            vm.resetCacheState()
-        },
+        onDismiss = { showCacheCleanup = false },
+        onDismissFinished = vm::resetCacheState,
     )
 }
 
@@ -612,12 +598,6 @@ private fun versionRowValue(update: SelfUpdater.State, localVersion: String): St
     }
 }
 
-/** 权限状态文案：1=已授权 0=未授权 2=无需授予 */
 @Composable
-private fun permText(status: Int): String = stringResource(
-    when (status) {
-        1 -> R.string.perm_granted
-        2 -> R.string.perm_not_required
-        else -> R.string.perm_not_granted
-    },
-)
+private fun permText(granted: Boolean): String =
+    stringResource(if (granted) R.string.perm_granted else R.string.perm_not_granted)

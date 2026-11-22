@@ -1,20 +1,16 @@
 package io.candy.tick.ui.settings
 
-import androidx.compose.animation.togetherWith
 import androidx.compose.runtime.setValue
 import kotlinx.coroutines.launch
 import androidx.compose.runtime.rememberCoroutineScope
-import androidx.compose.foundation.layout.Box
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberUpdatedState
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
-import androidx.compose.foundation.clickable
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
-import androidx.compose.foundation.layout.Row
-import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.WindowInsets
 import androidx.compose.foundation.layout.WindowInsetsSides
 import androidx.compose.foundation.layout.fillMaxWidth
@@ -22,23 +18,18 @@ import androidx.compose.foundation.layout.imePadding
 import androidx.compose.foundation.layout.navigationBars
 import androidx.compose.foundation.layout.only
 import androidx.compose.foundation.layout.padding
-import androidx.compose.foundation.layout.size
-import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.layout.windowInsetsPadding
-import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.focus.focusRequester
 import androidx.compose.ui.draw.clip
-import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.semantics.clearAndSetSemantics
 import androidx.compose.ui.unit.dp
 import io.candy.tick.R
-import io.candy.tick.data.SelfUpdater
 import io.candy.tick.ui.common.PrimaryButton
 import io.candy.tick.ui.common.SecondaryButton
+import io.candy.tick.ui.common.SheetChoiceRowShape
 import io.candy.tick.ui.common.TextFieldActionButton
-import top.yukonga.miuix.kmp.basic.LinearProgressIndicator
 import top.yukonga.miuix.kmp.basic.Text
 import top.yukonga.miuix.kmp.basic.TextField
 import top.yukonga.miuix.kmp.theme.MiuixTheme
@@ -53,9 +44,10 @@ internal fun CacheCleanupSheet(
     onScan: () -> Unit,
     onClean: suspend (Boolean, Boolean) -> Long,
     onDismiss: () -> Unit,
+    onDismissFinished: () -> Unit,
 ) {
-    val scheme = MiuixTheme.colorScheme
-    val scope = androidx.compose.runtime.rememberCoroutineScope()
+    val scope = rememberCoroutineScope()
+    val visible by rememberUpdatedState(show)
     var cleanApk by remember { mutableStateOf(true) }
     var cleanCrash by remember { mutableStateOf(true) }
 
@@ -70,6 +62,7 @@ internal fun CacheCleanupSheet(
         show = show,
         title = stringResource(R.string.settings_cache_cleanup),
         onDismissRequest = { if (!state.cleaning) onDismiss() },
+        onDismissFinished = { if (!visible) onDismissFinished() },
     ) {
         Column(
             modifier = Modifier
@@ -77,92 +70,54 @@ internal fun CacheCleanupSheet(
                 .padding(top = 4.dp, bottom = 16.dp),
             verticalArrangement = Arrangement.spacedBy(10.dp),
         ) {
-            if (state.scanning) {
-                Box(
-                    modifier = Modifier.fillMaxWidth().padding(vertical = 24.dp),
-                    contentAlignment = Alignment.Center,
-                ) {
-                    io.candy.tick.ui.common.LoadingDots(dotSize = 5.dp)
-                }
-            } else {
-                Column(
-                    modifier = Modifier.padding(bottom = 8.dp),
-                    verticalArrangement = Arrangement.spacedBy(10.dp),
-                ) {
-                    CacheCleanupRow(
-                        label = stringResource(R.string.settings_cache_apk),
-                        sizeBytes = state.apkBytes,
-                        checked = cleanApk,
-                        onChecked = { cleanApk = it },
-                    )
-                    CacheCleanupRow(
-                        label = stringResource(R.string.settings_cache_crash_log),
-                        sizeBytes = state.crashLogBytes,
-                        checked = cleanCrash,
-                        onChecked = { cleanCrash = it },
-                    )
-                }
-                if (state.cleaning) {
-                    // 清理中：轻量阻断（转圈 + 文案，防误触返回）
-                    Box(
-                        modifier = Modifier.fillMaxWidth(),
-                        contentAlignment = Alignment.Center,
-                    ) {
-                        androidx.compose.foundation.layout.Row(
-                            verticalAlignment = Alignment.CenterVertically,
-                        ) {
-                            io.candy.tick.ui.common.LoadingDots()
-                            Spacer(Modifier.width(8.dp))
-                            Text(
-                                text = stringResource(R.string.settings_cache_cleaning),
-                                style = MiuixTheme.textStyles.footnote1,
-                                color = scheme.onBackgroundVariant,
-                            )
-                        }
-                    }
-                } else {
-                    val selectedBytes = (if (cleanApk) state.apkBytes else 0L) +
-                        (if (cleanCrash) state.crashLogBytes else 0L)
-                    val hasSelection = selectedBytes > 0
-                    // 模板在组合期取（configuration-aware，语言切换即时生效），释放量在事件期格式化
-                    val freedTemplate = stringResource(R.string.settings_cache_freed)
-                    PrimaryButton(
-                        // 带选中总量：行动前量级一目了然
-                        text = stringResource(R.string.settings_cache_clean_action) +
-                            if (selectedBytes > 0) {
-                                " · " + formatBytes(selectedBytes)
-                            } else {
-                                ""
-                            },
-                        enabled = hasSelection,
-                        onClick = {
-                            scope.launch {
-                                val freed = onClean(cleanApk, cleanCrash)
-                                io.candy.tick.ui.common.Feedback.show(
-                                    text = String.format(java.util.Locale.US, freedTemplate, formatBytes(freed)),
-                                )
-                                onDismiss()
-                            }
-                        },
-                        modifier = Modifier.fillMaxWidth(),
-                    )
-                    if (!hasSelection) {
-                        Text(
-                            text = stringResource(
-                                if (state.apkBytes > 0 || state.crashLogBytes > 0) {
-                                    R.string.settings_cache_select_hint
-                                } else {
-                                    R.string.settings_cache_empty
-                                },
-                            ),
-                            style = MiuixTheme.textStyles.footnote1,
-                            color = scheme.onBackgroundVariant,
-                            modifier = Modifier.fillMaxWidth(),
-                            textAlign = androidx.compose.ui.text.style.TextAlign.Center,
-                        )
-                    }
-                }
+            Column(
+                modifier = Modifier.padding(bottom = 8.dp),
+                verticalArrangement = Arrangement.spacedBy(10.dp),
+            ) {
+                CacheCleanupRow(
+                    label = stringResource(R.string.settings_cache_apk),
+                    sizeBytes = state.apkBytes.takeUnless { state.scanning },
+                    checked = cleanApk,
+                    cleaning = state.cleaning,
+                    onChecked = { cleanApk = it },
+                )
+                CacheCleanupRow(
+                    label = stringResource(R.string.settings_cache_crash_log),
+                    sizeBytes = state.crashLogBytes.takeUnless { state.scanning },
+                    checked = cleanCrash,
+                    cleaning = state.cleaning,
+                    onChecked = { cleanCrash = it },
+                )
             }
+            val selectedBytes = (if (cleanApk) state.apkBytes else 0L) +
+                (if (cleanCrash) state.crashLogBytes else 0L)
+            val action = stringResource(R.string.settings_cache_clean_action)
+            val label = when {
+                state.scanning -> action
+                selectedBytes > 0 -> "$action · ${formatBytes(selectedBytes)}"
+                state.apkBytes > 0 || state.crashLogBytes > 0 -> stringResource(R.string.settings_cache_select_hint)
+                else -> stringResource(R.string.settings_cache_empty)
+            }
+            val freedTemplate = stringResource(R.string.settings_cache_freed)
+            PrimaryButton(
+                text = label,
+                busyText = when {
+                    state.scanning -> stringResource(R.string.settings_cache_scanning)
+                    state.cleaning -> stringResource(R.string.settings_cache_cleaning)
+                    else -> null
+                },
+                enabled = selectedBytes > 0,
+                onClick = {
+                    scope.launch {
+                        val freed = onClean(cleanApk, cleanCrash)
+                        io.candy.tick.ui.common.Feedback.show(
+                            text = String.format(java.util.Locale.US, freedTemplate, formatBytes(freed)),
+                        )
+                        onDismiss()
+                    }
+                },
+                modifier = Modifier.fillMaxWidth(),
+            )
         }
     }
 }
@@ -170,22 +125,27 @@ internal fun CacheCleanupSheet(
 @Composable
 private fun CacheCleanupRow(
     label: String,
-    sizeBytes: Long,
+    sizeBytes: Long?,
     checked: Boolean,
+    cleaning: Boolean,
     onChecked: (Boolean) -> Unit,
 ) {
-    val scheme = MiuixTheme.colorScheme
-    val enabled = sizeBytes > 0
+    val hasFiles = sizeBytes != null && sizeBytes > 0
+    val enabled = hasFiles && !cleaning
     top.yukonga.miuix.kmp.basic.BasicComponent(
-        modifier = Modifier.fillMaxWidth().switchSemantics(checked && enabled, enabled),
+        modifier = Modifier.fillMaxWidth().clip(SheetChoiceRowShape).switchSemantics(checked && hasFiles, enabled),
         title = label,
-        summary = if (enabled) formatBytes(sizeBytes) else stringResource(R.string.settings_cache_none),
+        summary = when (sizeBytes) {
+            null -> "—"
+            0L -> stringResource(R.string.settings_cache_none)
+            else -> formatBytes(sizeBytes)
+        },
         onClick = if (enabled) { { onChecked(!checked) } } else null,
         endActions = {
             // 大小为 0 也保留 Switch（灰显）：行结构稳定不闪隐
             top.yukonga.miuix.kmp.basic.Switch(
                 modifier = Modifier.clearAndSetSemantics { },
-                checked = checked && enabled,
+                checked = checked && hasFiles,
                 onCheckedChange = onChecked,
                 enabled = enabled,
             )
@@ -253,7 +213,6 @@ internal fun TokenDialog(
     onDismiss: () -> Unit,
 ) {
     val scheme = MiuixTheme.colorScheme
-    val context = LocalContext.current
     // 弹窗打开即聚焦输入（唯一目的就是贴 Token）；show=false 不请求
     val tokenFocus = remember { androidx.compose.ui.focus.FocusRequester() }
     androidx.compose.runtime.LaunchedEffect(show) {
@@ -311,17 +270,6 @@ internal fun TokenDialog(
             )
             // 验证结果 / 被拒提示（紧贴输入框；状态机见 VM 注释）
             when (state.tokenTest) {
-                SettingsViewModel.TokenTest.TESTING -> androidx.compose.foundation.layout.Row(
-                    verticalAlignment = Alignment.CenterVertically,
-                ) {
-                    io.candy.tick.ui.common.LoadingDots()
-                    Spacer(Modifier.width(6.dp))
-                    Text(
-                        text = stringResource(R.string.loading),
-                        style = MiuixTheme.textStyles.footnote1,
-                        color = scheme.onBackgroundVariant,
-                    )
-                }
                 SettingsViewModel.TokenTest.VALID -> Text(
                     text = stringResource(R.string.token_verified),
                     style = MiuixTheme.textStyles.footnote1,
@@ -347,7 +295,7 @@ internal fun TokenDialog(
                         .background(scheme.errorContainer)
                         .padding(horizontal = 12.dp, vertical = 8.dp),
                 )
-                null -> Unit
+                SettingsViewModel.TokenTest.TESTING, null -> Unit
             }
             if (state.tokenRejected) {
                 Text(
@@ -367,8 +315,10 @@ internal fun TokenDialog(
                 PrimaryButton(
                     text = stringResource(if (removingToken) R.string.remove_token else R.string.settings_token_test),
                     onClick = onSaveAndTest,
-                    enabled = (state.tokenInput.isNotBlank() || removingToken) &&
-                        state.tokenTest != SettingsViewModel.TokenTest.TESTING,
+                    enabled = state.tokenInput.isNotBlank() || removingToken,
+                    busyText = if (state.tokenTest == SettingsViewModel.TokenTest.TESTING) {
+                        stringResource(R.string.settings_token_verifying)
+                    } else null,
                     modifier = Modifier.fillMaxWidth(),
                 )
                 io.candy.tick.ui.common.LinkText(

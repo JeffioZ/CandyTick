@@ -90,6 +90,11 @@ object Feedback {
     internal fun dismiss(message: Message): Boolean = _current.compareAndSet(message, null)
 }
 
+private val feedbackRadius = 16.dp
+private val feedbackActionInset = 4.dp
+private val feedbackShape = RoundedCornerShape(feedbackRadius)
+private val feedbackActionShape = RoundedCornerShape(feedbackRadius - feedbackActionInset)
+
 /** 置于导航上方，顶栏下方居中。 */
 @Composable
 fun FeedbackHost() {
@@ -97,7 +102,6 @@ fun FeedbackHost() {
     val msg by Feedback.current.collectAsStateWithLifecycle()
     val accessibility = LocalAccessibilityManager.current
     val dark = LocalDarkTheme.current
-    val shape = RoundedCornerShape(16.dp)
 
     // 末值捕获：退出动画期间继续渲染（内容塌空 = 瞬间消失的教训）
     var shown by remember { mutableStateOf<Feedback.Message?>(null) }
@@ -144,13 +148,13 @@ fun FeedbackHost() {
                 val textTint = scheme.onSurfaceContainer
                 Row(
                     modifier = Modifier
-                        .shadow(2.dp, shape)
-                        .clip(shape)
+                        .shadow(2.dp, feedbackShape)
+                        .clip(feedbackShape)
                         .background(if (dark) scheme.surfaceContainerHigh else scheme.surfaceContainer)
-                        .border(1.dp, if (dark) DarkFeedbackOutline else LightFeedbackOutline, shape)
+                        .border(1.dp, if (dark) DarkFeedbackOutline else LightFeedbackOutline, feedbackShape)
                         // 读屏直播（Polite）：同步结果/安装结果此前 TalkBack 完全无感知
                         .semantics { liveRegion = LiveRegionMode.Polite }
-                        .padding(start = 14.dp, end = if (m.actionLabel == null) 14.dp else 4.dp),
+                        .padding(start = 14.dp, end = if (m.actionLabel == null) 14.dp else feedbackActionInset),
                     verticalAlignment = Alignment.CenterVertically,
                 ) {
                     // 状态符 Lucide 单源（与 SyncDots 结果符同库同规格 14dp）：语义色
@@ -178,8 +182,8 @@ fun FeedbackHost() {
                                     if (Feedback.dismiss(m)) m.onAction?.invoke()
                                 }
                                 .sizeIn(minWidth = 48.dp, minHeight = 48.dp)
-                                .padding(vertical = 4.dp)
-                                .clip(RoundedCornerShape(8.dp))
+                                .padding(vertical = feedbackActionInset)
+                                .clip(feedbackActionShape)
                                 .indication(press, LocalIndication.current)
                                 .padding(horizontal = 8.dp),
                             contentAlignment = Alignment.Center,

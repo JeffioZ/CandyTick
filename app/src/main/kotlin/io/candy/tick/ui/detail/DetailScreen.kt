@@ -176,7 +176,10 @@ fun DetailScreen(
     val tabEmpty = if (commitsTab) state.commits.isEmpty() else releases.isEmpty()
     val firstPagePending = tabLoading && tabEmpty
     val paging = tabLoading && !tabEmpty && !tabReloading
-    val slowLoad = rememberBusyIndicator(state.syncing || firstPagePending)
+    // A background fetch for the other tab should not keep the current tab looking busy.
+    // Drop the delay/minimum-display timer while the pull header or paging owns the feedback.
+    val topIndicatorAllowed = pullIdle && !paging
+    val slowLoad = topIndicatorAllowed && rememberBusyIndicator(state.snapshotLoading || tabReloading || firstPagePending)
     val scrollBehavior = MiuixScrollBehavior(rememberTopAppBarState())
     var showAppPicker by remember { mutableStateOf(false) }
     var showBranchSheet by remember { mutableStateOf(false) }
@@ -398,7 +401,7 @@ fun DetailScreen(
                 verticalArrangement = Arrangement.spacedBy(HistoryItemSpacing),
             ) {
                 item {
-                    DetailSyncIndicator(visible = slowLoad, allowed = pullIdle && !paging)
+                    DetailSyncIndicator(visible = slowLoad, allowed = topIndicatorAllowed)
                     // 头卡组（头卡 + 错误横幅）：banner 隐藏时 0 高度收在组内——
                     // 若作独立 item，spacedBy 会在其前后各记一次，tab 上方凭空多 10dp
                     androidx.compose.foundation.layout.Column(

@@ -3,13 +3,11 @@ package io.candy.tick.ui.list
 import androidx.compose.animation.core.Animatable
 import androidx.compose.animation.core.animate
 import androidx.compose.animation.core.tween
-import androidx.compose.foundation.background
 import androidx.compose.foundation.gestures.detectHorizontalDragGestures
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.offset
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
-import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.derivedStateOf
 import androidx.compose.runtime.getValue
@@ -20,7 +18,6 @@ import androidx.compose.runtime.setValue
 import androidx.compose.runtime.rememberUpdatedState
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.draw.rotate
 import androidx.compose.ui.hapticfeedback.HapticFeedbackType
@@ -40,7 +37,9 @@ import kotlinx.coroutines.coroutineScope
 import kotlinx.coroutines.launch
 import kotlin.math.abs
 import kotlin.math.roundToInt
+import top.yukonga.miuix.kmp.basic.CardDefaults
 import top.yukonga.miuix.kmp.basic.Icon
+import top.yukonga.miuix.kmp.squircle.squircleSurface
 import top.yukonga.miuix.kmp.theme.MiuixTheme
 import androidx.compose.ui.res.vectorResource
 import androidx.compose.ui.graphics.vector.ImageVector
@@ -162,12 +161,14 @@ fun SwipeToDelete(
             Box(
                 modifier = Modifier
                     .matchParentSize()
-                    .clip(RoundedCornerShape(16.dp))
-                    .background(when {
-                        movingRight -> scheme.errorContainer
-                        pinned -> scheme.secondaryVariant
-                        else -> scheme.primaryContainer
-                    }),
+                    .squircleSurface(
+                        color = when {
+                            movingRight -> scheme.errorContainer
+                            pinned -> scheme.secondaryVariant
+                            else -> scheme.primaryContainer
+                        },
+                        cornerRadius = CardDefaults.CornerRadius,
+                    ),
                 contentAlignment = if (movingRight) Alignment.CenterStart else Alignment.CenterEnd,
             ) {
                 Icon(

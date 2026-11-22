@@ -15,6 +15,7 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.key
@@ -30,6 +31,7 @@ import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.semantics.stateDescription
 import androidx.compose.ui.unit.dp
 import io.candy.tick.R
+import io.candy.tick.ui.common.InlineErrorRow
 import io.candy.tick.data.model.TrackedRepo
 import io.candy.tick.ui.common.InaccessibleBadge
 import io.candy.tick.ui.common.OwnerRepoLine
@@ -52,6 +54,7 @@ fun RepoCard(
     item: ListViewModel.RepoListItem,
     extras: ListViewModel.CardExtras?,
     expanded: Boolean,
+    pageRefreshing: Boolean = false,
     isChanged: Boolean = false,
     updatable: Boolean = false,
     versionEpoch: Int = 0, // ON_RESUME 递增：安装后版本行重算
@@ -67,8 +70,15 @@ fun RepoCard(
     val scheme = MiuixTheme.colorScheme
     val pinned = item.repo.pinnedAt != null
     val pinnedDescription = if (pinned) stringResource(R.string.pinned_a11y) else null
-    val unreadRelease = !item.snapshot?.activity?.unreadReleaseTags.isNullOrEmpty()
-    val unreadCommit = !item.snapshot?.activity?.unreadCommitShas.isNullOrEmpty()
+    val snapshot = item.snapshot
+    // A successful sync can confirm that the last APK release has been removed.
+    val releaseTag = if (snapshot?.releaseBaselineKnown == true) {
+        snapshot.currentReleaseTag
+    } else {
+        snapshot?.currentReleaseTag ?: extras?.latestRelease?.tagName
+    }
+    val unreadRelease = !snapshot?.activity?.unreadReleaseTags.isNullOrEmpty()
+    val unreadCommit = !snapshot?.activity?.unreadCommitShas.isNullOrEmpty()
     val unread = when {
         unreadRelease && unreadCommit -> stringResource(R.string.card_unread_both)
         unreadRelease -> stringResource(R.string.card_unread_release)
@@ -122,17 +132,14 @@ fun RepoCard(
                             Box(
                                 modifier = Modifier
                                     .size(6.dp)
-                                    .clip(androidx.compose.foundation.shape.CircleShape)
-                                    .background(scheme.primaryVariant),
+                                    .background(scheme.primaryVariant, CircleShape),
                             )
                             Spacer(Modifier.width(5.dp))
                         }
-                        // 刷新中：时间原地换为加载反馈（skill: Content Jumping——稳定容器零高度
-                        // 变化）。此前反馈行插在展开面板里：折叠态刷新完全无反馈 + 插行导致
-                        // 卡片高度跳变；头部这一行折叠/展开常驻，原地换字两态通吃
-                        if (extras?.refreshing == true) {
+                        // 用户展开或重试时才替换时间。批量刷新由页面提示，卡片保留已知时间。
+                        if (expanded && !pageRefreshing && extras?.load == ListViewModel.CardLoad.USER_REFRESH) {
                             Row(verticalAlignment = Alignment.CenterVertically) {
-                                io.candy.tick.ui.common.LoadingDots(dotSize = 4.dp)
+                                io.candy.tick.ui.common.LoadingDots(contentDescription = null)
                                 Spacer(Modifier.width(5.dp))
                                 Text(
                                     text = stringResource(R.string.card_refreshing),
@@ -180,14 +187,13 @@ fun RepoCard(
                     // 「发现新版」直显标识（薄荷胶囊）：收起态的唯一新版提示；
                     // 展开且版本行可见时隐藏（版本行已给完整 tag 对比，两处同说=重复），
                     // 版本行暂无数据时保留兜底（展开也不至于零提示）
-                    if (updatable && !(expanded && extras?.latestRelease != null)) {
+                    if (updatable && !(expanded && releaseTag != null)) {
                         Text(
                             text = stringResource(R.string.card_updatable),
                             style = MiuixTheme.textStyles.footnote2,
                             color = scheme.primaryVariant,
                             modifier = Modifier
-                                .clip(RoundedCornerShape(8.dp))
-                                .background(scheme.primaryContainer)
+                                .background(scheme.primaryContainer, CircleShape)
                                 .padding(horizontal = 6.dp, vertical = 1.dp),
                         )
                         Spacer(Modifier.width(6.dp))
@@ -238,7 +244,7 @@ fun RepoCard(
                     ) {
                         // 卡中卡信息面板：展开内容有容器底，与折叠态主信息分层
                         ExpandedDetails(
-                            item, extras, versionEpoch, onRetryExtras, readViewport.takeIf { expanded },
+                            item, extras, releaseTag, versionEpoch, onRetryExtras, readViewport.takeIf { expanded },
                             onReleaseSeen, onCommitSeen,
                         )
                         // 展开面板底部与卡片顶部各留 8dp。
@@ -253,6 +259,7 @@ fun RepoCard(
 private fun ExpandedDetails(
     item: ListViewModel.RepoListItem,
     extras: ListViewModel.CardExtras?,
+    releaseTag: String?,
     versionEpoch: Int,
     onRetry: (() -> Unit)?,
     readViewport: LayoutBoundsHolder?,
@@ -271,58 +278,19 @@ private fun ExpandedDetails(
         verticalArrangement = Arrangement.spacedBy(6.dp),
     ) {
         when {
-            extras == null || extras.loading -> androidx.compose.foundation.layout.Box(
+            extras == null || extras.load == ListViewModel.CardLoad.INITIAL -> androidx.compose.foundation.layout.Box(
                 modifier = Modifier.height(16.dp), // 与替换后的提交行等高，加载→内容不跳
                 contentAlignment = Alignment.CenterStart,
             ) {
                 io.candy.tick.ui.common.LoadingDots(dotSize = 5.dp)
             }
-            // 加载失败行：errorContainer 底 + onErrorContainer 字（token 正确配对，与
-            // 版本卡/头卡失败条同语言）——此前 onErrorContainer 直写在面板灰底上
-            extras.failed -> Row(
-                verticalAlignment = Alignment.CenterVertically,
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .clip(RoundedCornerShape(12.dp))
-                    .background(scheme.errorContainer)
-                    .padding(horizontal = 12.dp, vertical = 10.dp),
-            ) {
-                Icon(
-                    imageVector = ImageVector.vectorResource(R.drawable.ic_info),
-                    contentDescription = null,
-                    tint = scheme.onErrorContainer,
-                    modifier = Modifier.size(16.dp),
-                )
-                Spacer(Modifier.width(8.dp))
-                Text(
-                    text = stringResource(R.string.card_details_failed),
-                    style = MiuixTheme.textStyles.footnote1,
-                    color = scheme.onErrorContainer,
-                )
-                Spacer(Modifier.weight(1f))
-                // 显式重试链（行内恢复紧邻错误）：此前恢复=收起再展开，不可发现
-                if (onRetry != null) {
-                    val (retrySrc, retryTint) = io.candy.tick.ui.common.rememberRowPressTint()
-                    Text(
-                        text = stringResource(R.string.retry),
-                        style = MiuixTheme.textStyles.footnote1.copy(
-                            textDecoration = androidx.compose.ui.text.style.TextDecoration.Underline,
-                        ),
-                        color = scheme.onErrorContainer,
-                        modifier = Modifier
-                            .clip(RoundedCornerShape(8.dp))
-                            .background(retryTint, RoundedCornerShape(8.dp))
-                            .clickable(
-                                interactionSource = retrySrc,
-                                indication = null,
-                                onClick = onRetry,
-                            )
-                            .padding(horizontal = 8.dp, vertical = 4.dp),
-                    )
-                }
-            }
+            extras.failed -> InlineErrorRow(
+                message = stringResource(R.string.card_details_failed),
+                onRetry = onRetry,
+                maxLines = Int.MAX_VALUE,
+            )
         }
-        if (extras?.loading != true) {
+        if (extras?.load != ListViewModel.CardLoad.INITIAL) {
             extras?.commits?.take(3)?.forEachIndexed { index, commit ->
                 key(commit.sha) {
                     val observe = activity != null && (commit.sha in activity.unreadCommitShas ||
@@ -349,15 +317,14 @@ private fun ExpandedDetails(
         }
 
         // 版本行：最新 release vs 本机版本（与详情页头部共用组件，口径一致）
-        val release = extras?.latestRelease
-        if (release != null) key(release.tagName) {
-            val observe = activity != null && (release.tagName in activity.unreadReleaseTags ||
-                release.tagName !in activity.recentlyViewedReleases)
+        if (releaseTag != null) key(releaseTag) {
+            val observe = activity != null && (releaseTag in activity.unreadReleaseTags ||
+                releaseTag !in activity.recentlyViewedReleases)
             VersionStatusLine(
                 repo = item.repo,
-                remoteTag = release.tagName,
+                remoteTag = releaseTag,
                 installEpoch = versionEpoch,
-                modifier = Modifier.whenRowSeen(readViewport.takeIf { observe }) { onReleaseSeen(release.tagName) },
+                modifier = Modifier.whenRowSeen(readViewport.takeIf { observe }) { onReleaseSeen(releaseTag) },
             )
         }
     }

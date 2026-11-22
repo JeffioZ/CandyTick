@@ -68,6 +68,7 @@ import top.yukonga.miuix.kmp.basic.Icon
 import top.yukonga.miuix.kmp.basic.Scaffold
 import top.yukonga.miuix.kmp.basic.Text
 import top.yukonga.miuix.kmp.basic.TextField
+import top.yukonga.miuix.kmp.squircle.squircleBackground
 import top.yukonga.miuix.kmp.theme.MiuixTheme
 import androidx.compose.ui.res.vectorResource
 import androidx.compose.ui.graphics.vector.ImageVector
@@ -447,7 +448,7 @@ private fun BackToResultsButton(onClick: () -> Unit) {
 private fun PreviewSkeletonCard() {
     // URL 加载时沿用实际关联行和按钮的尺寸；简介只预留一行。
     val block = MiuixTheme.colorScheme.dividerLine
-    Card(modifier = Modifier.fillMaxWidth(), cornerRadius = 16.dp) {
+    Card(modifier = Modifier.fillMaxWidth()) {
         Column(modifier = Modifier.padding(horizontal = 16.dp, vertical = 8.dp)) {
             Row(verticalAlignment = Alignment.CenterVertically) {
                 androidx.compose.foundation.layout.Box(
@@ -494,7 +495,7 @@ private fun PreviewSkeletonCard() {
                 Modifier
                     .fillMaxWidth()
                     .heightIn(min = ButtonDefaults.MinHeight)
-                    .background(block, RoundedCornerShape(ButtonDefaults.CornerRadius))
+                    .squircleBackground(color = block, cornerRadius = ButtonDefaults.CornerRadius)
                     .padding(ButtonDefaults.InsideMargin)
                     .clearAndSetSemantics { },
             ) {
@@ -539,7 +540,7 @@ private fun PreviewCard(
     val info = preview.info
     val scheme = MiuixTheme.colorScheme
     val appIcon = io.candy.tick.ui.common.rememberAppIcon(preview.linkedPackage)
-    Card(modifier = Modifier.fillMaxWidth(), cornerRadius = 16.dp) {
+    Card(modifier = Modifier.fillMaxWidth()) {
         // 与详情页头卡同一语言：身份区 → 信息组 → 分区线 → 关联/操作区；跨组 8（同档）
         Column(modifier = Modifier.padding(horizontal = 16.dp, vertical = 8.dp)) {
             Row(verticalAlignment = Alignment.CenterVertically) {
@@ -641,10 +642,14 @@ private fun PreviewCard(
                     )
                 } else {
                     PrimaryButton(
-                        text = if (state.adding) stringResource(R.string.loading) else stringResource(R.string.add_confirm),
+                        text = stringResource(R.string.add_confirm),
                         onClick = onConfirm,
                         modifier = Modifier.fillMaxWidth(),
-                        enabled = !state.adding && !preview.matchingApp,
+                        busyText = when {
+                            state.adding -> stringResource(R.string.add_saving)
+                            preview.matchingApp -> stringResource(R.string.add_matching_app)
+                            else -> null
+                        },
                     )
                 }
             }

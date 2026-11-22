@@ -176,6 +176,7 @@
     <string name="branch_picker_title">Branch</string>
     <string name="branch_search_hint">Search branches</string>
     <string name="branch_no_match">No matching branches</string>
+    <string name="branch_empty">This repository has no branches yet</string>
 
     <!-- 添加页 -->
     <string name="add_input_hint">Paste a link or search repositories</string>
@@ -191,6 +192,8 @@
     <string name="add_back_to_results">Back to results</string>
     <string name="add_open_existing">Open existing subscription</string>
     <string name="add_confirm">Add repository</string>
+    <string name="add_matching_app">Looking for a matching app</string>
+    <string name="add_saving">Adding repository</string>
 
     <!-- 详情页 -->
     <string name="detail_commits">Commit history</string>
@@ -241,6 +244,7 @@
     <string name="download_apk">Download APK</string>
     <string name="download_failed_reason">Download failed · %1$s</string>
     <string name="download_progress_percent">%1$d%%</string>
+    <string name="download_in_progress">Downloading…</string>
 
     <string name="cancel">Cancel</string>
     <string name="install_apk">Install</string>
@@ -301,6 +305,7 @@
     <string name="lang_english">English</string>
     <string name="settings_token_hint">Optional. Raises the API rate limit from 60 to 5,000 requests per hour.</string>
     <string name="settings_token_test">Verify and save</string>
+    <string name="settings_token_verifying">Verifying token</string>
     <string name="remove_token">Remove token</string>
     <string name="token_help_link">How to get a token</string>
     <string name="token_show">Show token</string>
@@ -320,7 +325,9 @@
     <string name="settings_perm_notifications">Notification permission</string>
     <string name="perm_granted">Granted</string>
     <string name="perm_not_granted">Not granted</string>
-    <string name="perm_not_required">Not required</string>
+    <string name="system_settings_unavailable">Couldn\'t open system settings</string>
+    <string name="share_unavailable">Couldn\'t open the share menu</string>
+    <string name="file_picker_unavailable">Couldn\'t open the file picker</string>
     <string name="detail_need_install_permission">Allow CandyTick to install unknown apps in system settings, then try again.</string>
     <string name="settings_app_updates">Updates and installation</string>
     <string name="settings_current_version_title">Check for updates</string>
@@ -345,7 +352,8 @@
     <string name="settings_cache_cleanup">Clear cache</string>
     <string name="settings_cache_apk">Downloaded APKs</string>
     <string name="settings_cache_crash_log">Crash log</string>
-    <string name="settings_cache_cleaning">Cleaning…</string>
+    <string name="settings_cache_scanning">Scanning cache</string>
+    <string name="settings_cache_cleaning">Clearing cache</string>
     <string name="settings_cache_clean_action">Clear selected</string>
     <string name="settings_cache_empty">Nothing to clear</string>
     <string name="settings_cache_select_hint">Select what to clear</string>

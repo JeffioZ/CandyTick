@@ -161,6 +161,7 @@
     <string name="branch_picker_title">分支</string>
     <string name="branch_search_hint">搜索分支</string>
     <string name="branch_no_match">没有匹配的分支</string>
+    <string name="branch_empty">这个仓库还没有分支</string>
 
     <!-- 添加页 -->
     <string name="add_input_hint">粘贴链接或搜索仓库</string>
@@ -176,6 +177,8 @@
     <string name="add_back_to_results">返回搜索结果</string>
     <string name="add_open_existing">打开已订阅的仓库</string>
     <string name="add_confirm">添加仓库</string>
+    <string name="add_matching_app">正在匹配本机应用</string>
+    <string name="add_saving">正在添加仓库</string>
 
     <!-- 详情页 -->
     <string name="detail_commits">提交历史</string>
@@ -221,6 +224,7 @@
     <string name="download_apk">下载安装包</string>
     <string name="download_failed_reason">下载失败 · %1$s</string>
     <string name="download_progress_percent">%1$d%%</string>
+    <string name="download_in_progress">正在下载</string>
 
     <string name="cancel">取消</string>
     <string name="install_apk">安装</string>
@@ -280,6 +284,7 @@
     <string name="lang_english">English</string>
     <string name="settings_token_hint">可选。添加令牌后，每小时的 API 请求上限可从 60 次提高到 5,000 次。</string>
     <string name="settings_token_test">验证并保存</string>
+    <string name="settings_token_verifying">正在验证令牌</string>
     <string name="remove_token">移除令牌</string>
     <string name="token_help_link">如何获取令牌</string>
     <string name="token_show">显示令牌</string>
@@ -299,7 +304,9 @@
     <string name="settings_perm_notifications">通知权限</string>
     <string name="perm_granted">已授权</string>
     <string name="perm_not_granted">未授权</string>
-    <string name="perm_not_required">无需授权</string>
+    <string name="system_settings_unavailable">无法打开系统设置</string>
+    <string name="share_unavailable">无法打开分享菜单</string>
+    <string name="file_picker_unavailable">无法打开文件选择器</string>
     <string name="detail_need_install_permission">请在系统设置中允许 CandyTick 安装未知应用，然后重试。</string>
     <string name="settings_app_updates">更新与安装</string>
     <string name="settings_current_version_title">检查更新</string>
@@ -324,7 +331,8 @@
     <string name="settings_cache_cleanup">清理缓存</string>
     <string name="settings_cache_apk">已下载的安装包</string>
     <string name="settings_cache_crash_log">崩溃日志</string>
-    <string name="settings_cache_cleaning">正在清理…</string>
+    <string name="settings_cache_scanning">正在扫描缓存</string>
+    <string name="settings_cache_cleaning">正在清理缓存</string>
     <string name="settings_cache_clean_action">清理选中项</string>
     <string name="settings_cache_empty">没有可清理的缓存</string>
     <string name="settings_cache_select_hint">请选择要清理的项目</string>

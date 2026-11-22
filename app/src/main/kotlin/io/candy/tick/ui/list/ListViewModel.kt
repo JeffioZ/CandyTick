@@ -9,7 +9,6 @@ import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import io.candy.tick.CandyTickApp
 import io.candy.tick.data.RepoRepository
-import io.candy.tick.data.SnapshotDiff
 import io.candy.tick.data.SourceError
 import io.candy.tick.data.SyncStatus
 import io.candy.tick.data.model.CommitRecord
@@ -21,6 +20,7 @@ import io.candy.tick.data.model.statusAt
 import io.candy.tick.util.VersionCompare
 import java.time.Instant
 import kotlinx.coroutines.CoroutineStart
+import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.channels.Channel
 import kotlinx.coroutines.flow.Flow
@@ -31,11 +31,13 @@ import kotlinx.coroutines.flow.distinctUntilChanged
 import kotlinx.coroutines.flow.flowOn
 import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.combine
+import kotlinx.coroutines.flow.collectLatest
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.receiveAsFlow
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.async
 import kotlinx.coroutines.Job
+import kotlinx.coroutines.job
 import kotlinx.coroutines.joinAll
 import kotlinx.coroutines.launch
 
@@ -43,6 +45,7 @@ import kotlinx.coroutines.launch
 internal class HomeTitleSync {
     var interruptedRun by mutableStateOf<SyncStatus.Running?>(null)
         private set
+    var pullOwnedRun by mutableStateOf<SyncStatus.Running?>(null)
 
     fun leave(status: SyncStatus) {
         when (status) {
@@ -53,7 +56,7 @@ internal class HomeTitleSync {
     }
 
     fun shouldAnimate(status: SyncStatus): Boolean =
-        status is SyncStatus.Running && status !== interruptedRun
+        status is SyncStatus.Running && status !== interruptedRun && status !== pullOwnedRun
 }
 
 class ListViewModel(
@@ -78,14 +81,16 @@ class ListViewModel(
         val activityAt: Instant? = if (releaseIsLatest) snapshot?.latestApk?.publishedAt else commitDate ?: snapshot?.pushedAt
     }
 
+    enum class CardLoad { IDLE, INITIAL, USER_REFRESH, BACKGROUND }
+
     @Immutable
     data class CardExtras(
+        val addedAt: Instant,
         val commitBranch: String?,
         val commits: List<CommitRecord>? = null,
         val latestRelease: ReleaseRecord? = null,
-        val loading: Boolean = false,
+        val load: CardLoad = CardLoad.IDLE,
         val failed: Boolean = false,
-        val refreshing: Boolean = false, // 静默重拉中（旧数据照常显示，展开面板给轻提示）
     )
 
     @Immutable
@@ -117,6 +122,7 @@ class ListViewModel(
     private val repoErrors = MutableStateFlow<Map<Long, SourceError>>(emptyMap())
     private val expanded = MutableStateFlow<Set<Long>>(emptySet())
     private val cards = MutableStateFlow<Map<Long, CardExtras>>(emptyMap())
+    private val cardJobs = mutableMapOf<Long, Job>()
 
     // 展开时 stale 重拉的会话级节流：拉过一次不再因「有新版」重复拉（配额敏感）；
     // 新活动（changed）或新一轮刷新会重新解锁
@@ -139,13 +145,23 @@ class ListViewModel(
     private var lastSnapshots: Map<Long, RepoSnapshot> = emptyMap()
 
     /** 自动同步信号（打开即同步 / 定时）：首页细线 + 结果胶囊消费 */
-    val syncStatus: kotlinx.coroutines.flow.StateFlow<SyncStatus> =
-        (context.applicationContext as CandyTickApp).container.syncStatus
+    private val workerSync = (context.applicationContext as CandyTickApp).container.syncStatus
+    private val homeSync = MutableStateFlow(workerSync.value)
+    val syncStatus: StateFlow<SyncStatus> = homeSync
     internal val titleSync = HomeTitleSync()
     // Main-thread presentation state, retained for the same back-stack entry across STOP/START.
     internal var displayedHomeOrder: HomeListOrder? = null
 
     init {
+        viewModelScope.launch {
+            workerSync.collectLatest { status ->
+                // The worker owns repository metadata. An expanded card may still be fetching the
+                // messages for that SHA. Keep this page's indicator until those rows settle too.
+                if (status is SyncStatus.Done) awaitExpandedPreviews()
+                if (status is SyncStatus.Running && refreshing.value) titleSync.pullOwnedRun = status
+                homeSync.value = status
+            }
+        }
         viewModelScope.launch {
             (context.applicationContext as CandyTickApp).container.installManager.packageInstalled.collect { pkg ->
                 if (repository.state.value.repos.any { it.linkedPackage == pkg }) onAppResume()
@@ -153,28 +169,25 @@ class ListViewModel(
         }
         viewModelScope.launch {
             repository.state.collect { newState ->
-                val branches = newState.repos.associate { it.id to (it.branch ?: newState.snapshots[it.id]?.defaultBranch) }
+                val repos = newState.repos.associateBy { it.id }
                 val cached = cards.value
-                val kept = cached.filter { (id, card) -> id in branches && card.commitBranch == branches[id] }
+                val kept = cached.filter { (id, card) ->
+                    val repo = repos[id]
+                    repo != null && card.addedAt == repo.addedAt && card.commitBranch == (repo.branch ?: newState.snapshots[id]?.defaultBranch)
+                }
                 cards.value = kept
-                expanded.value = expanded.value.intersect(branches.keys)
+                expanded.value = expanded.value.intersect(repos.keys)
                 silentLoaded.value = silentLoaded.value.intersect(kept.keys)
                 for (id in expanded.value) {
                     if (id in cached && id !in kept) loadCard(id)
                 }
-                if (lastSnapshots.isNotEmpty()) {
-                    val newChanged = newState.snapshots.filterKeys { id ->
-                        val old = lastSnapshots[id] ?: return@filterKeys false
-                        val newSnap = newState.snapshots[id] ?: return@filterKeys false
-                        // 发布回退也应刷新展开面板的版本，未读由数据层跟踪。
-                        old.currentReleaseTag != newSnap.currentReleaseTag || SnapshotDiff.commitChanged(old, newSnap.lastCommitSha)
-                    }.keys
-                    if (newChanged.isNotEmpty()) {
-                        silentLoaded.value = silentLoaded.value - newChanged
-                        newChanged.filter { it in expanded.value }
-                            .filter { cards.value[it]?.commits != null } // 首次加载都没完成的跳过（走正常路径）
-                            .forEach { loadCard(it, silent = true) }
-                    }
+                for ((id, snapshot) in newState.snapshots) {
+                    val head = snapshot.lastCommitSha ?: continue
+                    if (head == lastSnapshots[id]?.lastCommitSha) continue
+                    val card = cards.value[id] ?: continue
+                    if (card.commits != null && card.commits.firstOrNull()?.sha.orEmpty() == head) continue
+                    silentLoaded.value -= id
+                    if (id in expanded.value) loadCard(id, background = true, knownHead = head)
                 }
                 lastSnapshots = newState.snapshots
             }
@@ -299,37 +312,55 @@ class ListViewModel(
         if (!refreshing.compareAndSet(false, true)) return
         viewModelScope.launch {
             try {
-                if (syncStatus.value is SyncStatus.Running) {
-                    // An in-flight sync is already refreshing the same repositories.
-                    kotlinx.coroutines.withTimeoutOrNull(30_000) {
-                        syncStatus.first { it !is SyncStatus.Running }
-                    }
-                    return@launch
-                }
-                banner.value = null
-                silentLoaded.value = emptySet()
-                val cardJobs = expanded.value.mapNotNull { id ->
-                    if (cards.value[id]?.commits == null) null else loadCard(id, silent = true)?.let { id to it }
-                }.toMap()
-                val errors = try {
-                    repository.refreshAll(cardJobs.keys)
-                } catch (cancelled: kotlinx.coroutines.CancellationException) {
-                    throw cancelled
-                } catch (_: Exception) {
-                    emptyMap()
-                }
-                repoErrors.value = errors
-                val total = repository.state.value.repos.size
-                banner.value = if (errors.isNotEmpty() && errors.size >= total) {
-                    errors.values.firstOrNull()
+                val activeSync = workerSync.value as? SyncStatus.Running ?: syncStatus.value as? SyncStatus.Running
+                if (activeSync != null) {
+                    titleSync.pullOwnedRun = activeSync
+                    expanded.value.filter { cards.value[it]?.failed == true }
+                        .mapNotNull { loadCard(it, background = true) }
+                        .joinAll()
                 } else {
-                    errors.values.firstOrNull { it is SourceError.RateLimited }
+                    refreshRepositories()
                 }
-                cardJobs.values.joinAll()
+                // A worker can start or finish while this pull is waiting for a card.
+                do {
+                    val status = workerSync.value
+                    if (status is SyncStatus.Running) {
+                        titleSync.pullOwnedRun = status
+                        workerSync.first { it !== status }
+                    } else {
+                        awaitExpandedPreviews()
+                    }
+                } while (workerSync.value !== status)
             } finally {
                 refreshing.value = false
             }
         }
+    }
+
+    private suspend fun refreshRepositories() {
+        banner.value = null
+        silentLoaded.value = emptySet()
+        // A pre-existing card request may only be reading commits. Delegate the release
+        // check solely to the full previews started by this pull.
+        val newPreviews = expanded.value - cardJobs.keys
+        val previews = expanded.value.mapNotNull { id ->
+            loadCard(id, background = true)?.let { id to it }
+        }.toMap()
+        val errors = try {
+            repository.refreshAll(previews.keys.intersect(newPreviews))
+        } catch (cancelled: CancellationException) {
+            throw cancelled
+        } catch (_: Exception) {
+            emptyMap()
+        }
+        repoErrors.value = errors
+        val total = repository.state.value.repos.size
+        banner.value = if (errors.isNotEmpty() && errors.size >= total) {
+            errors.values.firstOrNull()
+        } else {
+            errors.values.firstOrNull { it is SourceError.RateLimited }
+        }
+        previews.values.joinAll()
     }
 
     fun markReleaseSeen(id: Long, tag: String) {
@@ -350,7 +381,7 @@ class ListViewModel(
     }
 
     /** 展开卡数据拉取失败后的显式重试（此前恢复路径=收起再展开，不可发现） */
-    fun retryCard(id: Long) = loadCard(id, silent = cards.value[id]?.commits != null)
+    fun retryCard(id: Long) = loadCard(id)
 
     /** 通知开关开着但权限未授：首页上下文请求一次的依据 */
     val shouldRequestNotificationPermission: Boolean
@@ -385,41 +416,103 @@ class ListViewModel(
         if (!next.add(id)) next.remove(id)
         expanded.value = next
         if (id in next) {
-            val cached = cards.value[id]
-            when {
-                cached?.commits == null && cached?.loading != true -> loadCard(id)
-                // 缓存过期：快照层提示过新活动/新版（如 SyncWorker 后台刷完回前台），
-                // 展开必须重拉——否则提示与展开内容不符（展开的还是旧提交/旧版本）
-                id !in silentLoaded.value -> loadCard(id, silent = true)
-            }
+            if (cards.value[id]?.commits == null || id !in silentLoaded.value) loadCard(id)
         }
     }
 
-    private fun loadCard(id: Long, silent: Boolean = false): Job? {
+    private suspend fun awaitExpandedPreviews() {
+        val stored = repository.state.value
+        expanded.value.mapNotNull { id ->
+            val repo = stored.repos.firstOrNull { it.id == id } ?: return@mapNotNull null
+            val snapshot = stored.snapshots[id]
+            val head = snapshot?.lastCommitSha
+            val card = cards.value[id]?.takeIf {
+                it.addedAt == repo.addedAt && it.commitBranch == (repo.branch ?: snapshot?.defaultBranch)
+            }
+            when {
+                card == null -> loadCard(id, background = true, knownHead = head)
+                id in cardJobs -> cardJobs[id]
+                head != null && (!card.failed || head != lastSnapshots[id]?.lastCommitSha) &&
+                    (card.commits == null || card.commits.firstOrNull()?.sha.orEmpty() != head) ->
+                    loadCard(id, background = true, knownHead = head)
+                else -> null
+            }
+        }.joinAll()
+        // A branch switch can replace a job while the original requests are settling.
+        while (true) {
+            val pending = expanded.value.mapNotNull { cardJobs[it] }
+            if (pending.isEmpty()) return
+            pending.joinAll()
+        }
+    }
+
+    private fun loadCard(id: Long, background: Boolean = false, knownHead: String? = null): Job? {
         val current = repository.state.value
         val repo = current.repos.firstOrNull { it.id == id } ?: return null
         val branch = repo.branch ?: current.snapshots[id]?.defaultBranch
-        val old = cards.value[id]?.takeIf { it.commitBranch == branch } ?: CardExtras(commitBranch = branch)
-        if (old.loading || old.refreshing) return null
-        val pending = old.copy(loading = !silent, refreshing = silent, failed = false)
-        cards.value = cards.value + (id to pending)
-        return viewModelScope.launch {
-            val commitsJob = async { runCatching { repository.commits(id, 1) }.getOrNull() }
-            val releasesJob = async { runCatching { repository.releases(id, 1) }.getOrNull() }
-            val commits = commitsJob.await()
-            val releases = releasesJob.await()
-            if (cards.value[id] !== pending) return@launch
-            val failed = commits == null || releases == null
-            if (!failed) {
-                silentLoaded.value = silentLoaded.value + id
-            }
-            cards.value = cards.value + (id to CardExtras(
-                commitBranch = branch,
-                commits = commits ?: old.commits,
-                latestRelease = if (releases == null) old.latestRelease else releases.firstOrNull { it.apkAssets.isNotEmpty() },
-                failed = failed,
-            ))
+        val old = cards.value[id]?.takeIf { it.addedAt == repo.addedAt && it.commitBranch == branch }
+            ?: CardExtras(addedAt = repo.addedAt, commitBranch = branch)
+        if (old.load != CardLoad.IDLE) return cardJobs[id]
+        val load = when {
+            old.commits == null -> CardLoad.INITIAL
+            background -> CardLoad.BACKGROUND
+            else -> CardLoad.USER_REFRESH
         }
+        val pending = old.copy(load = load, failed = false)
+        cards.value = cards.value + (id to pending)
+        val job = viewModelScope.launch(start = CoroutineStart.LAZY) {
+            try {
+                var requestedHead = knownHead ?: current.snapshots[id]?.lastCommitSha
+                val commitsJob = async {
+                    fetchPreview {
+                        if (knownHead == null) repository.commits(id, 1) else repository.previewCommitsAt(id, knownHead)
+                    }
+                }
+                // A SHA-only change needs no release query: the version row observes the snapshot.
+                val releasesJob = if (knownHead == null) async { fetchPreview { repository.releases(id, 1) } } else null
+                var commits = commitsJob.await()
+                val releases = releasesJob?.await()
+                while (cards.value[id] === pending) {
+                    val latest = repository.state.value
+                    val tracked = latest.repos.firstOrNull { it.id == id } ?: return@launch
+                    val snapshot = latest.snapshots[id]
+                    if (tracked.addedAt != repo.addedAt || (tracked.branch ?: snapshot?.defaultBranch) != branch) return@launch
+                    val head = snapshot?.lastCommitSha
+                    val stale = head != null && head != requestedHead &&
+                        (commits == null || commits.firstOrNull()?.sha.orEmpty() != head)
+                    if (stale && id in expanded.value) {
+                        // Only a new target can cause another read. Don't let a late preview move
+                        // the repository's head backwards.
+                        requestedHead = head
+                        commits = fetchPreview { repository.previewCommitsAt(id, head) }
+                        continue
+                    }
+                    val failed = commits == null || (releasesJob != null && releases == null)
+                    if (!failed && !stale) silentLoaded.value += id
+                    cards.value += id to CardExtras(
+                        addedAt = repo.addedAt,
+                        commitBranch = branch,
+                        commits = commits ?: old.commits,
+                        latestRelease = if (releases == null) old.latestRelease else releases.firstOrNull { it.apkAssets.isNotEmpty() },
+                        failed = failed,
+                    )
+                    break
+                }
+            } finally {
+                if (cardJobs[id] === coroutineContext.job) cardJobs.remove(id)
+            }
+        }
+        cardJobs[id] = job
+        job.start()
+        return job
+    }
+
+    private suspend fun <T> fetchPreview(fetch: suspend () -> T): T? = try {
+        fetch()
+    } catch (cancelled: CancellationException) {
+        throw cancelled
+    } catch (_: Exception) {
+        null
     }
 
     /** 乐观删除 + 撤销事件（Snackbar）；撤销 restore 不需要恢复下载会话 */

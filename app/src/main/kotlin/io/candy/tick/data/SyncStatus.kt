@@ -7,7 +7,9 @@ import io.candy.tick.data.model.ApkPublication
 sealed interface SyncStatus {
     data object Idle : SyncStatus
     class Running : SyncStatus
-    data class Done(val run: Running, val changed: Int, val failed: Int, val total: Int = 0) : SyncStatus
+    data class Done(val run: Running, val changed: Int, val failed: Int, val total: Int = 0) : SyncStatus {
+        val allFailed: Boolean get() = total > 0 && failed >= total
+    }
 }
 
 /**

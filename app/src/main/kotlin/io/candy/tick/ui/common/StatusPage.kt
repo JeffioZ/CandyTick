@@ -2,6 +2,7 @@ package io.candy.tick.ui.common
 
 import androidx.annotation.PluralsRes
 import androidx.compose.foundation.background
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.BoxWithConstraints
@@ -25,10 +26,13 @@ import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.res.pluralStringResource
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.res.vectorResource
+import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.LineBreak
 import androidx.compose.ui.text.style.TextAlign
+import androidx.compose.ui.text.style.TextDecoration
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.Dp
 import io.candy.tick.R
@@ -37,6 +41,57 @@ import top.yukonga.miuix.kmp.basic.Icon
 import top.yukonga.miuix.kmp.basic.Text
 import top.yukonga.miuix.kmp.basic.TextButton
 import top.yukonga.miuix.kmp.theme.MiuixTheme
+
+/** Inline recovery for repository cards. Measure the retry action before the message wraps. */
+@Composable
+internal fun InlineErrorRow(
+    message: String,
+    onRetry: (() -> Unit)?,
+    retryEnabled: Boolean = true,
+    maxLines: Int = 2,
+) {
+    val scheme = MiuixTheme.colorScheme
+    Row(
+        modifier = Modifier.fillMaxWidth()
+            .background(scheme.errorContainer, RoundedCornerShape(12.dp))
+            .padding(horizontal = 12.dp, vertical = 10.dp),
+        horizontalArrangement = Arrangement.spacedBy(8.dp),
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
+        Icon(
+            imageVector = ImageVector.vectorResource(R.drawable.ic_info),
+            contentDescription = null,
+            tint = scheme.onErrorContainer,
+            modifier = Modifier.size(16.dp),
+        )
+        Text(
+            text = message,
+            modifier = Modifier.weight(1f),
+            style = MiuixTheme.textStyles.footnote1,
+            color = scheme.onErrorContainer,
+            maxLines = maxLines,
+            overflow = TextOverflow.Ellipsis,
+        )
+        if (onRetry != null) {
+            val (source, color) = rememberRowPressTint(scheme.errorContainer)
+            Text(
+                text = stringResource(R.string.retry),
+                style = MiuixTheme.textStyles.footnote1.copy(textDecoration = TextDecoration.Underline),
+                color = scheme.onErrorContainer,
+                modifier = Modifier
+                    .background(color, RoundedCornerShape(8.dp))
+                    .clickable(
+                        enabled = retryEnabled,
+                        interactionSource = source,
+                        indication = null,
+                        role = Role.Button,
+                        onClick = onRetry,
+                    )
+                    .padding(horizontal = 8.dp, vertical = 4.dp),
+            )
+        }
+    }
+}
 
 /**
  * 统一的空态 / 错误态页面组件：圆底图标 + 主文案 + 可选副文案 + 可选操作。

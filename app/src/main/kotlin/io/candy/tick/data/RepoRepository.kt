@@ -445,6 +445,13 @@ class RepoRepository(
 
     // ---- 详情页数据（利用已取到的第一页登记活动，SourceException 由调用方接） ----
 
+    /** 展开卡按已同步的 SHA 读取预览，避免迟到的响应覆盖新分支头。 */
+    suspend fun previewCommitsAt(repoId: Long, head: String): List<CommitRecord> {
+        if (head.isEmpty()) return emptyList()
+        val tracked = trackedOrNull(repoId) ?: return emptyList()
+        return provider(tracked.provider).commits(tracked.owner, tracked.repo, page = 1, sha = head)
+    }
+
     /** 提交列表自动跟随该仓库已选分支 */
     suspend fun commits(repoId: Long, page: Int): List<CommitRecord> {
         val t = trackedOrNull(repoId) ?: return emptyList()

@@ -35,12 +35,17 @@
 - 离开详情页后，安装包会继续下载，返回即可查看进度。分包文件保留原扩展名，方便用兼容的安装程序打开。
 - 进入详情页时，刷新期间仍可查看已有的历史记录。搜索本机应用时，面板高度保持稳定。
 - 开启 CandyTick 自身更新的自动下载后，使用移动数据时也能下载新版。仓库自动同步仍遵循单独的网络设置。
+- 首页排序浮层的标题和选项上移，与其他浮层的标题间距一致。
+- 首页同步时，三点出现后才会显示完成图标。刷新期间，已展开的仓库卡片会保留活动时间和已有提交。详情页顶部的三点只跟随当前页签和仓库概况的加载状态。
 
 ### 修复
 
 - 手动取消应用关联后，重启 CandyTick 仍会记住这个选择。卸载已关联的应用后，CandyTick 会在下次检查时解除关联。
 - 粘贴较长的 GitHub 令牌时，输入框会保留完整内容。
 - 安装完成后，CandyTick 会清理与已装应用和版本匹配的 APK，并检查关联仓库的更新通知是否已过期。
+- 在设置中点一次「通知权限」即可进入系统设置。系统无法打开权限设置、分享菜单或文件选择器时，应用会给出提示。
+- 下载缺少文件大小的安装包时，会显示「正在下载」，避免进度一直停在 0%。
+- 修复了自动同步与下拉刷新重叠时，刷新提示提前收起、展开卡片偶尔仍显示旧提交的问题。
 
 ### English summary
 
@@ -50,6 +55,9 @@
 - Long-press the globe icon to copy the repository URL. You can keep reading cached history during a refresh, and the installed-app picker stays the same height as you search.
 - CandyTick can download its own updates over mobile data when automatic downloads are enabled. Repository sync still follows your network settings.
 - Unlinking an app now persists across restarts. Uninstalled apps are unlinked on the next check, and long GitHub tokens can be pasted in full.
+- The sort sheet now uses the same title spacing as other sheets. Tapping notification permission in Settings opens the system settings on the first tap. CandyTick shows a message if a settings page, share menu, or file picker is unavailable.
+- The home screen shows a sync result icon only after the loading dots have appeared. Expanded cards keep their activity times and commits visible during refresh. When a pull-to-refresh overlaps with automatic sync, the indicator waits for expanded cards to catch up. The detail header tracks the repository overview and the selected tab.
+- Downloads show “Downloading…” when the package size is unknown. The percentage appears when the size is available.
 
 ## [0.4.2] - 2026-11-20
 

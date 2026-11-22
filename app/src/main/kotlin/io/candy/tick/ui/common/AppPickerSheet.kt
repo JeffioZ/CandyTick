@@ -6,7 +6,6 @@ import androidx.activity.compose.BackHandler
 import androidx.compose.foundation.layout.Box
 import androidx.compose.ui.Alignment
 import androidx.compose.foundation.layout.Column
-import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
@@ -25,13 +24,11 @@ import androidx.compose.runtime.key
 import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
-import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.rememberUpdatedState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import kotlinx.coroutines.Dispatchers
-import kotlinx.coroutines.launch
 import kotlinx.coroutines.async
 import kotlinx.coroutines.withTimeoutOrNull
 import androidx.compose.ui.platform.LocalConfiguration
@@ -41,7 +38,6 @@ import androidx.compose.ui.unit.dp
 import io.candy.tick.R
 import io.candy.tick.util.appDisplayName
 import io.candy.tick.util.labelOf
-import top.yukonga.miuix.kmp.basic.BasicComponent
 import top.yukonga.miuix.kmp.basic.TextField
 import top.yukonga.miuix.kmp.window.WindowBottomSheet
 
@@ -74,9 +70,7 @@ private fun readLauncherApps(context: Context): List<AppOption> {
 }
 
 /**
- * 关联本机应用选择器（QUERY_ALL_PACKAGES；列出可启动应用，按名称排序）。
- * 与 BranchPickerSheet 同款模式：60% 屏高上限 + 超过 15 项显示搜索框 +
- * BasicComponent 行（自带按压反馈，与排序/分支/语言选择行统一）。
+ * 列出有桌面启动入口的应用，按名称排序。面板最多占屏高的 60%，超过 15 项时可搜索。
  */
 @Composable
 fun AppPickerSheet(
@@ -106,7 +100,10 @@ fun AppPickerSheet(
     }
     val open = visit != null && displayed === visit
     BackHandler(enabled = show && !open, onBack = onDismiss)
+    // displayed is retained until the exit animation finishes.
+    val page = displayed ?: return
     val maxSheetHeight = LocalConfiguration.current.screenHeightDp.dp * 0.6f
+    val listState = key(page) { rememberLazyListState() }
 
     // show 直通（勿用 if 包裹）：退场动画依赖组件持续组合
     WindowBottomSheet(
@@ -115,8 +112,14 @@ fun AppPickerSheet(
         onDismissFinished = {
             if (!visible) displayed = null
         },
+        startAction = {
+            SheetScrollToTopTitle(
+                text = stringResource(R.string.detail_link_app),
+                canScroll = listState.canScrollBackward,
+                scrollToTop = listState::scrollToTop,
+            )
+        },
     ) {
-        val page = displayed ?: return@WindowBottomSheet
         val result = page.result
         val apps = result?.getOrNull().orEmpty()
         val searchable = apps.size > SEARCH_THRESHOLD
@@ -128,16 +131,10 @@ fun AppPickerSheet(
                     it.packageName.contains(keyword, ignoreCase = true)
             }
         }
-        val listState = key(page) { rememberLazyListState() }
-        val scope = rememberCoroutineScope()
-        val animate = rememberMotionEnabled()
         fun filterApps(value: String) {
             if (value == query || value.length > InputLimits.SEARCH) return
             query = value
             listState.requestScrollToItem(0)
-        }
-        SheetScrollToTopTitle(stringResource(R.string.detail_link_app)) {
-            scope.launch { listState.scrollToTop(animate) }
         }
         Column(
             modifier = Modifier
@@ -208,8 +205,7 @@ fun AppPickerSheet(
                     }
                 }
                 items(filtered, key = { it.packageName }) { app ->
-                    BasicComponent(
-                        modifier = Modifier.fillMaxWidth(),
+                    SheetChoiceRow(
                         title = app.label,
                         summary = app.packageName,
                         startAction = {
@@ -222,9 +218,6 @@ fun AppPickerSheet(
                             } ?: Box(modifier = Modifier.size(36.dp))
                         },
                         onClick = { onPick(app.packageName, app.label) },
-                        insideMargin = PaddingValues(
-                            start = 16.dp, end = 16.dp, top = 10.dp, bottom = 10.dp,
-                        ),
                     )
                 }
             }

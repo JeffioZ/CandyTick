@@ -249,11 +249,11 @@ class GitHubApi(private val tokenProvider: () -> String?) {
     }
 
     /** APK 下载：流式写文件 + 进度回调（下载保留语义由调用方管理文件生命周期） */
-    suspend fun download(url: String, dest: File, onProgress: (Float) -> Unit = {}): File =
+    suspend fun download(asset: ApkAsset, dest: File, onProgress: (Float) -> Unit = {}): File =
         withContext(Dispatchers.IO) {
             try {
                 dest.parentFile?.mkdirs()
-                val endpoint = url.toHttpUrl()
+                val endpoint = asset.url.toHttpUrl()
                 val request = Request.Builder().url(endpoint).apply {
                     if (endpoint.isHttps && endpoint.host == "api.github.com" && endpoint.port == 443) {
                         addToken()
@@ -264,7 +264,7 @@ class GitHubApi(private val tokenProvider: () -> String?) {
                 readAuthenticated(request, downloadClient) { response ->
                     checkHttp(response)
                     val body = response.body
-                    val total = body.contentLength()
+                    val total = body.contentLength().takeIf { it > 0 } ?: asset.size
                     body.byteStream().use { input ->
                         dest.outputStream().use { output ->
                             val buffer = ByteArray(64 * 1024)

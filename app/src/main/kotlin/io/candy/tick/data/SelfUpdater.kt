@@ -43,7 +43,7 @@ class SelfUpdater(
             val incomparable: Boolean = false, // 无法比较版本：不宣称「有更新」
         ) : State
 
-        data class Downloading(val tag: String, val progress: Float) : State
+        data class Downloading(val tag: String, val progress: Float?) : State
         data class Downloaded(val tag: String, val file: File) : State
         data class Failed(
             val reason: Reason,
@@ -132,11 +132,11 @@ class SelfUpdater(
         }
         var part: File? = null
         return try {
-            _state.value = State.Downloading(available.tag, 0f)
+            _state.value = State.Downloading(available.tag, if (asset.size > 0) 0f else null)
             updateDir.mkdirs()
             val temp = File.createTempFile("update-", ".part", updateDir)
             part = temp
-            githubApi.download(asset.url, temp) { progress ->
+            githubApi.download(asset, temp) { progress ->
                 _state.value = State.Downloading(available.tag, progress)
             }
             if (asset.size > 0 && temp.length() != asset.size) throw java.io.IOException("Incomplete update")

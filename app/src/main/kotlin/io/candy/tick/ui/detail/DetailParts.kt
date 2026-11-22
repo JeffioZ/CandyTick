@@ -2,51 +2,44 @@ package io.candy.tick.ui.detail
 
 import androidx.compose.animation.animateContentSize
 import androidx.compose.animation.togetherWith
-import androidx.compose.foundation.background
-import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
-import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
-import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.lazy.rememberLazyListState
-import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.produceState
 import androidx.compose.runtime.remember
-import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.ImageBitmap
 import androidx.compose.ui.focus.focusRequester
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.stringResource
-import androidx.compose.ui.semantics.selected
 import androidx.compose.ui.text.style.TextOverflow
-import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.unit.dp
 import io.candy.tick.R
+import io.candy.tick.ui.common.InlineErrorRow
 import io.candy.tick.ui.common.OwnerRepoLine
+import io.candy.tick.ui.common.OptionRow
 import io.candy.tick.ui.common.InputLimits
 import io.candy.tick.ui.common.SheetScrollToTopTitle
 import io.candy.tick.ui.common.TextFieldActionButton
 import io.candy.tick.ui.common.PrimaryButton
+import io.candy.tick.ui.common.DownloadProgress
 import io.candy.tick.ui.common.AppLinkRow
 import io.candy.tick.ui.common.LinkedRepoAvatar
 import io.candy.tick.ui.common.rememberAppIconResult
-import io.candy.tick.ui.common.rememberMotionEnabled
 import io.candy.tick.ui.common.scrollToTop
 import io.candy.tick.ui.common.SectionDivider
 import io.candy.tick.ui.common.StarCount
@@ -56,11 +49,8 @@ import io.candy.tick.ui.common.relTimeString
 import io.candy.tick.ui.common.sourceErrorText
 import io.candy.tick.util.CountFormat
 import io.candy.tick.util.VersionCompare
-import kotlinx.coroutines.launch
 import io.candy.tick.data.model.statusAt
-import top.yukonga.miuix.kmp.basic.BasicComponent
 import top.yukonga.miuix.kmp.basic.Card
-import top.yukonga.miuix.kmp.basic.Icon
 import top.yukonga.miuix.kmp.basic.Text
 import top.yukonga.miuix.kmp.theme.MiuixTheme
 import androidx.compose.ui.res.vectorResource
@@ -99,8 +89,10 @@ internal fun BranchPickerSheet(
     // （FocusRequester 未挂载 → runCatching 静默失败）；改为列表就绪后请求
     val branchFocus = remember { androidx.compose.ui.focus.FocusRequester() }
     val keyboard = androidx.compose.ui.platform.LocalSoftwareKeyboardController.current
-    androidx.compose.runtime.LaunchedEffect(show, state.branches.size > 15) {
-        if (show && state.branches.size > 15) {
+    val branches = state.branches.orEmpty()
+    val searchable = branches.size > 15
+    androidx.compose.runtime.LaunchedEffect(show, searchable) {
+        if (show && searchable) {
             kotlinx.coroutines.delay(100)
             runCatching { branchFocus.requestFocus() }
         }
@@ -110,34 +102,41 @@ internal fun BranchPickerSheet(
     val defaultBranch = state.snapshot?.defaultBranch
     val currentViewed = state.repo?.branch ?: defaultBranch
     val keyword = query.trim()
-    val filtered = if (keyword.isEmpty()) state.branches else state.branches.filter {
+    val filtered = if (keyword.isEmpty()) branches else branches.filter {
         it.name.contains(keyword, ignoreCase = true)
     }
+    val listReady = state.branches != null && !state.branchesLoading && !state.branchesFailed
+    val missingSelection = state.repo?.branch?.takeIf { name ->
+        listReady && branches.none { it.name == name } && name.contains(keyword, ignoreCase = true)
+    }
     // show 直通（勿用 if 包裹组件）：关闭时组件仍在组合中，库的退场动画才能播放
+    val listState = rememberLazyListState()
     top.yukonga.miuix.kmp.window.WindowBottomSheet(
         show = show,
         onDismissRequest = onDismiss,
+        onDismissFinished = { listState.requestScrollToItem(0) },
+        startAction = {
+            SheetScrollToTopTitle(
+                text = stringResource(R.string.branch_picker_title),
+                canScroll = listState.canScrollBackward,
+                scrollToTop = listState::scrollToTop,
+            )
+        },
     ) {
-        val listState = rememberLazyListState()
-        val scope = rememberCoroutineScope()
-        val animate = rememberMotionEnabled()
         fun filterBranches(value: String) {
             if (value == query || value.length > InputLimits.SEARCH) return
             query = value
             listState.requestScrollToItem(0)
         }
-        SheetScrollToTopTitle(stringResource(R.string.branch_picker_title)) {
-            scope.launch { listState.scrollToTop(animate) }
-        }
         Column(
             modifier = Modifier
                 .fillMaxWidth()
-                .heightIn(max = maxSheetHeight)
+                .then(if (searchable) Modifier.height(maxSheetHeight) else Modifier.heightIn(max = maxSheetHeight))
                 // 220 表层档显式 spec：默认 spring 时长不受六档体系控制（自家原则：
                 // 「默认 spring 不可控且在体系外」）；缩放=0 时 tween 瞬时完成自动退化
                 .animateContentSize(androidx.compose.animation.core.tween(Motion.PANEL)),
         ) {
-            if (state.branches.size > 15) {
+            if (searchable) {
                 top.yukonga.miuix.kmp.basic.TextField(
                     value = query,
                     onValueChange = ::filterBranches,
@@ -160,9 +159,9 @@ internal fun BranchPickerSheet(
                 )
             }
             // 搜索无结果：轻量居中提示（与分支/应用弹层同一处理）
-            if (keyword.isNotEmpty() && filtered.isEmpty()) {
+            if (listReady && filtered.isEmpty() && missingSelection == null) {
                 Text(
-                    text = stringResource(R.string.branch_no_match),
+                    text = stringResource(if (keyword.isEmpty()) R.string.branch_empty else R.string.branch_no_match),
                     style = MiuixTheme.textStyles.footnote1,
                     color = scheme.onBackgroundVariant,
                     modifier = Modifier
@@ -174,20 +173,16 @@ internal fun BranchPickerSheet(
             LazyColumn(state = listState, modifier = Modifier.weight(1f, fill = false)) {
                 items(filtered, key = { it.name }) { b ->
                     // 点默认分支 = 存 null（保留「跟随默认」语义，上游改名自动跟）
-                    BranchRow(b.name, b.name == currentViewed, tipDate = b.tipDate) {
+                    OptionRow(b.name, b.name == currentViewed, summary = b.tipDate?.let { relTimeString(it) }) {
                         onSelect(if (b.name == defaultBranch) null else b.name)
                         onDismiss()
                     }
                 }
                 // 已 pin 的分支被远端删除（不在列表里）：保留一行选中态，可切回。
                 // loading 中列表为空 ≠ 「已删」——当前分支会闪现成删除行，等加载完再判
-                state.repo?.branch?.takeIf { pinned ->
-                    !state.branchesLoading &&
-                        state.branches.none { it.name == pinned } &&
-                        (keyword.isEmpty() || pinned.contains(keyword, true))
-                }?.let { name ->
+                missingSelection?.let { name ->
                     item(key = "deleted-$name") {
-                        BranchRow(name, true) {
+                        OptionRow(name, true) {
                             onSelect(name)
                             onDismiss()
                         }
@@ -265,39 +260,6 @@ internal fun RemoveRepoDialog(
             )
         }
     }
-}
-
-/** 分支选择行：BasicComponent + Check 选中态（与设置页 OptionRow 同款） */
-@Composable
-internal fun BranchRow(
-    label: String,
-    selected: Boolean,
-    tipDate: java.time.Instant? = null,
-    onClick: () -> Unit,
-) {
-    top.yukonga.miuix.kmp.basic.BasicComponent(
-        // selected 语义与 OptionRow 同源：✓ 图标纯视觉，读屏需播报选中态
-        modifier = Modifier
-            .fillMaxWidth()
-            .semantics { this.selected = selected },
-        title = label,
-        // 分支 tip 提交时间（分钟节拍自动重算）：帮你识别「活的」分支
-        summary = tipDate?.let { relTimeString(it) },
-        endActions = {
-            if (selected) {
-                Icon(
-                    imageVector = ImageVector.vectorResource(R.drawable.ic_check),
-                    contentDescription = null,
-                    tint = MiuixTheme.colorScheme.primaryVariant,
-                    modifier = Modifier.size(20.dp), // intrinsic 26dp，统一选中标记 20dp
-                )
-            }
-        },
-        onClick = onClick,
-        insideMargin = androidx.compose.foundation.layout.PaddingValues(
-            start = 16.dp, end = 16.dp, top = 14.dp, bottom = 14.dp,
-        ),
-    )
 }
 
 private data class LinkRow(val packageName: String, val label: String, val suggested: Boolean)
@@ -425,88 +387,15 @@ internal fun HeaderCard(
                     val actionCurrent = phase == updatePhase && displayedVersion == localVersion
                     Column(Modifier.fillMaxWidth().padding(top = 6.dp)) {
                         when (phase) {
-                            "failed" -> androidx.compose.foundation.layout.Row(
-                                // 与版本卡 failed 相同款行内错误条：errorContainer 底 +
-                                // 具体原因 + 重试链（skill: error-recovery，出路紧邻错误）
-                                verticalAlignment = Alignment.CenterVertically,
-                                modifier = Modifier
-                                    .fillMaxWidth()
-                                    .clip(RoundedCornerShape(12.dp))
-                                    .background(scheme.errorContainer)
-                                    .padding(horizontal = 12.dp, vertical = 10.dp),
-                            ) {
-                                top.yukonga.miuix.kmp.basic.Icon(
-                                    imageVector = ImageVector.vectorResource(R.drawable.ic_info),
-                                    contentDescription = null,
-                                    tint = scheme.onErrorContainer,
-                                    modifier = Modifier.size(16.dp),
-                                )
-                                Spacer(Modifier.width(8.dp))
-                                Text(
-                                    text = downloadFailureText(transfer as? RepoDownloadState.Failed),
-                                    style = MiuixTheme.textStyles.footnote1,
-                                    color = scheme.onErrorContainer,
-                                    modifier = Modifier.weight(1f),
-                                    maxLines = 2,
-                                    overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis,
-                                )
-                                Spacer(Modifier.width(8.dp))
-                                // 重试链按压多态：8dp 圆角染色（可点信号，与全 App 反馈语言同源）
-                                val (retrySrc, retryTint) = io.candy.tick.ui.common.rememberRowPressTint()
-                                Text(
-                                    text = stringResource(R.string.retry),
-                                    style = MiuixTheme.textStyles.footnote1.copy(
-                                        textDecoration = androidx.compose.ui.text.style.TextDecoration.Underline,
-                                    ),
-                                    color = scheme.onErrorContainer,
-                                    modifier = Modifier
-                                        .clip(RoundedCornerShape(8.dp))
-                                        .background(retryTint, RoundedCornerShape(8.dp))
-                                        .clickable(
-                                            enabled = actionCurrent,
-                                            interactionSource = retrySrc,
-                                            indication = null,
-                                            onClick = onDownloadUpdate,
-                                        )
-                                        .padding(horizontal = 8.dp, vertical = 4.dp),
-                                )
-                            }
-                            "progress" -> Column {
-                                val active = transfer as? RepoDownloadState.Active
-                                val p by androidx.compose.animation.core.animateFloatAsState(
-                                    targetValue = active?.progress ?: 0f,
-                                    animationSpec = androidx.compose.animation.core.tween(Motion.PROGRESS),
-                                    label = "headerDl",
-                                )
-                                top.yukonga.miuix.kmp.basic.LinearProgressIndicator(
-                                    progress = p,
-                                    modifier = Modifier.fillMaxWidth(),
-                                )
-                                Row(verticalAlignment = Alignment.CenterVertically) {
-                                    Text(
-                                        text = stringResource(R.string.download_progress_percent, (p * 100).toInt()),
-                                        style = MiuixTheme.textStyles.footnote2,
-                                        color = scheme.onBackgroundVariant,
-                                        modifier = Modifier.weight(1f),
-                                    )
-                                    // 取消（与 ReleaseCard 进度同款文字链；按压染色多态）
-                                    val (cancelSrc, cancelTint) = io.candy.tick.ui.common.rememberRowPressTint()
-                                    Text(
-                                        text = stringResource(R.string.cancel),
-                                        style = MiuixTheme.textStyles.footnote1,
-                                        color = scheme.primaryVariant,
-                                        modifier = Modifier
-                                            .clip(RoundedCornerShape(8.dp))
-                                            .background(cancelTint, RoundedCornerShape(8.dp))
-                                            .clickable(
-                                                interactionSource = cancelSrc,
-                                                indication = null,
-                                                onClick = onCancelDownload,
-                                            )
-                                            .padding(horizontal = 8.dp, vertical = 4.dp),
-                                    )
-                                }
-                            }
+                            "failed" -> InlineErrorRow(
+                                message = downloadFailureText(transfer as? RepoDownloadState.Failed),
+                                onRetry = onDownloadUpdate,
+                                retryEnabled = actionCurrent,
+                            )
+                            "progress" -> DownloadProgress(
+                                progress = (transfer as RepoDownloadState.Active).progress,
+                                onCancel = onCancelDownload,
+                            )
                             "install" -> PrimaryButton(
                                 text = stringResource(R.string.install_apk),
                                 onClick = onInstallUpdate,

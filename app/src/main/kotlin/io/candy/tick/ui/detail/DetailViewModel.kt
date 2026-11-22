@@ -64,7 +64,7 @@ class DetailViewModel(
         val releasesReloading: Boolean = false,
         val download: RepoDownloadState? = null,
         val selectedAssets: Map<String, ApkAsset> = emptyMap(), // releaseKey(tag) → 手选覆盖
-        val branches: List<BranchInfo> = emptyList(), // 分支选择器数据（name + tip 时间）
+        val branches: List<BranchInfo>? = null, // null until a successful response, which may be empty
         val branchesLoading: Boolean = false,
         val branchesFailed: Boolean = false,
         val installEpoch: Int = 0, // ON_RESUME 递增：安装完成后破除版本对比的重组跳过
@@ -221,9 +221,9 @@ class DetailViewModel(
 
     /** 分支列表（选择器打开时懒加载，一次即缓存） */
     fun loadBranches() {
-        if (_state.value.branches.isNotEmpty() || _state.value.branchesLoading) return
+        if (!_state.value.branches.isNullOrEmpty() || _state.value.branchesLoading) return
+        _state.update { it.copy(branchesLoading = true, branchesFailed = false) }
         viewModelScope.launch {
-            _state.update { it.copy(branchesLoading = true, branchesFailed = false) }
             // 纯 per-branch：names + 各分支 tip 时间（并发闸 6，浏览/默认分支优先保时间）
             val list = repository.loadBranchInfos(repoId)
             _state.update {

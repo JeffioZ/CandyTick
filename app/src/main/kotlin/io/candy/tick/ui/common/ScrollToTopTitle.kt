@@ -7,16 +7,18 @@ import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.sizeIn
+import androidx.compose.foundation.layout.widthIn
+import androidx.compose.foundation.layout.wrapContentWidth
 import androidx.compose.foundation.lazy.LazyListState
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.draw.clip
 import androidx.compose.ui.focus.onFocusChanged
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.vector.ImageVector
@@ -29,9 +31,11 @@ import androidx.compose.ui.semantics.heading
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import io.candy.tick.R
+import kotlinx.coroutines.launch
 import top.yukonga.miuix.kmp.basic.Icon
 import top.yukonga.miuix.kmp.basic.SmallTopAppBar
 import top.yukonga.miuix.kmp.basic.Text
@@ -46,27 +50,9 @@ internal fun ScrollToTopTitle(
     style: TextStyle = MiuixTheme.textStyles.title4,
     color: Color = MiuixTheme.colorScheme.onBackground,
 ) {
-    val shape = RoundedCornerShape(10.dp)
-    val action = if (onClick == null) Modifier else {
-        var focused by remember { mutableStateOf(false) }
-        val focusRing = if (focused && LocalInputModeManager.current.inputMode == InputMode.Keyboard) {
-            Modifier.border(1.dp, MiuixTheme.colorScheme.primaryVariant, shape)
-        } else Modifier
-        focusRing
-            .onFocusChanged { focused = it.isFocused }
-            .clickable(
-                interactionSource = null,
-                indication = null,
-                onClickLabel = stringResource(R.string.scroll_to_top),
-                role = Role.Button,
-                onClick = onClick,
-            )
-    }
     Box(
         modifier = modifier
-            .clip(shape)
-            .then(action)
-            .semantics { heading() }
+            .titleAction(onClick)
             .sizeIn(minWidth = 48.dp, minHeight = 48.dp),
         contentAlignment = Alignment.Center,
     ) {
@@ -81,16 +67,42 @@ internal fun ScrollToTopTitle(
     }
 }
 
+/** Occupies the Miuix title row, which already provides the top and bottom spacing. */
 @Composable
-internal fun SheetScrollToTopTitle(text: String, onClick: (() -> Unit)?) {
-    Box(Modifier.fillMaxWidth(), contentAlignment = Alignment.Center) {
-        ScrollToTopTitle(
-            text = text,
+internal fun SheetScrollToTopTitle(text: String, canScroll: Boolean, scrollToTop: suspend (Boolean) -> Unit) {
+    val scope = rememberCoroutineScope()
+    val animated = rememberMotionEnabled()
+    val onClick: (() -> Unit)? = if (canScroll) {
+        { scope.launch { scrollToTop(animated) } }
+    } else null
+    Text(
+        text = text,
+        modifier = Modifier.fillMaxWidth().wrapContentWidth().titleAction(onClick).widthIn(min = 48.dp),
+        fontSize = MiuixTheme.textStyles.title4.fontSize,
+        fontWeight = FontWeight.Medium,
+        textAlign = TextAlign.Center,
+        color = MiuixTheme.colorScheme.onSurface,
+    )
+}
+
+@Composable
+private fun Modifier.titleAction(onClick: (() -> Unit)?): Modifier {
+    if (onClick == null) return semantics { heading() }
+    var focused by remember { mutableStateOf(false) }
+    val focusRing = if (focused && LocalInputModeManager.current.inputMode == InputMode.Keyboard) {
+        Modifier.border(1.dp, MiuixTheme.colorScheme.primaryVariant, RoundedCornerShape(10.dp))
+    } else Modifier
+    return this
+        .then(focusRing)
+        .onFocusChanged { focused = it.isFocused }
+        .clickable(
+            interactionSource = null,
+            indication = null,
+            onClickLabel = stringResource(R.string.scroll_to_top),
+            role = Role.Button,
             onClick = onClick,
-            style = MiuixTheme.textStyles.title4.copy(fontWeight = FontWeight.Medium),
-            color = MiuixTheme.colorScheme.onSurface,
         )
-    }
+        .semantics { heading() }
 }
 
 /** A centered, tappable title in Miuix's inset-aware small app bar. */
