@@ -37,14 +37,14 @@ Sort five ways — recent pushes, available updates, activity, and more — each
 
 ## ✨ At a Glance
 
-| | Capability | Built for |
+| | Capability | Details |
 | --- | --- | --- |
 | 📬 | **Subscribe** | Paste a link, type a repository name, or search by keyword — no GitHub account needed. |
 | 📜 | **Browse activity** | Read commits by branch and Markdown release notes; `#123` links straight to the issue. |
-| 📲 | **Update apps** | Matches each repository to its installed app and compares versions; recommends the right package for your device's architecture. |
+| 📲 | **Update apps** | Matches each repository to its installed app and compares versions; when a release has several packages, recommends the right one for your device. |
 | 🔔 | **Notifications** | Background sync checks for new packages and notifies you; automatic checks can wait for unmetered networks. |
 | 📌 | **Organize** | Pin what you check often, search by name, sort by activity or available updates, and undo a deletion. |
-| 💾 | **Backup** | Export subscriptions as JSON and import them on another device; already-followed repositories are skipped. |
+| 💾 | **Backup** | Export subscriptions as JSON and import them on another device; repositories you already follow are skipped. |
 
 **Small by design:** CandyTick needs no account and no cloud service — all data stays on your device. Anonymous requests are limited to 60 per hour; adding a [GitHub token](https://docs.github.com/en/rest/using-the-rest-api/rate-limits-for-the-rest-api) in Settings raises it to 5,000.
 
@@ -54,14 +54,14 @@ Sort five ways — recent pushes, available updates, activity, and more — each
 2. Tap **+** at the top right of the home screen. Paste a GitHub repository URL (such as `JeffioZ/CandyTick`), enter a name, or search by keyword.
 3. Check the repository in the preview and tap **Add repository**.
 
-Want to track updates for an app you already installed? Add its GitHub repository — CandyTick links apps with matching names automatically and pings you when a new version lands.
+Want updates for a specific app? Add its GitHub repository — CandyTick links apps with matching names and lets you know when a new version lands.
 
 ## 📚 More
 
 | | Read this |
 | --- | --- |
 | 📝 | [Changelog](CHANGELOG.md) — every change per version, with an English summary |
-| 🔨 | [Build from source](#build-from-source) — JDK 21 + Android SDK, one command for a debug APK |
+| 🔨 | [Build from source](#build-from-source) — JDK 21 + Android SDK, one command to build a debug APK |
 
 ## 🔨 Build from source
 
