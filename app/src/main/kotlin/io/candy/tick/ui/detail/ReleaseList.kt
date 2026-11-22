@@ -15,7 +15,6 @@ import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
-import androidx.compose.foundation.lazy.LazyItemScope
 import androidx.compose.foundation.lazy.LazyListScope
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
@@ -23,7 +22,7 @@ import androidx.compose.foundation.background
 import androidx.compose.animation.togetherWith
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
-import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.State
 import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -47,7 +46,6 @@ import io.candy.tick.ui.common.relTimeString
 import io.candy.tick.ui.theme.MonoTokenStyle
 import io.candy.tick.util.ApkPicker
 import io.candy.tick.util.VersionCompare
-import top.yukonga.miuix.kmp.basic.Card
 import top.yukonga.miuix.kmp.basic.Text
 import top.yukonga.miuix.kmp.theme.MiuixTheme
 import androidx.compose.ui.res.vectorResource
@@ -65,6 +63,9 @@ fun LazyListScope.releaseList(
     localVersion: String?,
     htmlBase: String,
     showPagingIndicator: Boolean,
+    refreshMask: State<Float>,
+    blockMaskedActions: Boolean,
+    animateRefreshChanges: Boolean,
     onLoadMore: () -> Unit,
     onSelectAsset: (String, ApkAsset) -> Unit,
     onRead: (String) -> Unit,
@@ -82,7 +83,10 @@ fun LazyListScope.releaseList(
         val release = releases[index]
         ReleaseCard(
             release = release,
-            modifier = contentModifier,
+            modifier = refreshItemMotion(animateRefreshChanges).then(contentModifier),
+            index = index,
+            refreshMask = refreshMask,
+            blockMaskedActions = blockMaskedActions,
             state = state,
             localVersion = localVersion,
             htmlBase = htmlBase,
@@ -100,40 +104,13 @@ fun LazyListScope.releaseList(
         )
     }
     item(key = "releases-footer") {
-        ReleaseFooter(state, releases.size, onLoadMore, showPagingIndicator, contentModifier)
-    }
-}
-
-@Composable
-private fun LazyItemScope.ReleaseFooter(
-    state: DetailViewModel.UiState,
-    displayedCount: Int,
-    onLoadMore: () -> Unit,
-    showPagingIndicator: Boolean,
-    contentModifier: Modifier,
-) {
-    val pageModifier = contentModifier.fillParentMaxHeight(0.45f)
-    when {
-        state.releasesReloading -> Unit // 页首刷新统一由顶栏或下拉刷新头反馈
-        state.releasesLoading -> if (showPagingIndicator) DetailPagingIndicator()
-        state.releasesFailed -> io.candy.tick.ui.common.StatusPage(
-            icon = ImageVector.vectorResource(R.drawable.ic_close),
-            isError = true,
-            title = stringResource(R.string.load_failed),
-            subtitle = stringResource(R.string.status_error_subtitle),
-            actionLabel = stringResource(R.string.retry),
-            onAction = onLoadMore,
-            modifier = pageModifier.fillMaxWidth(),
-        )
-        !state.releasesEnd && state.releases.isNotEmpty() -> LaunchedEffect(state.releases.size) { onLoadMore() }
-        displayedCount == 0 && state.releasesEnd -> io.candy.tick.ui.common.StatusPage(
-            icon = ImageVector.vectorResource(R.drawable.ic_file),
-            title = stringResource(R.string.detail_no_releases),
-            modifier = pageModifier.fillMaxWidth(),
-        )
-        // 到底且有内容：终点提示（与 CommitFooter 对称，替代原先挂在 Screen 层的外置 if）
-        displayedCount > 0 -> io.candy.tick.ui.common.FooterText(
-            R.plurals.footer_releases, displayedCount, contentModifier,
+        HistoryFooter(
+            state = state,
+            tab = DetailViewModel.DetailTab.RELEASES,
+            displayedCount = releases.size,
+            showPagingIndicator = showPagingIndicator,
+            modifier = contentModifier,
+            onLoadMore = onLoadMore,
         )
     }
 }
@@ -142,6 +119,9 @@ private fun LazyItemScope.ReleaseFooter(
 private fun ReleaseCard(
     release: ReleaseRecord,
     modifier: Modifier,
+    index: Int,
+    refreshMask: State<Float>,
+    blockMaskedActions: Boolean,
     state: DetailViewModel.UiState,
     localVersion: String?,
     htmlBase: String,
@@ -166,7 +146,16 @@ private fun ReleaseCard(
     var notesExpanded by androidx.compose.runtime.saveable.rememberSaveable(release.tagName) { mutableStateOf(false) }
     val cardInset = 6.dp
     val sectionGap = 4.dp
-    Card(modifier = modifier.fillMaxWidth()) {
+    HistoryCard(
+        modifier = modifier,
+        tab = DetailViewModel.DetailTab.RELEASES,
+        index = index,
+        mask = refreshMask,
+        blocked = blockMaskedActions,
+        assetCount = candidates.size,
+        keepVisible = notesExpanded || fromNotification || release.tagName in state.selectedAssets ||
+            state.download?.releaseKey == release.tagName || state.repo?.downloadedApk?.version == release.tagName,
+    ) {
         Column(
             modifier = Modifier.padding(horizontal = 16.dp, vertical = cardInset),
             verticalArrangement = Arrangement.spacedBy(sectionGap),

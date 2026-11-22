@@ -200,6 +200,7 @@
     <string name="detail_commits">Commit history</string>
     <string name="detail_releases">Version history</string>
     <string name="detail_no_commits">No commits yet</string>
+    <string name="detail_history_changed">History has changed. Pull to refresh.</string>
     <string name="detail_no_releases">No releases yet</string>
     <string name="detail_release_from_notification">Release from notification</string>
     <string name="detail_finding_release">Looking for release %1$s…</string>

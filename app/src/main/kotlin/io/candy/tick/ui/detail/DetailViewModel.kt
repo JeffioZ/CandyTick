@@ -1,6 +1,7 @@
 package io.candy.tick.ui.detail
 
 import android.content.Context
+import android.util.LruCache
 import androidx.compose.runtime.Immutable
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
@@ -16,6 +17,7 @@ import io.candy.tick.data.model.RepoSnapshot
 import io.candy.tick.data.model.ReleaseRecord
 import io.candy.tick.data.model.TrackedRepo
 import java.io.File
+import java.time.Instant
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.channels.Channel
 import kotlinx.coroutines.flow.Flow
@@ -53,11 +55,13 @@ class DetailViewModel(
         val commitsLoading: Boolean = false,
         val commitsEnd: Boolean = false,
         val commitsFailed: Boolean = false,
+        val commitsPagingPaused: Boolean = false,
         val releases: List<ReleaseRecord> = emptyList(),
         val notificationRelease: ReleaseRecord? = null,
         val releasesLoading: Boolean = false,
         val releasesEnd: Boolean = false,
         val releasesFailed: Boolean = false,
+        val releasesPagingPaused: Boolean = false,
         // page1 重载进行中（仅 refresh 触发）：footer 用它压掉与刷新头重复的小点，
         // 完成即清。翻页加载（load-more）不走这个标记，小点照常
         val commitsReloading: Boolean = false,
@@ -79,7 +83,7 @@ class DetailViewModel(
         }
 
         internal fun forNewBranch(): UiState = copy(
-            commits = emptyList(), commitsEnd = false, commitsFailed = false,
+            commits = emptyList(), commitsEnd = false, commitsFailed = false, commitsPagingPaused = false,
             commitsLoading = false, commitsReloading = syncing,
         )
     }
@@ -97,16 +101,56 @@ class DetailViewModel(
     val events: Flow<Event> = _events.receiveAsFlow()
 
     private val _state = MutableStateFlow(repository.state.value.let { current ->
-        UiState(repo = current.repos.find { it.id == repoId }, snapshot = current.snapshots[repoId], tab = initialTab)
+        val tracked = current.repos.find { it.id == repoId }
+        val snapshot = current.snapshots[repoId]
+        val cache = tracked?.let { DetailHistoryCache.pages(it) }
+        val commits = cache?.takeIf { it.branch == (tracked.branch ?: snapshot?.defaultBranch) }?.commits
+        val releases = cache?.releases
+        UiState(
+            repo = tracked, snapshot = snapshot, tab = initialTab,
+            commits = commits.orEmpty(), commitsEnd = commits != null && commits.size < COMMITS_PER_PAGE,
+            releases = releases.orEmpty(), releasesEnd = releases != null && releases.size < RELEASES_PER_PAGE,
+        )
     })
     val state: StateFlow<UiState> = _state.asStateFlow()
 
     private val appContext: Context = context.applicationContext
     private val apkDir: File = File(context.filesDir, "apks/$repoId")
-    private var commitsPage = 1
-    private var releasesPage = 1
+    private val commitCursor = HistoryCursor(COMMITS_PER_PAGE, CommitRecord::sha)
+    private val releaseCursor = HistoryCursor(RELEASES_PER_PAGE, ReleaseRecord::tagName)
     private var commitsGen = 0 // 提交列表代数：切分支/刷新时 +1，迟到的旧响应作废
     private var releasesGen = 0 // 版本列表代数：刷新时 +1，迟到的旧页响应作废
+    // Main-thread requests update their cursors independently. During a pull, only their
+    // network results are held; downloads, installation and user choices stay live in _state.
+    private var pendingPull: UiState? = null
+
+    private fun updateHistory(change: (UiState) -> UiState) {
+        val shown = _state.value
+        val pending = pendingPull
+        val next = change(pending ?: shown)
+        if (next.refreshing) {
+            pendingPull = next
+            _state.value = shown.copy(
+                manualRefresh = true, snapshotLoading = true,
+                commitsReloading = true, commitsLoading = !shown.commitsEnd && !shown.commitsFailed,
+                releasesReloading = true, releasesLoading = !shown.releasesEnd && !shown.releasesFailed,
+            )
+        } else if (pending != null) {
+            pendingPull = null
+            val store = repository.state.value
+            _state.value = shown.copy(
+                repo = store.repos.firstOrNull { it.id == repoId }, snapshot = store.snapshots[repoId],
+                manualRefresh = false, snapshotLoading = next.snapshotLoading, banner = next.banner,
+                commits = next.commits, commitsEnd = next.commitsEnd, commitsFailed = next.commitsFailed,
+                commitsLoading = next.commitsLoading, commitsReloading = next.commitsReloading, commitsPagingPaused = next.commitsPagingPaused,
+                releases = next.releases, releasesEnd = next.releasesEnd, releasesFailed = next.releasesFailed,
+                releasesLoading = next.releasesLoading, releasesReloading = next.releasesReloading, releasesPagingPaused = next.releasesPagingPaused,
+            )
+        } else {
+            _state.value = next
+        }
+    }
+
     private data class LinkedAppKey(val owner: String, val repo: String, val pkg: String?, val dismissed: Boolean)
 
     private fun TrackedRepo.linkKey() = LinkedAppKey(owner, repo, linkedPackage, autoLinkDismissed)
@@ -128,12 +172,17 @@ class DetailViewModel(
 
     init {
         viewModelScope.launch {
-            repository.state.collect { s ->
+            repository.state.collect {
+                val s = repository.state.value
                 val tracked = s.repos.find { it.id == repoId }
                 _state.update {
+                    val shown = it.repo
+                    val holdOverview = it.refreshing && tracked != null && shown != null && tracked.addedAt == shown.addedAt
                     it.copy(
-                        repo = tracked,
-                        snapshot = s.snapshots[repoId],
+                        repo = if (holdOverview && (tracked.owner != shown.owner || tracked.repo != shown.repo)) {
+                            tracked.copy(owner = shown.owner, repo = shown.repo)
+                        } else tracked,
+                        snapshot = if (holdOverview) it.snapshot else s.snapshots[repoId],
                         linkSuggestion = if (it.repo?.repo == tracked?.repo) it.linkSuggestion else null,
                     )
                 }
@@ -189,11 +238,19 @@ class DetailViewModel(
                 _state.update { it.copy(download = m[repoId]) }
             }
         }
-
+        refresh(silent = true)
     }
 
     fun setTab(newTab: DetailTab) {
         _state.update { it.copy(tab = newTab) }
+    }
+
+    fun protectReadingRows(tab: DetailTab, ids: Set<String>, headerInView: Boolean = false) {
+        val current = _state.value
+        val cursor = if (tab == DetailTab.COMMITS) commitCursor else releaseCursor
+        val reloading = if (tab == DetailTab.COMMITS) current.commitsReloading else current.releasesReloading
+        cursor.readingIds = if (reloading && !current.manualRefresh) ids else emptySet()
+        cursor.headerInView = headerInView
     }
 
     /** Lookup is scoped to the notification request in the screen. It never advances the history cursor. */
@@ -241,8 +298,9 @@ class DetailViewModel(
         if (_state.value.repo?.branch == branch) return
         viewModelScope.launch {
             repository.setBranch(repoId, branch)
-            commitsPage = 1
+            commitCursor.reset()
             commitsGen++
+            pendingPull = pendingPull?.forNewBranch()
             _state.update { it.forNewBranch() }
             loadCommits()
         }
@@ -251,39 +309,64 @@ class DetailViewModel(
     /** The header and both first pages are independent. Start each once for this visit,
      * keeping previous results visible until their replacements arrive. */
     fun refresh(silent: Boolean = false) {
-        if (_state.value.syncing) {
+        if ((pendingPull ?: _state.value).syncing) {
             // A user pull can take over the requests already started on entry.
-            if (!silent) _state.update { it.withManualRefresh(requested = true) }
+            if (!silent && pendingPull == null) updateHistory {
+                val commits = commitCursor.takeHeldPage()
+                val releases = releaseCursor.takeHeldPage()
+                if (commits != null) commitsGen++
+                if (releases != null) releasesGen++
+                it.copy(
+                    commits = commits?.rows ?: it.commits, commitsEnd = commits?.end ?: it.commitsEnd,
+                    commitsFailed = commits == null && it.commitsFailed, commitsLoading = commits == null && it.commitsLoading,
+                    commitsPagingPaused = commits == null && it.commitsPagingPaused,
+                    releases = releases?.rows ?: it.releases, releasesEnd = releases?.end ?: it.releasesEnd,
+                    releasesFailed = releases == null && it.releasesFailed, releasesLoading = releases == null && it.releasesLoading,
+                    releasesPagingPaused = releases == null && it.releasesPagingPaused,
+                ).withManualRefresh(requested = true)
+            }
             return
         }
-        commitsPage = 1
-        releasesPage = 1
+        commitCursor.startReload()
+        releaseCursor.startReload()
         commitsGen++
         releasesGen++
-        _state.update {
+        updateHistory {
             it.copy(
                 manualRefresh = !silent,
                 snapshotLoading = true,
                 banner = null,
-                commitsLoading = false, commitsReloading = true, commitsEnd = false, commitsFailed = false,
-                releasesLoading = false, releasesReloading = true, releasesEnd = false, releasesFailed = false,
+                commitsLoading = false, commitsReloading = true, commitsPagingPaused = false,
+                releasesLoading = false, releasesReloading = true, releasesPagingPaused = false,
             )
         }
         loadCommits()
         loadReleases()
         viewModelScope.launch {
-            val error = repository.refreshRepo(repoId)
-            _state.update { it.copy(snapshotLoading = false, banner = error).withManualRefresh() }
+            val error = try {
+                repository.refreshRepo(repoId)
+            } catch (e: kotlinx.coroutines.CancellationException) {
+                throw e
+            } catch (_: Exception) {
+                SourceError.NetworkUnreachable
+            }
+            updateHistory { it.copy(snapshotLoading = false, banner = error).withManualRefresh() }
         }
     }
 
     fun loadCommits() {
-        val current = _state.value
-        if (current.commitsLoading || current.commitsEnd) return
-        val page = commitsPage
+        val current = pendingPull ?: _state.value
+        if (current.commitsLoading) return
+        if (!current.commitsReloading && (current.commitsEnd || current.manualRefresh || commitCursor.pagingPaused)) return
+        val page = if (current.commitsReloading) 1 else commitCursor.nextPage
         val gen = commitsGen
-        _state.update { it.copy(commitsLoading = true, commitsFailed = false) }
+        updateHistory { it.copy(commitsLoading = true) }
         viewModelScope.launch {
+            val store = repository.state.value
+            val tracked = store.repos.firstOrNull { it.id == repoId }
+            val branch = tracked?.branch ?: store.snapshots[repoId]?.defaultBranch
+            val cache = if (page == 1 && tracked != null) DetailHistoryCache.pages(tracked) else null
+            val request = cache?.let { ++it.commitRequest }
             val data = try {
                 repository.commits(repoId, page)
             } catch (e: kotlinx.coroutines.CancellationException) {
@@ -292,24 +375,33 @@ class DetailViewModel(
                 null
             }
             if (gen != commitsGen) return@launch
-            if (data != null) commitsPage = page + 1
-            _state.update {
+            if (cache != null && cache.commitRequest == request && data != null) {
+                cache.branch = branch
+                cache.commits = data.take(COMMITS_PER_PAGE)
+            }
+            updateHistory {
+                val result = commitCursor.accept(it.commits, it.commitsEnd, page, data, it.commitsReloading && !it.manualRefresh)
                 it.copy(
-                    commits = mergePage(it.commits, page, data) { entry -> entry.sha },
+                    commits = result.rows,
                     commitsLoading = false, commitsReloading = false,
-                    commitsFailed = data == null, commitsEnd = data != null && data.size < COMMITS_PER_PAGE,
+                    commitsPagingPaused = commitCursor.pagingPaused && !result.end,
+                    commitsFailed = data == null, commitsEnd = result.end,
                 ).withManualRefresh()
             }
         }
     }
 
     fun loadReleases() {
-        val current = _state.value
-        if (current.releasesLoading || current.releasesEnd) return
-        val page = releasesPage
+        val current = pendingPull ?: _state.value
+        if (current.releasesLoading) return
+        if (!current.releasesReloading && (current.releasesEnd || current.manualRefresh || releaseCursor.pagingPaused)) return
+        val page = if (current.releasesReloading) 1 else releaseCursor.nextPage
         val gen = releasesGen
-        _state.update { it.copy(releasesLoading = true, releasesFailed = false) }
+        updateHistory { it.copy(releasesLoading = true) }
         viewModelScope.launch {
+            val tracked = repository.state.value.repos.firstOrNull { it.id == repoId }
+            val cache = if (page == 1 && tracked != null) DetailHistoryCache.pages(tracked) else null
+            val request = cache?.let { ++it.releaseRequest }
             val data = try {
                 repository.releases(repoId, page)
             } catch (e: kotlinx.coroutines.CancellationException) {
@@ -318,12 +410,16 @@ class DetailViewModel(
                 null
             }
             if (gen != releasesGen) return@launch
-            if (data != null) releasesPage = page + 1
-            _state.update {
+            if (cache != null && cache.releaseRequest == request && data != null) {
+                cache.releases = data.take(RELEASES_PER_PAGE)
+            }
+            updateHistory {
+                val result = releaseCursor.accept(it.releases, it.releasesEnd, page, data, it.releasesReloading && !it.manualRefresh)
                 it.copy(
-                    releases = mergePage(it.releases, page, data) { entry -> entry.tagName },
+                    releases = result.rows,
                     releasesLoading = false, releasesReloading = false,
-                    releasesFailed = data == null, releasesEnd = data != null && data.size < RELEASES_PER_PAGE,
+                    releasesPagingPaused = releaseCursor.pagingPaused && !result.end,
+                    releasesFailed = data == null, releasesEnd = result.end,
                 ).withManualRefresh()
             }
         }
@@ -431,6 +527,97 @@ class DetailViewModel(
     fun dismissBanner() = _state.update { it.copy(banner = null) }
 }
 
+private data class HistoryPage<T>(val rows: List<T>, val end: Boolean)
+
+private class HistoryCursor<T>(private val pageSize: Int, private val key: (T) -> String) {
+    var readingIds: Set<String> = emptySet()
+    var headerInView = false
+    var nextPage = 1
+        private set
+    var pagingPaused = false
+        private set
+    private var heldFirstPage: List<T>? = null
+    private var needsTailAnchor = false
+
+    fun startReload() {
+        readingIds = emptySet()
+        headerInView = false
+        heldFirstPage = null
+        needsTailAnchor = false
+        pagingPaused = false
+    }
+
+    fun reset() {
+        startReload()
+        nextPage = 1
+    }
+
+    fun takeHeldPage(): HistoryPage<T>? {
+        val received = heldFirstPage ?: return null
+        startReload()
+        return accept(emptyList(), false, 1, received, false)
+    }
+
+    fun accept(
+        previous: List<T>, previousEnd: Boolean, page: Int, received: List<T>?, silentReload: Boolean,
+    ): HistoryPage<T> {
+        if (received == null) {
+            nextPage = page
+            return HistoryPage(previous, false)
+        }
+        if (needsTailAnchor && page > 1) {
+            // Page numbers can shift under a reader. Only append after the actual last row.
+            val tail = previous.lastOrNull()?.let(key)
+            val index = received.indexOfFirst { key(it) == tail }
+            if (index < 0) {
+                pagingPaused = true
+                return HistoryPage(previous, previousEnd)
+            }
+            needsTailAnchor = false
+            nextPage = page + 1
+            return HistoryPage((previous + received.drop(index + 1)).distinctBy(key), received.size < pageSize)
+        }
+
+        val rows = mergePage(previous, page, received, key)
+        // A header-anchored list can push a visible row off-screen even when its key survives.
+        val displacesReader = silentReload && readingIds.any { id ->
+            val before = previous.indexOfFirst { key(it) == id }
+            val after = rows.indexOfFirst { key(it) == id }
+            before >= 0 && (after < 0 || previous[before] != rows[after] || headerInView && before != after)
+        }
+        if (displacesReader) {
+            heldFirstPage = received
+            // If the refreshed list has the same tail, it also tells us exactly where to resume.
+            needsTailAnchor = rows.lastOrNull()?.let(key) != previous.lastOrNull()?.let(key)
+            pagingPaused = received.size < pageSize
+            nextPage = if (needsTailAnchor) maxOf(2, nextPage) else 2
+            return HistoryPage(previous, previousEnd)
+        }
+        nextPage = page + 1
+        return HistoryPage(rows, received.size < pageSize)
+    }
+}
+
+/** Main-thread only. Null means never loaded; an empty list is a successful empty page. */
+private object DetailHistoryCache {
+    private data class Key(val id: Long, val addedAt: Instant, val provider: String, val owner: String, val repo: String)
+
+    class Pages {
+        var branch: String? = null
+        var commits: List<CommitRecord>? = null
+        var releases: List<ReleaseRecord>? = null
+        // Another detail entry (e.g. opened from a notification) can start a newer first-page request.
+        var commitRequest = 0L
+        var releaseRequest = 0L
+    }
+
+    private val recent = LruCache<Key, Pages>(6)
+
+    fun pages(repo: TrackedRepo): Pages {
+        val key = Key(repo.id, repo.addedAt, repo.provider, repo.owner, repo.repo)
+        return recent.get(key) ?: Pages().also { recent.put(key, it) }
+    }
+}
 
 /** A new first page replaces the snapshot (including an empty page). Later pages can overlap
  * when new commits/releases are published between requests. */

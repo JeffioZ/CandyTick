@@ -185,6 +185,7 @@
     <string name="detail_commits">提交历史</string>
     <string name="detail_releases">版本历史</string>
     <string name="detail_no_commits">暂无提交记录</string>
+    <string name="detail_history_changed">历史记录已更新，下拉刷新可继续浏览</string>
     <string name="detail_no_releases">尚未发布版本</string>
     <string name="detail_release_from_notification">通知中的版本</string>
     <string name="detail_finding_release">正在查找版本 %1$s…</string>

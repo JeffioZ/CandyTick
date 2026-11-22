@@ -33,10 +33,11 @@
 - 首页的「最近活动」会比较所选分支的最新提交时间和最新安装包的发布时间，显示两者中较近的一个。刷新、置顶或取消置顶时，列表会尽量保留当前阅读位置。
 - 点开单个仓库的新版安装包通知后，详情页会定位到对应版本，只清除这次发布的未读标记。「可更新」仍按本机实际安装的版本判断。
 - 离开详情页后，安装包会继续下载，返回即可查看进度。分包文件保留原扩展名，方便用兼容的安装程序打开。
-- 进入详情页时，刷新期间仍可查看已有的历史记录。搜索本机应用时，面板高度保持稳定。
+- 再次查看最近打开的仓库时，先显示上次的历史记录。刷新较慢时，列表在原位淡入占位。开始浏览后，内容保持可读。手动下拉时，仓库概况和历史记录随「刷新完成」一起更新。
+- 搜索本机应用时，面板高度保持稳定。
 - 开启 CandyTick 自身更新的自动下载后，使用移动数据时也能下载新版。仓库自动同步仍遵循单独的网络设置。
 - 首页排序浮层的标题和选项上移，与其他浮层的标题间距一致。
-- 首页同步时，三点出现后才会显示完成图标。刷新期间，已展开的仓库卡片会保留活动时间和已有提交。详情页顶部的三点只跟随当前页签和仓库概况的加载状态。
+- 首页同步时，三点出现后才会显示完成图标。刷新期间，已展开的仓库卡片会保留活动时间和已有提交。
 - 首页和详情页的版本摘要统一省略数字前的 `v`，方便对照本机版本。版本历史保留仓库的原始标签。
 - 横屏或分屏时可滚动设置浮层，键盘弹出后也能找到保存按钮。窗口较矮时，自身更新的下载按钮会排在更新说明前面。
 
@@ -55,11 +56,12 @@
 - Tap the selected sort option again to reverse the order. Pinned repositories stay at the top. Recent activity includes commits on the selected branch and releases with installable packages. Refreshing or pinning a repository keeps the card you’re reading in view where possible.
 - Open a notification for a single repository to go to that release. Only that release is marked as read. Update availability still depends on the installed version.
 - Downloads continue after you leave the details page. Split packages keep their original extensions. After installation, CandyTick cleans up the matching APK and checks for stale update notifications.
-- Long-press the globe icon to copy the repository URL. You can keep reading cached history during a refresh, and the installed-app picker stays the same height as you search.
+- Long-press the globe icon to copy the repository URL. The installed-app picker stays the same height as you search.
+- Reopening a recently viewed repository shows its history while it refreshes. On a slow connection, placeholders fade in over the cards until you start browsing. Pulling to refresh updates the overview and history together when the indicator shows “Refresh complete”.
 - CandyTick can download its own updates over mobile data when automatic downloads are enabled. Repository sync still follows your network settings.
 - Unlinking an app now persists across restarts. Uninstalled apps are unlinked on the next check, and long GitHub tokens can be pasted in full.
 - The sort sheet now uses the same title spacing as other sheets. Tapping notification permission in Settings opens the system settings on the first tap. CandyTick shows a message if a settings page, share menu, or file picker is unavailable.
-- The home screen shows a sync result icon only after the loading dots have appeared. Expanded cards keep their activity times and commits visible during refresh. When a pull-to-refresh overlaps with automatic sync, the indicator waits for expanded cards to catch up. The detail header tracks the repository overview and the selected tab.
+- The home screen shows a sync result icon only after the loading dots have appeared. Expanded cards keep their activity times and commits visible during refresh. When a pull-to-refresh overlaps with automatic sync, the indicator waits for expanded cards to catch up.
 - Downloads show “Downloading…” when the package size is unknown. The percentage appears when the size is available.
 - Version summaries omit the `v` prefix before a number, while release history preserves the original tag. Identical packaging labels now match, and different Git hashes on the same version no longer imply an update.
 - Settings sheets scroll in short windows so their actions remain reachable with the keyboard open. In short windows the CandyTick update sheet places the download button above the release notes.

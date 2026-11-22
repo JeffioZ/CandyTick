@@ -4,15 +4,15 @@ import android.content.ClipData
 import android.content.ClipboardManager
 import android.content.Intent
 import android.net.Uri
-import androidx.compose.animation.AnimatedVisibility
+import androidx.compose.animation.AnimatedContent
 import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
+import androidx.compose.animation.togetherWith
 import androidx.compose.animation.EnterExitState
 import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.animation.core.tween
 import androidx.compose.foundation.interaction.DragInteraction
 import androidx.compose.foundation.layout.Arrangement
-import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
@@ -39,7 +39,10 @@ import androidx.compose.runtime.snapshotFlow
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.graphicsLayer
-import androidx.compose.foundation.layout.height
+import androidx.compose.ui.input.key.onPreviewKeyEvent
+import androidx.compose.ui.input.pointer.PointerEventPass
+import androidx.compose.ui.input.pointer.PointerEventType
+import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.hapticfeedback.HapticFeedbackType
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalDensity
@@ -74,7 +77,6 @@ import top.yukonga.miuix.kmp.theme.MiuixTheme
 import androidx.compose.ui.res.vectorResource
 import androidx.compose.ui.graphics.vector.ImageVector
 import io.candy.tick.ui.common.Motion
-import io.candy.tick.ui.common.LoadingDots
 import io.candy.tick.ui.common.rememberBusyIndicator
 import io.candy.tick.ui.common.rememberMotionEnabled
 import kotlin.math.roundToInt
@@ -87,6 +89,7 @@ fun DetailScreen(
     onBack: () -> Unit,
 ) {
     val app = LocalContext.current.applicationContext as CandyTickApp
+    var interacted by rememberSaveable(repoId) { mutableStateOf(false) }
     var browsing by rememberSaveable(repoId, releaseRequestId) { mutableStateOf(releaseRequestId == null) }
     var positioned by rememberSaveable(repoId, releaseRequestId) { mutableStateOf(false) }
     var savedTab by rememberSaveable(repoId, releaseRequestId) {
@@ -111,7 +114,21 @@ fun DetailScreen(
         lifecycleOwner.lifecycle.addObserver(observer)
         onDispose { lifecycleOwner.lifecycle.removeObserver(observer) }
     }
-    val state by vm.state.collectAsStateWithLifecycle()
+    val latest by vm.state.collectAsStateWithLifecycle()
+    val pullState = rememberPullToRefreshState()
+    var pullFrame by remember(vm) { mutableStateOf<DetailViewModel.UiState?>(null) }
+    val headerRefreshing = pullState.refreshState == RefreshState.Refreshing
+    // Both the header text and the content switch on Miuix's actual completion transition.
+    // Network results can arrive one composition before the header observes the finished batch.
+    val state = pullFrame?.takeIf { headerRefreshing && !latest.refreshing } ?: latest
+    androidx.compose.runtime.SideEffect {
+        if (pullFrame != null) {
+            when {
+                latest.refreshing -> pullFrame = latest
+                !headerRefreshing -> pullFrame = null
+            }
+        }
+    }
     val tab = if (browsing) state.tab else DetailViewModel.DetailTab.RELEASES
     LaunchedEffect(releaseRequestId) {
         if (!browsing) vm.setTab(DetailViewModel.DetailTab.RELEASES)
@@ -126,7 +143,8 @@ fun DetailScreen(
     }
     val releaseIndex = remember(releases, tag) { releases.indexOfFirst { it.tagName == tag } }
     val awaitingTag = !browsing && tag != null && releaseIndex < 0
-    val pageAvailable = state.releases.isNotEmpty() || state.releasesEnd || state.releasesFailed
+    val pageAvailable = !state.releasesReloading &&
+        (state.releases.isNotEmpty() || state.releasesEnd || state.releasesFailed)
     var lookupError by remember(repoId, releaseRequestId) { mutableStateOf<SourceError?>(null) }
     var attempt by remember(repoId, releaseRequestId) { mutableIntStateOf(0) }
     LaunchedEffect(releaseRequestId, awaitingTag, pageAvailable, attempt) {
@@ -138,11 +156,7 @@ fun DetailScreen(
     val entryTransition = LocalNavAnimatedContentScope.current.transition
     // Start all requests immediately. Measure fresh rows after the arriving page has settled.
     // Latch this once so returning, cancelling a back gesture or scrolling never hides existing rows.
-    val rowsReady by produceState(
-        initialValue = entryTransition.currentState == EnterExitState.Visible ||
-            state.commits.isNotEmpty() || state.releases.isNotEmpty(),
-        key1 = entryTransition,
-    ) {
+    val rowsReady by produceState(entryTransition.currentState == EnterExitState.Visible, entryTransition) {
         if (!value) {
             snapshotFlow { entryTransition.currentState == EnterExitState.Visible }
                 .first { it }
@@ -150,7 +164,6 @@ fun DetailScreen(
         }
     }
     val scheme = MiuixTheme.colorScheme
-    val pullState = rememberPullToRefreshState()
     val pullSettled by remember(pullState) {
         derivedStateOf { pullState.refreshState == RefreshState.Idle && pullState.dragOffset <= 0f }
     }
@@ -174,12 +187,8 @@ fun DetailScreen(
     val tabLoading = if (commitsTab) state.commitsLoading else state.releasesLoading
     val tabReloading = if (commitsTab) state.commitsReloading else state.releasesReloading
     val tabEmpty = if (commitsTab) state.commits.isEmpty() else releases.isEmpty()
-    val firstPagePending = tabLoading && tabEmpty
-    val paging = tabLoading && !tabEmpty && !tabReloading
-    // A background fetch for the other tab should not keep the current tab looking busy.
-    // Drop the delay/minimum-display timer while the pull header or paging owns the feedback.
-    val topIndicatorAllowed = pullIdle && !paging
-    val slowLoad = topIndicatorAllowed && rememberBusyIndicator(state.snapshotLoading || tabReloading || firstPagePending)
+    val hasEmptyOrError = if (commitsTab) state.commitsEnd || state.commitsFailed else state.releasesEnd || state.releasesFailed
+    val firstPagePending = tabLoading && tabEmpty && !hasEmptyOrError
     val scrollBehavior = MiuixScrollBehavior(rememberTopAppBarState())
     var showAppPicker by remember { mutableStateOf(false) }
     var showBranchSheet by remember { mutableStateOf(false) }
@@ -189,22 +198,74 @@ fun DetailScreen(
     // 列表状态提升：点标题回顶部需要驱动滚动动画（真实滚动让折叠顶栏自动展开）
     val detailListState = androidx.compose.foundation.lazy.rememberLazyListState()
     val lookupTag = tag?.takeIf { awaitingTag && pageAvailable }
-    // A busy header can span tab switches. Give each tab's first page its own anti-flicker delay.
+    val obscured = showAppPicker || showBranchSheet || showRemoveDialog
+    val accessibility = remember(context) { context.getSystemService(android.view.accessibility.AccessibilityManager::class.java) }
+    val touchExploration by produceState(accessibility?.isTouchExplorationEnabled == true, accessibility) {
+        if (accessibility == null) return@produceState
+        val listener = android.view.accessibility.AccessibilityManager.TouchExplorationStateChangeListener { value = it }
+        accessibility.addTouchExplorationStateChangeListener(listener)
+        value = accessibility.isTouchExplorationEnabled
+        awaitDispose { accessibility.removeTouchExplorationStateChangeListener(listener) }
+    }
+    // Only an unattended, slow first-page reload may cover existing rows. Keep notification
+    // targets, restored reading positions and active controls accessible throughout.
+    val canMask = rowsReady && !tabEmpty && tabReloading && !interacted && pullIdle && !obscured &&
+        releaseRequestId == null && !detailListState.canScrollBackward && !tabMoving &&
+        state.download == null && state.selectedAssets.isEmpty() && !touchExploration
+    val showMask = canMask && key(repoId, tab) { rememberBusyIndicator(true) }
+    val refreshMask = key(repoId, tab) { rememberHistoryRefreshMask(showMask, motion) }
+    val blockMaskedActions by remember(refreshMask, showMask) { derivedStateOf { showMask || refreshMask.value > 0f } }
+
+    // Keep the item transition enabled through the frame that publishes new first-page rows.
+    var animateRefreshChanges by remember(repoId, tab) { mutableStateOf(false) }
+    LaunchedEffect(tabReloading, tabEmpty, tabMoving, motion) {
+        if (motion && !tabEmpty && !tabMoving && tabReloading) {
+            animateRefreshChanges = true
+        } else if (animateRefreshChanges) {
+            if (motion && !tabMoving) kotlinx.coroutines.delay(Motion.PANEL.toLong())
+            animateRefreshChanges = false
+        }
+    }
     val slowFirstPage = firstPagePending && key(repoId, tab) { rememberBusyIndicator(true) }
     val placeholderCount = if (rowsReady && slowFirstPage) {
         visiblePlaceholderCount(detailListState, tab, if (lookupTag != null) RELEASE_LOOKUP_KEY else HISTORY_TABS_KEY)
     } else 0
     val historyOpacity = key(repoId, tab) {
-        rememberHistoryContentOpacity(placeholderVisible = placeholderCount > 0, motionEnabled = motion)
+        rememberHistoryContentOpacity(placeholderVisible = !rowsReady || firstPagePending, motionEnabled = motion)
     }
     val historyFading by remember(historyOpacity) { derivedStateOf { historyOpacity.value < 1f } }
     val historyRowModifier = if (motion && !firstPagePending && historyFading) {
         tabContentModifier.graphicsLayer { alpha = historyOpacity.value }
     } else tabContentModifier
     val titleHeight = with(LocalDensity.current) { 32.dp.roundToPx() }
+    LaunchedEffect(detailListState) {
+        snapshotFlow { detailListState.canScrollBackward }.first { it }
+        interacted = true
+    }
     LaunchedEffect(detailListState, releaseRequestId, browsing) {
         if (!browsing) detailListState.interactionSource.interactions.collect {
             if (it is DragInteraction.Start) browsing = true
+        }
+    }
+    val protectBrowsing = browsing && (interacted || touchExploration)
+    LaunchedEffect(vm, tab, tabReloading, state.manualRefresh, protectBrowsing, browsing, positioned, tag) {
+        if (!tabReloading || state.manualRefresh) return@LaunchedEffect
+        val notificationTarget = tag?.takeIf { !browsing && positioned }
+        if (!protectBrowsing && notificationTarget == null) return@LaunchedEffect
+        val prefix = if (commitsTab) "commits:" else "releases:"
+        try {
+            snapshotFlow {
+                val visible = detailListState.layoutInfo.visibleItemsInfo
+                val ids = visible.mapNotNullTo(mutableSetOf()) { item ->
+                    val key = item.key as? String ?: return@mapNotNullTo null
+                    if (!key.startsWith(prefix)) return@mapNotNullTo null
+                    key.removePrefix(prefix).takeIf { notificationTarget == null || it == notificationTarget }
+                }
+                val anchor = visible.firstOrNull { it.index == detailListState.firstVisibleItemIndex }?.key as? String
+                ids to (anchor?.startsWith(prefix) != true)
+            }.collect { (ids, headerInView) -> vm.protectReadingRows(tab, ids, headerInView) }
+        } finally {
+            vm.protectReadingRows(tab, emptySet())
         }
     }
     LaunchedEffect(releaseRequestId, browsing, positioned, releaseIndex, rowsReady, lifecycleOwner) {
@@ -227,11 +288,10 @@ fun DetailScreen(
             }
         }
     }
-    val obscured = showAppPicker || showBranchSheet || showRemoveDialog
     val activity = state.snapshot?.activity
-    LaunchedEffect(lifecycleOwner, releaseRequestId, browsing, tab, rowsReady, obscured, tabMoving,
+    LaunchedEffect(lifecycleOwner, releaseRequestId, browsing, tab, rowsReady, obscured, tabMoving, canMask, blockMaskedActions,
         activity?.unreadReleaseTags, activity?.unreadCommitShas) {
-        if (!rowsReady || obscured || tabMoving) return@LaunchedEffect
+        if (!rowsReady || obscured || tabMoving || canMask || blockMaskedActions) return@LaunchedEffect
         lifecycleOwner.lifecycle.repeatOnLifecycle(Lifecycle.State.RESUMED) {
             snapshotFlow {
                 if (historyFading || detailListState.isScrollInProgress || entryTransition.currentState != EnterExitState.Visible ||
@@ -260,8 +320,6 @@ fun DetailScreen(
     val localVersion = remember(context, state.repo, state.installEpoch) {
         state.repo?.let { io.candy.tick.util.installedVersionName(context, it) }
     }
-
-    LaunchedEffect(Unit) { vm.refresh(silent = true) }
 
     LaunchedEffect(Unit) {
         vm.events.collect { event ->
@@ -292,6 +350,19 @@ fun DetailScreen(
         repo?.let { "https://github.com/${Uri.encode(it.owner)}/${Uri.encode(it.repo)}" }
     }
     Scaffold(
+        modifier = Modifier
+            .onPreviewKeyEvent {
+                interacted = true
+                false
+            }
+            .pointerInput(repoId) {
+                awaitPointerEventScope {
+                    do {
+                        val event = awaitPointerEvent(PointerEventPass.Initial)
+                    } while (event.type != PointerEventType.Press && event.type != PointerEventType.Scroll)
+                }
+                interacted = true
+            },
         containerColor = androidx.compose.ui.graphics.Color.Transparent,
         topBar = {
                 SmallTopAppBar(
@@ -386,6 +457,7 @@ fun DetailScreen(
             requestState = vm.state,
             refreshing = { it.refreshing },
             onRefresh = {
+                pullFrame = vm.state.value
                 haptic.performHapticFeedback(HapticFeedbackType.LongPress) // 松手触发确认：与首页同款
                 vm.refresh()
             },
@@ -401,11 +473,10 @@ fun DetailScreen(
                 verticalArrangement = Arrangement.spacedBy(HistoryItemSpacing),
             ) {
                 item {
-                    DetailSyncIndicator(visible = slowLoad, allowed = topIndicatorAllowed)
                     // 头卡组（头卡 + 错误横幅）：banner 隐藏时 0 高度收在组内——
                     // 若作独立 item，spacedBy 会在其前后各记一次，tab 上方凭空多 10dp
                     androidx.compose.foundation.layout.Column(
-                        verticalArrangement = Arrangement.spacedBy(10.dp),
+                        modifier = Modifier.padding(top = 17.dp),
                     ) {
                         HeaderCard(
                             state = state,
@@ -425,24 +496,22 @@ fun DetailScreen(
                             onCancelDownload = vm::cancelDownload,
                         )
                         // 错误横幅出现/消失过渡（220 表层档）：刷新失败/恢复不再硬跳
-                        androidx.compose.animation.AnimatedVisibility(
-                            visible = state.banner != null,
-                            enter = androidx.compose.animation.expandVertically(
-                                animationSpec = androidx.compose.animation.core.tween(Motion.PANEL),
-                            ) + androidx.compose.animation.fadeIn(
-                                animationSpec = androidx.compose.animation.core.tween(Motion.PANEL),
-                            ),
-                            exit = androidx.compose.animation.shrinkVertically(
-                                animationSpec = androidx.compose.animation.core.tween(Motion.PANEL),
-                            ) + androidx.compose.animation.fadeOut(
-                                animationSpec = androidx.compose.animation.core.tween(Motion.PANEL),
-                            ),
-                        ) {
-                            state.banner?.let { error ->
+                        AnimatedContent(
+                            targetState = state.banner,
+                            transitionSpec = {
+                                val duration = if (motion) Motion.PHASE else 0
+                                (fadeIn(tween(duration)) togetherWith fadeOut(tween(duration))).using(
+                                    androidx.compose.animation.SizeTransform { _, _ -> tween(duration) },
+                                )
+                            },
+                            label = "detailRefreshError",
+                        ) { error ->
+                            if (error != null) {
                                 // 共用失败横幅（errorContainer 底 + 重试钮，与首页同构）；
                                 // 用户可不刷新只关提示（dismissBanner 由此接线）
                                 ErrorBanner(
                                     error = error,
+                                    modifier = Modifier.padding(top = 10.dp),
                                     hasSavedDetails = state.snapshot != null,
                                     onRetry = vm::refresh,
                                     onDismiss = vm::dismissBanner,
@@ -456,6 +525,7 @@ fun DetailScreen(
                         selected = tab,
                         position = tabPosition,
                         onSelect = { selected ->
+                            interacted = true
                             haptic.performHapticFeedback(HapticFeedbackType.TextHandleMove)
                             savedTab = selected
                             vm.setTab(selected)
@@ -488,12 +558,17 @@ fun DetailScreen(
                 }
                 // 提交跳转基址 + 本机已装版本（Screen 层算一次：列表卡不重复查 pm）
                 val htmlBase = webUrl ?: return@LazyColumn
+                val animateChanges = animateRefreshChanges && !tabMoving && !historyFading &&
+                    !detailListState.isScrollInProgress && releaseRequestId == null
                 if (commitsTab) {
                     commitList(
                         state = state,
                         contentModifier = historyRowModifier,
                         htmlBase = htmlBase,
                         showPagingIndicator = pullIdle,
+                        refreshMask = refreshMask,
+                        blockMaskedActions = blockMaskedActions,
+                        animateRefreshChanges = animateChanges,
                         onLoadMore = vm::loadCommits,
                     )
                 } else {
@@ -505,9 +580,13 @@ fun DetailScreen(
                         localVersion = localVersion,
                         htmlBase = htmlBase,
                         showPagingIndicator = pullIdle,
+                        refreshMask = refreshMask,
+                        blockMaskedActions = blockMaskedActions,
+                        animateRefreshChanges = animateChanges,
                         onLoadMore = vm::loadReleases,
                         onSelectAsset = vm::selectAsset,
                         onRead = {
+                            interacted = true
                             positioned = true
                             vm.markVisibleActivity(releaseTags = setOf(it))
                         },
@@ -617,24 +696,3 @@ private fun LazyListLayoutInfo.visibleHistoryKeys(titleHeight: Int): Set<String>
 
 private fun Set<String>.historyIds(prefix: String): Set<String> =
     mapNotNullTo(mutableSetOf()) { if (it.startsWith(prefix)) it.removePrefix(prefix) else null }
-
-/** 静默同步使用首卡上方既有留白，随卡片滚动。 */
-@Composable
-private fun DetailSyncIndicator(visible: Boolean, allowed: Boolean) {
-    Box(
-        // The toolbar already has space below its painted buttons. Balance that space
-        // with 8dp below the dots’ 9dp wave envelope, in both idle and loading states.
-        modifier = Modifier.fillMaxWidth().height(17.dp),
-        contentAlignment = Alignment.TopCenter,
-    ) {
-        if (allowed) {
-            AnimatedVisibility(
-                visible = visible,
-                enter = fadeIn(tween(Motion.MICRO)),
-                exit = fadeOut(tween(Motion.MICRO)),
-            ) {
-                LoadingDots(dotSize = 4.dp)
-            }
-        }
-    }
-}

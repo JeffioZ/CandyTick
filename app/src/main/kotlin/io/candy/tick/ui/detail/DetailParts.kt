@@ -1,6 +1,14 @@
 package io.candy.tick.ui.detail
 
 import androidx.compose.animation.animateContentSize
+import androidx.compose.animation.AnimatedContent
+import androidx.compose.animation.EnterTransition
+import androidx.compose.animation.ExitTransition
+import androidx.compose.animation.SizeTransform
+import androidx.compose.animation.core.tween
+import androidx.compose.animation.fadeIn
+import androidx.compose.animation.fadeOut
+import androidx.compose.animation.slideInVertically
 import androidx.compose.animation.togetherWith
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
@@ -42,6 +50,7 @@ import io.candy.tick.ui.common.DownloadProgress
 import io.candy.tick.ui.common.AppLinkRow
 import io.candy.tick.ui.common.LinkedRepoAvatar
 import io.candy.tick.ui.common.rememberAppIconResult
+import io.candy.tick.ui.common.rememberMotionEnabled
 import io.candy.tick.ui.common.scrollToTop
 import io.candy.tick.ui.common.SectionDivider
 import io.candy.tick.ui.common.StarCount
@@ -271,6 +280,36 @@ internal fun RemoveRepoDialog(
 
 private data class LinkRow(val packageName: String, val label: String, val suggested: Boolean)
 private data class HeaderApp(val icon: ImageBitmap?, val version: String?)
+private data class HeaderVersion(val tag: String, val local: String?, val comparison: Int?)
+
+/** Only the changed section takes up or releases space, including its gap above. */
+@Composable
+private fun <T : Any> HeaderInfoSection(
+    value: T?,
+    sectionKey: (T) -> String,
+    content: @Composable (T) -> Unit,
+) {
+    val duration = if (rememberMotionEnabled()) Motion.PHASE else 0
+    AnimatedContent(
+        targetState = value,
+        contentKey = { it?.let(sectionKey) },
+        modifier = Modifier.fillMaxWidth(),
+        transitionSpec = {
+            // The local-version row handles its own change while the release tag stays the same.
+            if (initialState?.let(sectionKey) == targetState?.let(sectionKey)) {
+                (EnterTransition.None togetherWith ExitTransition.None).using(null)
+            } else {
+                (fadeIn(tween(duration)) togetherWith fadeOut(tween(duration / 2)))
+                    .using(SizeTransform { _, _ -> tween(duration, easing = Motion.Decelerate) })
+            }
+        },
+        label = "headerInfoSection",
+    ) { section ->
+        if (section != null) {
+            Column(Modifier.fillMaxWidth().padding(top = 8.dp)) { content(section) }
+        }
+    }
+}
 
 @Composable
 internal fun HeaderCard(
@@ -334,10 +373,9 @@ internal fun HeaderCard(
 
             // ── 信息组（描述；无描述时跨组 8dp 不叠加）——统计行与推送时间已分别
             // 迁往名称旁（star）与首页折叠卡，此处只承载描述 ──
-            snapshot?.description?.takeIf { it.isNotBlank() }?.let {
-                Spacer(Modifier.height(8.dp))
+            HeaderInfoSection(snapshot?.description?.takeIf { it.isNotBlank() }, { it }) { description ->
                 Text(
-                    text = it,
+                    text = description,
                     style = MiuixTheme.textStyles.body2,
                     color = scheme.onBackgroundVariant,
                     maxLines = 3,
@@ -348,74 +386,69 @@ internal fun HeaderCard(
             // star 挪名称旁，push 时间由首页折叠卡表达）
 
             // ── 版本分区（有 tag 时显示分隔线 + 版本行 + 操作按钮）──
-            snapshot?.currentReleaseTag?.let { tag ->
-                Spacer(Modifier.height(8.dp))
+            val tag = snapshot?.currentReleaseTag
+            val displayedVersion = headerApp.version
+            val version = remember(tag, displayedVersion) {
+                tag?.let { remote ->
+                    val order = displayedVersion?.let { VersionCompare.compare(remote, it) }
+                    HeaderVersion(remote, displayedVersion, order)
+                }
+            }
+            HeaderInfoSection(version, HeaderVersion::tag) { shown ->
                 SectionDivider()
                 Spacer(Modifier.height(6.dp))
-                val displayedVersion = headerApp.version
-                val comparison = remember(tag, displayedVersion) {
-                    displayedVersion?.let { VersionCompare.compare(tag, it) }
-                }
-                LinkedVersionSummary(tag, displayedVersion, comparison)
-                val hasUpdate = comparison != null && comparison > 0
-                val downloadedMatches = repo.downloadedApk?.version == tag
-                val updatePhase = when {
-                    state.download is RepoDownloadState.Active &&
-                        state.download.fromHeader -> "progress"
-                    // 失败相：此前头部无 failed 分支——失败回落"下载"按钮复原 + 错误条只在
-                    // 版本 tab 的卡里（停留提交 tab 时不可见）→ 感知"点了没反应"
-                    hasUpdate && state.download is RepoDownloadState.Failed &&
-                        state.download.fromHeader && state.download.releaseKey == tag -> "failed"
-                    hasUpdate && downloadedMatches -> "install"
-                    hasUpdate -> "download"
-                    else -> null // idle 不渲染（零占位）
-                }
-                androidx.compose.animation.AnimatedContent(
-                    targetState = updatePhase to state.download,
-                    modifier = Modifier.fillMaxWidth(),
-                    contentKey = { it.first },
-                    transitionSpec = {
-                        ((androidx.compose.animation.fadeIn(androidx.compose.animation.core.tween(Motion.PHASE)) +
-                            androidx.compose.animation.slideInVertically(
-                                animationSpec = androidx.compose.animation.core.tween(Motion.PHASE),
-                            ) { it / 6 }) togetherWith
-                            androidx.compose.animation.fadeOut(androidx.compose.animation.core.tween(Motion.PHASE)))
-                            // 尺寸动画显式 180 同拍：AnimatedContent 默认 SizeTransform 是
-                            // spring 暗桩，与外挂尺寸动画双层打架=切相卡顿根源（单源化）
-                            .using(
-                                androidx.compose.animation.SizeTransform(clip = true) { _, _ ->
-                                    androidx.compose.animation.core.tween(Motion.PHASE)
-                                },
-                            )
-                    },
-                    label = "updatePhase",
-                ) { (phase, transfer) ->
-                    if (phase == null) return@AnimatedContent
-                    val actionCurrent = phase == updatePhase && displayedVersion == localVersion
-                    Column(Modifier.fillMaxWidth().padding(top = 6.dp)) {
-                        when (phase) {
-                            "failed" -> InlineErrorRow(
-                                message = downloadFailureText(transfer as? RepoDownloadState.Failed),
-                                onRetry = onDownloadUpdate,
-                                retryEnabled = actionCurrent,
-                            )
-                            "progress" -> DownloadProgress(
-                                progress = (transfer as RepoDownloadState.Active).progress,
-                                onCancel = onCancelDownload,
-                            )
-                            "install" -> PrimaryButton(
-                                text = stringResource(R.string.install_apk),
-                                onClick = onInstallUpdate,
-                                modifier = Modifier.fillMaxWidth(),
-                                enabled = actionCurrent,
-                            )
-                            "download" -> PrimaryButton(
-                                text = stringResource(R.string.download_update_action),
-                                onClick = onDownloadUpdate,
-                                modifier = Modifier.fillMaxWidth(),
-                                enabled = actionCurrent && state.download !is RepoDownloadState.Active,
-                            )
-                        }
+                LinkedVersionSummary(shown.tag, shown.local, shown.comparison)
+            }
+            val hasUpdate = version?.comparison?.let { it > 0 } == true
+            val downloadedMatches = repo.downloadedApk?.version == tag
+            val updatePhase = when {
+                state.download is RepoDownloadState.Active &&
+                    state.download.fromHeader -> "progress"
+                // 失败相：此前头部无 failed 分支——失败回落"下载"按钮复原 + 错误条只在
+                // 版本 tab 的卡里（停留提交 tab 时不可见）→ 感知"点了没反应"
+                hasUpdate && state.download is RepoDownloadState.Failed &&
+                    state.download.fromHeader && state.download.releaseKey == tag -> "failed"
+                hasUpdate && downloadedMatches -> "install"
+                hasUpdate -> "download"
+                else -> null // idle 不渲染（零占位）
+            }
+            val actionDuration = if (rememberMotionEnabled()) Motion.PHASE else 0
+            AnimatedContent(
+                targetState = updatePhase to state.download,
+                modifier = Modifier.fillMaxWidth(),
+                contentKey = { it.first },
+                transitionSpec = {
+                    val enter = fadeIn(tween(actionDuration)) + slideInVertically(tween(actionDuration)) { it / 6 }
+                    (enter togetherWith fadeOut(tween(actionDuration)))
+                        .using(SizeTransform { _, _ -> tween(actionDuration) })
+                },
+                label = "updatePhase",
+            ) { (phase, transfer) ->
+                if (phase == null) return@AnimatedContent
+                val actionCurrent = phase == updatePhase && displayedVersion == localVersion
+                Column(Modifier.fillMaxWidth().padding(top = 6.dp)) {
+                    when (phase) {
+                        "failed" -> InlineErrorRow(
+                            message = downloadFailureText(transfer as? RepoDownloadState.Failed),
+                            onRetry = onDownloadUpdate,
+                            retryEnabled = actionCurrent,
+                        )
+                        "progress" -> DownloadProgress(
+                            progress = (transfer as RepoDownloadState.Active).progress,
+                            onCancel = onCancelDownload,
+                        )
+                        "install" -> PrimaryButton(
+                            text = stringResource(R.string.install_apk),
+                            onClick = onInstallUpdate,
+                            modifier = Modifier.fillMaxWidth(),
+                            enabled = actionCurrent,
+                        )
+                        "download" -> PrimaryButton(
+                            text = stringResource(R.string.download_update_action),
+                            onClick = onDownloadUpdate,
+                            modifier = Modifier.fillMaxWidth(),
+                            enabled = actionCurrent && state.download !is RepoDownloadState.Active,
+                        )
                     }
                 }
             }
