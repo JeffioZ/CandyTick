@@ -30,11 +30,11 @@
 - 长按详情页右上角的地球图标，可复制仓库网址。
 - 订阅或设置保存失败时，可以直接重试，也可以稍后从页面顶部重试。
 - 订阅 CandyTick 自己的仓库时会自动关联本应用；手动取消关联后，详情页仍会给出重新关联的建议。
-- 空态首页新增「导入已有订阅」入口，直达设置的导入并自动打开导入窗口。
+- 没有订阅时，首页提供「导入已有订阅」入口，点击后直达设置页并自动打开导入窗口。
 
 ### 优化
 
-- 首页的「最近活动」会比较所选分支的最新提交时间和最新安装包的发布时间，显示两者中较近的一个。刷新、置顶或取消置顶时，列表会尽量保留当前阅读位置。
+- 首页的「最近活动」时间，取所选分支最新提交和最新安装包发布时间中更近的一个。刷新、置顶或取消置顶时，列表会尽量保留当前阅读位置。
 - 点开单个仓库的新版安装包通知后，详情页会定位到对应版本，只清除这次发布的未读标记。「可更新」仍按本机实际安装的版本判断。
 - 离开详情页后，安装包会继续下载，返回即可查看进度。分包文件保留原扩展名，方便用兼容的安装程序打开。
 - 仓库安装包在后台下载完成后，可从通知打开对应版本，即使离线也能安装本机已下载的文件。清理缓存时默认选中扫描到的安装包，崩溃日志可单独勾选。
@@ -44,7 +44,7 @@
 - 搜索本机应用时，面板高度保持稳定。
 - 分支选择器支持继续加载下一页。详情页空间不足时，提交和版本页签会一起改用短名称。
 - 仓库卡片为完整路径留出更多宽度，长名称可在连字符等分隔处换行。清空搜索框后可直接继续输入。
-- 已关联仓库在搜索结果和预览中显示同一个本机应用图标。首次匹配本机应用时，也可以直接点「添加仓库」。
+- 已关联的仓库在搜索结果和预览中显示所关联应用的图标，与详情页一致。首次匹配本机应用时，也可以直接点「添加仓库」。
 - 关闭仓库预览会回到原来的搜索位置。通过链接打开预览时，返回后可继续编辑链接或按「搜索」重新打开。
 - 仓库搜索失败时会显示原因。提交或版本历史翻页失败时，可在现有列表末尾重试。
 - 开启 CandyTick 自身更新的自动下载后，使用移动数据时也能下载新版。仓库自动同步仍遵循单独的网络设置。
@@ -55,12 +55,12 @@
 - 首页和详情页点标题回到顶部；已在顶部时再点一下，收起全部展开的卡片或更新日志。
 - 没有订阅时，首页不再显示搜索和排序按钮，也不响应下拉刷新。
 - 后台同步全部因 GitHub 限额失败时，结果胶囊直接说明限额和恢复时间；详情页任一列表加载成功后，会自动收起过期的限额提示。
-- 删除仓库的撤销胶囊会显示仓库名，撤销按钮带常显浅底，各种名称长度下两侧间距一致。
+- 删除仓库后，提示条会显示仓库名，连续删除时容易区分；撤销按钮加上浅色底，更容易点按。
 - 确认滑动删除后，卡片在松手位置原地消散，不再回弹。
-- 完成和失败的状态图标带同色外圈，与部分失败的信息图标样式统一。
+- 成功与失败的提示图标加上外圈，与部分失败时的图标风格统一。
 - 下载中的取消按钮与进度条对齐，两侧间距相等；下载完成后安装与删除按钮的间距对称。
 - 输入框未选中时有淡淡的描边，更容易辨认。
-- 导出的备份只含仓库基础信息（关联应用、备注、置顶等），体积大幅缩小；旧版完整备份仍可正常导入，断网导入后卡片以简洁骨架显示、联网自动补全。
+- 导出的备份只含仓库基础信息（关联应用、备注、置顶等），体积大幅缩小；旧版的完整备份仍可正常导入。断网导入时，卡片先显示名称等基本信息，联网后自动补全。
 - 列表末尾的「已到底」标记颜色整体变淡，减少对内容的干扰。
 
 ### 修复
@@ -72,7 +72,7 @@
 - 安装完成后，CandyTick 会清理与已装应用和版本匹配的 APK，并检查关联仓库的更新通知是否已过期。
 - 在设置中点一次「通知权限」即可进入系统设置。系统无法打开权限设置、分享菜单或文件选择器时，应用会给出提示。
 - 限额恢复后的首次刷新，不再把已看过的提交和版本重新标记为未读。
-- 只有仓库确实无法访问（已删除或令牌无权限）时才显示「不可访问」，网络波动和限额不再误标，首页与详情页口径一致。
+- 只有仓库确实无法访问（已删除或令牌无权限）时才显示「不可访问」；网络波动和限额不再误标，首页与详情页保持一致。
 - 只有少量订阅时，仓库卡片不再出现在屏幕底部。
 - 下载缺少文件大小的安装包时，会显示「正在下载」，避免进度一直停在 0%。
 - 修复了自动同步与下拉刷新重叠时，刷新提示提前收起、展开卡片偶尔仍显示旧提交的问题。
@@ -102,6 +102,12 @@
 - Downloads show “Downloading…” when the package size is unknown. The percentage appears when the size is available.
 - Version summaries omit the `v` prefix before a number, while release history preserves the original tag. Identical packaging labels now match, and different Git hashes on the same version no longer imply an update.
 - Settings sheets scroll in short windows so their actions remain reachable with the keyboard open. In short windows the CandyTick update sheet places the download button above the release notes.
+- Tap the home or detail title to scroll back to the top; tapping again while already there collapses the expanded cards or release notes.
+- Subscribing to CandyTick's own repository links the app automatically, and the suggestion returns after you unlink it. An empty home screen offers an import entry that opens the import sheet in Settings.
+- Without subscriptions the home screen hides search and sort and ignores pull-to-refresh. When a background sync fails entirely from GitHub rate limiting, the result message names the limit and when it resets.
+- The undo pill after deleting a repository names it, and its action button sits on a subtle chip. A confirmed swipe delete dissolves in place instead of bouncing back.
+- Result glyphs gained a ring, download controls are evenly spaced, and text fields show a faint stroke when unfocused.
+- Backups now contain repository basics only; old full backups still import, and offline imports fill in once the network returns. Seen commits no longer relight as unread after a rate-limit window, and only truly inaccessible repositories show as such. The end-of-list marker stays faint, and a short list no longer sinks its last card to the bottom of the screen.
 
 ## [0.4.2] - 2026-11-20
 
