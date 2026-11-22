@@ -119,6 +119,11 @@
 
 - 版本卡片上的「删除已下载安装包」按钮与相邻按钮等高。列表行按下时的高亮和小标签也统一了圆角样式。
 
+### English summary
+
+- Paginated lists such as commit and release history show an end marker with the total count once you scroll to the bottom.
+- The delete-download button aligns with its neighbours in height, and pressed rows share the same rounded highlight and chip styles as the rest of the app.
+
 ## [0.4.1] - 2026-11-20
 
 ### 优化
@@ -130,6 +135,13 @@
 
 - 经聊天工具转发的备份文件也能在文件选择器中选中。备份中的仓库都已订阅时会提示「没有新增」，导入大文件时会在后台读取。
 - 统一了英文界面中应用更新通知渠道的名称和版本提示的大小写。
+
+### English summary
+
+- Empty and no-result states are centered with shorter, clearer copy, including branch and app searches with no matches.
+- Theme and Wi-Fi icons are symmetric, and Collapse all pairs with the sort button using a list-and-chevrons icon.
+- Backup files forwarded through chat apps can be selected in the file picker. Importing a backup with nothing new says so, and large files are read in the background.
+- The English interface now uses consistent capitalization for the update channel name and version hints.
 
 ## [0.4.0] - 2026-11-20
 
@@ -158,6 +170,16 @@
 - 修复了安装包名称中的普通单词被误判为 ARM 架构标记的问题，例如 `Swarm`。
 - 首页卡片提示有新版后，展开可看到最新内容。通过通知进入页面后，旋转屏幕也不会再次跳转。
 
+### English summary
+
+- Release notes render Markdown tables, bold, strikethrough, code blocks, and autolinks; `#123` opens the matching issue, and very long notes are trimmed to keep the page fast.
+- Notification taps open the right screen — repository updates open the detail page, CandyTick updates open Settings — and simultaneous releases collapse into one grouped notification.
+- Tablets and unfolded foldables get a centered, width-capped landscape layout, and expanded cards can all be collapsed from a single top-bar button.
+- The search field focuses on open, clears with one tap, and dismisses the keyboard on Enter; the token field gained a hint label.
+- Tapping a search result previews the repository in a sheet that keeps your place in the results when closed. Press states darken slightly, more naturally in dark mode.
+- Expanding a card loads commits and releases together; installing an APK refreshes the update badges immediately, and the header download entry shows its progress.
+- Sync reports the number of failed repositories when only some fail, and a full failure is called out separately.
+
 ## [0.3.2] - 2026-11-19
 
 ### 新增
@@ -171,6 +193,12 @@
 - 仓库路径改用等宽字体，与版本号和提交哈希的显示方式一致。
 - 按下卡片或列表项时，两者都会略微下沉。
 - 在较长的列表里展开更新日志后，滚动更流畅。
+
+### English summary
+
+- Tap a version to expand its release notes, with GitHub emoji rendered and links plus “View full changelog” opening in the browser; tapping a commit opens it on GitHub.
+- The installed version is labeled “Current”, and releases with several packages pick between them with a Windows-style radio.
+- Permission settings moved next to their features, repository paths use a monospace font, and expanded notes scroll smoothly in long lists.
 
 ## [0.3.1] - 2026-11-19
 
@@ -191,6 +219,13 @@
 - 应用图标改用纯色背景，修复在部分第三方安装程序中显示异常的问题。
 - 重复检查更新时，已下载的更新包会保留。
 - 移除了可能引起系统组件显示异常的长按复制文字功能。
+
+### English summary
+
+- Unused resources were removed, shrinking the APK by about 270 KB, and tapping the version in Settings checks for updates with live status.
+- The update sheet, package selection, and tab icons gained smoother transitions, and reduced-motion settings now stop loading and delete animations too.
+- The installed-app list loads in the background, unlinking uses a broken-chain icon, and app icons use flat backgrounds that render correctly in third-party installers.
+- Repeated update checks keep the downloaded package, and the long-press copy gesture that could glitch system components was removed.
 
 ## [0.3.0] - 2026-11-19
 
@@ -223,6 +258,14 @@
 - 修复了滑动卡片时操作图标看不见、卡片抖动的问题。
 - 修复了查看缺少发布说明的仓库时可能发生的崩溃。
 
+### English summary
+
+- A dedicated update sheet shows the new version, its notes, download progress, and install button; failures say whether it was the network, a timeout, or rate limiting, with a retry.
+- Clear cache breaks down space by downloaded packages, self-updates, and crash logs before you choose what to remove.
+- The add page gained input hints, debounced search, retryable failures, and a shortcut for already-subscribed repositories. Language changes apply immediately.
+- Haptics confirm pull-to-refresh, swipe actions, and deletions; tapping the home or detail title scrolls back to the top.
+- Icons were unified on Lucide, the launcher adapts to the system theme, and APK, APKS, XAPK, and APKM packages are all supported, with desktop-only releases filtered out and no longer marked updatable.
+
 ## [0.2.1] - 2026-11-17
 
 ### 新增
@@ -230,6 +273,11 @@
 - 删除仓库、完成同步、导入备份或复制内容后，结果都显示在顶部提示条中。删除仓库后可直接点提示条上的「撤销」恢复。
 - 发现 CandyTick 新版本后，检查更新入口下方会显示版本号、更新说明和下载按钮。
 - 更新说明会显示 GitHub 上的发布正文。
+
+### English summary
+
+- Results for deletions, syncs, imports, and copies moved to a top toast bar, with an Undo action for deleted repositories.
+- A new CandyTick version shows its number, release notes, and download button right under Check for updates, using the GitHub release body.
 
 ## [0.2.0] - 2026-11-17
 
@@ -261,6 +309,14 @@
 - 从其他页面返回首页时，修复了列表偶尔闪烁、顶部露出卡片边缘的问题。
 - 修复了冷启动时偶尔发生的闪退。
 
+### English summary
+
+- The detail page can browse other branches and search them by name; swipe a home card left to pin or unpin it.
+- Installing an app auto-links its repository, titles follow the app name, and the header downloads the new version with optional auto-install on completion.
+- Version comparison understands date-plus-hash schemes like `26.11.caccb78` and prereleases such as `2.2.2-rc0`.
+- Deletions dissolve into particles, syncing shows three bouncing dots by the title, and sheets share one slide animation.
+- Fixed hash-bearing versions being reported incomparable, active repositories repeatedly flagged as updated, and all imported repositories lighting up after the first sync.
+
 ## [0.1.0] - 2026-11-16
 
 首个公开版本。
@@ -277,3 +333,7 @@
 - 可导出订阅并在另一台设备上合并导入。
 - CandyTick 可检查自身更新。在 Android 12 及以上版本上，如果由 CandyTick 自身完成安装，可免确认更新。
 - 支持深浅色主题、简体中文和英文界面。
+
+### English summary
+
+- First public release: subscribe to GitHub repositories, browse commits and releases, link installed apps for version checks, architecture-aware APK picks, background sync with notifications, optional token support, search, sort and undo on the home list, backup export and import, self-updates, dark and light themes in Chinese and English.
