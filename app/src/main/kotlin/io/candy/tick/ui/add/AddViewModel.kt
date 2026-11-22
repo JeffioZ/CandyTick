@@ -22,6 +22,10 @@ import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
+import kotlinx.coroutines.flow.collect
+import kotlinx.coroutines.flow.distinctUntilChanged
+import kotlinx.coroutines.flow.first
+import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.receiveAsFlow
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
@@ -62,7 +66,8 @@ class AddViewModel(
         val searching: Boolean = false,
         val searched: Boolean = false, // 已完成过一次搜索（区分「还没搜」与「无结果」）
         val results: RepoSearchPage = RepoSearchPage(),
-        val searchFailed: Boolean = false,
+        val resultPackages: Map<Long, String> = emptyMap(),
+        val searchError: SourceError? = null,
         val adding: Boolean = false,
     )
 
@@ -79,16 +84,56 @@ class AddViewModel(
     // 同一输入区只允许一个搜索、去抖或预览请求持有结果。
     private var lookupJob: Job? = null
     private var addJob: Job? = null
+    private var linkJob: Job? = null
+    private data class SavedLink(val packageName: String?, val label: String?, val dismissed: Boolean)
+    private var previewSavedLink: SavedLink? = null
+
+    init {
+        viewModelScope.launch {
+            repository.state.map { it.repos }.distinctUntilChanged().collect { repos ->
+                val current = state.value
+                if (current.results.repositories.isNotEmpty()) {
+                    val packages = current.results.linkedPackages(repos)
+                    if (packages != current.resultPackages) _state.update { it.copy(resultPackages = packages) }
+                }
+                val preview = current.preview as? PreviewState.Loaded ?: return@collect
+                val saved = repos.savedLink(preview.info.githubId)
+                if (saved == previewSavedLink) return@collect
+                // While saving, the store publishes this preview's own link before the write returns.
+                if (linkEdited || current.adding) {
+                    previewSavedLink = saved
+                    _state.update { it.copy(duplicate = saved != null) }
+                } else {
+                    showPreview(preview.info, saved)
+                }
+            }
+        }
+    }
+
+    private fun RepoSearchPage.linkedPackages(repos: List<TrackedRepo>): Map<Long, String> {
+        val resultIds = repositories.mapTo(HashSet()) { it.githubId }
+        return buildMap {
+            for (repo in repos) {
+                if (repo.id in resultIds) repo.linkedPackage?.let { put(repo.id, it) }
+            }
+        }
+    }
+
+    private fun List<TrackedRepo>.savedLink(repoId: Long): SavedLink? =
+        firstOrNull { it.id == repoId }?.let { repo ->
+            SavedLink(repo.linkedPackage, repo.noteName.takeIf { repo.autoNote }, repo.autoLinkDismissed)
+        }
 
     fun onInput(text: String) {
         lookupJob?.cancel()
         addJob?.cancel()
+        linkJob?.cancel()
         linkEdited = false
         val parsed = UrlParser.parse(text)
         _state.update {
             it.copy(
-                input = text, searchFailed = false, searched = false, searching = false,
-                results = RepoSearchPage(), duplicate = false, adding = false,
+                input = text, searchError = null, searched = false, searching = false,
+                results = RepoSearchPage(), resultPackages = emptyMap(), duplicate = false, adding = false,
                 parseError = parsed == null && UrlParser.looksLikeUrl(text),
                 preview = PreviewState.Idle,
             )
@@ -101,32 +146,31 @@ class AddViewModel(
         }
     }
 
-    /** 预览失败重试：URL 路径清键重拉；搜索关键词路径改走重搜（此前重试静默空转=死路） */
-    fun retryPreview() {
-        lookupJob?.cancel()
-        val parsed = UrlParser.parse(_state.value.input)
-        if (parsed == null) {
-            if (_state.value.input.isNotBlank()) submit()
+    /** 显式提交直链时跳过去抖；已在加载或展示的同一预览不重复请求。 */
+    fun submit() {
+        val current = _state.value
+        val text = current.input
+        if (current.adding || text.isBlank() || current.parseError) return
+        val parsed = UrlParser.parse(text)
+        if (parsed != null) {
+            if (current.preview == PreviewState.Idle || current.preview is PreviewState.Failed) {
+                lookupJob?.cancel()
+                lookupJob = viewModelScope.launch { fetchPreview(parsed.first, parsed.second) }
+            }
             return
         }
-        lookupJob = viewModelScope.launch { fetchPreview(parsed.first, parsed.second) }
-    }
-
-    /** 提交：URL → 已在解析；否则按关键词搜索 */
-    fun submit() {
-        val text = _state.value.input
-        if (UrlParser.parse(text) != null) return
-        if (text.isBlank()) return
         lookupJob?.cancel()
+        linkJob?.cancel()
         lookupJob = viewModelScope.launch {
             _state.update {
-                it.copy(searching = true, searchFailed = false, results = RepoSearchPage(), preview = PreviewState.Idle)
+                it.copy(searching = true, searchError = null, results = RepoSearchPage(), resultPackages = emptyMap(), preview = PreviewState.Idle)
             }
             try {
                 val results = repository.search(text)
-                _state.update { it.copy(searching = false, searched = true, results = results) }
-            } catch (_: SourceException) {
-                _state.update { it.copy(searching = false, searchFailed = true) }
+                val packages = results.linkedPackages(repository.state.value.repos)
+                _state.update { it.copy(searching = false, searched = true, results = results, resultPackages = packages) }
+            } catch (e: SourceException) {
+                _state.update { it.copy(searching = false, searchError = e.error) }
             }
         }
     }
@@ -135,16 +179,17 @@ class AddViewModel(
     fun dismissPreview() {
         lookupJob?.cancel()
         addJob?.cancel()
+        linkJob?.cancel()
         linkEdited = false
         _state.update { it.copy(preview = PreviewState.Idle, duplicate = false, adding = false) }
     }
 
     fun pickResult(info: RepoInfo) {
+        if (_state.value.preview != PreviewState.Idle) return
         lookupJob?.cancel()
         linkEdited = false
-        val tracked = showPreview(info)
+        showPreview(info)
         lookupJob = viewModelScope.launch {
-            launch { resolveLink(info, tracked) }
             try {
                 val fresh = repository.addPreview(info.owner, info.repo) as? RepoInfoResult.Fetched ?: return@launch
                 if (fresh.info.githubId == info.githubId) _state.update { state ->
@@ -158,47 +203,46 @@ class AddViewModel(
         }
     }
 
-    private fun showPreview(info: RepoInfo): TrackedRepo? {
-        val tracked = repository.state.value.repos.find { it.id == info.githubId }
-        val linkedPkg = tracked?.linkedPackage
-        val name = linkedPkg?.let { pkg ->
-            appNames[pkg] ?: rememberAppName(pkg, tracked.noteName?.takeIf { tracked.autoNote })
-        }
+    private fun showPreview(info: RepoInfo, saved: SavedLink? = repository.state.value.repos.savedLink(info.githubId)) {
+        linkJob?.cancel()
+        previewSavedLink = saved
+        val linkedPkg = saved?.packageName
+        val name = linkedPkg?.let { rememberAppName(it, saved.label) }
+        val shouldMatch = linkedPkg == null && saved?.dismissed != true
         _state.update {
             it.copy(
                 preview = PreviewState.Loaded(
                     info = info,
                     linkedPackage = linkedPkg,
                     linkedLabel = name,
-                    matchingApp = tracked == null,
+                    matchingApp = shouldMatch,
                 ),
-                duplicate = tracked != null,
+                duplicate = saved != null,
             )
         }
-        return tracked
+        if (shouldMatch || (linkedPkg != null && name == null)) {
+            linkJob = viewModelScope.launch { resolveLink(info, linkedPkg) }
+        }
     }
 
     private suspend fun fetchPreview(owner: String, repo: String) {
         _state.update { it.copy(preview = PreviewState.Loading, duplicate = false) }
         try {
-            val result = repository.addPreview(owner, repo) as? RepoInfoResult.Fetched ?: return
-            val info = result.info
-            resolveLink(info, showPreview(info))
+            when (val result = repository.addPreview(owner, repo)) {
+                is RepoInfoResult.Fetched -> showPreview(result.info)
+                RepoInfoResult.NotModified -> _state.update { it.copy(preview = PreviewState.Failed(SourceError.Http(304))) }
+            }
         } catch (e: SourceException) {
             _state.update { it.copy(preview = PreviewState.Failed(e.error)) }
         }
     }
 
-    private suspend fun resolveLink(info: RepoInfo, tracked: TrackedRepo?) {
-        if (linkEdited) return
-        val pkg = tracked?.linkedPackage
-        val preview = _state.value.preview as? PreviewState.Loaded ?: return
-        if (preview.info.githubId != info.githubId || (pkg != null && preview.linkedLabel != null)) return
+    private suspend fun resolveLink(info: RepoInfo, pkg: String?) {
         val link = withContext(Dispatchers.IO) {
-            when {
-                pkg != null -> pkg to labelOf(appContext, pkg)
-                tracked?.autoLinkDismissed == true -> null
-                else -> AppMatcher.bestAutoMatch(appContext, info.owner, info.repo)?.let { candidate ->
+            if (pkg != null) {
+                pkg to labelOf(appContext, pkg)
+            } else {
+                AppMatcher.bestAutoMatch(appContext, info.owner, info.repo)?.let { candidate ->
                     candidate.packageName to (appDisplayName(candidate.packageName, candidate.label)
                         ?: labelOf(appContext, candidate.packageName))
                 }
@@ -215,21 +259,29 @@ class AddViewModel(
         return appNames[packageName]
     }
 
-    fun setLinkedApp(packageName: String?, label: String?) {
+    fun setLinkedApp(repoId: Long, packageName: String?, label: String?) {
+        val current = _state.value.preview as? PreviewState.Loaded ?: return
+        if (current.info.githubId != repoId || _state.value.adding) return
+        linkJob?.cancel()
         linkEdited = true
         val name = packageName?.let { rememberAppName(it, label) }
-        _state.update { s ->
-            val p = s.preview as? PreviewState.Loaded ?: return@update s
-            s.copy(preview = p.copy(linkedPackage = packageName, linkedLabel = name, matchingApp = false))
-        }
+        _state.update { it.copy(preview = current.copy(linkedPackage = packageName, linkedLabel = name, matchingApp = false)) }
     }
 
-    fun confirmAdd() {
-        val preview = _state.value.preview as? PreviewState.Loaded ?: return
-        if (_state.value.adding || preview.matchingApp) return
+    fun confirmAdd(repoId: Long) {
+        val selected = _state.value.preview as? PreviewState.Loaded ?: return
+        if (selected.info.githubId != repoId || _state.value.adding) return
         addJob = viewModelScope.launch {
             _state.update { it.copy(adding = true) }
-            if (_state.value.duplicate) {
+            // A quick tap is still a confirmation while the optional local match is running.
+            // Editing the input or dismissing the preview cancels this wait with the add job.
+            val ready = state.first {
+                val current = it.preview as? PreviewState.Loaded
+                it.duplicate || current == null || current.info.githubId != repoId || !current.matchingApp
+            }
+            val preview = ready.preview as? PreviewState.Loaded ?: return@launch
+            if (preview.info.githubId != repoId) return@launch
+            if (ready.duplicate) {
                 if (linkEdited) {
                     repository.setLinkedPackage(preview.info.githubId, preview.linkedPackage, preview.linkedLabel)
                 }
@@ -238,7 +290,6 @@ class AddViewModel(
             }
             when (val result = repository.addRepo(preview.info, preview.linkedPackage, preview.linkedLabel)) {
                 is RepoRepository.AddResult.Added -> {
-                    _state.update { it.copy(adding = false) }
                     _events.send(Event.Added(result.repo.id))
                 }
                 is RepoRepository.AddResult.Duplicate -> {

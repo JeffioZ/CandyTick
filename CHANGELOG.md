@@ -35,6 +35,10 @@
 - 离开详情页后，安装包会继续下载，返回即可查看进度。分包文件保留原扩展名，方便用兼容的安装程序打开。
 - 再次查看最近打开的仓库时，先显示上次的历史记录。刷新较慢时，列表在原位淡入占位。开始浏览后，内容保持可读。手动下拉时，仓库概况和历史记录随「刷新完成」一起更新。
 - 搜索本机应用时，面板高度保持稳定。
+- 仓库卡片为完整路径留出更多宽度，长名称可在连字符等分隔处换行。清空搜索框后可直接继续输入。
+- 已关联仓库在搜索结果和预览中显示同一个本机应用图标。首次匹配本机应用时，也可以直接点「添加仓库」。
+- 关闭仓库预览会回到原来的搜索位置。通过链接打开预览时，返回后可继续编辑链接或按「搜索」重新打开。
+- 仓库搜索失败时会显示原因。提交或版本历史翻页失败时，可在现有列表末尾重试。
 - 开启 CandyTick 自身更新的自动下载后，使用移动数据时也能下载新版。仓库自动同步仍遵循单独的网络设置。
 - 首页排序浮层的标题和选项上移，与其他浮层的标题间距一致。
 - 首页同步时，三点出现后才会显示完成图标。刷新期间，已展开的仓库卡片会保留活动时间和已有提交。
@@ -43,6 +47,7 @@
 
 ### 修复
 
+- CandyTick 自身更新下载失败后，重试成功也会按「下载后打开安装程序」的设置处理。
 - 手动取消应用关联后，重启 CandyTick 仍会记住这个选择。卸载已关联的应用后，CandyTick 会在下次检查时解除关联。
 - 粘贴较长的 GitHub 令牌时，输入框会保留完整内容。
 - 安装完成后，CandyTick 会清理与已装应用和版本匹配的 APK，并检查关联仓库的更新通知是否已过期。
@@ -57,8 +62,13 @@
 - Open a notification for a single repository to go to that release. Only that release is marked as read. Update availability still depends on the installed version.
 - Downloads continue after you leave the details page. Split packages keep their original extensions. After installation, CandyTick cleans up the matching APK and checks for stale update notifications.
 - Long-press the globe icon to copy the repository URL. The installed-app picker stays the same height as you search.
+- Repository cards give the full path more room and wrap long names at separators. Clearing a search field brings the keyboard back for the next query.
+- Search results and previews show the same app icon for a linked repository. You can tap Add while CandyTick looks for a matching installed app.
+- Closing a repository preview returns you to your place in the search results. If you opened a link, you can edit it or press Search to reopen it.
+- Repository search shows the reason for a failed request. If another page of commits or releases fails to load, you can retry at the end of the list.
 - Reopening a recently viewed repository shows its history while it refreshes. On a slow connection, placeholders fade in over the cards until you start browsing. Pulling to refresh updates the overview and history together when the indicator shows “Refresh complete”.
 - CandyTick can download its own updates over mobile data when automatic downloads are enabled. Repository sync still follows your network settings.
+- Retrying a CandyTick update download now honors the setting to open the installer when the download finishes.
 - Unlinking an app now persists across restarts. Uninstalled apps are unlinked on the next check, and long GitHub tokens can be pasted in full.
 - The sort sheet now uses the same title spacing as other sheets. Tapping notification permission in Settings opens the system settings on the first tap. CandyTick shows a message if a settings page, share menu, or file picker is unavailable.
 - The home screen shows a sync result icon only after the loading dots have appeared. Expanded cards keep their activity times and commits visible during refresh. When a pull-to-refresh overlaps with automatic sync, the indicator waits for expanded cards to catch up.

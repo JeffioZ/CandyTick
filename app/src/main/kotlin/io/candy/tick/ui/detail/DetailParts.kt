@@ -12,13 +12,11 @@ import androidx.compose.animation.slideInVertically
 import androidx.compose.animation.togetherWith
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
-import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
-import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.lazy.rememberLazyListState
@@ -26,13 +24,13 @@ import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.key
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.produceState
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.graphics.ImageBitmap
 import androidx.compose.ui.focus.focusRequester
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.stringResource
@@ -40,25 +38,26 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import io.candy.tick.R
 import io.candy.tick.ui.common.InlineErrorRow
-import io.candy.tick.ui.common.OwnerRepoLine
+import io.candy.tick.ui.common.RepoIdentityHeader
 import io.candy.tick.ui.common.OptionRow
 import io.candy.tick.ui.common.InputLimits
 import io.candy.tick.ui.common.SheetScrollToTopTitle
 import io.candy.tick.ui.common.TextFieldActionButton
+import io.candy.tick.ui.common.clearTextFieldAction
 import io.candy.tick.ui.common.PrimaryButton
 import io.candy.tick.ui.common.DownloadProgress
 import io.candy.tick.ui.common.AppLinkRow
 import io.candy.tick.ui.common.LinkedRepoAvatar
 import io.candy.tick.ui.common.rememberAppIconResult
+import io.candy.tick.ui.common.AppIconResult
+import io.candy.tick.ui.common.repoAvatarIcon
 import io.candy.tick.ui.common.rememberMotionEnabled
 import io.candy.tick.ui.common.scrollToTop
 import io.candy.tick.ui.common.SectionDivider
-import io.candy.tick.ui.common.StarCount
 import io.candy.tick.ui.common.StatusBadge
 import io.candy.tick.ui.common.LinkedVersionSummary
 import io.candy.tick.ui.common.relTimeString
 import io.candy.tick.ui.common.sourceErrorText
-import io.candy.tick.util.CountFormat
 import io.candy.tick.util.VersionCompare
 import io.candy.tick.data.model.statusAt
 import top.yukonga.miuix.kmp.basic.Card
@@ -89,7 +88,6 @@ internal fun BranchPickerSheet(
     onDismiss: () -> Unit,
     onLoadBranches: () -> Unit,
 ) {
-    val scheme = MiuixTheme.colorScheme
     val windowHeight = androidx.compose.ui.platform.LocalConfiguration.current.screenHeightDp.dp
     val maxSheetHeight = windowHeight * 0.6f
     val scrollSearchField = windowHeight < 480.dp
@@ -101,7 +99,6 @@ internal fun BranchPickerSheet(
     // 打开即聚焦：搜索框仅在分支 >15 个时组合，且分支请求未回时固定延迟会打空
     // （FocusRequester 未挂载 → runCatching 静默失败）；改为列表就绪后请求
     val branchFocus = remember { androidx.compose.ui.focus.FocusRequester() }
-    val keyboard = androidx.compose.ui.platform.LocalSoftwareKeyboardController.current
     val branches = state.branches.orEmpty()
     val searchable = branches.size > 15
     androidx.compose.runtime.LaunchedEffect(show, searchable) {
@@ -150,6 +147,7 @@ internal fun BranchPickerSheet(
                 .animateContentSize(androidx.compose.animation.core.tween(Motion.PANEL)),
         ) {
             val searchField: @Composable () -> Unit = {
+                val keyboard = androidx.compose.ui.platform.LocalSoftwareKeyboardController.current
                 top.yukonga.miuix.kmp.basic.TextField(
                     value = query,
                     onValueChange = ::filterBranches,
@@ -163,7 +161,7 @@ internal fun BranchPickerSheet(
                         onDone = { keyboard?.hide() },
                     ),
                     trailingIcon = if (query.isNotEmpty()) {
-                        { TextFieldActionButton(onClick = { filterBranches("") }) }
+                        { TextFieldActionButton(onClick = clearTextFieldAction(branchFocus) { filterBranches("") }) }
                     } else null,
                     modifier = Modifier
                         .fillMaxWidth()
@@ -176,12 +174,11 @@ internal fun BranchPickerSheet(
                 if (searchable && scrollSearchField) item(key = 0) { searchField() }
                 if (listReady && filtered.isEmpty() && missingSelection == null) {
                     item {
-                        Text(
-                            text = stringResource(if (keyword.isEmpty()) R.string.branch_empty else R.string.branch_no_match),
-                            style = MiuixTheme.textStyles.footnote1,
-                            color = scheme.onBackgroundVariant,
-                            modifier = Modifier.fillMaxWidth().padding(vertical = 32.dp),
-                            textAlign = androidx.compose.ui.text.style.TextAlign.Center,
+                        io.candy.tick.ui.common.StatusPage(
+                            icon = ImageVector.vectorResource(if (keyword.isEmpty()) R.drawable.ic_git_branch else R.drawable.ic_search),
+                            title = stringResource(if (keyword.isEmpty()) R.string.branch_empty else R.string.branch_no_match),
+                            compact = true,
+                            modifier = Modifier.fillMaxWidth().padding(vertical = 24.dp),
                         )
                     }
                 }
@@ -211,11 +208,9 @@ internal fun BranchPickerSheet(
                     io.candy.tick.ui.common.LoadingDots(dotSize = 5.dp)
                 }
                 state.branchesFailed -> io.candy.tick.ui.common.StatusPage(
-                    icon = ImageVector.vectorResource(R.drawable.ic_close),
                     isError = true,
                     compact = true,
-                    title = stringResource(R.string.load_failed),
-                    subtitle = stringResource(R.string.status_error_subtitle),
+                    title = stringResource(R.string.branches_load_failed),
                     actionLabel = stringResource(R.string.retry),
                     onAction = onLoadBranches,
                     modifier = Modifier
@@ -279,7 +274,7 @@ internal fun RemoveRepoDialog(
 }
 
 private data class LinkRow(val packageName: String, val label: String, val suggested: Boolean)
-private data class HeaderApp(val icon: ImageBitmap?, val version: String?)
+private data class HeaderApp(val icon: AppIconResult?, val version: String?)
 private data class HeaderVersion(val tag: String, val local: String?, val comparison: Int?)
 
 /** Only the changed section takes up or releases space, including its gap above. */
@@ -333,42 +328,25 @@ internal fun HeaderCard(
         }
     }
     val link = linked ?: state.linkSuggestion?.let { LinkRow(it.first, it.second, true) }
-    val iconResult = rememberAppIconResult(link?.packageName)
+    val iconResult = rememberAppIconResult(link?.packageName, refreshKey = state.installEpoch)
+    val avatar = repoAvatarIcon(linked?.packageName, iconResult.takeIf { linked != null })
     // Keep the previous avatar and local version together while another app's icon is being read.
-    val headerApp by produceState(HeaderApp(null, localVersion), linked?.packageName, localVersion, iconResult) {
-        if (linked == null || iconResult != null) {
-            value = HeaderApp(if (linked != null) iconResult?.bitmap else null, localVersion)
+    val headerApp by key(repo.id) {
+        produceState(HeaderApp(avatar, localVersion), linked?.packageName, localVersion, avatar) {
+            if (avatar != null) value = HeaderApp(avatar, localVersion)
         }
     }
     Card(modifier = Modifier.fillMaxWidth()) {
         // 双层间距体系：跨组 8dp（Spacer）、组内 6dp——头卡多组累加，组距收紧一档防松散
         Column(modifier = Modifier.padding(start = 16.dp, top = 8.dp, end = 16.dp)) {
-            Row(verticalAlignment = Alignment.CenterVertically) {
+            RepoIdentityHeader(
+                owner = repo.owner,
+                repo = repo.repo,
+                title = repo.noteName ?: repo.repo,
+                stars = snapshot?.stars,
+                badge = { StatusBadge(snapshot?.statusAt() ?: io.candy.tick.data.model.RepoStatus.UNKNOWN) },
+            ) {
                 LinkedRepoAvatar(repo.owner, headerApp.icon)
-                Spacer(Modifier.width(12.dp))
-                Column(modifier = Modifier.weight(1f)) {
-                    androidx.compose.foundation.layout.Row(
-                        verticalAlignment = Alignment.CenterVertically,
-                    ) {
-                        Text(
-                            text = repo.noteName ?: repo.repo,
-                            style = MiuixTheme.textStyles.title4,
-                            color = scheme.onBackground,
-                            maxLines = 1,
-                            overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis,
-                            modifier = Modifier.weight(1f, fill = false),
-                        )
-                        // star 挪名称旁（GitHub 档案页同位）：唯一保留的人气信号；
-                        // 名称 weight+ellipsis——截断时 star 恒可见（截断优先级）。
-                        // 无快照（刚添加未同步）隐藏：此时显示「★0」是假数据
-                        if (snapshot != null) {
-                            Spacer(Modifier.width(8.dp))
-                            StarCount(count = CountFormat.format(snapshot.stars))
-                        }
-                    }
-                    OwnerRepoLine(owner = repo.owner, repo = repo.repo)
-                }
-                StatusBadge(status = snapshot?.statusAt() ?: io.candy.tick.data.model.RepoStatus.UNKNOWN)
             }
 
             // ── 信息组（描述；无描述时跨组 8dp 不叠加）——统计行与推送时间已分别
@@ -456,7 +434,7 @@ internal fun HeaderCard(
             // ── 关联分区（始终存在，固定卡底）；前置 8dp 与上方版本区呼吸对称 ──
             Spacer(Modifier.height(8.dp))
             SectionDivider()
-            LinkedAppRow(link, iconResult?.bitmap, onChangeLinked, onLinkSuggestion, onUnlink)
+            LinkedAppRow(link, iconResult, onChangeLinked, onLinkSuggestion, onUnlink)
         }
     }
 }
@@ -464,7 +442,7 @@ internal fun HeaderCard(
 @Composable
 private fun LinkedAppRow(
     link: LinkRow?,
-    appIcon: ImageBitmap?,
+    icon: AppIconResult?,
     onChangeLinked: () -> Unit,
     onLinkSuggestion: () -> Unit,
     onUnlink: () -> Unit,
@@ -473,7 +451,8 @@ private fun LinkedAppRow(
     val suggested = link?.suggested == true
     val linked = link != null && !suggested
     AppLinkRow(
-        appIcon = appIcon,
+        appIcon = icon?.bitmap,
+        iconPending = link != null && icon == null,
         onClick = when {
             linked -> null
             suggested -> onLinkSuggestion

@@ -87,6 +87,7 @@ fun DetailScreen(
     releaseRequestId: String? = null,
     releaseTag: String? = null,
     onBack: () -> Unit,
+    onRemoved: () -> Unit,
 ) {
     val app = LocalContext.current.applicationContext as CandyTickApp
     var interacted by rememberSaveable(repoId) { mutableStateOf(false) }
@@ -376,7 +377,9 @@ fun DetailScreen(
                                 verticalAlignment = Alignment.CenterVertically,
                             ) {
                                 io.candy.tick.ui.common.PressIconButton(
-                                    onClick = onBack,
+                                    onClick = {
+                                        if (showAppPicker) showAppPicker = false else onBack()
+                                    },
                                     // 图标旁无文字的控件必须有可访问名称（icon-button a11y）
                                     contentDescription = stringResource(R.string.back),
                                 ) {
@@ -543,9 +546,10 @@ fun DetailScreen(
                             else -> R.string.detail_notified_release_failed
                         }
                         io.candy.tick.ui.common.StatusPage(
-                            icon = null,
                             compact = true,
+                            isError = lookupError != null,
                             title = stringResource(message, lookupTag),
+                            subtitle = lookupError?.let { io.candy.tick.ui.common.sourceErrorText(it) },
                             modifier = Modifier.fillMaxWidth().padding(vertical = 8.dp),
                             actionLabel = if (lookupError != null) stringResource(R.string.retry) else null,
                             onAction = { attempt++ },
@@ -636,7 +640,7 @@ fun DetailScreen(
             // 破坏性确认时刻：轻触感（视觉红按钮之外的物理确认）
             haptic.performHapticFeedback(HapticFeedbackType.LongPress)
             showRemoveDialog = false
-            vm.removeRepo(onBack)
+            vm.removeRepo(onRemoved)
         },
         onDismiss = { showRemoveDialog = false },
     )

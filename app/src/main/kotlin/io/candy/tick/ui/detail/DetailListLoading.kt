@@ -10,9 +10,11 @@ import androidx.compose.animation.fadeOut
 import androidx.compose.animation.togetherWith
 import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.lazy.LazyItemScope
 import androidx.compose.foundation.lazy.LazyListState
@@ -43,6 +45,7 @@ import androidx.compose.ui.semantics.ProgressBarRangeInfo
 import androidx.compose.ui.unit.dp
 import io.candy.tick.R
 import io.candy.tick.ui.common.FooterText
+import io.candy.tick.ui.common.InlineErrorRow
 import io.candy.tick.ui.common.LoadingDots
 import io.candy.tick.ui.common.Motion
 import io.candy.tick.ui.common.PressableCard
@@ -229,7 +232,7 @@ internal fun LazyItemScope.HistoryFooter(
         else -> HistoryFooterState.Idle
     }
     val duration = if (rememberMotionEnabled()) Motion.PHASE else 0
-    val statusModifier = Modifier.fillParentMaxHeight(0.45f).fillMaxWidth()
+    val emptySpace = Modifier.fillParentMaxHeight(0.45f)
     AnimatedContent(
         targetState = phase to displayedCount,
         contentKey = { it.first },
@@ -241,40 +244,46 @@ internal fun LazyItemScope.HistoryFooter(
         },
         label = "historyFooter",
     ) { (visiblePhase, visibleCount) ->
-        when (visiblePhase) {
-            HistoryFooterState.Idle -> Unit
-            HistoryFooterState.Paging -> Box(
-                Modifier.fillMaxWidth().padding(vertical = 8.dp),
-                contentAlignment = Alignment.Center,
-            ) { LoadingDots(dotSize = 5.dp) }
-            HistoryFooterState.Retrying -> Box(statusModifier, contentAlignment = Alignment.Center) {
-                LoadingDots(dotSize = 5.dp)
+        Box(Modifier.fillMaxWidth(), contentAlignment = Alignment.Center) {
+            // Only full-list states reserve this space. Natural content can grow past it on short screens.
+            if (visibleCount == 0 && visiblePhase != HistoryFooterState.Idle) Spacer(emptySpace)
+            when (visiblePhase) {
+                HistoryFooterState.Idle -> Unit
+                HistoryFooterState.Paging -> Box(
+                    Modifier.fillMaxWidth().padding(vertical = 8.dp),
+                    contentAlignment = Alignment.Center,
+                ) { LoadingDots(dotSize = 5.dp) }
+                HistoryFooterState.Retrying -> Box(Modifier.heightIn(min = 48.dp), contentAlignment = Alignment.Center) {
+                    LoadingDots(dotSize = 5.dp)
+                }
+                HistoryFooterState.Failed -> {
+                    val message = stringResource(if (commits) R.string.commits_load_failed else R.string.releases_load_failed)
+                    val retryEnabled = failed && !loading && !reloading
+                    if (visibleCount > 0) {
+                        InlineErrorRow(message, onRetry = onLoadMore, retryEnabled = retryEnabled)
+                    } else {
+                        StatusPage(
+                            isError = true, title = message,
+                            actionLabel = stringResource(R.string.retry), onAction = onLoadMore, actionEnabled = retryEnabled,
+                        )
+                    }
+                }
+                HistoryFooterState.Empty -> StatusPage(
+                    icon = ImageVector.vectorResource(if (commits) R.drawable.ic_git_commit else R.drawable.ic_tag),
+                    title = stringResource(if (commits) R.string.detail_no_commits else R.string.detail_no_releases),
+                )
+                HistoryFooterState.Changed -> top.yukonga.miuix.kmp.basic.Text(
+                    text = stringResource(R.string.detail_history_changed),
+                    modifier = Modifier.padding(horizontal = 16.dp, vertical = 12.dp),
+                    textAlign = androidx.compose.ui.text.style.TextAlign.Center,
+                    style = MiuixTheme.textStyles.footnote2,
+                    color = MiuixTheme.colorScheme.onBackgroundVariant,
+                )
+                HistoryFooterState.End -> FooterText(
+                    if (commits) R.plurals.footer_commits else R.plurals.footer_releases,
+                    visibleCount,
+                )
             }
-            HistoryFooterState.Failed -> StatusPage(
-                icon = ImageVector.vectorResource(R.drawable.ic_close),
-                isError = true,
-                title = stringResource(R.string.load_failed),
-                subtitle = stringResource(R.string.status_error_subtitle),
-                actionLabel = stringResource(R.string.retry),
-                onAction = { if (failed && !loading && !reloading) onLoadMore() },
-                modifier = statusModifier,
-            )
-            HistoryFooterState.Empty -> StatusPage(
-                icon = ImageVector.vectorResource(R.drawable.ic_file),
-                title = stringResource(if (commits) R.string.detail_no_commits else R.string.detail_no_releases),
-                modifier = statusModifier,
-            )
-            HistoryFooterState.Changed -> top.yukonga.miuix.kmp.basic.Text(
-                text = stringResource(R.string.detail_history_changed),
-                modifier = Modifier.padding(horizontal = 16.dp, vertical = 12.dp),
-                textAlign = androidx.compose.ui.text.style.TextAlign.Center,
-                style = MiuixTheme.textStyles.footnote2,
-                color = MiuixTheme.colorScheme.onBackgroundVariant,
-            )
-            HistoryFooterState.End -> FooterText(
-                if (commits) R.plurals.footer_commits else R.plurals.footer_releases,
-                visibleCount,
-            )
         }
     }
 }

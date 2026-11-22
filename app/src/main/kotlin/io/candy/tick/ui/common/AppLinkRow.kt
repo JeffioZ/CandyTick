@@ -33,6 +33,7 @@ internal fun AppLinkRow(
     onClick: (() -> Unit)?,
     modifier: Modifier = Modifier,
     suggested: Boolean = false,
+    iconPending: Boolean = false,
     onChangeApp: (() -> Unit)? = null,
     onUnlink: (() -> Unit)? = null,
     label: @Composable () -> Unit,
@@ -56,7 +57,11 @@ internal fun AppLinkRow(
         verticalAlignment = Alignment.CenterVertically,
     ) {
         Box(Modifier.size(LinkActionSize), contentAlignment = Alignment.Center) {
-            if (appIcon == null) LinkGlyph(R.drawable.ic_link) else AppIconImage(appIcon, 22.dp, 6.dp)
+            if (appIcon != null) {
+                AppIconImage(appIcon, 22.dp, 6.dp)
+            } else if (!iconPending) {
+                LinkGlyph(R.drawable.ic_link)
+            }
         }
         Box(Modifier.weight(1f), contentAlignment = Alignment.CenterStart) { label() }
         if (onChangeApp == null) {

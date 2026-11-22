@@ -183,6 +183,7 @@
     <string name="add_input_hint">Paste a link or search repositories</string>
     <string name="add_parse_error">Enter a GitHub repository URL or owner/repo</string>
     <string name="add_search_failed">Search failed</string>
+    <string name="add_preview_failed">Couldn’t load repository details</string>
     <string name="add_search_empty">No repositories found</string>
     <string name="add_search_empty_hint">Try a different keyword or paste a repository link.</string>
     <string name="picker_search_app">Search by app name or package name</string>
@@ -218,7 +219,10 @@
     <string name="detail_unlink">Unlink</string>
     <string name="detail_delete_download">Delete downloaded package</string>
     <string name="toast_copied">Copied to clipboard</string>
-    <string name="load_failed">Load failed</string>
+    <string name="commits_load_failed">Couldn’t load commits</string>
+    <string name="releases_load_failed">Couldn’t load releases</string>
+    <string name="branches_load_failed">Couldn’t load branches</string>
+    <string name="apps_load_failed">Couldn’t load installed apps</string>
     <string name="status_error_subtitle">Please try again later.</string>
     <plurals name="footer_repositories">
         <item quantity="one">End of list · %d repository</item>
@@ -274,7 +278,7 @@
     <string name="settings_appearance">Appearance</string>
     <string name="action_search">Search</string>
     <string name="search_hint">Search subscribed repositories</string>
-    <string name="search_no_results">No repositories match “%1$s”</string>
+    <string name="search_no_results">No matching repositories</string>
     <string name="search_no_results_hint">Try a shorter keyword or check the spelling</string>
     <string name="close_search">Close search</string>
     <string name="search_clear">Clear search</string>
@@ -344,7 +348,7 @@
     <string name="self_update_no_apk">No installable APK in this release</string>
     <string name="self_update_view_releases">View all releases on GitHub</string>
     <string name="self_update_incomparable_note">Can’t tell if this release is newer than your installed version.</string>
-    <string name="self_update_install_failed_note">The update file is still available. Try installing it again.</string>
+    <string name="self_update_install_failed_note">Installation failed. The downloaded APK is still available.</string>
 
     <!-- 关于 -->
     <string name="settings_about_group">About</string>

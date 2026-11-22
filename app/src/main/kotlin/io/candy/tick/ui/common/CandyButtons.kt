@@ -16,8 +16,10 @@ import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.focus.FocusRequester
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.vector.ImageVector
+import androidx.compose.ui.platform.LocalSoftwareKeyboardController
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.res.vectorResource
 import androidx.compose.ui.semantics.Role
@@ -107,13 +109,15 @@ fun PressIconButton(
     border: BorderStroke? = null,
     onLongClick: (() -> Unit)? = null,
     onLongClickLabel: String? = null,
+    enabled: Boolean = true,
     content: @Composable () -> Unit,
 ) {
     val (pressSrc, pressColor) = rememberRowPressTint(surface = containerColor)
     val gestures = if (onLongClick == null) {
-        Modifier.clickable(interactionSource = pressSrc, indication = null, role = Role.Button, onClick = onClick)
+        Modifier.clickable(enabled = enabled, interactionSource = pressSrc, indication = null, role = Role.Button, onClick = onClick)
     } else {
         Modifier.combinedClickable(
+            enabled = enabled,
             interactionSource = pressSrc,
             indication = null,
             role = Role.Button,
@@ -134,6 +138,17 @@ fun PressIconButton(
         contentAlignment = Alignment.Center,
     ) {
         content()
+    }
+}
+
+/** The field can still be focused after Back or a preview dismissed the keyboard. */
+@Composable
+internal fun clearTextFieldAction(focus: FocusRequester, onClear: () -> Unit): () -> Unit {
+    val keyboard = LocalSoftwareKeyboardController.current
+    return {
+        onClear()
+        focus.requestFocus()
+        keyboard?.show()
     }
 }
 

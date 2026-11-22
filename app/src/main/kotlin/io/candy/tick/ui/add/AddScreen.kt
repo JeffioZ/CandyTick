@@ -1,12 +1,22 @@
 package io.candy.tick.ui.add
 
+import androidx.compose.animation.AnimatedContent
+import androidx.compose.animation.EnterTransition
+import androidx.compose.animation.ExitTransition
+import androidx.compose.animation.SizeTransform
+import androidx.compose.animation.core.tween
+import androidx.compose.animation.core.updateTransition
+import androidx.compose.animation.fadeIn
+import androidx.compose.animation.fadeOut
+import androidx.compose.animation.slideInVertically
+import androidx.compose.animation.slideOutVertically
 import androidx.compose.animation.togetherWith
 import androidx.compose.foundation.ScrollState
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.foundation.layout.wrapContentHeight
 import io.candy.tick.data.model.statusAt
-import io.candy.tick.util.CountFormat
+import io.candy.tick.ui.common.RepoIdentityHeader
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -33,30 +43,38 @@ import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.produceState
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.semantics.clearAndSetSemantics
-import androidx.compose.ui.semantics.LiveRegionMode
-import androidx.compose.ui.semantics.liveRegion
-import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.focus.focusRequester
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import androidx.lifecycle.compose.LocalLifecycleOwner
+import androidx.lifecycle.Lifecycle
+import androidx.lifecycle.repeatOnLifecycle
 import androidx.lifecycle.viewmodel.compose.viewModel
 import io.candy.tick.CandyTickApp
 import io.candy.tick.R
 import io.candy.tick.ui.common.AppLinkRow
+import io.candy.tick.ui.common.AppIconResult
 import io.candy.tick.ui.common.AppPickerSheet
+import io.candy.tick.ui.common.LinkedRepoAvatar
+import io.candy.tick.ui.common.RepoAvatar
+import io.candy.tick.ui.common.rememberAppIconResult
+import io.candy.tick.ui.common.repoAvatarIcon
 import io.candy.tick.ui.common.CenteredScrollToTopBar
 import io.candy.tick.ui.common.CompactTextAction
 import io.candy.tick.ui.common.FooterText
 import io.candy.tick.ui.common.TextFieldActionButton
+import io.candy.tick.ui.common.clearTextFieldAction
 import io.candy.tick.ui.common.PrimaryButton
 import io.candy.tick.ui.common.SectionDivider
 import io.candy.tick.ui.common.rememberMotionEnabled
@@ -80,6 +98,8 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.ui.draw.clip
 import io.candy.tick.ui.common.Motion
 
+private data class ResultIcon(val repoId: Long, val packageName: String, val icon: AppIconResult)
+
 @Composable
 fun AddScreen(
     onClose: () -> Unit,
@@ -88,8 +108,19 @@ fun AddScreen(
     val app = LocalContext.current.applicationContext as CandyTickApp
     val vm: AddViewModel = viewModel { AddViewModel(app.container.repoRepository, app) }
     val state by vm.state.collectAsStateWithLifecycle()
-    var showAppPicker by remember { mutableStateOf(false) }
+    var selectedIcon by remember(state.results) { mutableStateOf<ResultIcon?>(null) }
+    val lifecycle = LocalLifecycleOwner.current.lifecycle
+    val iconRevision by produceState(0, lifecycle) {
+        var firstStart = true
+        lifecycle.repeatOnLifecycle(Lifecycle.State.STARTED) {
+            if (firstStart) firstStart = false else value++
+        }
+    }
+    val activePreviewId = (state.preview as? AddViewModel.PreviewState.Loaded)?.info?.githubId
+    var showAppPicker by remember(activePreviewId) { mutableStateOf(false) }
     val showPreview = state.preview !is AddViewModel.PreviewState.Idle
+    val overlay = updateTransition(state.takeIf { showPreview }, label = "repoPreview")
+    val resultsCovered = showPreview || overlay.currentState != null || overlay.isRunning
     val resultsScroll = if (state.results.repositories.isNotEmpty()) rememberLazyListState() else null
     var previewScroll by remember { mutableStateOf<ScrollState?>(null) }
     val scope = rememberCoroutineScope()
@@ -108,16 +139,32 @@ fun AddScreen(
         }
     }
 
-    // 预览态的系统返回 = 揭走预览浮层（与「返回搜索结果」按钮同语义），而非退出添加页；
-    // URL 直粘路径同样先回输入框——与浮层退场动画（下移+淡出）一致
-    androidx.activity.compose.BackHandler(
-        enabled = state.preview !is AddViewModel.PreviewState.Idle,
-    ) { vm.dismissPreview() }
+    fun goBack() {
+        if (showAppPicker) {
+            showAppPicker = false
+            return
+        }
+        val current = vm.state.value
+        if (current.preview != AddViewModel.PreviewState.Idle) {
+            vm.dismissPreview()
+            if (current.results.repositories.isEmpty()) {
+                inputFocus.requestFocus()
+                keyboardController?.show()
+            }
+        } else if (!resultsCovered) {
+            onClose()
+        }
+    }
+    androidx.activity.compose.BackHandler(enabled = resultsCovered, onBack = ::goBack)
 
     LaunchedEffect(Unit) {
         vm.events.collect { event ->
             when (event) {
-                is AddViewModel.Event.Added -> onAdded(event.repoId)
+                is AddViewModel.Event.Added -> {
+                    val current = vm.state.value
+                    val preview = current.preview as? AddViewModel.PreviewState.Loaded
+                    if (current.adding && preview?.info?.githubId == event.repoId) onAdded(event.repoId)
+                }
             }
         }
     }
@@ -129,7 +176,7 @@ fun AddScreen(
         topBar = {
             CenteredScrollToTopBar(
                 title = stringResource(R.string.add_repo),
-                onBack = if (showPreview) vm::dismissPreview else onClose,
+                onBack = ::goBack,
                 onTitleClick = {
                     scope.launch {
                         if (showPreview) previewScroll?.scrollToTop(animateScroll)
@@ -157,25 +204,16 @@ fun AddScreen(
                 keyboardActions = KeyboardActions(onSearch = { vm.submit() }),
                 // 非空清空钮：粘贴长链接后想换目标，逐字删除太苦
                 trailingIcon = if (state.input.isNotEmpty()) {
-                    { TextFieldActionButton(onClick = { vm.onInput("") }) }
+                    { TextFieldActionButton(onClick = clearTextFieldAction(inputFocus) { vm.onInput("") }) }
                 } else null,
                 modifier = Modifier
                     .fillMaxWidth()
                     .focusRequester(inputFocus),
             )
             if (state.parseError) {
-                // 报错容器化（errorContainer 底 + onErrorContainer 字）：此前 onErrorContainer
-                // 裸用作前景色，深浅两模式各有一处对比度不保真
-                Text(
-                    text = stringResource(R.string.add_parse_error),
-                    style = MiuixTheme.textStyles.footnote1,
-                    color = MiuixTheme.colorScheme.onErrorContainer,
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .clip(RoundedCornerShape(10.dp))
-                        .background(MiuixTheme.colorScheme.errorContainer)
-                        .semantics { liveRegion = LiveRegionMode.Polite }
-                        .padding(horizontal = 12.dp, vertical = 8.dp),
+                io.candy.tick.ui.common.InlineErrorRow(
+                    message = stringResource(R.string.add_parse_error),
+                    onRetry = null,
                 )
             }
 
@@ -185,33 +223,34 @@ fun AddScreen(
             androidx.compose.foundation.layout.Box(
                 modifier = Modifier.weight(1f).fillMaxWidth(),
             ) {
-                // 结果揭示批次号：新搜索（列表重建）与「返回搜索结果」各自触发一轮入场动画；
-                // 返回时不重建列表（零测量成本），仅重置 item 动画——与新搜索出结果的观感一致
-                var resultsReveal by remember { androidx.compose.runtime.mutableIntStateOf(0) }
-                androidx.compose.foundation.layout.Box(
-                    modifier = if (showPreview) Modifier.clearAndSetSemantics { } else Modifier,
+                Box(
+                    modifier = if (resultsCovered) Modifier.clearAndSetSemantics { } else Modifier,
                 ) {
-                    SearchContent(state, resultsReveal, resultsScroll, onRetry = vm::submit, onPick = vm::pickResult)
+                    SearchContent(state, resultsScroll, iconRevision, onRetry = vm::submit) { info, icon ->
+                        if (!resultsCovered) {
+                            selectedIcon = icon
+                            vm.pickResult(info)
+                        }
+                    }
                 }
 
-                // 预览浮层：背景=页面底色完整遮挡底层；内容超高可滚（键盘弹出兜底）
-                androidx.compose.animation.AnimatedVisibility(
-                    visible = showPreview,
-                    enter = androidx.compose.animation.fadeIn(
-                        androidx.compose.animation.core.tween(Motion.MICRO),
-                    ) + androidx.compose.animation.slideInVertically(
-                        animationSpec = androidx.compose.animation.core.tween(Motion.MICRO),
-                    ) { it / 16 },
-                    // 退场=沿进场原路退回（下移+淡出）：返回动作有方向感；
-                    // 列表静止显现（零重建保滚动位），揭走本身即返回动画
-                    exit = androidx.compose.animation.fadeOut(
-                        androidx.compose.animation.core.tween(Motion.MICRO),
-                    ) + androidx.compose.animation.slideOutVertically(
-                        animationSpec = androidx.compose.animation.core.tween(Motion.MICRO),
-                    ) { it / 8 },
+                val duration = if (animateScroll) Motion.MICRO else 0
+                val offset = with(LocalDensity.current) { 8.dp.roundToPx() }
+                // Keep the outgoing preview, including its CTA, until the results are revealed.
+                overlay.AnimatedContent(
+                    contentKey = { it != null },
+                    transitionSpec = {
+                        if (targetState == null) {
+                            val exit = fadeOut(tween(duration)) + slideOutVertically(tween(duration)) { offset }
+                            (EnterTransition.None togetherWith exit).using(null)
+                        } else {
+                            val enter = fadeIn(tween(duration)) + slideInVertically(tween(duration)) { offset }
+                            (enter togetherWith ExitTransition.None).using(null)
+                        }
+                    },
                     modifier = Modifier.matchParentSize(),
-                ) {
-                    // The overlay owns its offset through its exit animation; the next preview starts at the top.
+                ) { shown ->
+                    if (shown == null) return@AnimatedContent
                     val scroll = rememberScrollState()
                     DisposableEffect(scroll) {
                         previewScroll = scroll
@@ -221,49 +260,47 @@ fun AddScreen(
                         modifier = Modifier
                             .fillMaxSize()
                             .background(MiuixTheme.colorScheme.background)
+                            .then(if (showPreview) Modifier else Modifier.clearAndSetSemantics { })
                             .verticalScroll(scroll),
                     ) {
-                        if (state.results.repositories.isNotEmpty()) {
-                            BackToResultsButton {
-                                resultsReveal++
-                                vm.dismissPreview()
-                            }
+                        if (shown.results.repositories.isNotEmpty()) {
+                            BackToResultsButton(onClick = ::goBack)
                         }
-                        // 浮层内三态（骨架/卡/错误）柔切换；Loaded 不再叠出现动画
-                        // （浮层自身 fade+slide 已承担进场，双层叠加反而迟滞）；
-                        // SizeTransform 显式 180：三态高度不同，默认 spring 是尺寸暗桩
-                        androidx.compose.animation.AnimatedContent(
-                            targetState = previewKeyOf(state.preview),
+                        val phaseDuration = if (animateScroll) Motion.PHASE else 0
+                        AnimatedContent(
+                            targetState = shown.preview,
+                            // Background metadata and local app matching update the same card in place.
+                            contentKey = { if (it is AddViewModel.PreviewState.Loaded) it.info.githubId else it },
                             transitionSpec = {
-                                ((androidx.compose.animation.fadeIn(androidx.compose.animation.core.tween(Motion.PHASE))) togetherWith
-                                    (androidx.compose.animation.fadeOut(androidx.compose.animation.core.tween(Motion.PHASE))))
-                                    .using(
-                                        androidx.compose.animation.SizeTransform(clip = false) { _, _ ->
-                                            androidx.compose.animation.core.tween(Motion.PHASE)
-                                        },
-                                    )
+                                (fadeIn(tween(phaseDuration)) togetherWith fadeOut(tween(phaseDuration)))
+                                    .using(SizeTransform { _, _ -> tween(phaseDuration) })
                             },
                             label = "previewPhase",
-                        ) { key ->
-                            when (key) {
-                                PreviewKey.Loading -> PreviewSkeletonCard()
-                                is PreviewKey.Failed -> io.candy.tick.ui.common.StatusPage(
-                                    icon = ImageVector.vectorResource(R.drawable.ic_close),
+                        ) { phase ->
+                            when (phase) {
+                                AddViewModel.PreviewState.Loading -> PreviewSkeletonCard()
+                                is AddViewModel.PreviewState.Failed -> io.candy.tick.ui.common.StatusPage(
                                     isError = true,
-                                    title = sourceErrorText(key.error),
+                                    title = stringResource(R.string.add_preview_failed),
+                                    subtitle = sourceErrorText(phase.error),
                                     actionLabel = stringResource(R.string.retry),
-                                    onAction = vm::retryPreview,
+                                    onAction = {
+                                        val current = vm.state.value
+                                        if (current.input == shown.input && current.preview == phase) vm.submit()
+                                    },
                                     modifier = Modifier.fillMaxWidth().padding(vertical = 24.dp),
                                 )
-                                is PreviewKey.Loaded -> (state.preview as? AddViewModel.PreviewState.Loaded)?.let { loaded ->
-                                    PreviewCard(
-                                        preview = loaded,
-                                        state = state,
-                                        onLinkApp = { showAppPicker = true },
-                                        onConfirm = vm::confirmAdd,
-                                    )
-                                }
-                                PreviewKey.Idle -> Unit
+                                is AddViewModel.PreviewState.Loaded -> PreviewCard(
+                                    preview = phase,
+                                    state = shown,
+                                    resultIcon = selectedIcon,
+                                    iconRevision = iconRevision,
+                                    onLinkApp = {
+                                        if (phase.info.githubId == activePreviewId && !state.adding) showAppPicker = true
+                                    },
+                                    onConfirm = { vm.confirmAdd(phase.info.githubId) },
+                                )
+                                AddViewModel.PreviewState.Idle -> Unit
                             }
                         }
                     }
@@ -275,7 +312,7 @@ fun AddScreen(
     AppPickerSheet(
         show = showAppPicker,
         onPick = { pkg, label ->
-            vm.setLinkedApp(pkg, label)
+            if (showAppPicker && activePreviewId != null) vm.setLinkedApp(activePreviewId, pkg, label)
             showAppPicker = false
         },
         onDismiss = { showAppPicker = false },
@@ -285,10 +322,10 @@ fun AddScreen(
 @Composable
 private fun SearchContent(
     state: AddViewModel.UiState,
-    resultsReveal: Int,
     resultsScroll: LazyListState?,
+    iconRevision: Int,
     onRetry: () -> Unit,
-    onPick: (io.candy.tick.data.RepoInfo) -> Unit,
+    onPick: (io.candy.tick.data.RepoInfo, ResultIcon?) -> Unit,
 ) {
     when {
         state.searching -> androidx.compose.foundation.layout.Box(
@@ -301,130 +338,84 @@ private fun SearchContent(
         // 搜索失败：StatusPage 居中（与详情页提交/版本加载失败同款同构——
         // 同为「内容区加载失败」类别）——此前左上小红字+重试钮+大片空白的
         // 失衡构图与其他态（居中 dots/居中空态）语言不统一
-        state.searchFailed -> io.candy.tick.ui.common.StatusPage(
-            icon = ImageVector.vectorResource(R.drawable.ic_close),
+        state.searchError != null -> io.candy.tick.ui.common.StatusPage(
             isError = true,
             title = stringResource(R.string.add_search_failed),
-            subtitle = stringResource(R.string.status_error_subtitle),
+            subtitle = sourceErrorText(state.searchError),
             // 失败要有出路（skill error-recovery）：重试走同一条提交路径
             actionLabel = stringResource(R.string.retry),
             onAction = onRetry,
-            modifier = Modifier.fillMaxSize().wrapContentHeight().verticalScroll(rememberScrollState()),
+            modifier = Modifier.fillMaxSize().verticalScroll(rememberScrollState()).wrapContentHeight().padding(vertical = 16.dp),
         )
-        resultsScroll != null -> LazyColumn(
-            state = resultsScroll,
-            modifier = Modifier.fillMaxSize(),
-            // 底部 32：全 App 滚动终止留白统一档（此前无 bottom，footer 贴底）
-            contentPadding = androidx.compose.foundation.layout.PaddingValues(bottom = 32.dp),
-            verticalArrangement = Arrangement.spacedBy(8.dp),
-        ) {
-            items(state.results.repositories, key = { it.githubId }) { info ->
-                // 与首页 RepoCard 同款语言：头像 + title4 名称 + body2 路径 + 统计
-                // 出现动画 fade+上滑 220（纯 fade 感知弱；新搜索全新 key 全卡组合整批播放）
-                val cardAppear = remember(info.githubId, resultsReveal) {
-                    androidx.compose.animation.core.MutableTransitionState(false).apply { targetState = true }
-                }
-                androidx.compose.animation.AnimatedVisibility(
-                    visibleState = cardAppear,
-                    enter = androidx.compose.animation.fadeIn(
-                        androidx.compose.animation.core.tween(Motion.PANEL),
-                    ) + androidx.compose.animation.slideInVertically(
-                        animationSpec = androidx.compose.animation.core.tween(Motion.PANEL),
-                    ) { it / 10 },
+        resultsScroll != null -> {
+            val motion = rememberMotionEnabled()
+            val appear = remember(resultsScroll) {
+                androidx.compose.animation.core.MutableTransitionState(!motion).apply { targetState = true }
+            }
+            val offset = with(LocalDensity.current) { 8.dp.roundToPx() }
+            val duration = if (motion) Motion.PHASE else 0
+            androidx.compose.animation.AnimatedVisibility(
+                visibleState = appear,
+                enter = fadeIn(tween(duration)) + slideInVertically(tween(duration)) { offset },
+            ) {
+                LazyColumn(
+                    state = resultsScroll,
+                    modifier = Modifier.fillMaxSize(),
+                    contentPadding = PaddingValues(bottom = 32.dp),
+                    verticalArrangement = Arrangement.spacedBy(8.dp),
                 ) {
-                    io.candy.tick.ui.common.PressableCard(
-                        onClick = {
-                            // 进入预览=输入阶段结束：收键盘，整屏让位预览卡
-                            // （skill: focus-not-obscured，预览按钮不被键盘遮挡）
-                            onPick(info)
-                        },
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .animateItem(
-                                fadeInSpec = androidx.compose.animation.core.tween(Motion.MICRO),
-                                fadeOutSpec = androidx.compose.animation.core.tween(Motion.MICRO),
-                            ),
-                    ) {
-                        Column(modifier = Modifier.padding(horizontal = 16.dp, vertical = 8.dp)) {
-                            Row(verticalAlignment = Alignment.CenterVertically) {
-                                io.candy.tick.ui.common.RepoIconBlock(
-                                    owner = info.owner,
-                                    linkedPackage = null,
-                                )
-                                Spacer(Modifier.width(12.dp))
-                                Column(modifier = Modifier.weight(1f)) {
-                                    androidx.compose.foundation.layout.Row(
-                                        verticalAlignment = Alignment.CenterVertically,
-                                    ) {
-                                        Text(
-                                            text = info.repo,
-                                            style = MiuixTheme.textStyles.title4,
-                                            color = MiuixTheme.colorScheme.onBackground,
-                                            maxLines = 1,
-                                            overflow = TextOverflow.Ellipsis,
-                                            modifier = Modifier.weight(1f, fill = false),
-                                        )
-                                        Spacer(Modifier.width(8.dp))
-                                        io.candy.tick.ui.common.StarCount(count = CountFormat.format(info.stars))
-                                    }
-                                    io.candy.tick.ui.common.OwnerRepoLine(owner = info.owner, repo = info.repo)
+                    items(state.results.repositories, key = { it.githubId }) { info ->
+                        val pkg = state.resultPackages[info.githubId]
+                        val icon = rememberAppIconResult(pkg, refreshKey = iconRevision)
+                        io.candy.tick.ui.common.PressableCard(
+                            onClick = {
+                                val selected = if (pkg != null && icon?.bitmap != null) {
+                                    ResultIcon(info.githubId, pkg, icon)
+                                } else null
+                                onPick(info, selected)
+                            },
+                            modifier = Modifier.fillMaxWidth(),
+                        ) {
+                            Column(modifier = Modifier.padding(horizontal = 16.dp, vertical = 8.dp)) {
+                                RepoIdentityHeader(owner = info.owner, repo = info.repo, stars = info.stars) {
+                                    RepoAvatar(info.owner, repoAvatarIcon(pkg, icon), 48.dp, 12.dp)
                                 }
-                            }
-                            if (!info.description.isNullOrBlank()) {
-                                Spacer(Modifier.height(6.dp))
-                                Text(
-                                    text = info.description,
-                                    style = MiuixTheme.textStyles.body2,
-                                    color = MiuixTheme.colorScheme.onBackgroundVariant,
-                                    maxLines = 2,
-                                    overflow = TextOverflow.Ellipsis,
-                                )
+                                if (!info.description.isNullOrBlank()) {
+                                    Spacer(Modifier.height(6.dp))
+                                    Text(
+                                        text = info.description,
+                                        style = MiuixTheme.textStyles.body2,
+                                        color = MiuixTheme.colorScheme.onBackgroundVariant,
+                                        maxLines = 2,
+                                        overflow = TextOverflow.Ellipsis,
+                                    )
+                                }
                             }
                         }
                     }
+                    item(key = "search-end") {
+                        val label = if (state.results.isComplete) R.plurals.footer_search_complete else R.plurals.footer_search_results
+                        FooterText(label, state.results.repositories.size)
+                    }
                 }
-            }
-            item(key = "search-end") {
-                val label = if (state.results.isComplete) R.plurals.footer_search_complete else R.plurals.footer_search_results
-                FooterText(label, state.results.repositories.size)
             }
         }
         state.searched -> io.candy.tick.ui.common.StatusPage(
             // 无结果空态（搜索中/失败分支已在前排除）
             icon = ImageVector.vectorResource(R.drawable.ic_search),
-            compact = true,
             title = stringResource(R.string.add_search_empty),
             subtitle = stringResource(R.string.add_search_empty_hint),
             modifier = Modifier
-                .fillMaxWidth()
-                .padding(vertical = 24.dp),
+                .fillMaxSize().verticalScroll(rememberScrollState()).wrapContentHeight().padding(vertical = 16.dp),
         )
-        else -> Column(
-            // 初次进入的输入引导：说清两种输入方式（新用户不知道能粘链接/裸 owner/repo）
-            modifier = Modifier.fillMaxSize(),
-            horizontalAlignment = Alignment.CenterHorizontally,
-            verticalArrangement = Arrangement.Center,
-        ) {
-            top.yukonga.miuix.kmp.basic.Icon(
-                imageVector = ImageVector.vectorResource(R.drawable.ic_link),
-                contentDescription = null,
-                tint = MiuixTheme.colorScheme.onBackgroundVariant,
-            )
-            Spacer(Modifier.height(10.dp))
-            Text(
-                text = stringResource(R.string.add_guide_title),
-                style = MiuixTheme.textStyles.body2,
-                color = MiuixTheme.colorScheme.onBackgroundVariant,
-                textAlign = androidx.compose.ui.text.style.TextAlign.Center,
-            )
-            Spacer(Modifier.height(4.dp))
-            Text(
-                text = stringResource(R.string.add_guide_formats),
-                style = MiuixTheme.textStyles.footnote2,
-                color = MiuixTheme.colorScheme.onBackgroundVariant,
-                textAlign = androidx.compose.ui.text.style.TextAlign.Center,
-            )
-        }
+        state.parseError -> Unit
+        else -> io.candy.tick.ui.common.StatusPage(
+            icon = ImageVector.vectorResource(R.drawable.ic_link),
+            compact = true,
+            title = stringResource(R.string.add_guide_title),
+            subtitle = stringResource(R.string.add_guide_formats),
+            modifier = Modifier.fillMaxSize().verticalScroll(rememberScrollState()).wrapContentHeight().padding(vertical = 16.dp),
+        )
     }
 }
 
@@ -492,7 +483,7 @@ private fun PreviewSkeletonCard() {
             Spacer(Modifier.height(8.dp))
             SectionDivider()
             Spacer(Modifier.height(8.dp))
-            AppLinkRow(appIcon = null, onClick = null) {
+            AppLinkRow(appIcon = null, onClick = null, iconPending = true) {
                 Box(Modifier.width(96.dp).height(12.dp).background(block, RoundedCornerShape(4.dp)))
             }
             Spacer(Modifier.height(8.dp))
@@ -511,68 +502,30 @@ private fun PreviewSkeletonCard() {
     }
 }
 
-/**
- * 预览浮层三态的转场键：只随「相变」变，不随数据刷新变——
- * Loaded 以 githubId 为身份：点搜索结果直出的 info 来自 Search API（无 etag），
- * 静默校准回流的 info 来自 repos API（必带 etag）→ 实例必不等；此前 target=preview
- * 实例时每次进预览都会重放一次转场 = 卡片闪一下。自动关联落地（linked 变化）
- * 同理不重放，原位更新。错误相携 error：换了个错误值得重放。
- * 内容侧用安全转换读实时 state：实际发生的相变组合（Idle→Loading→Loaded/Failed
- * →…→Idle）里退场帧读到的是自身或空，不存在「退场帧渲染新态内容」的串台。
- */
-private sealed interface PreviewKey {
-    data object Idle : PreviewKey
-    data object Loading : PreviewKey
-    data class Failed(val error: io.candy.tick.data.SourceError) : PreviewKey
-    data class Loaded(val githubId: Long) : PreviewKey
-}
-
-private fun previewKeyOf(p: AddViewModel.PreviewState): PreviewKey = when (p) {
-    AddViewModel.PreviewState.Idle -> PreviewKey.Idle
-    AddViewModel.PreviewState.Loading -> PreviewKey.Loading
-    is AddViewModel.PreviewState.Failed -> PreviewKey.Failed(p.error)
-    is AddViewModel.PreviewState.Loaded -> PreviewKey.Loaded(p.info.githubId)
-}
-
 @Composable
 private fun PreviewCard(
-    // 当前 Loaded 态（AnimatedContent 相同相内原位更新；相变由 PreviewKey 控制）
     preview: AddViewModel.PreviewState.Loaded,
     state: AddViewModel.UiState,
+    resultIcon: ResultIcon?,
+    iconRevision: Int,
     onLinkApp: () -> Unit,
     onConfirm: () -> Unit,
 ) {
     val info = preview.info
     val scheme = MiuixTheme.colorScheme
-    val appIcon = io.candy.tick.ui.common.rememberAppIcon(preview.linkedPackage)
+    // Reuse the visible row's bitmap only for that same repository and local app.
+    val initialIcon = resultIcon?.takeIf { it.repoId == info.githubId && it.packageName == preview.linkedPackage }?.icon
+    val icon = rememberAppIconResult(preview.linkedPackage, initial = initialIcon, refreshKey = iconRevision)
     Card(modifier = Modifier.fillMaxWidth()) {
         // 与详情页头卡同一语言：身份区 → 信息组 → 分区线 → 关联/操作区；跨组 8（同档）
         Column(modifier = Modifier.padding(horizontal = 16.dp, vertical = 8.dp)) {
-            Row(verticalAlignment = Alignment.CenterVertically) {
-                // 图标 56/14 与详情头卡同档（此前默认 48/12——自称「同一语言」却差一档）
-                io.candy.tick.ui.common.LinkedRepoAvatar(info.owner, appIcon)
-                Spacer(Modifier.width(12.dp))
-                Column(modifier = Modifier.weight(1f)) {
-                    androidx.compose.foundation.layout.Row(
-                        verticalAlignment = Alignment.CenterVertically,
-                    ) {
-                        Text(
-                            text = info.repo,
-                            style = MiuixTheme.textStyles.title4,
-                            color = scheme.onBackground,
-                            maxLines = 1,
-                            overflow = TextOverflow.Ellipsis,
-                            modifier = Modifier.weight(1f, fill = false),
-                        )
-                        Spacer(Modifier.width(8.dp))
-                        // star 挪名称旁（与详情头卡同构）；名称截断时 star 恒可见
-                        io.candy.tick.ui.common.StarCount(count = CountFormat.format(info.stars))
-                    }
-                    io.candy.tick.ui.common.OwnerRepoLine(owner = info.owner, repo = info.repo)
-                }
-                // 维护状态徽章（与详情头卡同位：身份行最右）——订阅决策的核心信号；
-                // statusAt 基于 RepoSnapshot，经 toSnapshot() 判定（仅用 archived+pushedAt，无副作用）
-                io.candy.tick.ui.common.StatusBadge(status = info.toSnapshot().statusAt())
+            RepoIdentityHeader(
+                owner = info.owner,
+                repo = info.repo,
+                stars = info.stars,
+                badge = { io.candy.tick.ui.common.StatusBadge(info.toSnapshot().statusAt()) },
+            ) {
+                LinkedRepoAvatar(info.owner, repoAvatarIcon(preview.linkedPackage, icon, preview.matchingApp))
             }
 
             // 描述与详情头卡同款：body2 灰字 + 3 行截断（长描述不撑爆卡）
@@ -591,7 +544,8 @@ private fun PreviewCard(
             Spacer(Modifier.height(8.dp))
             if (preview.linkedPackage != null) {
                 AppLinkRow(
-                    appIcon = appIcon,
+                    appIcon = icon?.bitmap,
+                    iconPending = icon == null,
                     onClick = null,
                     onChangeApp = onLinkApp,
                 ) {
@@ -612,7 +566,7 @@ private fun PreviewCard(
                     }
                 }
             } else {
-                AppLinkRow(appIcon = null, onClick = onLinkApp) {
+                AppLinkRow(appIcon = null, onClick = onLinkApp, iconPending = preview.matchingApp) {
                     Text(
                         text = stringResource(R.string.detail_link_app),
                         style = MiuixTheme.textStyles.footnote1,
@@ -622,42 +576,16 @@ private fun PreviewCard(
             }
 
             Spacer(Modifier.height(8.dp))
-            // 主按钮单开关（180 柔切换）：重复订阅 =「打开已订阅的仓库」——
-            // 按钮文案自含状态语义（此前红条+按钮三层堆叠，与 CTA 胶囊挤在一起）；
-            // SizeTransform 显式 180：默认 spring 是尺寸动画暗桩（与 fade 同拍收敛）
-            androidx.compose.animation.AnimatedContent(
-                targetState = state.duplicate,
-                transitionSpec = {
-                    ((androidx.compose.animation.fadeIn(androidx.compose.animation.core.tween(Motion.PHASE))) togetherWith
-                        (androidx.compose.animation.fadeOut(androidx.compose.animation.core.tween(Motion.PHASE))))
-                        .using(
-                            androidx.compose.animation.SizeTransform(clip = false) { _, _ ->
-                                androidx.compose.animation.core.tween(Motion.PHASE)
-                            },
-                        )
+            PrimaryButton(
+                text = stringResource(if (state.duplicate) R.string.add_open_existing else R.string.add_confirm),
+                onClick = onConfirm,
+                modifier = Modifier.fillMaxWidth(),
+                busyText = when {
+                    !state.adding -> null
+                    preview.matchingApp -> stringResource(R.string.add_matching_app)
+                    else -> stringResource(R.string.add_saving)
                 },
-                label = "addPrimary",
-            ) { dup ->
-                if (dup) {
-                    PrimaryButton(
-                        text = stringResource(R.string.add_open_existing),
-                        onClick = onConfirm,
-                        modifier = Modifier.fillMaxWidth(),
-                        enabled = !state.adding,
-                    )
-                } else {
-                    PrimaryButton(
-                        text = stringResource(R.string.add_confirm),
-                        onClick = onConfirm,
-                        modifier = Modifier.fillMaxWidth(),
-                        busyText = when {
-                            state.adding -> stringResource(R.string.add_saving)
-                            preview.matchingApp -> stringResource(R.string.add_matching_app)
-                            else -> null
-                        },
-                    )
-                }
-            }
+            )
         }
     }
 }

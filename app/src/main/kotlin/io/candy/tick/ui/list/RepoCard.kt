@@ -34,7 +34,7 @@ import io.candy.tick.R
 import io.candy.tick.ui.common.InlineErrorRow
 import io.candy.tick.data.model.TrackedRepo
 import io.candy.tick.ui.common.InaccessibleBadge
-import io.candy.tick.ui.common.OwnerRepoLine
+import io.candy.tick.ui.common.RepoIdentityHeader
 import io.candy.tick.ui.common.StatusBadge
 import io.candy.tick.ui.common.VersionStatusLine
 import io.candy.tick.ui.common.relTimeString
@@ -92,19 +92,14 @@ fun RepoCard(
         },
     ) {
         Column(modifier = Modifier.padding(start = 16.dp, end = 16.dp, top = 8.dp)) {
-                Row(verticalAlignment = Alignment.CenterVertically) {
-                    io.candy.tick.ui.common.RepoIconBlock(repo = item.repo)
-                    Spacer(Modifier.width(12.dp))
-                    Column(modifier = Modifier.weight(1f)) {
-                        Text(
-                            text = item.repo.noteName ?: item.repo.repo,
-                            style = MiuixTheme.textStyles.title4,
-                            color = scheme.onBackground,
-                        )
-                        // 等宽标识符家族（与详情头卡路径/tag/sha 一致）
-                        io.candy.tick.ui.common.OwnerRepoLine(owner = item.repo.owner, repo = item.repo.repo)
-                    }
-                    if (item.error != null) InaccessibleBadge() else StatusBadge(item.status)
+                RepoIdentityHeader(
+                    owner = item.repo.owner,
+                    repo = item.repo.repo,
+                    title = item.repo.noteName ?: item.repo.repo,
+                    titleMaxLines = Int.MAX_VALUE,
+                    badge = { if (item.error != null) InaccessibleBadge() else StatusBadge(item.status) },
+                ) {
+                    io.candy.tick.ui.common.RepoIconBlock(repo = item.repo, installedVersion = item.installedVersion)
                 }
 
                 val expandPress = remember { MutableInteractionSource() }
@@ -285,7 +280,6 @@ private fun ExpandedDetails(
             extras.failed -> InlineErrorRow(
                 message = stringResource(R.string.card_details_failed),
                 onRetry = onRetry,
-                maxLines = Int.MAX_VALUE,
             )
         }
         if (extras?.load != ListViewModel.CardLoad.INITIAL) {

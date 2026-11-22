@@ -2,7 +2,6 @@ package io.candy.tick.ui.common
 
 import androidx.annotation.PluralsRes
 import androidx.compose.foundation.background
-import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.BoxWithConstraints
@@ -26,20 +25,19 @@ import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.res.pluralStringResource
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.res.vectorResource
-import androidx.compose.ui.semantics.Role
+import androidx.compose.ui.semantics.LiveRegionMode
+import androidx.compose.ui.semantics.liveRegion
+import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.LineBreak
 import androidx.compose.ui.text.style.TextAlign
-import androidx.compose.ui.text.style.TextDecoration
-import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.Dp
 import io.candy.tick.R
 import io.candy.tick.data.SourceError
 import top.yukonga.miuix.kmp.basic.Icon
 import top.yukonga.miuix.kmp.basic.Text
-import top.yukonga.miuix.kmp.basic.TextButton
 import top.yukonga.miuix.kmp.theme.MiuixTheme
 
 /** Inline recovery for repository cards. Measure the retry action before the message wraps. */
@@ -48,13 +46,12 @@ internal fun InlineErrorRow(
     message: String,
     onRetry: (() -> Unit)?,
     retryEnabled: Boolean = true,
-    maxLines: Int = 2,
 ) {
     val scheme = MiuixTheme.colorScheme
     Row(
         modifier = Modifier.fillMaxWidth()
             .background(scheme.errorContainer, RoundedCornerShape(12.dp))
-            .padding(horizontal = 12.dp, vertical = 10.dp),
+            .padding(start = 12.dp, end = if (onRetry == null) 12.dp else 4.dp),
         horizontalArrangement = Arrangement.spacedBy(8.dp),
         verticalAlignment = Alignment.CenterVertically,
     ) {
@@ -66,28 +63,15 @@ internal fun InlineErrorRow(
         )
         Text(
             text = message,
-            modifier = Modifier.weight(1f),
+            modifier = Modifier.weight(1f).padding(vertical = 10.dp)
+                .semantics { liveRegion = LiveRegionMode.Polite },
             style = MiuixTheme.textStyles.footnote1,
             color = scheme.onErrorContainer,
-            maxLines = maxLines,
-            overflow = TextOverflow.Ellipsis,
         )
         if (onRetry != null) {
-            val (source, color) = rememberRowPressTint(scheme.errorContainer)
-            Text(
-                text = stringResource(R.string.retry),
-                style = MiuixTheme.textStyles.footnote1.copy(textDecoration = TextDecoration.Underline),
-                color = scheme.onErrorContainer,
-                modifier = Modifier
-                    .background(color, RoundedCornerShape(8.dp))
-                    .clickable(
-                        enabled = retryEnabled,
-                        interactionSource = source,
-                        indication = null,
-                        role = Role.Button,
-                        onClick = onRetry,
-                    )
-                    .padding(horizontal = 8.dp, vertical = 4.dp),
+            ErrorBannerButton(
+                R.drawable.ic_refresh, R.string.retry, lerp(scheme.errorContainer, scheme.onErrorContainer, 0.09f),
+                onRetry, enabled = retryEnabled,
             )
         }
     }
@@ -100,13 +84,12 @@ internal fun InlineErrorRow(
  * 布局由调用方给：LazyColumn 里用 fillParentMaxHeight(0.45f)，
  * 普通容器里用 weight(1f)，弹层等紧凑场景用 [compact] + 固定纵向留白。
  *
- * @param icon 状态图标（空态传 File / 搜索传 Search 等；错误态通常传 Close）
- * @param isError 错误态着色（errorContainer 圆底 + 红 ✓）；否则中性圆底
- * @param compact 紧凑档：弹层 / 半屏场景用（40dp 圆、小间距）
+ * @param icon 空态按内容使用搜索、提交或版本图标；错误态默认使用信息图标。
+ * @param compact 紧凑档用于弹层和局部状态。
  */
 @Composable
 fun StatusPage(
-    icon: ImageVector?,
+    icon: ImageVector? = null,
     title: String,
     modifier: Modifier = Modifier,
     isError: Boolean = false,
@@ -114,16 +97,18 @@ fun StatusPage(
     subtitle: String? = null,
     actionLabel: String? = null,
     onAction: (() -> Unit)? = null,
+    actionEnabled: Boolean = true,
 ) {
     val scheme = MiuixTheme.colorScheme
+    val statusIcon = icon ?: if (isError) ImageVector.vectorResource(R.drawable.ic_info) else null
     val circle = if (compact) 40.dp else 48.dp
     val iconSize = if (compact) 18.dp else 22.dp
     Column(
-        modifier = modifier,
+        modifier = modifier.padding(horizontal = 16.dp),
         horizontalAlignment = Alignment.CenterHorizontally,
         verticalArrangement = Arrangement.Center,
     ) {
-        if (icon != null) {
+        if (statusIcon != null) {
             Box(
                 modifier = Modifier
                     .size(circle)
@@ -132,7 +117,7 @@ fun StatusPage(
                 contentAlignment = Alignment.Center,
             ) {
                 Icon(
-                    imageVector = icon,
+                    imageVector = statusIcon,
                     contentDescription = null,
                     tint = if (isError) scheme.onErrorContainer else scheme.onBackgroundVariant,
                     modifier = Modifier.size(iconSize),
@@ -140,24 +125,32 @@ fun StatusPage(
             }
             Spacer(Modifier.height(if (compact) 10.dp else 14.dp))
         }
-        Text(
-            text = title,
-            style = MiuixTheme.textStyles.title4,
-            color = scheme.onBackground,
-            textAlign = TextAlign.Center,
-        )
-        if (subtitle != null) {
-            Spacer(Modifier.height(4.dp))
+        Column(
+            modifier = Modifier.semantics(mergeDescendants = true) {
+                if (isError) liveRegion = LiveRegionMode.Polite
+            },
+            horizontalAlignment = Alignment.CenterHorizontally,
+            verticalArrangement = Arrangement.spacedBy(4.dp),
+        ) {
             Text(
-                text = subtitle,
-                style = MiuixTheme.textStyles.body2,
-                color = scheme.onBackgroundVariant,
+                text = title,
+                style = (if (compact) MiuixTheme.textStyles.body1 else MiuixTheme.textStyles.title4)
+                    .copy(fontWeight = FontWeight.Medium, lineBreak = LineBreak.Heading),
+                color = scheme.onBackground,
                 textAlign = TextAlign.Center,
             )
+            if (subtitle != null) {
+                Text(
+                    text = subtitle,
+                    style = if (compact) MiuixTheme.textStyles.footnote1 else MiuixTheme.textStyles.body2,
+                    color = scheme.onBackgroundVariant,
+                    textAlign = TextAlign.Center,
+                )
+            }
         }
         if (actionLabel != null && onAction != null) {
             Spacer(Modifier.height(if (compact) 8.dp else 12.dp))
-            TextButton(text = actionLabel, onClick = onAction)
+            SecondaryButton(text = actionLabel, onClick = onAction, enabled = actionEnabled)
         }
     }
 }
@@ -250,6 +243,7 @@ private fun ErrorBannerMessage(title: String, hint: String?, modifier: Modifier)
     Column(modifier, verticalArrangement = Arrangement.spacedBy(3.dp)) {
         Text(
             text = title,
+            modifier = Modifier.semantics { liveRegion = LiveRegionMode.Polite },
             style = MiuixTheme.textStyles.body2.copy(fontWeight = FontWeight.Medium, lineBreak = LineBreak.Heading),
             color = scheme.onErrorContainer,
         )
@@ -268,9 +262,10 @@ private fun ErrorBannerActions(onRetry: () -> Unit, onDismiss: () -> Unit, color
 }
 
 @Composable
-private fun ErrorBannerButton(icon: Int, label: Int, color: Color, onClick: () -> Unit) {
+private fun ErrorBannerButton(icon: Int, label: Int, color: Color, onClick: () -> Unit, enabled: Boolean = true) {
     PressIconButton(
         onClick = onClick,
+        enabled = enabled,
         contentDescription = stringResource(label),
         containerColor = color,
         tintInset = BannerButtonInset,
@@ -278,7 +273,7 @@ private fun ErrorBannerButton(icon: Int, label: Int, color: Color, onClick: () -
         Icon(
             imageVector = ImageVector.vectorResource(icon),
             contentDescription = null,
-            tint = MiuixTheme.colorScheme.onErrorContainer,
+            tint = MiuixTheme.colorScheme.onErrorContainer.copy(alpha = if (enabled) 1f else 0.38f),
             modifier = Modifier.size(20.dp),
         )
     }

@@ -65,6 +65,7 @@ import io.candy.tick.R
 import io.candy.tick.ui.common.ErrorBanner
 import io.candy.tick.ui.common.ScrollToTopTitle
 import io.candy.tick.ui.common.TextFieldActionButton
+import io.candy.tick.ui.common.clearTextFieldAction
 import io.candy.tick.ui.common.scrollToTop
 import top.yukonga.miuix.kmp.basic.Icon
 import top.yukonga.miuix.kmp.basic.MiuixScrollBehavior
@@ -195,11 +196,13 @@ fun ListScreen(
     var showSearch by androidx.compose.runtime.saveable.rememberSaveable { mutableStateOf(false) }
     val keyboard = androidx.compose.ui.platform.LocalSoftwareKeyboardController.current
     val searchFocus = remember { androidx.compose.ui.focus.FocusRequester() }
-    // 返回键先收起搜索（而非退出应用）——搜索态的标准返回语义
-    androidx.activity.compose.BackHandler(enabled = showSearch) {
+    val clearSearch = clearTextFieldAction(searchFocus) { vm.setQuery("") }
+    fun closeSearch() {
+        keyboard?.hide()
         vm.setQuery("")
         showSearch = false
     }
+    androidx.activity.compose.BackHandler(enabled = showSearch, onBack = ::closeSearch)
     val removedMsg = stringResource(R.string.removed)
     val undoLabel = stringResource(R.string.undo)
 
@@ -310,8 +313,7 @@ fun ListScreen(
                             }
                             io.candy.tick.ui.common.PressIconButton(
                                 onClick = {
-                                    if (showSearch) vm.setQuery("")
-                                    showSearch = !showSearch
+                                    if (showSearch) closeSearch() else showSearch = true
                                 },
                                 contentDescription = stringResource(
                                     if (showSearch) R.string.close_search else R.string.action_search,
@@ -409,7 +411,7 @@ fun ListScreen(
                             ),
                             // 非空清空钮（与添加页/分支/应用选择器同款：同组件同待遇）
                             trailingIcon = if (state.query.isNotEmpty()) {
-                                { TextFieldActionButton(onClick = { vm.setQuery("") }) }
+                                { TextFieldActionButton(onClick = clearSearch) }
                             } else null,
                             modifier = Modifier
                                 .fillMaxWidth()
@@ -441,10 +443,10 @@ fun ListScreen(
                             if (state.query.isNotBlank()) {
                                 io.candy.tick.ui.common.StatusPage(
                                     icon = ImageVector.vectorResource(R.drawable.ic_search),
-                                    title = stringResource(R.string.search_no_results, state.query),
+                                    title = stringResource(R.string.search_no_results),
                                     subtitle = stringResource(R.string.search_no_results_hint),
                                     actionLabel = stringResource(R.string.search_clear),
-                                    onAction = { vm.setQuery("") },
+                                    onAction = clearSearch.takeIf { showSearch },
                                     modifier = viewport,
                                 )
                             } else {

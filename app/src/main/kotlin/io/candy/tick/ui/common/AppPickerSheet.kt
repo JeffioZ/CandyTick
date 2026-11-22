@@ -18,8 +18,8 @@ import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
-import top.yukonga.miuix.kmp.basic.Text
-import top.yukonga.miuix.kmp.theme.MiuixTheme
+import androidx.compose.ui.graphics.vector.ImageVector
+import androidx.compose.ui.res.vectorResource
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.key
@@ -30,6 +30,8 @@ import androidx.compose.runtime.rememberUpdatedState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.focus.FocusRequester
+import androidx.compose.ui.focus.focusRequester
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.async
 import kotlinx.coroutines.withTimeoutOrNull
@@ -128,6 +130,7 @@ fun AppPickerSheet(
         val apps = result?.getOrNull().orEmpty()
         val searchable = apps.size > SEARCH_THRESHOLD
         var query by remember(page) { mutableStateOf("") }
+        val searchFocus = remember(page) { FocusRequester() }
         val keyword = query.trim()
         val filtered = remember(apps, keyword) {
             if (keyword.isEmpty()) apps else apps.filter {
@@ -157,11 +160,9 @@ fun AppPickerSheet(
             }
             if (result.isFailure) {
                 StatusPage(
-                    icon = null,
                     isError = true,
                     compact = true,
-                    title = stringResource(R.string.load_failed),
-                    subtitle = stringResource(R.string.status_error_subtitle),
+                    title = stringResource(R.string.apps_load_failed),
                     actionLabel = stringResource(R.string.retry),
                     onAction = { page.retry++ },
                     modifier = Modifier.fillMaxSize().verticalScroll(rememberScrollState()).wrapContentHeight(),
@@ -169,15 +170,14 @@ fun AppPickerSheet(
                 return@Column
             }
             if (apps.isEmpty()) {
-                Text(
-                    text = stringResource(R.string.picker_empty_apps),
-                    style = MiuixTheme.textStyles.footnote1,
-                    color = MiuixTheme.colorScheme.onBackgroundVariant,
+                StatusPage(
+                    icon = ImageVector.vectorResource(R.drawable.ic_package),
+                    title = stringResource(R.string.picker_empty_apps),
+                    compact = true,
                     modifier = Modifier
                         .fillMaxWidth()
-                        .then(if (page.fullHeight) Modifier.fillMaxSize().wrapContentHeight() else Modifier)
-                        .padding(vertical = 32.dp),
-                    textAlign = androidx.compose.ui.text.style.TextAlign.Center,
+                        .then(if (page.fullHeight) Modifier.fillMaxSize() else Modifier)
+                        .verticalScroll(rememberScrollState()).wrapContentHeight().padding(vertical = 24.dp),
                 )
                 return@Column
             }
@@ -188,11 +188,12 @@ fun AppPickerSheet(
                     label = stringResource(R.string.picker_search_app),
                     singleLine = true,
                     trailingIcon = if (query.isNotEmpty()) {
-                        { TextFieldActionButton(onClick = { filterApps("") }) }
+                        { TextFieldActionButton(onClick = clearTextFieldAction(searchFocus) { filterApps("") }) }
                     } else null,
                     modifier = Modifier
                         .fillMaxWidth()
-                        .padding(horizontal = 16.dp),
+                        .padding(horizontal = 16.dp)
+                        .focusRequester(searchFocus),
                 )
             }
             if (searchable && !scrollSearchField) searchField()
@@ -200,13 +201,11 @@ fun AppPickerSheet(
                 if (searchable && scrollSearchField) item(key = 0) { searchField() }
                 if (searchable && filtered.isEmpty()) {
                     item {
-                        Text(
-                            text = stringResource(R.string.picker_no_match),
-                            style = MiuixTheme.textStyles.footnote1,
-                            color = MiuixTheme.colorScheme.onBackgroundVariant,
-                            modifier = Modifier.fillMaxWidth().fillParentMaxHeight().wrapContentHeight()
-                                .padding(horizontal = 16.dp),
-                            textAlign = androidx.compose.ui.text.style.TextAlign.Center,
+                        StatusPage(
+                            icon = ImageVector.vectorResource(R.drawable.ic_search),
+                            title = stringResource(R.string.picker_no_match),
+                            compact = true,
+                            modifier = Modifier.fillMaxWidth().padding(vertical = 24.dp),
                         )
                     }
                 }

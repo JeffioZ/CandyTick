@@ -73,10 +73,8 @@ fun AppNavHost(
     fun openFromHome(key: NavKey) {
         if (backStack.lastOrNull() == RouteHome) backStack.add(key)
     }
-    fun close(key: NavKey) {
-        // pop 语义优先：正常路径（key 在栈顶）随返回转场退出；通知热启动叠栈时 key
-        // 非栈顶（此时无转场可言），退回精确移除以免破坏返回路径
-        if (backStack.lastOrNull() == key) backStack.removeLastOrNull() else backStack.remove(key)
+    fun goBackFrom(key: NavKey) {
+        if (backStack.size > 1 && backStack.last() == key) backStack.removeLastOrNull()
     }
     // 大屏/折叠屏适配（单点规则，全部页面共用）：背景全宽 + 内容列限宽 640dp 居中——
     // 手机（<600dp）与现状零差异；折叠展开/平板的行长落回可读区间（65-75 字符）。
@@ -93,7 +91,7 @@ fun AppNavHost(
                 rememberSaveableStateHolderNavEntryDecorator(),
                 rememberViewModelStoreNavEntryDecorator(),
             ),
-            onBack = { backStack.removeLastOrNull() },
+            onBack = { if (backStack.size > 1) backStack.removeLastOrNull() },
             // 覆盖式转场（Android/HyperOS 系统惯例）：新页 100% 不透明滑入、旧页 25% 视差
             // 平移、全程无 fade——两页任何瞬间都不互相透明，交叉淡化时代的顶栏按钮
             // 「残留/遮挡」物理消失。前置：每页自备不透明背景（entryProvider 内包裹）。
@@ -123,20 +121,23 @@ fun AppNavHost(
                                 onOpenSettings = { openFromHome(RouteSettings) },
                             )
                             RouteAdd -> AddScreen(
-                                onClose = { close(k) },
+                                onClose = { goBackFrom(k) },
                                 onAdded = { id ->
                                     // Completion may arrive during the outgoing animation after Back or a notification.
                                     val stillOnAdd = backStack.lastOrNull() == k
-                                    close(k)
-                                    if (stillOnAdd) backStack.add(RouteDetail(id))
+                                    if (stillOnAdd) backStack[backStack.lastIndex] = RouteDetail(id)
+                                    else backStack.remove(k)
                                 },
                             )
                             RouteSettings -> SettingsScreen(
-                                onBack = { close(k) },
+                                onBack = { goBackFrom(k) },
                             )
                             is RouteDetail -> DetailScreen(
                                 repoId = k.repoId,
-                                onBack = { close(k) },
+                                onBack = { goBackFrom(k) },
+                                onRemoved = {
+                                    backStack.removeAll { it is RouteDetail && it.repoId == k.repoId }
+                                },
                                 releaseRequestId = k.releaseRequestId,
                                 releaseTag = k.releaseTag,
                             )

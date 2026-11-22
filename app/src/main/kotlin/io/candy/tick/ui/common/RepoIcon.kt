@@ -2,6 +2,7 @@ package io.candy.tick.ui.common
 
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.offset
@@ -23,13 +24,19 @@ import androidx.compose.ui.graphics.ImageBitmap
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.vectorResource
+import androidx.compose.ui.semantics.clearAndSetSemantics
+import androidx.compose.ui.semantics.text
+import androidx.compose.ui.text.AnnotatedString
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.style.LineBreak
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import io.candy.tick.R
 import io.candy.tick.data.model.TrackedRepo
 import io.candy.tick.ui.theme.AvatarPalette
 import io.candy.tick.ui.theme.MonoTokenStyle
+import io.candy.tick.util.CountFormat
 import kotlin.math.abs
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
@@ -42,56 +49,70 @@ import top.yukonga.miuix.kmp.theme.MiuixTheme
  * 已关联本机应用 → 真 APP 图标；未关联 → 首字母块（owner hash 8 色环，135° 渐变）。
  */
 @Composable
-fun RepoIconBlock(owner: String, linkedPackage: String?, size: Dp = 48.dp, corner: Dp = 12.dp) {
-    RepoAvatar(owner, rememberAppIcon(linkedPackage), size, corner)
+fun RepoIconBlock(repo: TrackedRepo, installedVersion: String?, size: Dp = 48.dp, corner: Dp = 12.dp) {
+    val pkg = repo.linkedPackage
+    RepoAvatar(repo.owner, repoAvatarIcon(pkg, rememberAppIconResult(pkg, refreshKey = installedVersion)), size, corner)
 }
 
 @Composable
-internal fun RepoAvatar(owner: String, bitmap: ImageBitmap?, size: Dp, corner: Dp) {
-    if (bitmap != null) AppIconImage(bitmap = bitmap, size = size, corner = corner)
-    else AvatarBlock(owner = owner, size = size, corner = corner)
+internal fun RepoAvatar(owner: String, icon: AppIconResult?, size: Dp, corner: Dp) {
+    when {
+        icon == null -> Box(
+            Modifier.size(size).background(MiuixTheme.colorScheme.secondaryVariant, RoundedCornerShape(corner)),
+        )
+        icon.bitmap != null -> AppIconImage(bitmap = icon.bitmap, size = size, corner = corner)
+        else -> AvatarBlock(owner = owner, size = size, corner = corner)
+    }
 }
 
 @Composable
-internal fun LinkedRepoAvatar(owner: String, bitmap: ImageBitmap?) {
+internal fun LinkedRepoAvatar(owner: String, icon: AppIconResult?) {
     if (rememberMotionEnabled()) {
-        Crossfade(targetState = bitmap, animationSpec = tween(Motion.PHASE), label = "linkedAvatar") {
+        Crossfade(targetState = icon, animationSpec = tween(Motion.PHASE), label = "linkedAvatar") {
             RepoAvatar(owner, it, 56.dp, 14.dp)
         }
     } else {
-        RepoAvatar(owner, bitmap, 56.dp, 14.dp)
+        RepoAvatar(owner, icon, 56.dp, 14.dp)
     }
 }
 
 /** A completed lookup may have no icon if the app has been uninstalled. */
-internal data class AppIconResult(val bitmap: ImageBitmap?)
+internal data class AppIconResult(val bitmap: ImageBitmap?, val lastUpdateTime: Long? = null)
+
+private val ownerAvatar = AppIconResult(null)
+
+/** Null reserves the avatar slot while its identity or bitmap is still being resolved. */
+internal fun repoAvatarIcon(packageName: String?, result: AppIconResult?, matching: Boolean = false): AppIconResult? =
+    if (packageName == null && !matching) ownerAvatar else result
 
 /** 可见行才查询图标；包切换时先清空上一应用的位图。 */
 @Composable
 fun rememberAppIcon(packageName: String?): ImageBitmap? = rememberAppIconResult(packageName)?.bitmap
 
 @Composable
-internal fun rememberAppIconResult(packageName: String?): AppIconResult? {
+internal fun rememberAppIconResult(
+    packageName: String?,
+    initial: AppIconResult? = null,
+    refreshKey: Any? = null,
+): AppIconResult? {
     if (packageName == null) return null
     val context = LocalContext.current
     return key(context, packageName) {
-        produceState<AppIconResult?>(null) {
+        produceState(initial, refreshKey) {
+            val previous = value
             value = withContext(Dispatchers.IO) {
-                val bitmap = try {
-                    context.packageManager.getApplicationIcon(packageName).toImageBitmap()
+                try {
+                    val pm = context.packageManager
+                    val info = pm.getPackageInfo(packageName, 0)
+                    if (previous?.bitmap != null && previous.lastUpdateTime == info.lastUpdateTime) previous
+                    else AppIconResult(info.applicationInfo?.loadIcon(pm)?.toImageBitmap(), info.lastUpdateTime)
                 } catch (_: Exception) {
-                    null
+                    ownerAvatar
                 }
-                AppIconResult(bitmap)
             }
         }.value
     }
 }
-
-/** TrackedRepo 便利重载 */
-@Composable
-fun RepoIconBlock(repo: TrackedRepo, size: Dp = 48.dp, corner: Dp = 12.dp) =
-    RepoIconBlock(owner = repo.owner, linkedPackage = repo.linkedPackage, size = size, corner = corner)
 
 /**
  * star + 计数（详情头卡/搜索卡/预览卡名称行尾共用）：12dp 星标 + 3dp + footnote1 数字。
@@ -102,7 +123,7 @@ fun RepoIconBlock(repo: TrackedRepo, size: Dp = 48.dp, corner: Dp = 12.dp) =
 private val STAR_OPTICAL_NUDGE = 0.5.dp
 
 @Composable
-fun StarCount(count: String, modifier: Modifier = Modifier) {
+private fun StarCount(count: String, modifier: Modifier = Modifier) {
     val tint = MiuixTheme.colorScheme.onBackgroundVariant
     Row(
         verticalAlignment = Alignment.CenterVertically,
@@ -123,14 +144,56 @@ fun StarCount(count: String, modifier: Modifier = Modifier) {
     }
 }
 
-/** owner/repo 等宽标识行（首页卡/搜索卡/预览卡/详情头卡身份区共用）：MonoTokenStyle + 灰字 */
+/** The badge shares the title line. The path can use all the space beside the avatar. */
 @Composable
-fun OwnerRepoLine(owner: String, repo: String) {
-    Text(
-        text = "$owner/$repo",
-        style = MonoTokenStyle,
-        color = MiuixTheme.colorScheme.onBackgroundVariant,
-    )
+internal fun RepoIdentityHeader(
+    owner: String,
+    repo: String,
+    title: String = repo,
+    stars: Int? = null,
+    titleMaxLines: Int = 1,
+    badge: (@Composable () -> Unit)? = null,
+    avatar: @Composable () -> Unit,
+) {
+    Row(verticalAlignment = Alignment.CenterVertically) {
+        avatar()
+        Spacer(Modifier.width(12.dp))
+        Column(Modifier.weight(1f)) {
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                Row(Modifier.weight(1f), verticalAlignment = Alignment.CenterVertically) {
+                    Text(
+                        text = title,
+                        style = MiuixTheme.textStyles.title4,
+                        color = MiuixTheme.colorScheme.onBackground,
+                        maxLines = titleMaxLines,
+                        overflow = TextOverflow.Ellipsis,
+                        modifier = Modifier.weight(1f, fill = false),
+                    )
+                    if (stars != null) {
+                        Spacer(Modifier.width(8.dp))
+                        StarCount(CountFormat.format(stars))
+                    }
+                }
+                badge?.invoke()
+            }
+            val path = remember(owner, repo) { AnnotatedString("$owner/$repo") }
+            val displayPath = remember(path) {
+                // Android may move a whole slug past the slash. Offer breaks between its parts.
+                buildString {
+                    for (ch in path.text) {
+                        append(ch)
+                        if (ch == '-' || ch == '_' || ch == '.') append('\u200B')
+                    }
+                }
+            }
+            Text(
+                text = displayPath,
+                style = MonoTokenStyle.copy(lineBreak = LineBreak.Simple),
+                color = MiuixTheme.colorScheme.onBackgroundVariant,
+                modifier = Modifier.clearAndSetSemantics { text = path },
+            )
+        }
+    }
 }
 
 @Composable

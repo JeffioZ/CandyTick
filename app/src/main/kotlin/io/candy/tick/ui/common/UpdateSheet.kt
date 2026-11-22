@@ -1,10 +1,8 @@
 package io.candy.tick.ui.common
 
 import androidx.compose.animation.togetherWith
-import androidx.compose.foundation.background
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
-import androidx.compose.ui.draw.clip
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.BoxWithConstraints
 import androidx.compose.foundation.layout.Column
@@ -25,6 +23,7 @@ import androidx.compose.runtime.key
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
+import androidx.compose.runtime.rememberUpdatedState
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -36,6 +35,7 @@ import io.candy.tick.R
 import io.candy.tick.data.SelfUpdater
 import io.candy.tick.ui.theme.MonoTokenStyle
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import java.io.File
 import kotlinx.coroutines.launch
 import top.yukonga.miuix.kmp.basic.Text
 import top.yukonga.miuix.kmp.theme.MiuixTheme
@@ -70,6 +70,11 @@ fun UpdateSheet(
     var show by remember { mutableStateOf(false) }
     var dismissedTag by remember { mutableStateOf<String?>(null) }
     val scope = rememberCoroutineScope()
+    val openInstaller by rememberUpdatedState(autoInstall)
+
+    fun installDownloadIfEnabled(file: File?) {
+        if (file != null && openInstaller) selfUpdater.install(file)
+    }
 
     val release = state as? SelfUpdater.State.NewVersion
     LaunchedEffect(UpdateSheetController.manualRequest, release) {
@@ -129,6 +134,10 @@ fun UpdateSheet(
                 },
                 label = "updatePhase",
             ) { phase ->
+                // An outgoing phase stays composed during the fade and may still receive a tap.
+                fun runAction(action: suspend () -> Unit) {
+                    scope.launch { if (show && selfUpdater.state.value == phase) action() }
+                }
                 val sectionGap = 10.dp
                 val linkAtBottom = phase is SelfUpdater.State.NewVersion && phase.asset == null
                 Column(
@@ -190,13 +199,7 @@ fun UpdateSheet(
                             } else {
                                 PrimaryButton(
                                     text = stringResource(R.string.download_update_action),
-                                    onClick = {
-                                        scope.launch {
-                                            val file = selfUpdater.download(s.asset)
-                                            // 与仓库 APK 同一行为：下载完成按开关自动进安装
-                                            if (file != null && autoInstall) selfUpdater.install(file)
-                                        }
-                                    },
+                                    onClick = { runAction { installDownloadIfEnabled(selfUpdater.download(s.asset)) } },
                                     modifier = Modifier.fillMaxWidth(),
                                 )
                             }
@@ -211,16 +214,15 @@ fun UpdateSheet(
                             )
                             PrimaryButton(
                                 text = stringResource(R.string.settings_install_update),
-                                onClick = { selfUpdater.install(phase.file) },
+                                onClick = { runAction { selfUpdater.install(phase.file) } },
                                 modifier = Modifier.fillMaxWidth(),
                             )
                         }
                         is SelfUpdater.State.Failed -> {
                             val f = phase
                             // 失败相（此前是空白 + 弹窗只剩标题）：错误条 + 对应出路
-                            val scheme = MiuixTheme.colorScheme
-                            Text(
-                                text = when (f.reason) {
+                            InlineErrorRow(
+                                message = when (f.reason) {
                                     SelfUpdater.Reason.INSTALL ->
                                         stringResource(R.string.self_update_install_failed_note)
                                     SelfUpdater.Reason.DOWNLOAD ->
@@ -228,28 +230,26 @@ fun UpdateSheet(
                                     SelfUpdater.Reason.NETWORK ->
                                         stringResource(R.string.settings_update_failed)
                                 },
-                                style = MiuixTheme.textStyles.footnote1,
-                                color = scheme.onErrorContainer,
-                                modifier = Modifier
-                                    .fillMaxWidth()
-                                    .clip(androidx.compose.foundation.shape.RoundedCornerShape(12.dp))
-                                    .background(scheme.errorContainer)
-                                    .padding(horizontal = 12.dp, vertical = 10.dp),
+                                onRetry = null,
                             )
                             when (f.reason) {
                                 // 下载失败：文件已清理，重试从零下
                                 SelfUpdater.Reason.DOWNLOAD -> PrimaryButton(
                                     text = stringResource(R.string.retry),
-                                    onClick = { scope.launch { selfUpdater.retryDownload() } },
+                                    onClick = { runAction { installDownloadIfEnabled(selfUpdater.retryDownload()) } },
                                     modifier = Modifier.fillMaxWidth(),
                                 )
                                 // 安装失败：安装包已保留，直接重装
                                 SelfUpdater.Reason.INSTALL -> PrimaryButton(
                                     text = stringResource(R.string.settings_install_update),
-                                    onClick = { f.file?.let(selfUpdater::install) },
+                                    onClick = { runAction { f.file?.let(selfUpdater::install) } },
                                     modifier = Modifier.fillMaxWidth(),
                                 )
-                                else -> Unit
+                                SelfUpdater.Reason.NETWORK -> PrimaryButton(
+                                    text = stringResource(R.string.retry),
+                                    onClick = { runAction { selfUpdater.check() } },
+                                    modifier = Modifier.fillMaxWidth(),
+                                )
                             }
                         }
                         SelfUpdater.State.Checking -> Row(
