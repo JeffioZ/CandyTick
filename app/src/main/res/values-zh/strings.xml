@@ -9,6 +9,14 @@
 
     <!-- 通用 -->
     <string name="retry">重试</string>
+    <string name="save_failed">更改未能保存</string>
+    <string name="save_failed_hint">最近的订阅或设置更改可能在退出应用后丢失。请检查设备的可用空间，然后重试。</string>
+    <string name="save_retrying">正在保存更改…</string>
+    <string name="save_retry_failed">重试后仍未保存</string>
+    <string name="save_retry_later">稍后重试</string>
+    <string name="changes_saved">更改已保存</string>
+    <string name="state_load_failed">暂时无法读取订阅和设置</string>
+    <string name="state_load_hint">请确认设备存储可用，再点「重试」读取本机数据。</string>
     <string name="refresh_pull">下拉刷新</string>
     <string name="refresh_release">松开刷新</string>
     <string name="refresh_refreshing">正在刷新</string>
@@ -163,6 +171,9 @@
     <string name="branch_search_hint">搜索分支</string>
     <string name="branch_no_match">没有匹配的分支</string>
     <string name="branch_empty">这个仓库还没有分支</string>
+    <string name="branch_load_more">加载更多分支</string>
+    <string name="branch_search_next">在下一页继续搜索</string>
+    <string name="branch_removed_hint">这个分支已不可用，点按可切回默认分支</string>
 
     <!-- 添加页 -->
     <string name="add_input_hint">粘贴链接或搜索仓库</string>
@@ -185,6 +196,8 @@
     <!-- 详情页 -->
     <string name="detail_commits">提交历史</string>
     <string name="detail_releases">版本历史</string>
+    <string name="detail_commits_short">提交</string>
+    <string name="detail_releases_short">版本</string>
     <string name="detail_no_commits">暂无提交记录</string>
     <string name="detail_history_changed">历史记录已更新，下拉刷新可继续浏览</string>
     <string name="detail_no_releases">尚未发布版本</string>
@@ -245,7 +258,9 @@
     <string name="notif_channel_update">CandyTick 更新</string>
     <string name="notif_channel_update_desc">CandyTick 更新下载完成后提醒安装</string>
     <string name="notif_new_release">新版本：%1$s</string>
-    <string name="notif_updates_summary">%1$d 个仓库有新版本</string>
+    <plurals name="notif_updates_summary">
+        <item quantity="other">%1$d 个仓库有新版本</item>
+    </plurals>
     <string name="notif_update_ready_title">CandyTick 更新</string>
     <string name="notif_update_ready">版本 %1$s 已下载，可在 CandyTick 设置中安装。</string>
     <string name="notif_channel_sync">后台同步</string>
@@ -264,7 +279,7 @@
     <string name="search_clear">清除搜索</string>
     <string name="settings_backup_group">数据</string>
     <string name="settings_export">导出订阅</string>
-    <string name="settings_export_summary">复制备份并打开分享菜单</string>
+    <string name="settings_export_summary">分享 JSON 备份，较小的备份也会复制到剪贴板</string>
     <string name="settings_import">导入订阅</string>
     <string name="settings_import_summary">从文件或剪贴板导入备份</string>
     <plurals name="import_result">
@@ -277,8 +292,8 @@
     <string name="settings_theme_mode">主题</string>
     <string name="settings_sync_and_notify">同步与通知</string>
     <string name="settings_sync_frequency">同步频率</string>
-    <string name="settings_sync_wifi_only">仅 Wi-Fi 同步</string>
-    <string name="settings_sync_wifi_only_summary">只影响自动同步</string>
+    <string name="settings_sync_wifi_only">按流量计费时暂停自动同步</string>
+    <string name="settings_sync_wifi_only_summary">使用移动数据时，仍可下拉刷新</string>
     <string name="settings_token_row">GitHub 令牌</string>
     <string name="settings_token_hint_short">可提高 API 请求上限</string>
     <string name="token_input_hint">粘贴令牌</string>
@@ -298,7 +313,7 @@
     <string name="download_update_action">下载更新</string>
     <string name="settings_auto_install">下载后打开安装程序</string>
     <string name="settings_auto_install_summary">仓库安装包和本应用更新</string>
-    <string name="token_verified">令牌已验证并保存</string>
+    <string name="token_verified">令牌已验证</string>
     <string name="token_invalid_short">令牌无效，请检查后重试。</string>
     <string name="token_network_error">无法验证令牌，请检查网络后重试。</string>
     <string name="settings_token_rejected">GitHub 未接受此令牌（401），已改为匿名访问。</string>

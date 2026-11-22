@@ -88,20 +88,25 @@ private fun Modifier.statusSemantics(label: String?, busy: Boolean): Modifier =
 
 /** Hide brief operations during navigation. Once visible, allow one readable beat. */
 @Composable
-internal fun rememberBusyIndicator(running: Boolean): Boolean {
-    var visible by remember { mutableStateOf(false) }
-    var shownAt by remember { mutableLongStateOf(0L) }
-    LaunchedEffect(running) {
-        if (running && !visible) {
-            delay(BusyRevealDelayMillis)
-            shownAt = SystemClock.uptimeMillis()
-            visible = true
-        } else if (!running && visible) {
-            waitForMinimumDisplay(shownAt)
-            visible = false
+internal fun rememberBusyIndicator(running: Boolean): Boolean =
+    rememberBusyValue(true.takeIf { running }) != null
+
+@Composable
+internal fun <T : Any> rememberBusyValue(value: T?): T? {
+    var shown by remember { mutableStateOf<T?>(null) }
+    if (value != null || shown != null) {
+        var shownAt by remember { mutableLongStateOf(0L) }
+        LaunchedEffect(value) {
+            if (value == null) {
+                waitForMinimumDisplay(shownAt)
+            } else if (shown == null) {
+                delay(BusyRevealDelayMillis)
+                shownAt = SystemClock.uptimeMillis()
+            }
+            shown = value
         }
     }
-    return visible
+    return shown
 }
 
 private suspend fun waitForMinimumDisplay(shownAt: Long) {

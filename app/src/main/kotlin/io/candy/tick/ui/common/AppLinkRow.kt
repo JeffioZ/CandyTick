@@ -25,7 +25,7 @@ import io.candy.tick.R
 import top.yukonga.miuix.kmp.basic.Icon
 import top.yukonga.miuix.kmp.theme.MiuixTheme
 
-private val LinkActionSize = 44.dp
+private val LinkActionSize = 48.dp
 
 @Composable
 internal fun AppLinkRow(
@@ -74,14 +74,16 @@ internal fun AppLinkRow(
                 contentDescription = stringResource(
                     if (suggested) R.string.detail_link_app_other else R.string.detail_link_change,
                 ),
-                size = LinkActionSize,
+                tintInset = 6.dp,
+                containerColor = surface,
             ) { LinkGlyph(if (suggested) R.drawable.ic_more else R.drawable.ic_link) }
         }
         if (onUnlink != null) {
             PressIconButton(
                 onClick = onUnlink,
                 contentDescription = stringResource(R.string.detail_unlink),
-                size = LinkActionSize,
+                tintInset = 6.dp,
+                containerColor = surface,
             ) {
                 LinkGlyph(R.drawable.ic_unlink)
             }

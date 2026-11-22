@@ -1,5 +1,13 @@
 package io.candy.tick.ui.common
 
+import androidx.compose.animation.AnimatedContentTransitionScope
+import androidx.compose.animation.ContentTransform
+import androidx.compose.animation.SizeTransform
+import androidx.compose.animation.core.tween
+import androidx.compose.animation.fadeIn
+import androidx.compose.animation.fadeOut
+import androidx.compose.animation.slideInVertically
+import androidx.compose.animation.togetherWith
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.CompositionLocalProvider
@@ -46,6 +54,14 @@ object Motion {
     /** 进出场 slide/expand 的减速曲线（miuix 官方 anim 包，HyperOS 落位手感） */
     val Decelerate = DecelerateEasing()
 
+}
+
+internal fun <S> AnimatedContentTransitionScope<S>.downloadActionTransition(
+    duration: Int = Motion.PHASE,
+    clip: Boolean = false,
+): ContentTransform {
+    val enter = fadeIn(tween(duration)) + slideInVertically(tween(duration)) { it / 6 }
+    return (enter togetherWith fadeOut(tween(duration))).using(SizeTransform(clip = clip) { _, _ -> tween(duration) })
 }
 
 private val LocalMotionEnabled = compositionLocalOf { true }

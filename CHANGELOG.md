@@ -27,6 +27,7 @@
 
 - 首页的五种排序都支持反向排列。再次点选当前排序方式即可切换方向，已置顶的仓库仍排在前面。
 - 长按详情页右上角的地球图标，可复制仓库网址。
+- 订阅或设置保存失败时，可以直接重试，也可以稍后从页面顶部重试。
 
 ### 优化
 
@@ -35,6 +36,7 @@
 - 离开详情页后，安装包会继续下载，返回即可查看进度。分包文件保留原扩展名，方便用兼容的安装程序打开。
 - 再次查看最近打开的仓库时，先显示上次的历史记录。刷新较慢时，列表在原位淡入占位。开始浏览后，内容保持可读。手动下拉时，仓库概况和历史记录随「刷新完成」一起更新。
 - 搜索本机应用时，面板高度保持稳定。
+- 分支选择器支持继续加载下一页。详情页空间不足时，提交和版本页签会一起改用短名称。
 - 仓库卡片为完整路径留出更多宽度，长名称可在连字符等分隔处换行。清空搜索框后可直接继续输入。
 - 已关联仓库在搜索结果和预览中显示同一个本机应用图标。首次匹配本机应用时，也可以直接点「添加仓库」。
 - 关闭仓库预览会回到原来的搜索位置。通过链接打开预览时，返回后可继续编辑链接或按「搜索」重新打开。
@@ -47,6 +49,7 @@
 
 ### 修复
 
+- 启动时暂时读不到本机数据，可以重新读取。大型订阅备份会以 JSON 文件分享。
 - CandyTick 自身更新下载失败后，重试成功也会按「下载后打开安装程序」的设置处理。
 - 手动取消应用关联后，重启 CandyTick 仍会记住这个选择。卸载已关联的应用后，CandyTick 会在下次检查时解除关联。
 - 粘贴较长的 GitHub 令牌时，输入框会保留完整内容。
@@ -58,6 +61,8 @@
 
 ### English summary
 
+- Retry unsaved subscription or settings changes immediately or from the banner later. If stored data is temporarily unavailable at startup, you can retry loading it. Large backups are shared as JSON files.
+- Load more branches from the branch picker. The history tabs use shorter labels when space is tight.
 - Tap the selected sort option again to reverse the order. Pinned repositories stay at the top. Recent activity includes commits on the selected branch and releases with installable packages. Refreshing or pinning a repository keeps the card you’re reading in view where possible.
 - Open a notification for a single repository to go to that release. Only that release is marked as read. Update availability still depends on the installed version.
 - Downloads continue after you leave the details page. Split packages keep their original extensions. After installation, CandyTick cleans up the matching APK and checks for stale update notifications.

@@ -1,5 +1,7 @@
 package io.candy.tick.ui.detail
 
+import io.candy.tick.data.RepoDownloadState
+import io.candy.tick.data.model.DownloadedApk
 import android.os.Build
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
@@ -11,7 +13,6 @@ import top.yukonga.miuix.kmp.basic.Icon
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxWidth
-import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
@@ -19,7 +20,7 @@ import androidx.compose.foundation.lazy.LazyListScope
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.background
-import androidx.compose.animation.togetherWith
+import io.candy.tick.ui.common.downloadActionTransition
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.State
@@ -71,8 +72,8 @@ fun LazyListScope.releaseList(
     onRead: (String) -> Unit,
     onDownload: (ReleaseRecord, ApkAsset) -> Unit,
     onRetry: (ReleaseRecord, ApkAsset) -> Unit,
-    onInstallDownloaded: () -> Unit,
-    onDeleteDownloaded: () -> Unit,
+    onInstallDownloaded: (DownloadedApk) -> Unit,
+    onDeleteDownloaded: (DownloadedApk) -> Unit,
     onCancelDownload: () -> Unit,
 ) {
     items(
@@ -97,7 +98,7 @@ fun LazyListScope.releaseList(
             onRetry = onRetry,
             onInstallDownloaded = {
                 onRead(release.tagName)
-                onInstallDownloaded()
+                onInstallDownloaded(it)
             },
             onDeleteDownloaded = onDeleteDownloaded,
             onCancelDownload = onCancelDownload,
@@ -130,8 +131,8 @@ private fun ReleaseCard(
     onSelectAsset: (String, ApkAsset) -> Unit,
     onDownload: (ReleaseRecord, ApkAsset) -> Unit,
     onRetry: (ReleaseRecord, ApkAsset) -> Unit,
-    onInstallDownloaded: () -> Unit,
-    onDeleteDownloaded: () -> Unit,
+    onInstallDownloaded: (DownloadedApk) -> Unit,
+    onDeleteDownloaded: (DownloadedApk) -> Unit,
     onCancelDownload: () -> Unit,
 ) {
     val scheme = MiuixTheme.colorScheme
@@ -238,9 +239,12 @@ private fun ReleaseCard(
                 val dl = state.download
                 val mine = dl != null && dl.releaseKey == release.tagName &&
                     dl.assetName == selected?.name
+                val downloaded = state.repo?.downloadedApk?.takeIf {
+                    it.version == release.tagName && it.displayAssetName == selected?.name
+                }
                 val actionPhase = when {
-                    state.repo?.downloadedApk?.let { it.version == release.tagName && it.displayAssetName == selected?.name } == true -> "downloaded"
                     dl is RepoDownloadState.Active && dl.releaseKey == release.tagName && !dl.fromHeader -> "progress"
+                    downloaded != null -> "downloaded"
                     mine && dl is RepoDownloadState.Failed -> "failed"
                     else -> "download"
                 }
@@ -250,20 +254,10 @@ private fun ReleaseCard(
                 androidx.compose.animation.AnimatedContent(
                     targetState = actionPhase to dl,
                     contentKey = { it.first },
-                    transitionSpec = {
-                        ((androidx.compose.animation.fadeIn(androidx.compose.animation.core.tween(Motion.PHASE)) +
-                            androidx.compose.animation.slideInVertically(
-                                animationSpec = androidx.compose.animation.core.tween(Motion.PHASE),
-                            ) { it / 6 }) togetherWith
-                            androidx.compose.animation.fadeOut(androidx.compose.animation.core.tween(Motion.PHASE)))
-                            .using(
-                                androidx.compose.animation.SizeTransform(clip = false) { _, _ ->
-                                    androidx.compose.animation.core.tween(Motion.PHASE)
-                                },
-                            )
-                    },
+                    transitionSpec = { downloadActionTransition() },
                     label = "releaseAction",
                 ) { (phase, transfer) ->
+                    val current = phase == actionPhase
                     when (phase) {
                         "downloaded" -> Row(
                             modifier = Modifier.fillMaxWidth(),
@@ -273,7 +267,8 @@ private fun ReleaseCard(
                             Box(modifier = Modifier.weight(1f)) {
                                 PrimaryButton(
                                     text = stringResource(R.string.install_apk),
-                                    onClick = onInstallDownloaded,
+                                    onClick = { downloaded?.let(onInstallDownloaded) },
+                                    enabled = current,
                                     modifier = Modifier.fillMaxWidth(),
                                 )
                             }
@@ -281,7 +276,8 @@ private fun ReleaseCard(
                             // （用户反馈「按两次才按到」→升 48 并加按压多态）；
                             // 红色保留——删除已下载安装包是破坏性动作（destructive-emphasis）
                             io.candy.tick.ui.common.PressIconButton(
-                                onClick = onDeleteDownloaded,
+                                onClick = { downloaded?.let(onDeleteDownloaded) },
+                                enabled = current,
                                 contentDescription = stringResource(R.string.detail_delete_download),
                             ) {
                                 top.yukonga.miuix.kmp.basic.Icon(
@@ -298,11 +294,13 @@ private fun ReleaseCard(
                                 progress = active.progress,
                                 sizeBytes = candidates.find { it.name == active.assetName }?.size ?: 0L,
                                 onCancel = onCancelDownload,
+                                cancelEnabled = current,
                             )
                         }
                         "failed" -> InlineErrorRow(
                             message = downloadFailureText(transfer as? RepoDownloadState.Failed),
                             onRetry = { selected?.let { onRetry(release, it) } },
+                            retryEnabled = current,
                         )
                         else -> {
                             val sel = selected
@@ -310,7 +308,7 @@ private fun ReleaseCard(
                                 PrimaryButton(
                                     text = stringResource(R.string.download_apk),
                                     onClick = { onDownload(release, sel) },
-                                    enabled = dl !is RepoDownloadState.Active,
+                                    enabled = current && dl !is RepoDownloadState.Active,
                                     modifier = Modifier.fillMaxWidth(),
                                 )
                             } else {

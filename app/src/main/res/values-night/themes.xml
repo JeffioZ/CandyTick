@@ -9,6 +9,5 @@
         <item name="windowSplashScreenBackground">@color/candy_splash_bg_dark</item>
         <item name="windowSplashScreenAnimatedIcon">@drawable/ic_launcher_fg</item>
         <item name="postSplashScreenTheme">@style/Theme.CandyTick</item>
-        <item name="android:windowBackground">@color/candy_splash_bg_dark</item>
     </style>
 </resources>

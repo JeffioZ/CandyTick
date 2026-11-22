@@ -8,11 +8,11 @@ import androidx.compose.runtime.State
 import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.buildAnnotatedString
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.text.withStyle
 import androidx.compose.ui.unit.dp
+import io.candy.tick.ui.common.rememberExternalUriHandler
 import io.candy.tick.ui.common.RelTimeText
 import io.candy.tick.ui.theme.MonoTokenStyle
 import top.yukonga.miuix.kmp.basic.Text
@@ -36,9 +36,7 @@ fun LazyListScope.commitList(
     ) { index ->
         val commit = state.commits[index]
         val title = remember(commit.message) { commitTitlePreview(commit.message) }
-        val context = androidx.compose.ui.platform.LocalContext.current
-        // 组合期取串（lint LocalContextGetResourceValueCall）：回调里查资源不随配置刷新
-        val openFailed = stringResource(io.candy.tick.R.string.open_failed)
+        val links = rememberExternalUriHandler()
         HistoryCard(
             modifier = refreshItemMotion(animateRefreshChanges).then(contentModifier),
             tab = DetailViewModel.DetailTab.COMMITS,
@@ -46,16 +44,7 @@ fun LazyListScope.commitList(
             mask = refreshMask,
             blocked = blockMaskedActions,
             // 点击跳 GitHub 查 diff/详情（GitHub app 同款延伸）；无浏览器时给出反馈而非静默
-            onClick = {
-                runCatching {
-                    context.startActivity(
-                        android.content.Intent(
-                            android.content.Intent.ACTION_VIEW,
-                            android.net.Uri.parse("$htmlBase/commit/${commit.sha}"),
-                        ),
-                    )
-                }.onFailure { io.candy.tick.ui.common.Feedback.show(text = openFailed, isError = true) }
-            },
+            onClick = { links.openUri("$htmlBase/commit/${commit.sha}") },
         ) {
             Column(modifier = Modifier.padding(horizontal = 16.dp, vertical = 8.dp)) {
                 Row(verticalAlignment = Alignment.CenterVertically) {

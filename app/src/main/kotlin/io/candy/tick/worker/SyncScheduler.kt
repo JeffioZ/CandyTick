@@ -19,7 +19,7 @@ import kotlinx.coroutines.sync.withLock
 import kotlinx.coroutines.withContext
 import java.util.concurrent.TimeUnit
 
-/** 同步调度：周期频率（含「每次打开应用」模式）+ 仅 Wi-Fi 约束（按设置）；设置变更即重排 */
+/** 同步调度：周期频率（含「每次打开应用」模式）+ 非计费网络约束（按设置）；设置变更即重排 */
 class SyncScheduler(private val context: Context) {
 
     private val scheduling = Mutex()

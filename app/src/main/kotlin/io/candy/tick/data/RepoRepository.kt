@@ -2,7 +2,6 @@ package io.candy.tick.data
 
 import io.candy.tick.data.model.AppState
 import io.candy.tick.data.model.ApkPublication
-import io.candy.tick.data.model.BranchInfo
 import io.candy.tick.data.model.CommitRecord
 import io.candy.tick.data.model.DownloadedApk
 import io.candy.tick.data.model.ReleaseRecord
@@ -10,9 +9,12 @@ import io.candy.tick.data.model.RepoActivity
 import io.candy.tick.data.model.RepoSnapshot
 import io.candy.tick.data.model.Settings
 import io.candy.tick.data.model.TrackedRepo
+import java.util.concurrent.ConcurrentHashMap
+import java.util.concurrent.atomic.AtomicInteger
 import java.time.Instant
 import java.io.File
-import java.util.concurrent.CancellationException
+import java.io.InputStream
+import kotlinx.coroutines.launch
 import kotlinx.coroutines.async
 import kotlinx.coroutines.awaitAll
 import kotlinx.coroutines.coroutineScope
@@ -117,10 +119,12 @@ class RepoRepository(
         autoClear: Boolean = false, // 系统清除（关联应用已卸载）：不动 dismissed 记忆，重装后可自动重绑
         expectedPackage: String? = null,
         onlyIfUnlinked: Boolean = false,
+        expectedDownload: DownloadedApk? = null,
     ): Boolean {
         var changed = false
         store.update { s ->
             val repo = s.repos.firstOrNull { it.id == id } ?: return@update s
+            if (expectedDownload != null && repo.downloadedApk != expectedDownload) return@update s
             if (expectedPackage != null && repo.linkedPackage != expectedPackage) return@update s
             if (onlyIfUnlinked && (repo.linkedPackage != null || repo.autoLinkDismissed)) return@update s
             val custom = repo.noteName != null && !repo.autoNote
@@ -151,8 +155,16 @@ class RepoRepository(
     }
 
     /** 「下载保留」记录（安装失败不删，可直接重装） */
-    suspend fun setDownloadedApk(id: Long, apk: DownloadedApk?) = store.update { s ->
-        s.copy(repos = s.repos.map { if (it.id == id) it.copy(downloadedApk = apk) else it })
+    suspend fun replaceDownloadedApk(subscription: TrackedRepo, apk: DownloadedApk, stillActive: () -> Boolean): DownloadedApk? {
+        var replaced: DownloadedApk? = null
+        store.update { s ->
+            val repo = s.repos.firstOrNull { it.id == subscription.id } ?: return@update s
+            if (repo.addedAt != subscription.addedAt || !stillActive()) return@update s
+            replaced = repo.downloadedApk
+            s.copy(repos = s.repos.map { if (it.id == repo.id) it.copy(downloadedApk = apk) else it })
+        }
+        // A failed write leaves the previous file referenced by the on-disk state.
+        return replaced.takeIf { store.saveStatus.value == AppStateStore.SaveStatus.SAVED }
     }
 
     suspend fun clearDownloadedApkIfMatches(id: Long, expected: DownloadedApk) = store.update { s ->
@@ -161,13 +173,18 @@ class RepoRepository(
         })
     }
 
-    suspend fun clearMissingDownloads() = store.update { state ->
-        state.copy(repos = state.repos.map { repo ->
-            val apk = repo.downloadedApk
-            if (apk != null && !File(filesDir, "apks/${repo.id}/${apk.fileName}").isFile) {
-                repo.copy(downloadedApk = null)
-            } else repo
-        })
+    suspend fun clearMissingDownloads() {
+        val missing = state.value.repos.mapNotNull { repo ->
+            val apk = repo.downloadedApk ?: return@mapNotNull null
+            if (File(filesDir, "apks/${repo.id}/${apk.fileName}").isFile) null else repo.id to apk
+        }.toMap()
+        if (missing.isEmpty()) return
+        store.update { current ->
+            current.copy(repos = current.repos.map { repo ->
+                if (repo.downloadedApk != null && missing[repo.id] == repo.downloadedApk) repo.copy(downloadedApk = null)
+                else repo
+            })
+        }
     }
 
     /** syncLatestReleaseTag 的结果：Tag = 拿到（可能 null = 无带 APK 资产的 release） */
@@ -257,6 +274,8 @@ class RepoRepository(
 
     suspend fun importState(text: String): Int = store.importJson(text)
 
+    suspend fun importState(input: InputStream): Int = store.importJson(input)
+
     // ---- 刷新（旧数据永不丢；单仓库失败不拖垮列表） ----
 
     /** 刷新单仓库快照；返回 null = 成功（含 304），非空 = 该仓库的错误 */
@@ -277,6 +296,7 @@ class RepoRepository(
                 RepoInfoResult.NotModified -> {
                     store.update { s ->
                         val cur = s.snapshots[id] ?: return@update s
+                        if (cur.etag != etag || s.repos.none { it.id == id && it.addedAt == tracked.addedAt }) return@update s
                         s.copy(snapshots = s.snapshots + (id to cur.copy(lastSyncAt = Instant.now())))
                     }
                 }
@@ -291,6 +311,7 @@ class RepoRepository(
                     store.update { s ->
                         if (s.repos.none { it.id == id && it.addedAt == tracked.addedAt }) return@update s
                         val cur = s.snapshots[id]
+                        if (cur?.etag != etag) return@update s
                         s.copy(
                             repos = if (renamed) {
                                 s.repos.map { if (it.id == id) it.copy(owner = info.owner, repo = info.repo) else it }
@@ -356,62 +377,48 @@ class RepoRepository(
     }
 
     /** 并发刷新全部订阅；返回 id → 首个错误（全成功为空 Map） */
-    suspend fun refreshAll(refreshingCardIds: Set<Long> = emptySet()): Map<Long, SourceError> = coroutineScope {
-        store.state.value.repos.map { tracked ->
-            async {
-                val infoError = refreshRepo(tracked.id)
-                // 已展开卡片会取版本历史第一页，那次请求同时刷新发布元数据。
-                val releaseError = if (infoError == null && tracked.id !in refreshingCardIds) {
-                    (syncLatestReleaseTag(tracked.id, forNotification = false) as? SyncTagOutcome.Failed)?.error
-                } else null
-                tracked.id to (infoError ?: releaseError)
-            }
-        }.awaitAll()
-            .filter { it.second != null }
-            .associate { it.first to it.second!! }
+    suspend fun refreshAll(refreshingCardIds: Set<Long> = emptySet()): Map<Long, SourceError> {
+        val errors = ConcurrentHashMap<Long, SourceError>()
+        store.state.value.repos.forEachSyncRepo { tracked ->
+            val infoError = refreshRepo(tracked.id)
+            // Expanded cards already refresh release metadata with their first history page.
+            val releaseError = if (infoError == null && tracked.id !in refreshingCardIds) {
+                (syncLatestReleaseTag(tracked.id, forNotification = false) as? SyncTagOutcome.Failed)?.error
+            } else null
+            (infoError ?: releaseError)?.let { errors[tracked.id] = it }
+        }
+        return errors
     }
 
-    /**
-     * 分支列表 + 每分支 tip 提交时间（per-branch，取时间上限 ~20 防超大仓失控）。
-     * 曾试过 events 活动流打底的 A+B 混合——实测活动流有投递延迟（main 当天推送
-     * 次日才入流），会给新分支标旧时间，宁缺毋假故全部 per-branch。
-     * 浏览分支与默认分支优先保时间：字典序截断会把 main 排到 dev/feature 之后。
-     * 返回 null = 分支列表拉取失败（调用方显示失败态）；空列表 = 仓库无分支。
-     * 结果随 DetailViewModel 缓存，弹层重开不重复请求。
-     */
-    suspend fun loadBranchInfos(repoId: Long): List<BranchInfo>? {
+    suspend fun branchPage(repoId: Long, page: Int): BranchPage? {
         val tracked = trackedOrNull(repoId) ?: return null
-        val provider = provider(tracked.provider)
-        val names = runCatching { provider.branches(tracked.owner, tracked.repo) }
-            .onFailure { if (it is CancellationException) throw it } // 退出详情后别把余量请求空跑完
-            .getOrNull() ?: return null
-        if (names.isEmpty()) return emptyList()
-        val old = store.state.value.snapshots[repoId]
-        val defaultBranch = old?.defaultBranch
-        // GitHub 分支切换器排序：默认分支固定首行，其余字典序（API 返回本身即字典序，
-        // 这里只把默认分支提到顶部——大仓里 main 埋在 dev/feature 之后的样子）
-        val ordered = if (defaultBranch != null && names.contains(defaultBranch)) {
-            listOf(defaultBranch) + names.filter { it != defaultBranch }
-        } else {
-            names
+        return try {
+            provider(tracked.provider).branches(tracked.owner, tracked.repo, page)
+        } catch (_: SourceException) {
+            null
         }
-        val dateNames = ordered.take(20).toSet() + setOfNotNull(tracked.branch, defaultBranch)
+    }
+
+    /** Fetch optional dates separately so branch selection never waits for commit requests. */
+    suspend fun branchDates(repoId: Long, names: List<String>, firstPage: Boolean): Map<String, Instant?> {
+        val tracked = trackedOrNull(repoId) ?: return emptyMap()
+        val source = provider(tracked.provider)
+        val priority = setOfNotNull(tracked.branch, state.value.snapshots[repoId]?.defaultBranch)
+        val wanted = (if (firstPage) names.take(20) else emptyList()) + names.filter { it in priority }
         return coroutineScope {
-            val gate = Semaphore(6) // 并发闸：二十来个并行请求在弱网互相挤带宽，排队更稳
-            ordered.map { name ->
+            val gate = Semaphore(6)
+            wanted.distinct().map { name ->
                 async {
-                    val date = if (name in dateNames) {
-                        gate.withPermit {
-                            runCatching { provider.branchTipDate(tracked.owner, tracked.repo, name) }
-                                .onFailure { if (it is CancellationException) throw it }
-                                .getOrNull()
+                    val date = gate.withPermit {
+                        try {
+                            source.branchTipDate(tracked.owner, tracked.repo, name)
+                        } catch (_: SourceException) {
+                            null
                         }
-                    } else {
-                        null // 超出上限的分支不显示时间（宁缺毋假）
                     }
-                    BranchInfo(name, date)
+                    name to date
                 }
-            }.awaitAll()
+            }.awaitAll().toMap()
         }
     }
 
@@ -506,4 +513,17 @@ private fun List<String>.newerThan(previous: String?): List<String> {
     if (previous.isNullOrEmpty()) return this
     val index = indexOf(previous)
     return if (index >= 0) take(index) else take(1)
+}
+
+/** Bound concurrent repository requests without making fast requests wait for an entire batch. */
+internal suspend fun List<TrackedRepo>.forEachSyncRepo(action: suspend (TrackedRepo) -> Unit) = coroutineScope {
+    val next = AtomicInteger()
+    repeat(minOf(size, 5)) {
+        launch {
+            while (true) {
+                val repo = getOrNull(next.getAndIncrement()) ?: break
+                action(repo)
+            }
+        }
+    }
 }

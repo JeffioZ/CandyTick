@@ -25,14 +25,12 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.layout.LayoutBoundsHolder
 import androidx.compose.ui.layout.onVisibilityChanged
-import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.semantics.stateDescription
 import androidx.compose.ui.unit.dp
 import io.candy.tick.R
 import io.candy.tick.ui.common.InlineErrorRow
-import io.candy.tick.data.model.TrackedRepo
 import io.candy.tick.ui.common.InaccessibleBadge
 import io.candy.tick.ui.common.RepoIdentityHeader
 import io.candy.tick.ui.common.StatusBadge
@@ -54,16 +52,16 @@ fun RepoCard(
     item: ListViewModel.RepoListItem,
     extras: ListViewModel.CardExtras?,
     expanded: Boolean,
-    pageRefreshing: Boolean = false,
-    isChanged: Boolean = false,
-    updatable: Boolean = false,
     onToggle: () -> Unit,
     onClick: () -> Unit,
     readViewport: LayoutBoundsHolder?,
     onReleaseSeen: (String) -> Unit,
     onCommitSeen: (String, Boolean) -> Unit,
-    onRetryExtras: (() -> Unit)? = null, // 展开面板加载失败的显式重试
     modifier: Modifier = Modifier,
+    pageRefreshing: Boolean = false,
+    isChanged: Boolean = false,
+    updatable: Boolean = false,
+    onRetryExtras: (() -> Unit)? = null,
     interactionModifier: Modifier = Modifier,
 ) {
     val scheme = MiuixTheme.colorScheme

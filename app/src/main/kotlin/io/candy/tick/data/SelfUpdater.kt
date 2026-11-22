@@ -30,7 +30,8 @@ class SelfUpdater(
     private val githubApi: GitHubApi,
     private val installManager: InstallManager,
     private val store: AppStateStore,
-    private val notificationsEnabled: () -> Boolean = { true },
+    private val scope: CoroutineScope,
+    private val isAppVisible: () -> Boolean,
 ) {
 
     sealed interface State {
@@ -149,7 +150,9 @@ class SelfUpdater(
             withContext(NonCancellable) {
                 store.update { it.copy(downloadedSelfUpdate = saved) }
                 _state.value = State.Downloaded(available.tag, dest)
-                updateDir.listFiles()?.filter { it != dest }?.forEach { it.delete() }
+                if (store.saveStatus.value == AppStateStore.SaveStatus.SAVED) {
+                    updateDir.listFiles()?.filter { it != dest }?.forEach { it.delete() }
+                }
             }
             dest
         } catch (cancelled: CancellationException) {
@@ -163,11 +166,32 @@ class SelfUpdater(
         }
     }
 
-    suspend fun retryDownload(): File? = lastNewVersion?.asset?.let { download(it) }
+    /** A user-initiated transfer survives Activity recreation. Present the installer only while the app is visible. */
+    fun requestManualDownload(expected: State) {
+        scope.launch(Dispatchers.IO) {
+            val result = operations.withLock {
+                if (_state.value != expected) return@launch
+                val available = lastNewVersion ?: return@launch
+                val asset = available.asset ?: return@launch
+                val file = downloadLocked(asset) ?: return@launch
+                available.tag to file
+            }
+            withContext(Dispatchers.Main.immediate) {
+                val (tag, file) = result
+                if ((_state.value as? State.Downloaded)?.file != file) return@withContext
+                val settings = store.state.value.settings
+                if (isAppVisible()) {
+                    if (settings.autoInstallDownload) install(file)
+                } else if (settings.notificationsEnabled) {
+                    Notifications.notifySelfUpdateReady(context, tag)
+                }
+            }
+        }
+    }
 
     fun install(file: File) = installManager.installApk(file)
 
-    fun observeInstallResults(scope: CoroutineScope) {
+    fun observeInstallResults() {
         // Installing this app normally replaces its process. Clear the restored download
         // even when the next launch has automatic update checks disabled.
         scope.launch(Dispatchers.IO) { operations.withLock { discardInstalledDownload() } }
@@ -178,7 +202,7 @@ class SelfUpdater(
                         InstallManager.InstallResult.Success -> discardInstalledDownload()
                         is InstallManager.InstallResult.Failed -> savedDownload()?.let { saved ->
                             _state.value = State.Failed(Reason.INSTALL, saved.tag, saved.file)
-                            if (notificationsEnabled()) Notifications.notifySelfUpdateReady(context, saved.tag)
+                            if (store.state.value.settings.notificationsEnabled) Notifications.notifySelfUpdateReady(context, saved.tag)
                         }
                         else -> Unit
                     }

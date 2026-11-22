@@ -14,9 +14,6 @@ import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.runtime.Composable
-import androidx.compose.runtime.getValue
-import androidx.compose.runtime.mutableStateOf
-import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
@@ -26,9 +23,6 @@ import androidx.compose.ui.unit.dp
 import io.candy.tick.R
 import io.candy.tick.ui.common.PrimaryButton
 import io.candy.tick.ui.common.rememberMotionEnabled
-import io.candy.tick.ui.theme.DarkPrimary
-import io.candy.tick.ui.theme.LightPrimary
-import io.candy.tick.ui.theme.LocalDarkTheme
 import top.yukonga.miuix.kmp.basic.Text
 import top.yukonga.miuix.kmp.theme.MiuixTheme
 
@@ -36,8 +30,6 @@ import top.yukonga.miuix.kmp.theme.MiuixTheme
 @Composable
 internal fun EmptyState(onAdd: () -> Unit, modifier: Modifier = Modifier) {
     val scheme = MiuixTheme.colorScheme
-    val dark = LocalDarkTheme.current
-    val mint = if (dark) DarkPrimary else LightPrimary
     Column(
         modifier = modifier
             .fillMaxWidth()
@@ -49,7 +41,7 @@ internal fun EmptyState(onAdd: () -> Unit, modifier: Modifier = Modifier) {
         // 空态设计的通用光学中心（几何居中略偏上），按比例恒定、不随屏幕长短漂移。
         // 注：上方 spacer 权重越大内容越靠下（此前几轮方向调反的教训）
         Spacer(Modifier.weight(1f))
-        EchoPing(mint = mint)
+        EchoPing(mint = scheme.primary)
         Spacer(Modifier.height(12.dp))
         Text(
             text = stringResource(R.string.empty_title),
@@ -77,27 +69,27 @@ internal fun EmptyState(onAdd: () -> Unit, modifier: Modifier = Modifier) {
 private fun EchoPing(mint: Color) {
     // 与 LoadingDots 同一开关（rememberMotionEnabled）：动画时长缩放=0 时涟漪静态化
     val animationsOn = rememberMotionEnabled()
-    val progress by if (animationsOn) {
+    val phase = if (animationsOn) {
         rememberInfiniteTransition(label = "echoPing").animateFloat(
             initialValue = 0f,
             targetValue = 1f,
             animationSpec = infiniteRepeatable(tween(durationMillis = 2400, easing = LinearEasing)),
             label = "echoPingProgress",
         )
-    } else {
-        remember { mutableStateOf(0.55f) }
-    }
+    } else null
     val ringWidth = 2.dp
     Canvas(modifier = Modifier.size(140.dp)) {
         val center = this.center
         // 两圈涟漪：半径 18~64dp 扩散、透明度随扩散衰减
-        listOf(0f, 0.5f).forEach { offset ->
-            val p = (progress + offset) % 1f
+        val progress = phase?.value ?: 0.55f
+        val stroke = Stroke(width = ringWidth.toPx())
+        repeat(2) { ring ->
+            val p = (progress + ring * 0.5f) % 1f
             drawCircle(
                 color = mint.copy(alpha = (1f - p) * 0.4f),
                 radius = (18 + 46 * p).dp.toPx(),
                 center = center,
-                style = Stroke(width = ringWidth.toPx()),
+                style = stroke,
             )
         }
         // 糖珠

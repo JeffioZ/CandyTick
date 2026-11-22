@@ -9,6 +9,14 @@
 
     <!-- 通用 -->
     <string name="retry">Retry</string>
+    <string name="save_failed">Changes haven’t been saved</string>
+    <string name="save_failed_hint">Recent changes to your subscriptions or settings could be lost if the app closes. Check the available storage on your device, then retry.</string>
+    <string name="save_retrying">Saving changes…</string>
+    <string name="save_retry_failed">Changes still haven’t been saved</string>
+    <string name="save_retry_later">Retry later</string>
+    <string name="changes_saved">Changes saved</string>
+    <string name="state_load_failed">Can’t read subscriptions and settings</string>
+    <string name="state_load_hint">Check that device storage is available, then retry.</string>
     <string name="refresh_pull">Pull down to refresh</string>
     <string name="refresh_release">Release to refresh</string>
     <string name="refresh_refreshing">Refreshing</string>
@@ -178,6 +186,9 @@
     <string name="branch_search_hint">Search branches</string>
     <string name="branch_no_match">No matching branches</string>
     <string name="branch_empty">This repository has no branches yet</string>
+    <string name="branch_load_more">Load more branches</string>
+    <string name="branch_search_next">Search the next page</string>
+    <string name="branch_removed_hint">Branch unavailable. Tap to follow the default branch.</string>
 
     <!-- 添加页 -->
     <string name="add_input_hint">Paste a link or search repositories</string>
@@ -200,6 +211,8 @@
     <!-- 详情页 -->
     <string name="detail_commits">Commit history</string>
     <string name="detail_releases">Version history</string>
+    <string name="detail_commits_short">Commits</string>
+    <string name="detail_releases_short">Releases</string>
     <string name="detail_no_commits">No commits yet</string>
     <string name="detail_history_changed">History has changed. Pull to refresh.</string>
     <string name="detail_no_releases">No releases yet</string>
@@ -265,7 +278,10 @@
     <string name="notif_channel_update">CandyTick updates</string>
     <string name="notif_channel_update_desc">When a CandyTick update is ready to install</string>
     <string name="notif_new_release">New release: %1$s</string>
-    <string name="notif_updates_summary">%1$d repositories have new releases</string>
+    <plurals name="notif_updates_summary">
+        <item quantity="one">%1$d repository has a new release</item>
+        <item quantity="other">%1$d repositories have new releases</item>
+    </plurals>
     <string name="notif_update_ready_title">CandyTick update</string>
     <string name="notif_update_ready">Version %1$s is ready to install in CandyTick settings.</string>
     <string name="notif_channel_sync">Background sync</string>
@@ -284,7 +300,7 @@
     <string name="search_clear">Clear search</string>
     <string name="settings_backup_group">Data</string>
     <string name="settings_export">Export subscriptions</string>
-    <string name="settings_export_summary">Copy the backup and open the share menu</string>
+    <string name="settings_export_summary">Share a JSON backup. Small backups are also copied.</string>
     <string name="settings_import">Import subscriptions</string>
     <string name="settings_import_summary">Import a backup from a file or the clipboard</string>
     <plurals name="import_result">
@@ -298,8 +314,8 @@
     <string name="settings_theme_mode">Theme</string>
     <string name="settings_sync_and_notify">Sync &amp; notifications</string>
     <string name="settings_sync_frequency">Sync frequency</string>
-    <string name="settings_sync_wifi_only">Sync on Wi-Fi only</string>
-    <string name="settings_sync_wifi_only_summary">Applies only to automatic sync.</string>
+    <string name="settings_sync_wifi_only">Pause auto-sync on metered networks</string>
+    <string name="settings_sync_wifi_only_summary">You can still pull to refresh on mobile data.</string>
     <string name="settings_token_row">GitHub token</string>
     <string name="settings_token_hint_short">Raises the API request limit</string>
     <string name="token_input_hint">Paste a token</string>
@@ -319,7 +335,7 @@
     <string name="download_update_action">Download update</string>
     <string name="settings_auto_install">Open installer after download</string>
     <string name="settings_auto_install_summary">APKs and CandyTick updates</string>
-    <string name="token_verified">Token verified and saved</string>
+    <string name="token_verified">Token verified</string>
     <string name="token_invalid_short">Invalid token. Check it and try again.</string>
     <string name="token_network_error">Couldn’t verify the token. Check your connection and try again.</string>
     <string name="settings_token_rejected">GitHub rejected this token (401). Requests are now anonymous.</string>

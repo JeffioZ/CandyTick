@@ -1,6 +1,5 @@
 package io.candy.tick.ui.common
 
-import androidx.compose.animation.togetherWith
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.foundation.layout.Arrangement
@@ -21,9 +20,8 @@ import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.key
 import androidx.compose.runtime.mutableStateOf
-import androidx.compose.runtime.remember
+import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.rememberCoroutineScope
-import androidx.compose.runtime.rememberUpdatedState
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -35,12 +33,10 @@ import io.candy.tick.R
 import io.candy.tick.data.SelfUpdater
 import io.candy.tick.ui.theme.MonoTokenStyle
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
-import java.io.File
 import kotlinx.coroutines.launch
 import top.yukonga.miuix.kmp.basic.Text
 import top.yukonga.miuix.kmp.theme.MiuixTheme
 import top.yukonga.miuix.kmp.window.WindowBottomSheet
-import io.candy.tick.ui.common.Motion
 
 /**
  * 应用自身更新弹窗（全局宿主：挂 MainActivity 层，设置页未打开也能弹——
@@ -62,20 +58,15 @@ object UpdateSheetController {
 }
 
 @Composable
-fun UpdateSheet(
-    selfUpdater: SelfUpdater,
-    autoInstall: Boolean,
-) {
+fun UpdateSheet(selfUpdater: SelfUpdater) {
     val state by selfUpdater.state.collectAsStateWithLifecycle()
-    var show by remember { mutableStateOf(false) }
-    var dismissedTag by remember { mutableStateOf<String?>(null) }
+    var show by rememberSaveable { mutableStateOf(false) }
+    var dismissedTag by rememberSaveable { mutableStateOf<String?>(null) }
     val scope = rememberCoroutineScope()
-    val openInstaller by rememberUpdatedState(autoInstall)
 
-    fun installDownloadIfEnabled(file: File?) {
-        if (file != null && openInstaller) selfUpdater.install(file)
+    LaunchedEffect(state is SelfUpdater.State.Idle) {
+        if (state is SelfUpdater.State.Idle) show = false
     }
-
     val release = state as? SelfUpdater.State.NewVersion
     LaunchedEffect(UpdateSheetController.manualRequest, release) {
         if (UpdateSheetController.manualRequest) {
@@ -119,19 +110,7 @@ fun UpdateSheet(
                 targetState = state,
                 contentKey = { it::class },
                 modifier = Modifier.fillMaxWidth().then(if (shortBody) Modifier.verticalScroll(scroll) else Modifier),
-                transitionSpec = {
-                    ((androidx.compose.animation.fadeIn(androidx.compose.animation.core.tween(Motion.PHASE)) +
-                        androidx.compose.animation.slideInVertically(
-                            animationSpec = androidx.compose.animation.core.tween(Motion.PHASE),
-                        ) { it / 6 }) togetherWith
-                        androidx.compose.animation.fadeOut(androidx.compose.animation.core.tween(Motion.PHASE)))
-                        // 尺寸动画显式 180 同拍（默认 SizeTransform 是 spring 暗桩）
-                        .using(
-                            androidx.compose.animation.SizeTransform(clip = false) { _, _ ->
-                                androidx.compose.animation.core.tween(Motion.PHASE)
-                            },
-                        )
-                },
+                transitionSpec = { downloadActionTransition() },
                 label = "updatePhase",
             ) { phase ->
                 // An outgoing phase stays composed during the fade and may still receive a tap.
@@ -186,7 +165,7 @@ fun UpdateSheet(
                                         style = MiuixTheme.textStyles.footnote1,
                                         color = MiuixTheme.colorScheme.onBackgroundVariant,
                                     )
-                                    val uriHandler = rememberReleaseUriHandler()
+                                    val uriHandler = rememberExternalUriHandler()
                                     LinkText(
                                         text = stringResource(R.string.self_update_view_releases),
                                         onClick = {
@@ -199,7 +178,7 @@ fun UpdateSheet(
                             } else {
                                 PrimaryButton(
                                     text = stringResource(R.string.download_update_action),
-                                    onClick = { runAction { installDownloadIfEnabled(selfUpdater.download(s.asset)) } },
+                                    onClick = { runAction { selfUpdater.requestManualDownload(s) } },
                                     modifier = Modifier.fillMaxWidth(),
                                 )
                             }
@@ -236,7 +215,7 @@ fun UpdateSheet(
                                 // 下载失败：文件已清理，重试从零下
                                 SelfUpdater.Reason.DOWNLOAD -> PrimaryButton(
                                     text = stringResource(R.string.retry),
-                                    onClick = { runAction { installDownloadIfEnabled(selfUpdater.retryDownload()) } },
+                                    onClick = { runAction { selfUpdater.requestManualDownload(f) } },
                                     modifier = Modifier.fillMaxWidth(),
                                 )
                                 // 安装失败：安装包已保留，直接重装

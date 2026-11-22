@@ -9,9 +9,7 @@ import io.candy.tick.data.RepoRepository
 import io.candy.tick.data.SnapshotDiff
 import io.candy.tick.data.SourceError
 import io.candy.tick.data.SyncStatus
-import kotlinx.coroutines.async
-import kotlinx.coroutines.awaitAll
-import kotlinx.coroutines.coroutineScope
+import io.candy.tick.data.forEachSyncRepo
 import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
 import java.util.concurrent.ConcurrentHashMap
@@ -48,6 +46,7 @@ class SyncWorker(context: Context, params: WorkerParameters) : CoroutineWorker(c
     }
 
     private suspend fun sync(container: io.candy.tick.di.AppContainer): Result {
+        if (!container.appStateStore.ensureLoaded()) return Result.retry()
         val state = container.appStateStore.state.value
         val total = state.repos.size
 
@@ -57,13 +56,9 @@ class SyncWorker(context: Context, params: WorkerParameters) : CoroutineWorker(c
         if (total > 0) syncStatus.value = run
         val before = state.snapshots
         val errors = ConcurrentHashMap<Long, SourceError>()
-        coroutineScope {
-            state.repos.map { tracked ->
-                async {
-                    val error = container.repoRepository.refreshRepo(tracked.id)
-                    if (error != null) errors[tracked.id] = error
-                }
-            }.awaitAll()
+        state.repos.forEachSyncRepo { tracked ->
+            val error = container.repoRepository.refreshRepo(tracked.id)
+            if (error != null) errors[tracked.id] = error
         }
 
         // 1.5) 关联应用已卸载的仓库自动解除关联：卸载可能发生在本 App 未运行时（广播已
@@ -81,34 +76,30 @@ class SyncWorker(context: Context, params: WorkerParameters) : CoroutineWorker(c
         // 2) 新版本检测：ETag 条件请求（304 无需响应正文）；拉取失败保旧 tag——此前瞬时失败
         // 写 null 会漏报一条通知 + 清掉「可更新」标识；方向判定：本机已装 ≥ tag 不算新版
         val newReleaseRepos = ConcurrentHashMap.newKeySet<Long>()
-        coroutineScope {
-            state.repos.map { tracked ->
-                async {
-                    when (val outcome = container.repoRepository.syncLatestReleaseTag(tracked.id)) {
-                        is RepoRepository.SyncTagOutcome.Tag -> {
-                            val latestTag = outcome.tag
-                            val current = container.appStateStore.state.value
-                            val subscribed = current.repos.firstOrNull { it.id == tracked.id && it.addedAt == tracked.addedAt }
-                            if (latestTag != null && outcome.changed && subscribed != null &&
-                                current.snapshots[tracked.id]?.activity?.unreadReleaseTags?.contains(latestTag) == true &&
-                                !alreadyUpToDate(subscribed, latestTag)
-                            ) {
-                                newReleaseRepos.add(tracked.id)
-                                if (current.settings.notificationsEnabled) {
-                                    Notifications.notifyRepoNewVersion(
-                                        context = applicationContext,
-                                        repoName = subscribed.noteName ?: "${subscribed.owner}/${subscribed.repo}",
-                                        tag = latestTag,
-                                        repoId = tracked.id,
-                                    )
-                                }
-                            }
+        state.repos.forEachSyncRepo { tracked ->
+            when (val outcome = container.repoRepository.syncLatestReleaseTag(tracked.id)) {
+                is RepoRepository.SyncTagOutcome.Tag -> {
+                    val latestTag = outcome.tag
+                    val current = container.appStateStore.state.value
+                    val subscribed = current.repos.firstOrNull { it.id == tracked.id && it.addedAt == tracked.addedAt }
+                    if (latestTag != null && outcome.changed && subscribed != null &&
+                        current.snapshots[tracked.id]?.activity?.unreadReleaseTags?.contains(latestTag) == true &&
+                        !alreadyUpToDate(subscribed, latestTag)
+                    ) {
+                        newReleaseRepos.add(tracked.id)
+                        if (current.settings.notificationsEnabled) {
+                            Notifications.notifyRepoNewVersion(
+                                context = applicationContext,
+                                repoName = subscribed.noteName ?: "${subscribed.owner}/${subscribed.repo}",
+                                tag = latestTag,
+                                repoId = tracked.id,
+                            )
                         }
-                        is RepoRepository.SyncTagOutcome.Failed -> errors.putIfAbsent(tracked.id, outcome.error)
-                        else -> Unit
                     }
                 }
-            }.awaitAll()
+                is RepoRepository.SyncTagOutcome.Failed -> errors.putIfAbsent(tracked.id, outcome.error)
+                else -> Unit
+            }
         }
         // 组摘要：本轮 ≥2 个仓库发版时折叠为一组（点摘要回首页，子通知各自直达详情）
         if (newReleaseRepos.size >= 2 && container.appStateStore.state.value.settings.notificationsEnabled) {

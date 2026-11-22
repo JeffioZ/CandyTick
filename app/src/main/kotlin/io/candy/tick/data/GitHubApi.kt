@@ -98,17 +98,20 @@ class GitHubApi(private val tokenProvider: () -> String?) {
             }
         }
 
-    /** 分支列表（提交视图的分支切换；单页 100，超出截断——单仓库超百分支属极端场景） */
-    suspend fun branches(owner: String, repo: String): List<String> =
+    suspend fun branches(owner: String, repo: String, page: Int): BranchPage =
         withContext(Dispatchers.IO) {
             try {
                 val url = apiUrl("repos", owner, repo, "branches")
                     .newBuilder()
                     .addQueryParameter("per_page", "100")
+                    .addQueryParameter("page", page.toString())
                     .build()
                 readAuthenticated(request(url, etag = null)) {
                     checkHttp(it)
-                    json.decodeFromString<List<GhBranch>>(it.body.string()).map { it.name }
+                    BranchPage(
+                        names = json.decodeFromString<List<GhBranch>>(it.body.string()).map { branch -> branch.name },
+                        hasNext = it.header("Link")?.contains("rel=\"next\"") == true,
+                    )
                 }
             } catch (e: Exception) {
                 rethrowMapped(e)

@@ -22,7 +22,7 @@ import top.yukonga.miuix.kmp.theme.MiuixTheme
 
 /** A transfer can start before either GitHub or the HTTP response supplies its size. */
 @Composable
-internal fun DownloadProgress(progress: Float?, sizeBytes: Long = 0, onCancel: (() -> Unit)? = null) {
+internal fun DownloadProgress(progress: Float?, sizeBytes: Long = 0, onCancel: (() -> Unit)? = null, cancelEnabled: Boolean = true) {
     val scheme = MiuixTheme.colorScheme
     Row(
         modifier = Modifier.fillMaxWidth().heightIn(min = 32.dp),
@@ -59,7 +59,7 @@ internal fun DownloadProgress(progress: Float?, sizeBytes: Long = 0, onCancel: (
             }
         }
         if (onCancel != null) {
-            CompactTextAction(onClick = onCancel) {
+            CompactTextAction(onClick = onCancel, enabled = cancelEnabled) {
                 Text(
                     text = stringResource(R.string.cancel),
                     style = MiuixTheme.textStyles.footnote1,

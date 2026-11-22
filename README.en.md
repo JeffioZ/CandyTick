@@ -29,7 +29,7 @@ Follow GitHub repositories on Android, browse commits and releases, and find upd
 
 - **Follow development.** Browse commits by branch and read release notes. The home screen shows how active each repository is and whether it’s archived.
 - **Organize your list.** Pin repositories you check often, sort by recent activity or available updates, or find a repository by name.
-- **Get update notifications.** CandyTick can check repositories periodically and notify you when a new Android package is available. The Wi-Fi sync setting applies to automatic checks. You can still refresh manually over mobile data.
+- **Get update notifications.** CandyTick can check repositories periodically and notify you when a new Android package is available. You can limit automatic checks to unmetered networks. You can still refresh manually over mobile data.
 - **Take your subscriptions with you.** Export your subscriptions and cached repository details to JSON, then import them on another device. CandyTick skips repositories you already follow.
 
 If you often hit GitHub’s request limit, add a GitHub token in Settings to raise your [API rate limit](https://docs.github.com/en/rest/using-the-rest-api/rate-limits-for-the-rest-api).

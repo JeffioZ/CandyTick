@@ -1,11 +1,6 @@
-package io.candy.tick.ui.detail
+package io.candy.tick.data
 
 import android.content.Context
-import androidx.compose.runtime.Immutable
-import io.candy.tick.data.GitHubApi
-import io.candy.tick.data.InstallManager
-import io.candy.tick.data.Notifications
-import io.candy.tick.data.RepoRepository
 import io.candy.tick.data.model.ApkAsset
 import io.candy.tick.data.model.DownloadedApk
 import io.candy.tick.data.model.ReleaseRecord
@@ -25,8 +20,7 @@ import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
 
-/** 仓库 APK 下载四相（原 DetailViewModel.DownloadState；宿主持有，页面销毁不丢） */
-@Immutable
+/** Transient transfer state. The completed file is owned by TrackedRepo.downloadedApk. */
 sealed interface RepoDownloadState {
     /** releaseKey=tagName + assetName 双维匹配：防同名资产的失败/进度态跨版本误显示 */
     val releaseKey: String
@@ -39,17 +33,11 @@ sealed interface RepoDownloadState {
         val fromHeader: Boolean = false, // 头部入口下载：进度只在头部显示，卡片不重复
     ) : RepoDownloadState
 
-    data class Done(
-        override val releaseKey: String,
-        override val assetName: String,
-        val file: File,
-    ) : RepoDownloadState
-
     data class Failed(
         override val releaseKey: String,
         override val assetName: String,
         val message: String? = null,
-        val error: io.candy.tick.data.SourceError? = null,
+        val error: SourceError? = null,
         val fromHeader: Boolean = false,
     ) : RepoDownloadState
 }
@@ -112,6 +100,7 @@ class RepoDownloadHost(
         onAutoLinked: (String) -> Unit = {},
     ) {
         if (jobs[repoId]?.isActive == true) return
+        val subscription = repository.state.value.repos.find { it.id == repoId } ?: return
         val extension = ApkPicker.packageExtension(asset.name) ?: return
         val dir = File(appContext.filesDir, "apks/$repoId")
         val gen = nextGen.incrementAndGet()
@@ -122,7 +111,7 @@ class RepoDownloadHost(
         val part = File(dir, "$fileId.part")
         val active = RepoDownloadState.Active(release.tagName, asset.name, if (asset.size > 0) 0f else null, fromHeader)
         _states.update { it + (repoId to active) }
-        val job = scope.launch(start = CoroutineStart.LAZY) {
+        val job = scope.launch(Dispatchers.IO, start = CoroutineStart.LAZY) {
             try {
                 githubApi.download(asset, part) { p ->
                     _states.update { states ->
@@ -137,9 +126,8 @@ class RepoDownloadHost(
                 val pkg = if (extension == "apk") {
                     appContext.packageManager.getPackageArchiveInfo(dest.absolutePath, 0)?.packageName
                 } else null
-                val old = repository.state.value.repos.find { it.id == repoId }?.downloadedApk
-                if (jobGens[repoId] != gen) return@launch
-                repository.setDownloadedApk(repoId, DownloadedApk(dest.name, release.tagName, pkg, asset.name))
+                val record = DownloadedApk(dest.name, release.tagName, pkg, asset.name)
+                val old = repository.replaceDownloadedApk(subscription, record) { jobGens[repoId] == gen }
                 old?.let { File(dir, it.fileName).delete() }
                 if (jobGens[repoId] != gen) return@launch
                 val repo = repository.state.value.repos.find { it.id == repoId } ?: return@launch
@@ -147,27 +135,29 @@ class RepoDownloadHost(
                 if (!pkg.isNullOrBlank() && repo.linkedPackage == null && !repo.autoLinkDismissed) {
                     val label = io.candy.tick.util.apkLabelOf(appContext, dest)
                     if (jobGens[repoId] != gen) return@launch
-                    if (repository.setLinkedPackage(repoId, pkg, newLabel = label, onlyIfUnlinked = true)) {
+                    if (repository.setLinkedPackage(repoId, pkg, newLabel = label, onlyIfUnlinked = true, expectedDownload = record)) {
                         onAutoLinked(label?.takeIf { it.isNotBlank() } ?: pkg)
                     }
                 }
                 if (jobGens[repoId] != gen) return@launch
-                _states.update { states ->
-                    if (jobGens[repoId] != gen) states
-                    else states + (repoId to RepoDownloadState.Done(release.tagName, asset.name, dest))
-                }
-                if (repository.state.value.settings.autoInstallDownload && jobGens[repoId] == gen) {
+                val current = repository.state.value
+                if (current.settings.autoInstallDownload && jobGens[repoId] == gen &&
+                    current.repos.any { it.id == repoId && it.downloadedApk == record }
+                ) {
                     installManager.installApk(dest, repoId, asset.name)
                 }
             } catch (e: CancellationException) {
                 throw e
             } catch (e: Exception) {
-                val error = (e as? io.candy.tick.data.SourceException)?.error
+                val error = (e as? SourceException)?.error
                 _states.update { states ->
                     if (jobGens[repoId] != gen) states
                     else states + (repoId to RepoDownloadState.Failed(release.tagName, asset.name, e.message, error, fromHeader))
                 }
             } finally {
+                _states.update { states ->
+                    if (jobGens[repoId] == gen && states[repoId] is RepoDownloadState.Active) states - repoId else states
+                }
                 part.delete()
                 // Failed/cancelled before publication: the previously committed APK stays usable.
                 if (repository.state.value.repos.find { it.id == repoId }?.downloadedApk?.fileName != dest.name) {
@@ -191,10 +181,6 @@ class RepoDownloadHost(
         repository.clearDownloadedApkIfMatches(repoId, record)
         val file = File(appContext.filesDir, "apks/$repoId/${record.fileName}")
         withContext(Dispatchers.IO) { file.delete() }
-        _states.update { states ->
-            val done = states[repoId] as? RepoDownloadState.Done
-            if (done?.file == file) states - repoId else states
-        }
     }
 
     /** 退订 / 删除已下载 / 会话态清理：cancel 在跑的任务 + 摘表 + 清状态（DSH review：退订原路径漏接） */

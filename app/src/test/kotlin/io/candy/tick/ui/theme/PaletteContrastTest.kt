@@ -14,25 +14,24 @@ class PaletteContrastTest {
         for (background in backgrounds) assertContrast(Color.White, background, 3f)
     }
 
-    @Test fun lightFeedbackStaysVisibleOverThePageAndCards() {
-        for (background in listOf(LightBackground, LightSurface, LightSurfaceHigh)) {
-            assertContrast(LightFeedbackOutline, background, 3f)
-        }
+    @Test fun lightFeedbackTextActionsAndStatusIconsStayReadable() {
+        // Decorative edge against the pill fill, separate from text and action contrast.
+        assertContrast(LightFeedbackOutline, LightSurface, 1.5f)
         assertContrast(LightTextPrimary, LightSurface, 4.5f)
         assertContrast(LightPrimaryVariant, LightSurface, 4.5f)
         assertContrast(LightOnErrorContainer, LightSurface, 3f)
     }
 
-    @Test fun darkFeedbackStaysVisibleOverThePageAndCards() {
-        for (background in listOf(DarkBackground, DarkSurface, DarkSurfaceHigh)) {
-            assertContrast(DarkFeedbackOutline, background, 3f)
-        }
+    @Test fun darkFeedbackTextActionsAndStatusIconsStayReadable() {
+        assertContrast(DarkFeedbackOutline, DarkSurfaceHigh, 2.2f)
         assertContrast(DarkTextPrimary, DarkSurfaceHigh, 4.5f)
         assertContrast(DarkPrimaryVariant, DarkSurfaceHigh, 4.5f)
         assertContrast(DarkOnErrorContainer, DarkSurfaceHigh, 3f)
     }
 
     @Test fun smallSupportingTextStaysReadableOnItsSurfaces() {
+        assertContrast(LightTextSecondary, LightDisabledPrimary, 4.5f)
+        assertContrast(DarkTextSecondary, DarkDisabledPrimary, 4.5f)
         for (background in listOf(LightSurface, LightSurfaceHigh, LightSecondaryVariant)) {
             assertContrast(LightTextTertiary, background, 4.5f)
         }

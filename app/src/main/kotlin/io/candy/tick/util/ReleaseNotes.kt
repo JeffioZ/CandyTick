@@ -292,7 +292,7 @@ object ReleaseNotes {
         private fun list(node: Node, indent: String, ordered: Boolean, top: Boolean) {
             if (top) blank() else nl() // 嵌套列表与父项保持单换行，不空行隔断
             var item = node.firstChild
-            var i = (node as? OrderedList)?.startNumber ?: 1
+            var i = (node as? OrderedList)?.markerStartNumber ?: 1
             while (item != null) {
                 if (item is ListItem) {
                     nl()

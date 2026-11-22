@@ -22,6 +22,7 @@ import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.ImageBitmap
 import androidx.compose.ui.graphics.vector.ImageVector
+import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.vectorResource
 import androidx.compose.ui.semantics.clearAndSetSemantics
@@ -37,7 +38,6 @@ import io.candy.tick.data.model.TrackedRepo
 import io.candy.tick.ui.theme.AvatarPalette
 import io.candy.tick.ui.theme.MonoTokenStyle
 import io.candy.tick.util.CountFormat
-import kotlin.math.abs
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 import top.yukonga.miuix.kmp.basic.Icon
@@ -97,7 +97,8 @@ internal fun rememberAppIconResult(
 ): AppIconResult? {
     if (packageName == null) return null
     val context = LocalContext.current
-    return key(context, packageName) {
+    val iconSizePx = with(LocalDensity.current) { 56.dp.roundToPx().coerceAtLeast(1) }
+    return key(context, packageName, iconSizePx) {
         produceState(initial, refreshKey) {
             val previous = value
             value = withContext(Dispatchers.IO) {
@@ -105,7 +106,7 @@ internal fun rememberAppIconResult(
                     val pm = context.packageManager
                     val info = pm.getPackageInfo(packageName, 0)
                     if (previous?.bitmap != null && previous.lastUpdateTime == info.lastUpdateTime) previous
-                    else AppIconResult(info.applicationInfo?.loadIcon(pm)?.toImageBitmap(), info.lastUpdateTime)
+                    else AppIconResult(info.applicationInfo?.loadIcon(pm)?.toImageBitmap(iconSizePx), info.lastUpdateTime)
                 } catch (_: Exception) {
                     ownerAvatar
                 }
@@ -221,6 +222,6 @@ private fun AvatarBlock(owner: String, size: Dp, corner: Dp) {
 }
 
 private fun avatarGradient(owner: String): Pair<Color, Color> {
-    val hash = abs(owner.hashCode())
-    return AvatarPalette[hash % AvatarPalette.size]
+    val index = kotlin.math.abs(owner.hashCode() % AvatarPalette.size)
+    return AvatarPalette[index]
 }

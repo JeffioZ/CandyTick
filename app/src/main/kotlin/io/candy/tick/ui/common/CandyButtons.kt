@@ -51,17 +51,17 @@ fun PrimaryButton(
     enabled: Boolean = true,
     busyText: String? = null,
 ) {
-    val showBusy = busyText != null && rememberBusyIndicator(true)
+    val shownBusyText = rememberBusyValue(busyText)
     Button(
         onClick = onClick,
         modifier = modifier,
-        enabled = enabled && busyText == null,
+        enabled = enabled && busyText == null && shownBusyText == null,
         colors = ButtonDefaults.buttonColorsPrimary(),
     ) {
-        if (showBusy) {
+        if (shownBusyText != null) {
             Row(horizontalArrangement = Arrangement.spacedBy(8.dp), verticalAlignment = Alignment.CenterVertically) {
                 LoadingDots(color = LocalContentColor.current, contentDescription = null)
-                Text(text = busyText, style = MiuixTheme.textStyles.button)
+                Text(text = shownBusyText, style = MiuixTheme.textStyles.button)
             }
         } else {
             Text(text = text, style = MiuixTheme.textStyles.button)
@@ -94,9 +94,7 @@ fun SecondaryButton(
  * contentDescription = null。
  *
  * 染色圆直径 = size − 2×[tintInset]（默认 4dp）：热区大于视觉圆——顶栏相邻 48dp
- * 槽位相接时染色圆之间仍有 8dp 视觉缝（skill: touch-spacing，M3 顶栏动作本就是
- * 无间隙打包 48dp 槽，视觉缝由染色圆承担），行内 44dp 档圆 36dp 不溢出输入框
- * 边界；触控目标本身仍是完整 size（Android 48dp 档不缩）。
+ * 槽位相接时染色圆之间仍有 8dp 视觉间距。输入框用 6dp 内缩保留 36dp 可见圆。
  */
 @Composable
 fun PressIconButton(
@@ -164,8 +162,8 @@ internal fun TextFieldActionButton(
     PressIconButton(
         onClick = onClick,
         contentDescription = stringResource(actionLabel),
-        size = 44.dp,
-        modifier = Modifier.padding(end = 4.dp),
+        tintInset = 6.dp,
+        modifier = Modifier.padding(end = 2.dp),
         containerColor = if (dark) DarkFieldActionContainer else colors.surfaceContainer,
         border = if (dark) BorderStroke(1.dp, DarkFieldActionOutline) else null,
     ) {

@@ -12,8 +12,14 @@ import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.sizeIn
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.remember
+import androidx.compose.ui.platform.LocalUriHandler
+import androidx.core.net.toUri
+import androidx.compose.ui.platform.UriHandler
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.res.vectorResource
 import androidx.compose.ui.semantics.Role
@@ -71,12 +77,14 @@ internal fun CompactTextAction(
     onClick: () -> Unit,
     modifier: Modifier = Modifier,
     hitAreaPadding: PaddingValues = PaddingValues(0.dp),
+    enabled: Boolean = true,
+    surface: Color = MiuixTheme.colorScheme.surfaceContainer,
     content: @Composable RowScope.() -> Unit,
 ) {
-    val (source, tint) = rememberRowPressTint()
+    val (source, tint) = rememberRowPressTint(surface)
     Box(
         modifier = modifier
-            .clickable(interactionSource = source, indication = null, role = Role.Button, onClick = onClick)
+            .clickable(enabled = enabled, interactionSource = source, indication = null, role = Role.Button, onClick = onClick)
             .sizeIn(minWidth = 48.dp, minHeight = 48.dp)
             .padding(hitAreaPadding),
         contentAlignment = Alignment.CenterStart,
@@ -89,5 +97,25 @@ internal fun CompactTextAction(
             horizontalArrangement = Arrangement.spacedBy(6.dp),
             content = content,
         )
+    }
+}
+
+@Composable
+internal fun rememberExternalUriHandler(): UriHandler {
+    val delegate = LocalUriHandler.current
+    val openFailed = stringResource(R.string.open_failed)
+    return remember(delegate, openFailed) {
+        object : UriHandler {
+            override fun openUri(uri: String) {
+                try {
+                    when (uri.toUri().scheme?.lowercase()) {
+                        "http", "https", "mailto" -> delegate.openUri(uri)
+                        else -> Feedback.show(openFailed, isError = true)
+                    }
+                } catch (_: RuntimeException) {
+                    Feedback.show(openFailed, isError = true)
+                }
+            }
+        }
     }
 }

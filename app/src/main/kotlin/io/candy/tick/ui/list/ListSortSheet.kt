@@ -11,7 +11,7 @@ import androidx.compose.runtime.Composable
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.rotate
 import androidx.compose.ui.graphics.vector.ImageVector
-import androidx.compose.ui.platform.LocalConfiguration
+import androidx.compose.ui.platform.LocalWindowInfo
 import androidx.compose.ui.res.pluralStringResource
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.res.vectorResource
@@ -61,7 +61,7 @@ internal fun SortSheet(
         },
     ) {
         Column(
-            Modifier.heightIn(max = LocalConfiguration.current.screenHeightDp.dp * 0.7f).verticalScroll(scroll),
+            Modifier.heightIn(max = LocalWindowInfo.current.containerDpSize.height * 0.7f).verticalScroll(scroll),
         ) {
             Text(
                 text = stringResource(R.string.sort_direction_hint),

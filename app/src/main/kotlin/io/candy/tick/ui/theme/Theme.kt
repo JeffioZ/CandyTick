@@ -1,7 +1,6 @@
 package io.candy.tick.ui.theme
 
 import android.app.Activity
-import android.os.Build
 import androidx.compose.foundation.isSystemInDarkTheme
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.CompositionLocalProvider
@@ -32,7 +31,7 @@ val CandyLightColors = lightColorScheme(
     disabledPrimary = LightDisabledPrimary,
     disabledOnPrimary = LightDisabledOnPrimary,
     disabledPrimaryButton = LightDisabledPrimary,
-    disabledOnPrimaryButton = LightOnPrimary,
+    disabledOnPrimaryButton = LightTextSecondary,
     disabledPrimarySlider = LightDisabledPrimary,
     primaryContainer = LightPrimaryContainer,
     onPrimaryContainer = LightOnPrimaryContainer,
@@ -88,7 +87,7 @@ val CandyDarkColors = darkColorScheme(
     disabledPrimary = DarkDisabledPrimary,
     disabledOnPrimary = DarkDisabledOnPrimary,
     disabledPrimaryButton = DarkDisabledPrimary,
-    disabledOnPrimaryButton = DarkDisabledOnPrimary,
+    disabledOnPrimaryButton = DarkTextSecondary,
     disabledPrimarySlider = DarkDisabledPrimary,
     primaryContainer = DarkPrimaryContainer,
     onPrimaryContainer = DarkOnPrimaryContainer,
@@ -177,9 +176,7 @@ private fun SystemBars(dark: Boolean) {
                 if (dark) DarkBackground.toArgb() else LightBackground.toArgb(),
             )
             // 29+：关掉系统给三键导航栏强加的灰色对比纱罩
-            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
-                window.isNavigationBarContrastEnforced = false
-            }
+            window.isNavigationBarContrastEnforced = false
             val controller = WindowCompat.getInsetsController(window, view)
             controller.isAppearanceLightStatusBars = !dark
             controller.isAppearanceLightNavigationBars = !dark

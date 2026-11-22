@@ -1,6 +1,5 @@
 package io.candy.tick.ui.detail
 
-import androidx.compose.animation.animateContentSize
 import androidx.compose.animation.AnimatedContent
 import androidx.compose.animation.EnterTransition
 import androidx.compose.animation.ExitTransition
@@ -8,219 +7,57 @@ import androidx.compose.animation.SizeTransform
 import androidx.compose.animation.core.tween
 import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
-import androidx.compose.animation.slideInVertically
 import androidx.compose.animation.togetherWith
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
-import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
-import androidx.compose.foundation.lazy.LazyColumn
-import androidx.compose.foundation.lazy.items
-import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.key
-import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.produceState
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
-import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.focus.focusRequester
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import io.candy.tick.R
-import io.candy.tick.ui.common.InlineErrorRow
-import io.candy.tick.ui.common.RepoIdentityHeader
-import io.candy.tick.ui.common.OptionRow
-import io.candy.tick.ui.common.InputLimits
-import io.candy.tick.ui.common.SheetScrollToTopTitle
-import io.candy.tick.ui.common.TextFieldActionButton
-import io.candy.tick.ui.common.clearTextFieldAction
-import io.candy.tick.ui.common.PrimaryButton
-import io.candy.tick.ui.common.DownloadProgress
-import io.candy.tick.ui.common.AppLinkRow
-import io.candy.tick.ui.common.LinkedRepoAvatar
-import io.candy.tick.ui.common.rememberAppIconResult
+import io.candy.tick.data.RepoDownloadState
+import io.candy.tick.data.model.statusAt
 import io.candy.tick.ui.common.AppIconResult
-import io.candy.tick.ui.common.repoAvatarIcon
-import io.candy.tick.ui.common.rememberMotionEnabled
-import io.candy.tick.ui.common.scrollToTop
+import io.candy.tick.ui.common.AppLinkRow
+import io.candy.tick.ui.common.downloadActionTransition
+import io.candy.tick.ui.common.DownloadProgress
+import io.candy.tick.ui.common.InlineErrorRow
+import io.candy.tick.ui.common.LinkedRepoAvatar
+import io.candy.tick.ui.common.LinkedVersionSummary
+import io.candy.tick.ui.common.Motion
+import io.candy.tick.ui.common.PrimaryButton
+import io.candy.tick.ui.common.RepoIdentityHeader
 import io.candy.tick.ui.common.SectionDivider
 import io.candy.tick.ui.common.StatusBadge
-import io.candy.tick.ui.common.LinkedVersionSummary
-import io.candy.tick.ui.common.relTimeString
+import io.candy.tick.ui.common.rememberAppIconResult
+import io.candy.tick.ui.common.rememberMotionEnabled
+import io.candy.tick.ui.common.repoAvatarIcon
 import io.candy.tick.ui.common.sourceErrorText
 import io.candy.tick.util.VersionCompare
-import io.candy.tick.data.model.statusAt
 import top.yukonga.miuix.kmp.basic.Card
 import top.yukonga.miuix.kmp.basic.Text
 import top.yukonga.miuix.kmp.theme.MiuixTheme
-import androidx.compose.ui.res.vectorResource
-import androidx.compose.ui.graphics.vector.ImageVector
-import io.candy.tick.ui.common.Motion
 
-// ── 详情页子组件（自 DetailScreen 拆出：头部卡 / 分支弹层 / 移除确认）──
+// ── 详情页子组件（自 DetailScreen 拆出：头部卡 / 移除确认）──
 
 @Composable
 internal fun downloadFailureText(failure: RepoDownloadState.Failed?): String {
     val reason = failure?.error?.let { sourceErrorText(it) } ?: failure?.message
     return if (reason.isNullOrBlank()) stringResource(R.string.settings_download_failed)
     else stringResource(R.string.download_failed_reason, reason)
-}
-
-/**
- * 分支选择底部弹层：限高 60% 屏 + 平滑增高；分支多时给搜索框。
- * 首行固定「默认分支」，已选分支被远端删除时保留一行选中态可切回。
- */
-@Composable
-internal fun BranchPickerSheet(
-    show: Boolean,
-    state: DetailViewModel.UiState,
-    onSelect: (String?) -> Unit,
-    onDismiss: () -> Unit,
-    onLoadBranches: () -> Unit,
-) {
-    val windowHeight = androidx.compose.ui.platform.LocalConfiguration.current.screenHeightDp.dp
-    val maxSheetHeight = windowHeight * 0.6f
-    val scrollSearchField = windowHeight < 480.dp
-    var query by remember { mutableStateOf("") }
-    // sheet 关闭即清搜索词：消灭幽灵草稿（与 Token sheet 同一治理原则）
-    androidx.compose.runtime.LaunchedEffect(show) {
-        if (!show && query.isNotEmpty()) query = ""
-    }
-    // 打开即聚焦：搜索框仅在分支 >15 个时组合，且分支请求未回时固定延迟会打空
-    // （FocusRequester 未挂载 → runCatching 静默失败）；改为列表就绪后请求
-    val branchFocus = remember { androidx.compose.ui.focus.FocusRequester() }
-    val branches = state.branches.orEmpty()
-    val searchable = branches.size > 15
-    androidx.compose.runtime.LaunchedEffect(show, searchable) {
-        if (show && searchable) {
-            kotlinx.coroutines.delay(100)
-            runCatching { branchFocus.requestFocus() }
-        }
-    }
-    // GitHub 式分支切换器：纯分支列表，当前查看的分支打勾——
-    // branch=null（跟随默认）时勾打在上游默认分支上；无「Default branch」幻影行
-    val defaultBranch = state.snapshot?.defaultBranch
-    val currentViewed = state.repo?.branch ?: defaultBranch
-    val keyword = query.trim()
-    val filtered = if (keyword.isEmpty()) branches else branches.filter {
-        it.name.contains(keyword, ignoreCase = true)
-    }
-    val listReady = state.branches != null && !state.branchesLoading && !state.branchesFailed
-    val missingSelection = state.repo?.branch?.takeIf { name ->
-        listReady && branches.none { it.name == name } && name.contains(keyword, ignoreCase = true)
-    }
-    // show 直通（勿用 if 包裹组件）：关闭时组件仍在组合中，库的退场动画才能播放
-    val listState = rememberLazyListState()
-    top.yukonga.miuix.kmp.window.WindowBottomSheet(
-        show = show,
-        onDismissRequest = onDismiss,
-        onDismissFinished = { listState.requestScrollToItem(0) },
-        startAction = {
-            SheetScrollToTopTitle(
-                text = stringResource(R.string.branch_picker_title),
-                canScroll = listState.canScrollBackward,
-                scrollToTop = listState::scrollToTop,
-            )
-        },
-    ) {
-        fun filterBranches(value: String) {
-            if (value == query || value.length > InputLimits.SEARCH) return
-            query = value
-            listState.requestScrollToItem(0)
-        }
-        Column(
-            modifier = Modifier
-                .fillMaxWidth()
-                .then(if (searchable) Modifier.height(maxSheetHeight) else Modifier.heightIn(max = maxSheetHeight))
-                // 220 表层档显式 spec：默认 spring 时长不受六档体系控制（自家原则：
-                // 「默认 spring 不可控且在体系外」）；缩放=0 时 tween 瞬时完成自动退化
-                .animateContentSize(androidx.compose.animation.core.tween(Motion.PANEL)),
-        ) {
-            val searchField: @Composable () -> Unit = {
-                val keyboard = androidx.compose.ui.platform.LocalSoftwareKeyboardController.current
-                top.yukonga.miuix.kmp.basic.TextField(
-                    value = query,
-                    onValueChange = ::filterBranches,
-                    label = stringResource(R.string.branch_search_hint),
-                    singleLine = true,
-                    // 回车收键盘：实时过滤已出结果，Done 不需要别的动作
-                    keyboardOptions = androidx.compose.foundation.text.KeyboardOptions(
-                        imeAction = androidx.compose.ui.text.input.ImeAction.Done,
-                    ),
-                    keyboardActions = androidx.compose.foundation.text.KeyboardActions(
-                        onDone = { keyboard?.hide() },
-                    ),
-                    trailingIcon = if (query.isNotEmpty()) {
-                        { TextFieldActionButton(onClick = clearTextFieldAction(branchFocus) { filterBranches("") }) }
-                    } else null,
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .padding(horizontal = 16.dp)
-                        .focusRequester(branchFocus),
-                )
-            }
-            if (searchable && !scrollSearchField) searchField()
-            LazyColumn(state = listState, modifier = Modifier.weight(1f, fill = false)) {
-                if (searchable && scrollSearchField) item(key = 0) { searchField() }
-                if (listReady && filtered.isEmpty() && missingSelection == null) {
-                    item {
-                        io.candy.tick.ui.common.StatusPage(
-                            icon = ImageVector.vectorResource(if (keyword.isEmpty()) R.drawable.ic_git_branch else R.drawable.ic_search),
-                            title = stringResource(if (keyword.isEmpty()) R.string.branch_empty else R.string.branch_no_match),
-                            compact = true,
-                            modifier = Modifier.fillMaxWidth().padding(vertical = 24.dp),
-                        )
-                    }
-                }
-                items(filtered, key = { it.name }) { b ->
-                    // 点默认分支 = 存 null（保留「跟随默认」语义，上游改名自动跟）
-                    OptionRow(b.name, b.name == currentViewed, summary = b.tipDate?.let { relTimeString(it) }) {
-                        onSelect(if (b.name == defaultBranch) null else b.name)
-                        onDismiss()
-                    }
-                }
-                // 已 pin 的分支被远端删除（不在列表里）：保留一行选中态，可切回。
-                // loading 中列表为空 ≠ 「已删」——当前分支会闪现成删除行，等加载完再判
-                missingSelection?.let { name ->
-                    item(key = "deleted-$name") {
-                        OptionRow(name, true) {
-                            onSelect(name)
-                            onDismiss()
-                        }
-                    }
-                }
-            }
-            when {
-                state.branchesLoading -> androidx.compose.foundation.layout.Box(
-                    modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 12.dp),
-                    contentAlignment = Alignment.Center,
-                ) {
-                    io.candy.tick.ui.common.LoadingDots(dotSize = 5.dp)
-                }
-                state.branchesFailed -> io.candy.tick.ui.common.StatusPage(
-                    isError = true,
-                    compact = true,
-                    title = stringResource(R.string.branches_load_failed),
-                    actionLabel = stringResource(R.string.retry),
-                    onAction = onLoadBranches,
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .verticalScroll(rememberScrollState())
-                        .padding(vertical = 20.dp),
-                )
-            }
-        }
-    }
 }
 
 /** 移除订阅确认（破坏性操作：红色主按钮） */
@@ -395,11 +232,7 @@ internal fun HeaderCard(
                 targetState = updatePhase to state.download,
                 modifier = Modifier.fillMaxWidth(),
                 contentKey = { it.first },
-                transitionSpec = {
-                    val enter = fadeIn(tween(actionDuration)) + slideInVertically(tween(actionDuration)) { it / 6 }
-                    (enter togetherWith fadeOut(tween(actionDuration)))
-                        .using(SizeTransform { _, _ -> tween(actionDuration) })
-                },
+                transitionSpec = { downloadActionTransition(duration = actionDuration, clip = true) },
                 label = "updatePhase",
             ) { (phase, transfer) ->
                 if (phase == null) return@AnimatedContent
@@ -414,6 +247,7 @@ internal fun HeaderCard(
                         "progress" -> DownloadProgress(
                             progress = (transfer as RepoDownloadState.Active).progress,
                             onCancel = onCancelDownload,
+                            cancelEnabled = actionCurrent,
                         )
                         "install" -> PrimaryButton(
                             text = stringResource(R.string.install_apk),

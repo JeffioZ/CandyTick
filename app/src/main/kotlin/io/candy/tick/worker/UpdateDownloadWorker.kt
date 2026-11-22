@@ -16,6 +16,7 @@ class UpdateDownloadWorker(context: Context, params: WorkerParameters) : Corouti
 
     override suspend fun doWork(): Result {
         val container = (applicationContext as CandyTickApp).container
+        if (!container.appStateStore.ensureLoaded()) return Result.retry()
         val updater = container.selfUpdater
         val settings = container.appStateStore.state.value.settings
         if (!settings.selfUpdateAutoDownload) return Result.success()

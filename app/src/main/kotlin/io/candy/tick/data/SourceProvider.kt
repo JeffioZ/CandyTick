@@ -38,7 +38,7 @@ interface SourceProvider {
     suspend fun commitTipForSync(owner: String, repo: String, branch: String?, etag: String? = null): SyncCommitTipResult? = null
 
     /** 分支列表（提交视图的分支切换；无对应能力的源返回空） */
-    suspend fun branches(owner: String, repo: String): List<String> = emptyList()
+    suspend fun branches(owner: String, repo: String, page: Int): BranchPage = BranchPage(emptyList(), false)
 
     /** 分支 tip 提交时间（per-branch 补齐用；分支不存在/无提交返回 null） */
     suspend fun branchTipDate(owner: String, repo: String, branch: String): Instant? = null
@@ -48,6 +48,8 @@ interface SourceProvider {
 }
 
 data class RepoSearchPage(val repositories: List<RepoInfo> = emptyList(), val isComplete: Boolean = false)
+
+data class BranchPage(val names: List<String>, val hasNext: Boolean)
 
 /** 拉取到的仓库信息（改名跟随后的最终 owner/repo 在此） */
 data class RepoInfo(
@@ -132,7 +134,7 @@ class GitHubProvider(private val api: GitHubApi) : SourceProvider {
     override suspend fun commitTipForSync(owner: String, repo: String, branch: String?, etag: String?) =
         api.commitsTip(owner, repo, branch, etag)
 
-    override suspend fun branches(owner: String, repo: String) = api.branches(owner, repo)
+    override suspend fun branches(owner: String, repo: String, page: Int) = api.branches(owner, repo, page)
 
     override suspend fun branchTipDate(owner: String, repo: String, branch: String) =
         api.branchTipDate(owner, repo, branch)

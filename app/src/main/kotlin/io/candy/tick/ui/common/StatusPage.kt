@@ -46,6 +46,7 @@ internal fun InlineErrorRow(
     message: String,
     onRetry: (() -> Unit)?,
     retryEnabled: Boolean = true,
+    showRetryLabel: Boolean = false,
 ) {
     val scheme = MiuixTheme.colorScheme
     Row(
@@ -68,7 +69,15 @@ internal fun InlineErrorRow(
             style = MiuixTheme.textStyles.footnote1,
             color = scheme.onErrorContainer,
         )
-        if (onRetry != null) {
+        if (onRetry != null && showRetryLabel) {
+            CompactTextAction(onClick = onRetry, enabled = retryEnabled, surface = scheme.errorContainer) {
+                Text(
+                    text = stringResource(R.string.retry),
+                    style = MiuixTheme.textStyles.footnote1.copy(fontWeight = FontWeight.SemiBold),
+                    color = scheme.onErrorContainer.copy(alpha = if (retryEnabled) 1f else 0.38f),
+                )
+            }
+        } else if (onRetry != null) {
             ErrorBannerButton(
                 R.drawable.ic_refresh, R.string.retry, lerp(scheme.errorContainer, scheme.onErrorContainer, 0.09f),
                 onRetry, enabled = retryEnabled,
@@ -89,9 +98,9 @@ internal fun InlineErrorRow(
  */
 @Composable
 fun StatusPage(
-    icon: ImageVector? = null,
     title: String,
     modifier: Modifier = Modifier,
+    icon: ImageVector? = null,
     isError: Boolean = false,
     compact: Boolean = false,
     subtitle: String? = null,

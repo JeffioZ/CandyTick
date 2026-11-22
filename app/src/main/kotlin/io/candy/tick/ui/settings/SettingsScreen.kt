@@ -1,7 +1,8 @@
 package io.candy.tick.ui.settings
 
+import android.content.ClipData
+import android.content.ClipboardManager
 import android.content.Intent
-import android.net.Uri
 import android.provider.Settings
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
@@ -31,7 +32,10 @@ import androidx.lifecycle.LifecycleEventObserver
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.lifecycle.compose.LocalLifecycleOwner
 import androidx.lifecycle.viewmodel.compose.viewModel
+import kotlinx.coroutines.CancellationException
+import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
 import io.candy.tick.CandyTickApp
 import io.candy.tick.R
 import io.candy.tick.data.model.ThemeMode
@@ -39,6 +43,7 @@ import io.candy.tick.data.Notifications
 import io.candy.tick.data.SelfUpdater
 import io.candy.tick.data.model.SyncFrequency
 import io.candy.tick.ui.common.CenteredScrollToTopBar
+import io.candy.tick.ui.common.rememberExternalUriHandler
 import io.candy.tick.ui.common.Feedback
 import io.candy.tick.ui.common.rememberMotionEnabled
 import io.candy.tick.ui.common.OptionRow
@@ -88,7 +93,7 @@ fun SettingsScreen(onBack: () -> Unit) {
     val scope = androidx.compose.runtime.rememberCoroutineScope()
     val listState = rememberLazyListState()
     val motionEnabled = rememberMotionEnabled()
-    val clipboard = androidx.compose.ui.platform.LocalClipboardManager.current
+    val clipboard = remember(context) { context.getSystemService(ClipboardManager::class.java) }
     var showFrequencySheet by remember { mutableStateOf(false) }
     var showThemeSheet by remember { mutableStateOf(false) }
     var showLanguageSheet by remember { mutableStateOf(false) }
@@ -122,77 +127,45 @@ fun SettingsScreen(onBack: () -> Unit) {
     var showImportDialog by remember { mutableStateOf(false) }
     var showCacheCleanup by remember { mutableStateOf(false) }
 
-    fun importFromText(text: String?) {
-        if (text.isNullOrBlank()) {
-            io.candy.tick.ui.common.Feedback.show(text = resources.getString(R.string.import_failed), isError = true)
-            return
+    fun showImportResult(added: Int) {
+        val msg = when {
+            added < 0 -> resources.getString(R.string.import_failed)
+            added == 0 -> resources.getString(R.string.import_no_new)
+            else -> resources.getQuantityString(R.plurals.import_result, added, added)
         }
-        scope.launch {
-            val added = vm.importSubscriptions(text)
-            val msg = when {
-                added < 0 -> resources.getString(R.string.import_failed)
-                added == 0 -> resources.getString(R.string.import_no_new)
-                else -> resources.getQuantityString(R.plurals.import_result, added, added)
+        Feedback.show(msg, isError = added < 0)
+    }
+    val importLauncher = rememberLauncherForActivityResult(ActivityResultContracts.OpenDocument()) { uri ->
+        if (uri != null) scope.launch {
+            val added = withContext(Dispatchers.IO) {
+                try {
+                    context.contentResolver.openInputStream(uri)?.use { vm.importSubscriptions(it) } ?: -1
+                } catch (_: java.io.IOException) { -1 }
+                catch (_: SecurityException) { -1 }
             }
-            io.candy.tick.ui.common.Feedback.show(text = msg, isError = added < 0)
+            showImportResult(added)
         }
     }
 
-    val importLauncher = rememberLauncherForActivityResult(
-        ActivityResultContracts.OpenDocument(),
-    ) { uri ->
-        if (uri != null) {
-            // 文件读取在 IO 线程（大备份的 pretty JSON 可达数百 KB，不占主线程）
-            scope.launch(kotlinx.coroutines.Dispatchers.IO) {
-                val text = runCatching {
-                    context.contentResolver.openInputStream(uri)?.bufferedReader()?.use { it.readText() }
-                }.getOrNull()
-                importFromText(text)
-            }
-        }
-    }
-
-    fun shareText(text: String) {
-        runCatching {
-            context.startActivity(
-                Intent(Intent.ACTION_SEND)
-                    .setType("text/plain")
-                    .putExtra(Intent.EXTRA_TEXT, text)
-                    .addFlags(Intent.FLAG_ACTIVITY_NEW_TASK),
-            )
-        }.onFailure {
+    suspend fun share(text: String, backup: Boolean) {
+        try {
+            shareSettingsText(context, text, backup)
+        } catch (cancelled: CancellationException) {
+            throw cancelled
+        } catch (_: Exception) {
             Feedback.show(resources.getString(R.string.share_unavailable), isError = true)
         }
     }
 
     fun shareCrashLog() {
-        val content = runCatching { crashLogFile.readText() }.getOrNull()
-        if (content.isNullOrEmpty()) {
-            Feedback.show(resources.getString(R.string.crash_log_empty))
-        } else {
-            shareText(content)
+        scope.launch {
+            val content = withContext(Dispatchers.IO) { runCatching { crashLogFile.readText() }.getOrNull() }
+            if (content.isNullOrEmpty()) Feedback.show(resources.getString(R.string.crash_log_empty))
+            else share(content, backup = false)
         }
     }
 
-    fun openUrl(url: String) {
-        runCatching {
-            context.startActivity(
-                Intent(Intent.ACTION_VIEW, Uri.parse(url)).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK),
-            )
-        }.onFailure {
-            io.candy.tick.ui.common.Feedback.show(
-                text = resources.getString(R.string.open_failed),
-                isError = true,
-            )
-        }
-    }
-
-    fun languageTag(): String = state.settings.language
-
-    fun applyLanguage(tag: String) {
-        scope.launch { vm.setLanguage(tag) }
-        // 不 recreate：ContextWrapper 包裹会响应 language 变化原地切换文字
-    }
+    val links = rememberExternalUriHandler()
 
     Scaffold(
         containerColor = androidx.compose.ui.graphics.Color.Transparent,
@@ -217,7 +190,7 @@ fun SettingsScreen(onBack: () -> Unit) {
             SettingsGroup(title = stringResource(R.string.settings_appearance)) {
                 SettingRow(
                     title = stringResource(R.string.settings_language),
-                    value = languageLabel(languageTag()),
+                    value = languageLabel(state.settings.language),
                     icon = ImageVector.vectorResource(R.drawable.ic_globe),
                     iconTint = ChipBlue,
                     onClick = { showLanguageSheet = true },
@@ -352,9 +325,11 @@ fun SettingsScreen(onBack: () -> Unit) {
                     onClick = {
                         scope.launch {
                             val text = vm.exportSubscriptions()
-                            clipboard.setText(androidx.compose.ui.text.AnnotatedString(text))
-                            io.candy.tick.ui.common.Feedback.show(text = resources.getString(R.string.toast_copied))
-                            shareText(text)
+                            if (text.length <= MAX_SHARED_TEXT_CHARS && runCatching {
+                                    clipboard.setPrimaryClip(ClipData.newPlainText(null, text))
+                                }.isSuccess
+                            ) Feedback.show(resources.getString(R.string.toast_copied))
+                            share(text, backup = true)
                         }
                     },
                 )
@@ -420,7 +395,7 @@ fun SettingsScreen(onBack: () -> Unit) {
                     iconTint = ChipPeriwinkle,
                     title = stringResource(R.string.settings_github_repo),
                     value = "JeffioZ/CandyTick",
-                    onClick = { openUrl(REPO_URL) },
+                    onClick = { links.openUri(REPO_URL) },
                 )
                 RowDivider()
                 SettingRow(
@@ -428,7 +403,7 @@ fun SettingsScreen(onBack: () -> Unit) {
                     iconTint = ChipSlate,
                     title = stringResource(R.string.settings_license),
                     value = "GPL-3.0",
-                    onClick = { openUrl(LICENSE_URL) },
+                    onClick = { links.openUri(LICENSE_URL) },
                 )
                 RowDivider()
                 SettingRow(
@@ -494,14 +469,14 @@ fun SettingsScreen(onBack: () -> Unit) {
         onDismissRequest = { showLanguageSheet = false },
     ) {
         Column(Modifier.verticalScroll(rememberScrollState())) {
-            OptionRow(stringResource(R.string.lang_system), languageTag().isEmpty()) {
-                applyLanguage(""); showLanguageSheet = false
+            OptionRow(stringResource(R.string.lang_system), state.settings.language.isEmpty()) {
+                vm.setLanguage(""); showLanguageSheet = false
             }
-            OptionRow(stringResource(R.string.lang_chinese), languageTag() == "zh") {
-                applyLanguage("zh"); showLanguageSheet = false
+            OptionRow(stringResource(R.string.lang_chinese), state.settings.language == "zh") {
+                vm.setLanguage("zh"); showLanguageSheet = false
             }
-            OptionRow(stringResource(R.string.lang_english), languageTag() == "en") {
-                applyLanguage("en"); showLanguageSheet = false
+            OptionRow(stringResource(R.string.lang_english), state.settings.language == "en") {
+                vm.setLanguage("en"); showLanguageSheet = false
             }
         }
     }
@@ -521,7 +496,10 @@ fun SettingsScreen(onBack: () -> Unit) {
         },
         onFromClipboard = {
             showImportDialog = false
-            importFromText(clipboard.getText()?.text)
+            scope.launch {
+                val text = runCatching { clipboard.primaryClip?.getItemAt(0)?.text?.toString() }.getOrNull()
+                showImportResult(if (text.isNullOrBlank()) -1 else vm.importSubscriptions(text))
+            }
         },
         onDismiss = { showImportDialog = false },
     )
@@ -534,7 +512,7 @@ fun SettingsScreen(onBack: () -> Unit) {
         onToggleVisible = { tokenVisible = !tokenVisible },
         onTokenInput = vm::onTokenInput,
         onSaveAndTest = vm::saveAndTestToken,
-        onOpenHelp = { openUrl("https://docs.github.com/en/authentication/keeping-your-account-and-data-secure/managing-your-personal-access-tokens") },
+        onOpenHelp = { links.openUri("https://docs.github.com/en/authentication/keeping-your-account-and-data-secure/managing-your-personal-access-tokens") },
         onDismiss = {
             showTokenDialog = false
             vm.resetTokenDraft() // 退出=放弃未保存编辑：重置为已保存值，消灭幽灵草稿

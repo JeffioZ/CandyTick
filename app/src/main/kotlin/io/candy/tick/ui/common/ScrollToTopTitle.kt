@@ -3,11 +3,17 @@ package io.candy.tick.ui.common
 import androidx.compose.foundation.ScrollState
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.horizontalScroll
+import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.BoxWithConstraints
+import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.RowScope
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.sizeIn
 import androidx.compose.foundation.layout.widthIn
+import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.layout.wrapContentWidth
 import androidx.compose.foundation.lazy.LazyListState
 import androidx.compose.foundation.shape.RoundedCornerShape
@@ -34,6 +40,7 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.Dp
 import io.candy.tick.R
 import kotlinx.coroutines.launch
 import top.yukonga.miuix.kmp.basic.Icon
@@ -103,6 +110,17 @@ private fun Modifier.titleAction(onClick: (() -> Unit)?): Modifier {
             onClick = onClick,
         )
         .semantics { heading() }
+}
+
+/** Keep the title and buttons in one measured row. Very narrow windows can scroll to every action. */
+@Composable
+internal fun TopBarActionRow(minimum: Dp, content: @Composable RowScope.() -> Unit) {
+    BoxWithConstraints(Modifier.fillMaxWidth().padding(start = TopAppBarDefaults.NavigationIconPadding)) {
+        val row = if (maxWidth < minimum) {
+            Modifier.horizontalScroll(rememberScrollState()).width(minimum)
+        } else Modifier.fillMaxWidth()
+        Row(row, verticalAlignment = Alignment.CenterVertically, content = content)
+    }
 }
 
 /** A centered, tappable title in Miuix's inset-aware small app bar. */

@@ -1,7 +1,6 @@
 package io.candy.tick.ui.common
 
 import android.content.Context
-import android.content.Intent
 import androidx.activity.compose.BackHandler
 import androidx.compose.foundation.layout.Box
 import androidx.compose.ui.Alignment
@@ -13,7 +12,6 @@ import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.wrapContentHeight
-import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.foundation.rememberScrollState
@@ -30,19 +28,17 @@ import androidx.compose.runtime.rememberUpdatedState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.focus.FocusRequester
-import androidx.compose.ui.focus.focusRequester
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.async
 import kotlinx.coroutines.withTimeoutOrNull
-import androidx.compose.ui.platform.LocalConfiguration
+import androidx.compose.ui.platform.LocalWindowInfo
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.dp
 import io.candy.tick.R
 import io.candy.tick.util.appDisplayName
+import io.candy.tick.util.launcherEntries
 import io.candy.tick.util.labelOf
-import top.yukonga.miuix.kmp.basic.TextField
 import top.yukonga.miuix.kmp.window.WindowBottomSheet
 
 private data class AppOption(
@@ -50,7 +46,6 @@ private data class AppOption(
     val label: String,
 )
 
-private const val SEARCH_THRESHOLD = 15
 private const val PICKER_OPEN_BUDGET_MS = 80L
 
 private class AppPickerVisit {
@@ -61,10 +56,7 @@ private class AppPickerVisit {
 
 private fun readLauncherApps(context: Context): List<AppOption> {
     val pm = context.packageManager
-    val intent = Intent(Intent.ACTION_MAIN).addCategory(Intent.CATEGORY_LAUNCHER)
-    return pm.queryIntentActivities(intent, 0).asSequence()
-        .filterNot { it.activityInfo.packageName == context.packageName }
-        .distinctBy { it.activityInfo.packageName }
+    return launcherEntries(context)
         .map { entry ->
             val pkg = entry.activityInfo.packageName
             AppOption(pkg, appDisplayName(pkg, entry.loadLabel(pm)) ?: labelOf(context, pkg) ?: pkg)
@@ -95,7 +87,7 @@ fun AppPickerSheet(
             // surface within one press interval and keep that same height when rows arrive.
             val quickResult = withTimeoutOrNull(PICKER_OPEN_BUDGET_MS) { scan.await() }
             val quickApps = quickResult?.getOrNull()
-            visit.fullHeight = quickApps == null || quickApps.size > SEARCH_THRESHOLD
+            visit.fullHeight = quickApps == null || quickApps.size > PICKER_SEARCH_THRESHOLD
             visit.result = quickResult
             displayed = visit
             if (quickResult != null) return@LaunchedEffect
@@ -106,9 +98,8 @@ fun AppPickerSheet(
     BackHandler(enabled = show && !open, onBack = onDismiss)
     // displayed is retained until the exit animation finishes.
     val page = displayed ?: return
-    val windowHeight = LocalConfiguration.current.screenHeightDp.dp
+    val windowHeight = LocalWindowInfo.current.containerDpSize.height
     val maxSheetHeight = windowHeight * 0.6f
-    val scrollSearchField = windowHeight < 480.dp
     val listState = key(page) { rememberLazyListState() }
 
     // show 直通（勿用 if 包裹）：退场动画依赖组件持续组合
@@ -128,20 +119,14 @@ fun AppPickerSheet(
     ) {
         val result = page.result
         val apps = result?.getOrNull().orEmpty()
-        val searchable = apps.size > SEARCH_THRESHOLD
+        val searchable = apps.size > PICKER_SEARCH_THRESHOLD
         var query by remember(page) { mutableStateOf("") }
-        val searchFocus = remember(page) { FocusRequester() }
         val keyword = query.trim()
         val filtered = remember(apps, keyword) {
             if (keyword.isEmpty()) apps else apps.filter {
                 it.label.contains(keyword, ignoreCase = true) ||
                     it.packageName.contains(keyword, ignoreCase = true)
             }
-        }
-        fun filterApps(value: String) {
-            if (value == query || value.length > InputLimits.SEARCH) return
-            query = value
-            listState.requestScrollToItem(0)
         }
         Column(
             modifier = Modifier
@@ -181,24 +166,7 @@ fun AppPickerSheet(
                 )
                 return@Column
             }
-            val searchField: @Composable () -> Unit = {
-                TextField(
-                    value = query,
-                    onValueChange = ::filterApps,
-                    label = stringResource(R.string.picker_search_app),
-                    singleLine = true,
-                    trailingIcon = if (query.isNotEmpty()) {
-                        { TextFieldActionButton(onClick = clearTextFieldAction(searchFocus) { filterApps("") }) }
-                    } else null,
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .padding(horizontal = 16.dp)
-                        .focusRequester(searchFocus),
-                )
-            }
-            if (searchable && !scrollSearchField) searchField()
-            LazyColumn(state = listState) {
-                if (searchable && scrollSearchField) item(key = 0) { searchField() }
+            PickerList(listState, searchable, query, stringResource(R.string.picker_search_app), { query = it }) {
                 if (searchable && filtered.isEmpty()) {
                     item {
                         StatusPage(

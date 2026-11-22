@@ -4,29 +4,43 @@ import android.content.Context
 import android.util.Log
 import io.candy.tick.data.model.AppState
 import io.candy.tick.data.model.RepoActivity
+import io.candy.tick.data.model.RepoSnapshot
+import io.candy.tick.data.model.TrackedRepo
 import java.io.File
 import java.io.IOException
+import java.io.InputStream
+import java.io.OutputStream
 import java.nio.file.AtomicMoveNotSupportedException
 import java.nio.file.Files
+import java.nio.file.NoSuchFileException
 import java.nio.file.StandardCopyOption
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.NonCancellable
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
+import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
 import kotlinx.coroutines.withContext
 import kotlinx.serialization.encodeToString
+import kotlinx.serialization.Serializable
+import kotlinx.serialization.ExperimentalSerializationApi
 import kotlinx.serialization.json.Json
+import kotlinx.serialization.json.decodeFromStream
+import kotlinx.serialization.json.encodeToStream
 import kotlinx.serialization.decodeFromString
 
 /**
  * 状态中枢：内存全量持有（StateFlow）+ 单 JSON 文件原子写。
  * 订阅与设置同文件（design.md 持久化定案）。
  */
+@OptIn(ExperimentalSerializationApi::class)
 class AppStateStore internal constructor(filesDir: File, noBackupDir: File) {
     constructor(context: Context) : this(context.filesDir, context.noBackupFilesDir)
+
+    internal enum class SaveStatus { SAVED, FAILED, RETRYING, RETRY_FAILED }
+    internal enum class LoadStatus { READY, FAILED, RETRYING }
 
     private val json = Json {
         ignoreUnknownKeys = true
@@ -36,33 +50,80 @@ class AppStateStore internal constructor(filesDir: File, noBackupDir: File) {
     private val tokenFile = File(noBackupDir, "github_token")
     private var savedToken: String? = null
     private var needsMigration = false
-    private val _state = MutableStateFlow(loadStateAndToken())
+    private val _saveStatus = MutableStateFlow(SaveStatus.SAVED)
+    internal val saveStatus = _saveStatus.asStateFlow()
+    private val _loadStatus = MutableStateFlow(LoadStatus.READY)
+    internal val loadStatus = _loadStatus.asStateFlow()
+    private val _state = MutableStateFlow(readState() ?: AppState())
     val state: StateFlow<AppState> = _state.asStateFlow()
     private val stateLock = Any()
     private val writer = Mutex()
     private var saved = _state.value
 
-    /** 内存变更按序发布，单个写入者合并等待期间的更新。返回时此次变更已尝试落盘。 */
-    suspend fun update(transform: (AppState) -> AppState) {
-        synchronized(stateLock) {
-            _state.value = transform(_state.value)
-        }
-        withContext(NonCancellable + Dispatchers.IO) {
+    internal suspend fun awaitLoaded() {
+        if (_loadStatus.value != LoadStatus.READY) loadStatus.first { it == LoadStatus.READY }
+    }
+
+    internal suspend fun ensureLoaded(): Boolean {
+        if (_loadStatus.value == LoadStatus.READY) return true
+        return withContext(Dispatchers.IO) {
             writer.withLock {
-                val latest = _state.value
-                if ((needsMigration || latest !== saved) && persist(latest)) saved = latest
+                if (_loadStatus.value == LoadStatus.READY) return@withLock true
+                _loadStatus.value = LoadStatus.RETRYING
+                val restored = readState() ?: return@withLock false
+                _state.value = restored
+                saved = _state.value
+                _loadStatus.value = LoadStatus.READY
+                true
             }
         }
     }
 
-    /** 导出为 JSON（仅订阅与快照；设置重置为默认——绝不把 Token 带进分享内容） */
+    /** 内存变更按序发布，单个写入者合并等待期间的更新。返回时此次变更已尝试落盘。 */
+    suspend fun update(transform: (AppState) -> AppState) {
+        awaitLoaded()
+        synchronized(stateLock) {
+            _state.value = transform(_state.value)
+        }
+        saveLatest()
+    }
+
+    internal suspend fun retrySave(): Boolean {
+        val previous = _saveStatus.value
+        if (previous != SaveStatus.FAILED && previous != SaveStatus.RETRY_FAILED) return false
+        if (!_saveStatus.compareAndSet(previous, SaveStatus.RETRYING)) return false
+        saveLatest(manualRetry = true)
+        return _saveStatus.value == SaveStatus.SAVED
+    }
+
+    private suspend fun saveLatest(manualRetry: Boolean = false) {
+        withContext(NonCancellable + Dispatchers.IO) {
+            writer.withLock {
+                val latest = _state.value
+                if (latest === saved && _saveStatus.value == SaveStatus.SAVED) return@withLock
+                if (!persist(latest)) {
+                    if (manualRetry) _saveStatus.value = SaveStatus.RETRY_FAILED
+                    else _saveStatus.compareAndSet(SaveStatus.SAVED, SaveStatus.FAILED)
+                    return@withLock
+                }
+                saved = latest
+                synchronized(stateLock) {
+                    // A newer edit has its own write pending. Only dismiss when disk has caught up.
+                    if (_state.value === latest) _saveStatus.value = SaveStatus.SAVED
+                    else if (manualRetry) _saveStatus.compareAndSet(SaveStatus.RETRYING, SaveStatus.FAILED)
+                }
+            }
+        }
+    }
+
+    @Serializable
+    private data class SubscriptionBackup(val repos: List<TrackedRepo>, val snapshots: Map<Long, RepoSnapshot> = emptyMap())
+
     fun exportJson(): String {
         val current = _state.value
-        val sanitized = current.copy(
+        val sanitized = SubscriptionBackup(
             repos = current.repos.map { it.copy(downloadedApk = null) },
             snapshots = current.snapshots.mapValues { (_, snapshot) -> snapshot.copy(activity = RepoActivity()) },
-            settings = io.candy.tick.data.model.Settings(),
-            downloadedSelfUpdate = null,
         )
         return json.encodeToString(sanitized)
     }
@@ -72,7 +133,20 @@ class AppStateStore internal constructor(filesDir: File, noBackupDir: File) {
      * @return 新增订阅数；-1 = 文件解析失败
      */
     suspend fun importJson(text: String): Int {
-        val imported = runCatching { json.decodeFromString<AppState>(text) }.getOrNull() ?: return -1
+        val imported = try {
+            json.decodeFromString<SubscriptionBackup>(text)
+        } catch (_: IllegalArgumentException) { return -1 }
+        return mergeBackup(imported)
+    }
+
+    suspend fun importJson(input: InputStream): Int {
+        val imported = try {
+            json.decodeFromStream<SubscriptionBackup>(input)
+        } catch (_: IllegalArgumentException) { return -1 }
+        return mergeBackup(imported)
+    }
+
+    private suspend fun mergeBackup(imported: SubscriptionBackup): Int {
         var added = 0
         update { s ->
             val existing = s.repos.mapTo(HashSet()) { it.id }
@@ -94,9 +168,9 @@ class AppStateStore internal constructor(filesDir: File, noBackupDir: File) {
         return added
     }
 
-    private fun loadOrReset(): AppState = runCatching {
-        file.takeIf { it.exists() }?.readText()?.let { text ->
-            val loaded = json.decodeFromString<AppState>(text)
+    private fun loadOrReset(): AppState = try {
+        Files.newInputStream(file.toPath()).use { input ->
+            val loaded = json.decodeFromStream<AppState>(input)
             // 旧版本允许在备份内重复订阅，并带回其他设备的本地文件名。
             val repos = loaded.repos.distinctBy { it.id }.map { repo ->
                 val name = repo.downloadedApk?.fileName
@@ -112,27 +186,36 @@ class AppStateStore internal constructor(filesDir: File, noBackupDir: File) {
             }
             loaded.copy(repos = repos, snapshots = snapshots, lastImportAt = null)
         }
-    }.getOrElse {
-        // 损坏：留档取证、从头开始，绝不 crash
-        Log.w(TAG, "state file corrupt, resetting", it)
-        runCatching { file.renameTo(File(file.parentFile, file.name + ".corrupt")) }
+    } catch (_: NoSuchFileException) {
+        AppState()
+    } catch (e: kotlinx.serialization.SerializationException) {
+        Log.w(TAG, "state file corrupt, keeping a copy", e)
+        Files.move(file.toPath(), File(file.parentFile, file.name + ".corrupt").toPath(), REPLACE_EXISTING)
+        AppState()
+    }
+
+    private fun readState(): AppState? = try {
+        loadStateAndToken()
+    } catch (e: Exception) {
+        if (e !is IOException && e !is SecurityException) throw e
+        Log.w(TAG, "state unavailable, waiting for retry", e)
+        _loadStatus.value = LoadStatus.FAILED
         null
-    } ?: AppState()
+    }
 
     private fun loadStateAndToken(): AppState {
         val state = loadOrReset()
         val legacy = state.settings.githubToken
         savedToken = try {
-            tokenFile.takeIf { it.isFile }?.readText()
-        } catch (e: IOException) {
-            Log.w(TAG, "token read failed", e)
-            return state
+            String(Files.readAllBytes(tokenFile.toPath()), Charsets.UTF_8)
+        } catch (_: NoSuchFileException) {
+            null
         }
         // 空文件表示用户明确清除了 token，进程中断时也不会重新启用旧 JSON 的值。
         val token = (savedToken ?: legacy)?.takeIf { it.isNotBlank() }
         val restored = state.copy(settings = state.settings.copy(githubToken = token))
         needsMigration = legacy != null
-        if (needsMigration) persist(restored)
+        if (needsMigration && !persist(restored)) _saveStatus.value = SaveStatus.FAILED
         return restored
     }
 
@@ -140,22 +223,24 @@ class AppStateStore internal constructor(filesDir: File, noBackupDir: File) {
         try {
             val token = state.settings.githubToken.orEmpty()
             if (token != savedToken.orEmpty() || (needsMigration && savedToken == null)) {
-                atomicWrite(tokenFile, token)
+                atomicWrite(tokenFile) { it.write(token.toByteArray(Charsets.UTF_8)) }
                 savedToken = token
             }
-            atomicWrite(file, json.encodeToString(state.copy(settings = state.settings.copy(githubToken = null))))
+            atomicWrite(file) { output ->
+                json.encodeToStream(state.copy(settings = state.settings.copy(githubToken = null)), output)
+            }
             needsMigration = false
             true
-        } catch (e: IOException) {
-            // 落盘失败不阻断内存态（下次 update 重试）
+        } catch (e: Exception) {
+            if (e !is IOException && e !is SecurityException) throw e
             Log.w(TAG, "persist failed", e)
             false
         }
 
-    private fun atomicWrite(destination: File, text: String) {
+    private fun atomicWrite(destination: File, write: (OutputStream) -> Unit) {
         val tmp = File(destination.parentFile, destination.name + ".tmp")
         tmp.outputStream().use {
-            it.write(text.toByteArray(Charsets.UTF_8))
+            write(it)
             it.fd.sync()
         }
         try {

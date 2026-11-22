@@ -6,11 +6,9 @@ import androidx.compose.foundation.border
 import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
-import androidx.compose.foundation.layout.IntrinsicSize
+import androidx.compose.foundation.layout.BoxWithConstraints
 import androidx.compose.foundation.layout.Row
-import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxWidth
-import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.offset
 import androidx.compose.foundation.layout.padding
@@ -34,10 +32,13 @@ import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.geometry.Size
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.graphics.vector.ImageVector
+import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.res.vectorResource
 import androidx.compose.ui.semantics.Role
+import androidx.compose.ui.text.rememberTextMeasurer
 import androidx.compose.ui.text.style.TextAlign
+import androidx.compose.ui.unit.Constraints
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.LayoutDirection
 import androidx.compose.ui.unit.dp
@@ -49,6 +50,10 @@ import top.yukonga.miuix.kmp.basic.Text
 import top.yukonga.miuix.kmp.theme.MiuixTheme
 
 private val TabInset = 3.dp
+private val TabHorizontalPadding = 6.dp
+private val TabVerticalPadding = 4.dp
+private val TabIconWidth = 14.dp
+private val TabIconGap = 5.dp
 private val TabTrackShape = RoundedCornerShape(16.dp)
 private val TabThumbRadius = 16.dp - TabInset
 private val TabThumbShape = RoundedCornerShape(TabThumbRadius)
@@ -61,51 +66,80 @@ internal fun DetailTabs(
     modifier: Modifier = Modifier,
 ) {
     val scheme = MiuixTheme.colorScheme
-    Row(
-        modifier.fillMaxWidth().heightIn(min = 48.dp).height(IntrinsicSize.Min)
-            .background(scheme.secondaryVariant, TabTrackShape)
-            .padding(horizontal = TabInset)
-            .drawBehind {
-                // Match the two equally weighted Row children, including an odd remaining pixel.
-                val firstWidth = (size.width.toInt() / 2).toFloat()
-                val secondWidth = size.width - firstWidth
-                val fraction = position.value
-                val start = firstWidth * fraction
-                val width = firstWidth + (secondWidth - firstWidth) * fraction
-                val left = if (layoutDirection == LayoutDirection.Ltr) start else size.width - start - width
-                val inset = TabInset.toPx()
-                drawRoundRect(
-                    color = scheme.surface,
-                    topLeft = Offset(left, inset),
-                    size = Size(width, size.height - 2 * inset),
-                    cornerRadius = CornerRadius(TabThumbRadius.toPx()),
-                )
-            }
-            .selectableGroup(),
+    BoxWithConstraints(
+        modifier.fillMaxWidth().background(scheme.secondaryVariant, TabTrackShape).padding(horizontal = TabInset),
     ) {
-        DetailTab(
-            isSelected = selected == DetailViewModel.DetailTab.COMMITS,
-            icon = R.drawable.ic_git_commit,
-            label = stringResource(R.string.detail_commits),
-            // The thin commit line carries less visual weight than its label.
-            contentOffsetX = (-3).dp,
-            onClick = { onSelect(DetailViewModel.DetailTab.COMMITS) },
-            modifier = Modifier.weight(1f),
+        val density = LocalDensity.current
+        val measurer = rememberTextMeasurer()
+        val style = MiuixTheme.textStyles.body2
+        // Both tabs use the narrower half when an odd pixel is left over.
+        val textSpace = with(density) {
+            (constraints.maxWidth / 2 - 2 * TabHorizontalPadding.roundToPx()).coerceAtLeast(1)
+        }
+        val iconSpace = with(density) { TabIconWidth.roundToPx() + TabIconGap.roundToPx() }
+        fun fitsWithIcons(first: String, second: String): Boolean = maxOf(
+            measurer.measure(first, style, softWrap = false).size.width,
+            measurer.measure(second, style, softWrap = false).size.width,
+        ) + iconSpace <= textSpace
+
+        val commits = stringResource(R.string.detail_commits)
+        val releases = stringResource(R.string.detail_releases)
+        val useFullNames = fitsWithIcons(commits, releases)
+        val commitLabel = if (useFullNames) commits else stringResource(R.string.detail_commits_short)
+        val releaseLabel = if (useFullNames) releases else stringResource(R.string.detail_releases_short)
+        val showIcons = useFullNames || fitsWithIcons(commitLabel, releaseLabel)
+        val textBounds = Constraints(maxWidth = if (showIcons) textSpace - iconSpace else textSpace)
+        val textHeight = maxOf(
+            measurer.measure(commitLabel, style, constraints = textBounds).size.height,
+            measurer.measure(releaseLabel, style, constraints = textBounds).size.height,
         )
-        DetailTab(
-            isSelected = selected == DetailViewModel.DetailTab.RELEASES,
-            icon = R.drawable.ic_tag,
-            label = stringResource(R.string.detail_releases),
-            onClick = { onSelect(DetailViewModel.DetailTab.RELEASES) },
-            modifier = Modifier.weight(1f),
-        )
+        val tabHeight = with(density) {
+            maxOf(48.dp, (textHeight + 2 * (TabInset.roundToPx() + TabVerticalPadding.roundToPx())).toDp())
+        }
+        Row(
+            Modifier.fillMaxWidth()
+                .drawBehind {
+                    // Match the two equally weighted Row children, including an odd remaining pixel.
+                    val firstWidth = (size.width.toInt() / 2).toFloat()
+                    val secondWidth = size.width - firstWidth
+                    val fraction = position.value
+                    val start = firstWidth * fraction
+                    val width = firstWidth + (secondWidth - firstWidth) * fraction
+                    val left = if (layoutDirection == LayoutDirection.Ltr) start else size.width - start - width
+                    val inset = TabInset.toPx()
+                    drawRoundRect(
+                        color = scheme.surface,
+                        topLeft = Offset(left, inset),
+                        size = Size(width, size.height - 2 * inset),
+                        cornerRadius = CornerRadius(TabThumbRadius.toPx()),
+                    )
+                }
+                .selectableGroup(),
+        ) {
+            DetailTab(
+                isSelected = selected == DetailViewModel.DetailTab.COMMITS,
+                icon = if (showIcons) R.drawable.ic_git_commit else null,
+                label = commitLabel,
+                // The thin commit line carries less visual weight than its label.
+                contentOffsetX = if (showIcons) (-3).dp else 0.dp,
+                onClick = { onSelect(DetailViewModel.DetailTab.COMMITS) },
+                modifier = Modifier.weight(1f).heightIn(min = tabHeight),
+            )
+            DetailTab(
+                isSelected = selected == DetailViewModel.DetailTab.RELEASES,
+                icon = if (showIcons) R.drawable.ic_tag else null,
+                label = releaseLabel,
+                onClick = { onSelect(DetailViewModel.DetailTab.RELEASES) },
+                modifier = Modifier.weight(1f).heightIn(min = tabHeight),
+            )
+        }
     }
 }
 
 @Composable
 private fun DetailTab(
     isSelected: Boolean,
-    icon: Int,
+    icon: Int?,
     label: String,
     onClick: () -> Unit,
     modifier: Modifier,
@@ -121,13 +155,13 @@ private fun DetailTab(
     val motion = rememberMotionEnabled()
     val foreground = if (isSelected) scheme.onSurface else scheme.onBackgroundVariant
     Box(
-        modifier.fillMaxHeight()
+        modifier
             .selectable(selected = isSelected, interactionSource = source, indication = null, role = Role.Tab) {
                 if (!isSelected) onClick()
             }
             .padding(vertical = TabInset)
             .then(if (focused) Modifier.border(1.dp, scheme.primaryVariant, TabThumbShape) else Modifier)
-            .padding(horizontal = 6.dp, vertical = 4.dp),
+            .padding(horizontal = TabHorizontalPadding, vertical = TabVerticalPadding),
         contentAlignment = Alignment.Center,
     ) {
         Row(
@@ -137,11 +171,11 @@ private fun DetailTab(
                 scaleY = scaleX
                 alpha = if (motion) 1f else 1f - 0.12f * amount
             },
-            horizontalArrangement = Arrangement.spacedBy(5.dp),
+            horizontalArrangement = Arrangement.spacedBy(TabIconGap),
             verticalAlignment = Alignment.CenterVertically,
         ) {
             // Exclude the vectors' transparent side bearings from the centered icon/label group.
-            Box(Modifier.size(width = 14.dp, height = 16.dp), contentAlignment = Alignment.Center) {
+            if (icon != null) Box(Modifier.size(width = TabIconWidth, height = 16.dp), contentAlignment = Alignment.Center) {
                 Icon(
                     imageVector = ImageVector.vectorResource(icon),
                     contentDescription = null,

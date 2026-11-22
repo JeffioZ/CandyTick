@@ -8,7 +8,6 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberUpdatedState
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
-import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.WindowInsets
@@ -27,6 +26,7 @@ import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.semantics.clearAndSetSemantics
 import androidx.compose.ui.unit.dp
 import io.candy.tick.R
+import io.candy.tick.ui.common.InlineErrorRow
 import io.candy.tick.ui.common.PrimaryButton
 import io.candy.tick.ui.common.SecondaryButton
 import io.candy.tick.ui.common.SheetChoiceRowShape
@@ -278,39 +278,16 @@ internal fun TokenDialog(
                     style = MiuixTheme.textStyles.footnote1,
                     color = scheme.primaryVariant,
                 )
-                SettingsViewModel.TokenTest.INVALID -> Text(
-                    text = stringResource(R.string.token_invalid_short),
-                    style = MiuixTheme.textStyles.footnote1,
-                    color = scheme.onErrorContainer,
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .clip(androidx.compose.foundation.shape.RoundedCornerShape(10.dp))
-                        .background(scheme.errorContainer)
-                        .padding(horizontal = 12.dp, vertical = 8.dp),
-                )
-                SettingsViewModel.TokenTest.NETWORK -> Text(
-                    text = stringResource(R.string.token_network_error),
-                    style = MiuixTheme.textStyles.footnote1,
-                    color = scheme.onErrorContainer,
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .clip(androidx.compose.foundation.shape.RoundedCornerShape(10.dp))
-                        .background(scheme.errorContainer)
-                        .padding(horizontal = 12.dp, vertical = 8.dp),
-                )
-                SettingsViewModel.TokenTest.TESTING, null -> Unit
+                else -> Unit
             }
-            if (state.tokenRejected) {
-                Text(
-                    text = stringResource(R.string.settings_token_rejected),
-                    style = MiuixTheme.textStyles.footnote1,
-                    color = scheme.onErrorContainer,
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .clip(androidx.compose.foundation.shape.RoundedCornerShape(10.dp))
-                        .background(scheme.errorContainer)
-                        .padding(horizontal = 12.dp, vertical = 8.dp),
-                )
+            val tokenError = when {
+                state.tokenTest == SettingsViewModel.TokenTest.INVALID -> R.string.token_invalid_short
+                state.tokenTest == SettingsViewModel.TokenTest.NETWORK -> R.string.token_network_error
+                state.tokenRejected -> R.string.settings_token_rejected
+                else -> null
+            }
+            if (tokenError != null) {
+                InlineErrorRow(message = stringResource(tokenError), onRetry = null)
             }
             // 满宽主按钮（退出=放弃由 scrim/下拉/返回键承担，不再设取消按钮）
             val removingToken = state.tokenInput.isBlank() && !state.settings.githubToken.isNullOrBlank()

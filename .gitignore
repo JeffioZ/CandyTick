@@ -15,7 +15,6 @@ captures/
 *.apk
 *.aab
 *.keystore
-!debug.keystore
 
 # OS
 .DS_Store
@@ -27,5 +26,4 @@ docs/*
 
 # Kotlin workspace (K2)
 .kotlin/
-*.keystore
 keystore.properties

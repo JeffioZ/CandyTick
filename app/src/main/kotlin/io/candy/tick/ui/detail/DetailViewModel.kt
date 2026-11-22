@@ -1,5 +1,7 @@
 package io.candy.tick.ui.detail
 
+import io.candy.tick.data.RepoDownloadState
+import io.candy.tick.data.RepoDownloadHost
 import android.content.Context
 import android.util.LruCache
 import androidx.compose.runtime.Immutable
@@ -16,6 +18,7 @@ import io.candy.tick.data.model.CommitRecord
 import io.candy.tick.data.model.RepoSnapshot
 import io.candy.tick.data.model.ReleaseRecord
 import io.candy.tick.data.model.TrackedRepo
+import io.candy.tick.data.model.DownloadedApk
 import java.io.File
 import java.time.Instant
 import kotlinx.coroutines.Dispatchers
@@ -39,8 +42,6 @@ class DetailViewModel(
     context: Context,
     initialTab: DetailTab = DetailTab.COMMITS,
 ) : ViewModel() {
-
-    // 下载四相收口 App 级 RepoDownloadHost（离开详情页不中断下载），页面只读绑定
 
     @Immutable
     data class UiState(
@@ -71,6 +72,7 @@ class DetailViewModel(
         val branches: List<BranchInfo>? = null, // null until a successful response, which may be empty
         val branchesLoading: Boolean = false,
         val branchesFailed: Boolean = false,
+        val nextBranchPage: Int? = 1,
         val installEpoch: Int = 0, // ON_RESUME 递增：安装完成后破除版本对比的重组跳过
     ) {
         val syncing: Boolean get() = snapshotLoading || commitsReloading || releasesReloading
@@ -276,18 +278,35 @@ class DetailViewModel(
         }
     }
 
-    /** 分支列表（选择器打开时懒加载，一次即缓存） */
     fun loadBranches() {
-        if (!_state.value.branches.isNullOrEmpty() || _state.value.branchesLoading) return
+        if (_state.value.branches == null) loadNextBranchPage()
+    }
+
+    fun loadNextBranchPage() {
+        val current = _state.value
+        val page = current.nextBranchPage ?: return
+        if (current.branchesLoading) return
         _state.update { it.copy(branchesLoading = true, branchesFailed = false) }
         viewModelScope.launch {
-            // 纯 per-branch：names + 各分支 tip 时间（并发闸 6，浏览/默认分支优先保时间）
-            val list = repository.loadBranchInfos(repoId)
-            _state.update {
-                if (list != null) {
-                    it.copy(branches = list, branchesLoading = false)
-                } else {
-                    it.copy(branchesLoading = false, branchesFailed = true)
+            val result = repository.branchPage(repoId, page)
+            if (result == null) {
+                _state.update { it.copy(branchesLoading = false, branchesFailed = true) }
+                return@launch
+            }
+            _state.update { state ->
+                val branches = (state.branches.orEmpty() + result.names.map { BranchInfo(it, null) })
+                    .distinctBy { it.name }.sortedBy { it.name != state.snapshot?.defaultBranch }
+                state.copy(
+                    branches = branches, branchesLoading = false,
+                    nextBranchPage = if (result.hasNext) page + 1 else null,
+                )
+            }
+            val dates = repository.branchDates(repoId, result.names, firstPage = page == 1)
+            if (dates.values.any { it != null }) {
+                _state.update { state ->
+                    state.copy(branches = state.branches?.map { row ->
+                        dates[row.name]?.let { row.copy(tipDate = it) } ?: row
+                    })
                 }
             }
         }
@@ -477,23 +496,21 @@ class DetailViewModel(
     }
 
     /** 下载保留复用：已下载过的文件直接安装 */
-    fun installDownloaded(repo: TrackedRepo): Boolean {
-        val record = repo.downloadedApk ?: return false
+    fun installDownloaded(record: DownloadedApk) {
+        if (repository.state.value.repos.find { it.id == repoId }?.downloadedApk != record) return
         val file = File(apkDir, record.fileName)
         if (!file.isFile) {
             viewModelScope.launch {
                 downloadHost.deleteRecord(repoId, record)
                 _events.send(Event.DownloadMissing)
             }
-            return false
+            return
         }
         installManager.installApk(file, repoId, record.displayAssetName)
-        return true
     }
 
-    /** 删除已下载的 APK（文件 + 记录；会话态一并清空，避免残留入口） */
-    fun deleteDownloaded() {
-        val record = _state.value.repo?.downloadedApk ?: return
+    /** Only remove the file the user saw, even if a newer transfer finishes during the tap. */
+    fun deleteDownloaded(record: DownloadedApk) {
         viewModelScope.launch {
             downloadHost.deleteRecord(repoId, record)
         }

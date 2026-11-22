@@ -19,7 +19,7 @@ import io.candy.tick.data.model.AppState
 import io.candy.tick.util.VersionCompare
 import io.candy.tick.util.installedVersionName
 
-/** 通知封装：渠道两枚；13+ 运行时权限检查（被拒 → 设置页常驻提醒，不反复弹窗） */
+/** 仓库更新、自更新与同步各用独立渠道；13+ 运行时权限检查（被拒 → 设置页常驻提醒，不反复弹窗） */
 object Notifications {
 
     const val CHANNEL_NEW_RELEASE = "new_release"
@@ -31,7 +31,6 @@ object Notifications {
     private const val SELF_UPDATE_ID = 4242 // 自更新就绪通知固定 id
 
     fun ensureChannels(context: Context) {
-        if (Build.VERSION.SDK_INT < 26) return
         val manager = context.getSystemService(Context.NOTIFICATION_SERVICE) as NotificationManager
         manager.createNotificationChannel(
             NotificationChannel(
@@ -107,11 +106,11 @@ object Notifications {
         }
     }
 
-    /** 组摘要：一轮同步 ≥2 个仓库发版时折叠展示「N 个仓库有新版本」（点击回首页） */
+    /** 展示仍有待处理通知的仓库数，点击摘要回首页。 */
     @SuppressLint("MissingPermission")
     @Synchronized
     fun notifyRepoUpdatesSummary(context: Context, count: Int) {
-        if (count < 2 || !canNotify(context)) return
+        if (count < 1 || !canNotify(context)) return
         ensureChannels(context)
         val intent = Intent(context, MainActivity::class.java).setAction(ACTION_NAV_HOME)
         val pending = PendingIntent.getActivity(
@@ -123,11 +122,13 @@ object Notifications {
         val notification = NotificationCompat.Builder(context, CHANNEL_NEW_RELEASE)
             .setSmallIcon(R.drawable.ic_notification)
             .setContentTitle(context.getString(R.string.app_name))
-            .setContentText(context.getString(R.string.notif_updates_summary, count))
+            .setContentText(context.resources.getQuantityString(R.plurals.notif_updates_summary, count, count))
             .setContentIntent(pending)
             .setAutoCancel(true)
             .setGroup(GROUP_REPO_UPDATES)
             .setGroupSummary(true)
+            .setNumber(count)
+            .setOnlyAlertOnce(true)
             .build()
         runCatching {
             NotificationManagerCompat.from(context).notify(SUMMARY_ID, notification)
@@ -172,11 +173,11 @@ object Notifications {
         if (active.isEmpty()) return
         val byTag = state.repos.associateBy { it.id.toString() }
         val byLegacyId = state.repos.associateBy { it.id.hashCode() }
-        var hasChildren = false
-        var hasSummary = false
+        var remaining = 0
+        var summaryCount: Int? = null
         for (entry in active) {
             if (entry.tag == null && entry.id == SUMMARY_ID) {
-                hasSummary = true
+                summaryCount = entry.notification.number
                 continue
             }
             val repo = if (entry.tag != null) byTag[entry.tag] else byLegacyId[entry.id]
@@ -190,12 +191,16 @@ object Notifications {
                 it.releaseBaselineKnown && it.currentReleaseTag == null
             } == true
             if (repo == null || installed || noPublishedApk) {
-                if (runCatching { manager.cancel(entry.tag, entry.id) }.isFailure) hasChildren = true
+                if (runCatching { manager.cancel(entry.tag, entry.id) }.isFailure) remaining++
             } else {
-                hasChildren = true
+                remaining++
             }
         }
-        if (hasSummary && !hasChildren) runCatching { manager.cancel(SUMMARY_ID) }
+        if (remaining == 0 && summaryCount != null) {
+            runCatching { manager.cancel(SUMMARY_ID) }
+        } else if (state.settings.notificationsEnabled && remaining != summaryCount && (remaining >= 2 || summaryCount != null)) {
+            notifyRepoUpdatesSummary(context, remaining)
+        }
     }
 
     /** 自更新装完撤「下载完成」通知（SelfUpdater 检测到本机已是新版时调用） */

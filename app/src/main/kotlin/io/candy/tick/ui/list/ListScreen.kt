@@ -8,7 +8,6 @@ import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
 import androidx.compose.animation.shrinkHorizontally
 import androidx.compose.foundation.interaction.DragInteraction
-import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.layout.BoxWithConstraints
 import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.rememberScrollState
@@ -25,7 +24,6 @@ import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
-import androidx.compose.foundation.layout.RowScope
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxWidth
@@ -71,7 +69,7 @@ import top.yukonga.miuix.kmp.basic.Icon
 import top.yukonga.miuix.kmp.basic.MiuixScrollBehavior
 import top.yukonga.miuix.kmp.basic.Scaffold
 import top.yukonga.miuix.kmp.basic.SmallTopAppBar
-import top.yukonga.miuix.kmp.basic.TopAppBarDefaults
+import io.candy.tick.ui.common.TopBarActionRow
 import top.yukonga.miuix.kmp.basic.Text
 import top.yukonga.miuix.kmp.basic.rememberPullToRefreshState
 import top.yukonga.miuix.kmp.basic.rememberTopAppBarState
@@ -252,7 +250,7 @@ fun ListScreen(
                     actions = {
                         val canCollapse = state.expanded.size >= 2 &&
                             state.items.count { it.repo.id in state.expanded } >= 2
-                        HomeBarRow(canCollapse) {
+                        TopBarActionRow(minimum = 48.dp * (if (canCollapse) 6 else 5)) {
                             Row(
                                 modifier = Modifier.weight(1f),
                                 verticalAlignment = Alignment.CenterVertically,
@@ -539,18 +537,6 @@ fun ListScreen(
                 onDismissFinished = { if (!sheet.open && sortSheet === sheet) sortSheet = null },
             )
         }
-    }
-}
-
-/** Keep the title and buttons in one measured row. Very narrow windows can scroll to every action. */
-@Composable
-private fun HomeBarRow(canCollapse: Boolean, content: @Composable RowScope.() -> Unit) {
-    BoxWithConstraints(Modifier.fillMaxWidth().padding(start = TopAppBarDefaults.NavigationIconPadding)) {
-        val minimum = 48.dp * (if (canCollapse) 6 else 5) // Title plus four or five touch targets.
-        val row = if (maxWidth < minimum) {
-            Modifier.horizontalScroll(rememberScrollState()).width(minimum)
-        } else Modifier.fillMaxWidth()
-        Row(row, verticalAlignment = Alignment.CenterVertically, content = content)
     }
 }
 

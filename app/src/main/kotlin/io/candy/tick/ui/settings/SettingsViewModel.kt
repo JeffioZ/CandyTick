@@ -60,7 +60,13 @@ class SettingsViewModel(
             tokenRejected = rejected,
             localVersion = localVersion,
         )
-    }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), UiState())
+    }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), UiState(
+        settings = repository.state.value.settings,
+        selfUpdate = selfUpdater.state.value,
+        tokenInput = tokenInput.value,
+        tokenRejected = githubApi.tokenRejected.value,
+        localVersion = localVersion,
+    ))
 
     private fun mutateSettings(transform: (Settings) -> Settings) {
         viewModelScope.launch {
@@ -69,37 +75,35 @@ class SettingsViewModel(
     }
 
     fun setThemeMode(mode: ThemeMode) {
-        mutateSettings(transform = { s: Settings -> s.copy(themeMode = mode) })
+        mutateSettings { it.copy(themeMode = mode) }
     }
 
     fun setSyncFrequency(frequency: SyncFrequency) {
-        mutateSettings(transform = { s: Settings -> s.copy(syncFrequency = frequency) })
+        mutateSettings { it.copy(syncFrequency = frequency) }
     }
 
     fun setWifiOnly(enabled: Boolean) {
-        mutateSettings(transform = { s: Settings -> s.copy(wifiOnly = enabled) })
+        mutateSettings { it.copy(wifiOnly = enabled) }
     }
 
     fun setNotifications(enabled: Boolean) {
-        mutateSettings(transform = { s: Settings -> s.copy(notificationsEnabled = enabled) })
+        mutateSettings { it.copy(notificationsEnabled = enabled) }
     }
 
     fun setSelfUpdateCheck(enabled: Boolean) {
-        mutateSettings(transform = { s: Settings -> s.copy(selfUpdateCheck = enabled) })
+        mutateSettings { it.copy(selfUpdateCheck = enabled) }
     }
 
     fun setLanguage(tag: String) {
-        viewModelScope.launch {
-            repository.updateSettings { it.copy(language = tag) }
-        }
+        mutateSettings { it.copy(language = tag) }
     }
 
     fun setAutoInstallDownload(enabled: Boolean) {
-        viewModelScope.launch { repository.updateSettings { it.copy(autoInstallDownload = enabled) } }
+        mutateSettings { it.copy(autoInstallDownload = enabled) }
     }
 
     fun setSelfUpdateDownload(enabled: Boolean) {
-        mutateSettings(transform = { s: Settings -> s.copy(selfUpdateAutoDownload = enabled) })
+        mutateSettings { it.copy(selfUpdateAutoDownload = enabled) }
     }
 
     // ---- Token ----
@@ -206,6 +210,8 @@ class SettingsViewModel(
     suspend fun exportSubscriptions(): String = withContext(Dispatchers.Default) { repository.exportState() }
 
     suspend fun importSubscriptions(text: String): Int = withContext(Dispatchers.Default) { repository.importState(text) }
+
+    suspend fun importSubscriptions(input: java.io.InputStream): Int = repository.importState(input)
 
     // ---- 自身更新 ----
 

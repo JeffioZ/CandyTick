@@ -7,6 +7,7 @@ import io.candy.tick.data.GitHubProvider
 import io.candy.tick.data.InstallManager
 import io.candy.tick.data.Notifications
 import io.candy.tick.data.PROVIDER_GITHUB
+import io.candy.tick.data.RepoDownloadHost
 import io.candy.tick.data.RepoRepository
 import io.candy.tick.data.CacheManager
 import io.candy.tick.data.SelfUpdater
@@ -18,7 +19,7 @@ import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.flow.MutableStateFlow
 
 /** 手动 DI（design.md：页面少，框架是负资产） */
-class AppContainer(context: Context) {
+class AppContainer(context: Context, isAppVisible: () -> Boolean) {
 
     /** 安装结果与更新任务跨页面存活。 */
     internal val appScope = CoroutineScope(SupervisorJob() + Dispatchers.Default)
@@ -40,8 +41,9 @@ class AppContainer(context: Context) {
             githubApi = githubApi,
             installManager = installManager,
             store = appStateStore,
-            notificationsEnabled = { appStateStore.state.value.settings.notificationsEnabled },
-        ).also { it.observeInstallResults(appScope) } // 自更新安装失败此前无人消费（详情页专属订阅）
+            scope = appScope,
+            isAppVisible = isAppVisible,
+        ).also { it.observeInstallResults() } // 自更新安装失败此前无人消费（详情页专属订阅）
     }
 
     val syncScheduler: SyncScheduler by lazy { SyncScheduler(context) }
@@ -60,8 +62,8 @@ class AppContainer(context: Context) {
     }
 
     /** 仓库 APK 下载宿主（App 级）：离开详情页不中断下载，重进页面按 repoId 重绑进度 */
-    val repoDownloadHost: io.candy.tick.ui.detail.RepoDownloadHost by lazy {
-        io.candy.tick.ui.detail.RepoDownloadHost(
+    val repoDownloadHost: RepoDownloadHost by lazy {
+        RepoDownloadHost(
             scope = appScope,
             repository = repoRepository,
             githubApi = githubApi,

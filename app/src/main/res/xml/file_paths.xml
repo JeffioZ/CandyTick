@@ -1,6 +1,6 @@
 <?xml version="1.0" encoding="utf-8"?>
 <paths>
-    <!-- 只向安装器授权仓库安装包和自身更新包。 -->
+    <cache-path name="shared_files" path="shares/" />
     <files-path name="repo_packages" path="apks/" />
     <files-path name="self_updates" path="updates/" />
 </paths>

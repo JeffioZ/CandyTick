@@ -124,7 +124,7 @@ internal fun HistoryCard(
 ) {
     val hideActions = blocked && !keepVisible
     val veilVisible by remember(mask) { derivedStateOf { mask.value > 0f } }
-    val accessibility = if (hideActions) historyLoadingSemantics(index).focusProperties { canFocus = false } else Modifier
+    val accessibility = if (hideActions) Modifier.historyLoadingSemantics(index).focusProperties { canFocus = false } else Modifier
     Box(modifier.fillMaxWidth().then(accessibility)) {
         if (onClick == null) {
             Card(Modifier.fillMaxWidth()) { content() }
@@ -142,9 +142,9 @@ internal fun HistoryCard(
 }
 
 @Composable
-private fun historyLoadingSemantics(index: Int): Modifier {
+private fun Modifier.historyLoadingSemantics(index: Int): Modifier {
     val loading = if (index == 0) stringResource(R.string.loading) else null
-    return Modifier.clearAndSetSemantics {
+    return clearAndSetSemantics {
         if (loading != null) {
             contentDescription = loading
             progressBarRangeInfo = ProgressBarRangeInfo.Indeterminate
@@ -195,7 +195,7 @@ internal fun LazyListScope.historyPlaceholders(tab: DetailTab, count: Int, motio
             fadeOutSpec = tween(Motion.MICRO, easing = LinearEasing),
         ) else Modifier
         // Existing rows retain their tone when more complete cards fit in the viewport.
-        Card(reveal.fillMaxWidth().then(historyLoadingSemantics(index)).alpha(0.88f - 0.1f * index)) {
+        Card(reveal.fillMaxWidth().historyLoadingSemantics(index).alpha(0.88f - 0.1f * index)) {
             HistorySkeletonLines(tab, index, Modifier.fillMaxWidth().height(tab.placeholderHeight))
         }
     }

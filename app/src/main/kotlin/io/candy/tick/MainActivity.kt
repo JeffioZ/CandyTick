@@ -1,19 +1,19 @@
 package io.candy.tick
 
 import android.content.Intent
+import kotlinx.coroutines.flow.map
+import kotlinx.coroutines.flow.distinctUntilChanged
 import android.os.Bundle
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
-import androidx.compose.foundation.layout.Box
-import androidx.compose.foundation.layout.fillMaxSize
 import androidx.activity.enableEdgeToEdge
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.setValue
-import androidx.compose.ui.Modifier
 import androidx.core.splashscreen.SplashScreen.Companion.installSplashScreen
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import io.candy.tick.data.Notifications
+import io.candy.tick.ui.common.StorageStatusHost
 import io.candy.tick.ui.nav.AppNavHost
 import io.candy.tick.ui.nav.AppRoute
 import io.candy.tick.ui.nav.RouteDetail
@@ -37,16 +37,11 @@ class MainActivity : ComponentActivity() {
     private fun consumeNavIntent(intent: Intent) {
         val repoId = intent.getLongExtra(Notifications.EXTRA_NAV_REPO, -1L)
         pendingNavTarget = when {
-            repoId != -1L -> {
-                val repos = (application as CandyTickApp).container.appStateStore.state.value.repos
-                if (repos.any { it.id == repoId }) {
-                    RouteDetail(
-                        repoId = repoId,
-                        releaseTag = intent.getStringExtra(Notifications.EXTRA_NAV_RELEASE_TAG)?.takeIf { it.isNotBlank() },
-                        releaseRequestId = UUID.randomUUID().toString(),
-                    )
-                } else RouteHome
-            }
+            repoId != -1L -> RouteDetail(
+                repoId = repoId,
+                releaseTag = intent.getStringExtra(Notifications.EXTRA_NAV_RELEASE_TAG)?.takeIf { it.isNotBlank() },
+                releaseRequestId = UUID.randomUUID().toString(),
+            )
             intent.getBooleanExtra(Notifications.EXTRA_NAV_SETTINGS, false) -> RouteSettings
             intent.action == Notifications.ACTION_NAV_HOME -> RouteHome
             else -> return
@@ -94,7 +89,9 @@ class MainActivity : ComponentActivity() {
             }
         }
         // 应用保存的语言设置（在 setContent 前生效）；跟随系统（空串）时重置为系统 locale
-        val savedLang = (application as CandyTickApp).container.appStateStore.state.value.settings.language
+        val container = (application as CandyTickApp).container
+        val initialSettings = container.appStateStore.state.value.settings
+        val savedLang = initialSettings.language
         val locale = if (savedLang.isNotBlank()) {
             java.util.Locale.forLanguageTag(savedLang)
         } else {
@@ -106,15 +103,15 @@ class MainActivity : ComponentActivity() {
         @Suppress("DEPRECATION")
         resources.updateConfiguration(config, resources.displayMetrics)
         enableEdgeToEdge()
-        val container = (application as CandyTickApp).container
+        val settingsFlow = container.appStateStore.state.map { it.settings }.distinctUntilChanged()
         setContent {
-            val state by container.appStateStore.state.collectAsStateWithLifecycle()
+            val settings by settingsFlow.collectAsStateWithLifecycle(initialValue = initialSettings)
             // 语言切换（不 recreate）：ContextWrapper 包住 Activity，只覆写 getResources()
             // 的 locale——ViewModel（LocalViewModelStoreOwner）、startActivity、Window 等
             // 全部委托原 Activity，stringResource 走 wrapper.resources 拿新 locale 的串
             val activity = this
-            val localizedContext = androidx.compose.runtime.remember(state.settings.language) {
-                val lang = state.settings.language
+            val localizedContext = androidx.compose.runtime.remember(settings.language) {
+                val lang = settings.language
                 val locale = if (lang.isNotBlank()) {
                     java.util.Locale.forLanguageTag(lang)
                 } else {
@@ -132,18 +129,20 @@ class MainActivity : ComponentActivity() {
             androidx.compose.runtime.CompositionLocalProvider(
                 androidx.compose.ui.platform.LocalContext provides localizedContext,
             ) {
-                CandyTickTheme(themeMode = state.settings.themeMode) {
-                    Box(modifier = Modifier.fillMaxSize()) {
+                CandyTickTheme(themeMode = settings.themeMode) {
+                    StorageStatusHost(container.appStateStore) {
+                        val requested = pendingNavTarget
+                        val target = if (requested is RouteDetail) {
+                            val loaded by container.appStateStore.state.collectAsStateWithLifecycle()
+                            if (loaded.repos.any { it.id == requested.repoId }) requested else RouteHome
+                        } else requested
                         AppNavHost(
-                            pendingTarget = pendingNavTarget,
-                            onNavConsumed = { if (pendingNavTarget == it) pendingNavTarget = null },
+                            pendingTarget = target,
+                            onNavConsumed = { if (pendingNavTarget == requested && it == target) pendingNavTarget = null },
                         )
                         io.candy.tick.ui.common.FeedbackHost()
                         // 全局更新弹窗：设置页未打开时（后台自动检查）也能弹出
-                        io.candy.tick.ui.common.UpdateSheet(
-                            selfUpdater = container.selfUpdater,
-                            autoInstall = state.settings.autoInstallDownload,
-                        )
+                        io.candy.tick.ui.common.UpdateSheet(container.selfUpdater)
                     }
                 }
             }

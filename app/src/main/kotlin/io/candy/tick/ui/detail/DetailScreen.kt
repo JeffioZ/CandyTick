@@ -2,7 +2,6 @@ package io.candy.tick.ui.detail
 
 import android.content.ClipData
 import android.content.ClipboardManager
-import android.content.Intent
 import android.net.Uri
 import androidx.compose.animation.AnimatedContent
 import androidx.compose.animation.fadeIn
@@ -14,14 +13,13 @@ import androidx.compose.animation.core.tween
 import androidx.compose.foundation.interaction.DragInteraction
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.PaddingValues
-import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.offset
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.width
-import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.LazyListLayoutInfo
 import androidx.compose.runtime.Composable
@@ -59,8 +57,10 @@ import io.candy.tick.R
 import io.candy.tick.ui.common.AppPickerSheet
 import io.candy.tick.ui.common.ErrorBanner
 import io.candy.tick.ui.common.Feedback
+import io.candy.tick.ui.common.rememberExternalUriHandler
 import io.candy.tick.ui.common.PressIconButton
 import io.candy.tick.ui.common.ScrollToTopTitle
+import io.candy.tick.ui.common.TopBarActionRow
 import io.candy.tick.ui.common.scrollToTop
 import io.candy.tick.data.InstallManager
 import io.candy.tick.data.SourceError
@@ -368,47 +368,29 @@ fun DetailScreen(
         topBar = {
                 SmallTopAppBar(
                     color = androidx.compose.ui.graphics.Color.Transparent,
-                    title = "", // 标题左对齐走 navigationIcon 槽位（与首页一致；右侧三个动作图标下居中会被挤偏）
-                    navigationIcon = {
-                        androidx.compose.foundation.layout.BoxWithConstraints {
-                            // Back button, title spacing and three 48dp actions share this bar.
-                            val titleMax = (maxWidth - 200.dp).coerceIn(0.dp, 180.dp)
-                            androidx.compose.foundation.layout.Row(
-                                verticalAlignment = Alignment.CenterVertically,
+                    title = "",
+                    actions = {
+                        TopBarActionRow(minimum = 48.dp * 5 + 12.dp) {
+                            PressIconButton(
+                                onClick = { if (showAppPicker) showAppPicker = false else onBack() },
+                                contentDescription = stringResource(R.string.back),
                             ) {
-                                io.candy.tick.ui.common.PressIconButton(
-                                    onClick = {
-                                        if (showAppPicker) showAppPicker = false else onBack()
-                                    },
-                                    // 图标旁无文字的控件必须有可访问名称（icon-button a11y）
-                                    contentDescription = stringResource(R.string.back),
-                                ) {
-                                    Icon(
-                                        imageVector = ImageVector.vectorResource(R.drawable.ic_back),
-                                        contentDescription = null,
-                                        tint = scheme.onBackground,
-                                    )
-                                }
-                                // 后退钮与标题的呼吸缝：48dp 热区/40dp 染色圆之外再留 8dp
-                                // （skill: touch-spacing——此前圆贴标题文案）
-                                Spacer(Modifier.width(8.dp))
+                                Icon(
+                                    imageVector = ImageVector.vectorResource(R.drawable.ic_back),
+                                    contentDescription = null,
+                                    tint = scheme.onBackground,
+                                )
+                            }
+                            Spacer(Modifier.width(8.dp))
+                            Box(Modifier.weight(1f).padding(end = 4.dp)) {
                                 ScrollToTopTitle(
                                     text = repo?.let { it.noteName ?: it.repo } ?: stringResource(R.string.detail_title),
-                                    modifier = Modifier.widthIn(max = titleMax),
                                     onClick = {
                                         browsing = true
                                         scope.launch { detailListState.scrollToTop(motion) }
                                     },
                                 )
                             }
-                        }
-                    },
-                    actions = {
-                        Row(
-                            modifier = Modifier.width(144.dp),
-                            horizontalArrangement = Arrangement.End,
-                            verticalAlignment = Alignment.CenterVertically,
-                        ) {
                             if (webUrl != null) RepositoryWebButton(webUrl)
                             // 切换浏览分支（仅提交视图有分支语义；Release tab 隐藏，避免点了无效果的控件）
                             // 宽度+透明度过渡：tab 切换时图标个数不再突跳
@@ -495,7 +477,7 @@ fun DetailScreen(
                                 state.linkSuggestion?.let { (pkg, label) -> vm.setLinkedApp(pkg, newLabel = label) }
                             },
                             onDownloadUpdate = vm::downloadUpdate,
-                            onInstallUpdate = { repo?.let(vm::installDownloaded) },
+                            onInstallUpdate = { repo?.downloadedApk?.let(vm::installDownloaded) },
                             onCancelDownload = vm::cancelDownload,
                         )
                         // 错误横幅出现/消失过渡（220 表层档）：刷新失败/恢复不再硬跳
@@ -602,7 +584,7 @@ fun DetailScreen(
                             positioned = true
                             vm.retryDownload(release, asset)
                         },
-                        onInstallDownloaded = { repo?.let(vm::installDownloaded) },
+                        onInstallDownloaded = vm::installDownloaded,
                         onDeleteDownloaded = vm::deleteDownloaded,
                         onCancelDownload = vm::cancelDownload,
                     )
@@ -629,7 +611,7 @@ fun DetailScreen(
             showBranchSheet = false
         },
         onDismiss = { showBranchSheet = false },
-        onLoadBranches = vm::loadBranches,
+        onLoadBranches = vm::loadNextBranchPage,
     )
 
     // 移除确认（破坏性操作）：show 直通，退场有动效
@@ -655,14 +637,10 @@ private fun RepositoryWebButton(url: String) {
     val context = LocalContext.current
     val resources = androidx.compose.ui.platform.LocalResources.current
     val copyLabel = stringResource(R.string.copy_repo_link)
+    val links = rememberExternalUriHandler()
     PressIconButton(
         contentDescription = stringResource(R.string.open_in_browser),
-        onClick = {
-            runCatching {
-                val intent = Intent(Intent.ACTION_VIEW, Uri.parse(url)).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
-                context.startActivity(intent)
-            }.onFailure { Feedback.show(resources.getString(R.string.open_failed), isError = true) }
-        },
+        onClick = { links.openUri(url) },
         onLongClickLabel = copyLabel,
         onLongClick = {
             runCatching {

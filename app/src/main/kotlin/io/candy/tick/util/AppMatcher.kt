@@ -2,6 +2,7 @@ package io.candy.tick.util
 
 import android.content.Context
 import android.content.Intent
+import android.content.pm.ResolveInfo
 import io.candy.tick.data.model.TrackedRepo
 
 /**
@@ -29,12 +30,7 @@ object AppMatcher {
     /** 可启动应用池（launcher intent）：用户可见的应用才可能是关联对象 */
     private fun launcherApps(context: Context): List<Pair<String, String>> = runCatching {
         val pm = context.packageManager
-        val intent = Intent(Intent.ACTION_MAIN).addCategory(Intent.CATEGORY_LAUNCHER)
-        pm.queryIntentActivities(intent, 0)
-            .asSequence()
-            .filter { it.activityInfo.packageName != context.packageName }
-            .map { it.activityInfo.packageName to it.loadLabel(pm).toString() }
-            .distinctBy { it.first }
+        launcherEntries(context).map { it.activityInfo.packageName to it.loadLabel(pm).toString() }
             .toList()
     }.getOrDefault(emptyList())
 
@@ -53,7 +49,7 @@ object AppMatcher {
                 else -> false
             }
             if (matched) Candidate(pkg, label) else null
-        }.distinctBy { it.packageName }
+        }
         return if (hits.size == 1) hits.first() else null
     }
 
@@ -65,9 +61,16 @@ object AppMatcher {
             val n = norm(label)
             val matched = n.length >= 3 && (n.contains(repoN) || repoN.contains(n))
             if (matched) Candidate(pkg, label) else null
-        }.distinctBy { it.packageName }
+        }
         return if (hits.size == 1) hits.first() else null
     }
+}
+
+internal fun launcherEntries(context: Context): Sequence<ResolveInfo> {
+    val intent = Intent(Intent.ACTION_MAIN).addCategory(Intent.CATEGORY_LAUNCHER)
+    return context.packageManager.queryIntentActivities(intent, 0).asSequence()
+        .filterNot { it.activityInfo.packageName == context.packageName }
+        .distinctBy { it.activityInfo.packageName }
 }
 
 /** PackageManager can return the package or component name when no display label was declared. */

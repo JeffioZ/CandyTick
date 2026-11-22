@@ -1,5 +1,6 @@
 package io.candy.tick.ui.list
 
+import io.candy.tick.data.RepoDownloadHost
 import android.app.Application
 import androidx.compose.runtime.Immutable
 import androidx.compose.runtime.getValue
@@ -62,7 +63,7 @@ internal class HomeTitleSync {
 
 class ListViewModel(
     private val repository: RepoRepository,
-    private val downloadHost: io.candy.tick.ui.detail.RepoDownloadHost,
+    private val downloadHost: RepoDownloadHost,
     private val context: Application,
 ) : ViewModel() {
 
@@ -284,7 +285,7 @@ class ListViewModel(
     ): List<RepoListItem> {
         val q = query.trim()
         val matching = if (q.isEmpty()) rows.live.values else rows.live.values.filter { (repo) ->
-            repo.repo.contains(q, ignoreCase = true) || repo.owner.contains(q, ignoreCase = true) ||
+            "${repo.owner}/${repo.repo}".contains(q, ignoreCase = true) ||
                 repo.noteName?.contains(q, ignoreCase = true) == true
         }
         val base = rows.order.comparator()
