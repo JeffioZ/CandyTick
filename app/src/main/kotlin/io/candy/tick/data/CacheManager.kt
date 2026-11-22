@@ -11,12 +11,23 @@ import java.util.concurrent.TimeUnit
  */
 class CacheManager(private val context: Context) {
 
-    data class CacheInfo(
-        val repoApkBytes: Long,
-        val updateApkBytes: Long,
-        val crashLogBytes: Long,
-    ) {
-        val totalBytes: Long get() = repoApkBytes + updateApkBytes + crashLogBytes
+    internal class ScannedFile(private val file: File) {
+        val bytes = file.length()
+        private val modifiedAt = file.lastModified()
+
+        fun delete(): Long =
+            if (file.lastModified() == modifiedAt && file.length() == bytes && file.delete()) bytes else 0L
+    }
+
+    internal class CacheInfo(private val packages: List<ScannedFile>, private val log: ScannedFile?) {
+        val apkBytes = packages.sumOf { it.bytes }
+        val crashLogBytes = log?.bytes ?: 0L
+
+        fun clean(apks: Boolean, crashLog: Boolean): Long {
+            val packageBytes = if (apks) packages.sumOf { it.delete() } else 0L
+            val logBytes = if (crashLog) log?.delete() ?: 0L else 0L
+            return packageBytes + logBytes
+        }
     }
 
     private val apksRoot: File get() = File(context.filesDir, "apks")
@@ -24,29 +35,12 @@ class CacheManager(private val context: Context) {
     private val crashLogFile: File
         get() = File(context.getExternalFilesDir(null) ?: context.filesDir, "crash.log")
 
-    /** 实时扫描各类缓存大小（进入清理浮层时调用） */
-    fun scan(): CacheInfo = CacheInfo(
-        repoApkBytes = dirSize(apksRoot),
-        updateApkBytes = dirSize(updatesDir),
-        crashLogBytes = crashLogFile.takeIf { it.exists() }?.length() ?: 0L,
+    /** Use the files counted in this scan. Downloads published later belong to the next scan. */
+    internal fun scan() = CacheInfo(
+        packages = sequenceOf(apksRoot, updatesDir).flatMap { it.walkTopDown() }
+            .filter { it.isFile && !it.isDownloadPart() }.map(::ScannedFile).toList(),
+        log = crashLogFile.takeIf { it.isFile }?.let(::ScannedFile),
     )
-
-    /**
-     * 清理选中的缓存类别。返回实际释放的字节数。
-     * 调用方在删除后核对现存下载记录，并更新 SelfUpdater。
-     */
-    fun clean(repoApks: Boolean, updateApks: Boolean, crashLog: Boolean): Long {
-        // 逐文件删除并累计「实际删掉的」字节数：此前按删除前体积报数，
-        // 文件被占用/外部存储只读时也报「已释放 X」（假成功）
-        var freed = 0L
-        if (repoApks) freed += deleteDir(apksRoot)
-        if (updateApks) freed += deleteDir(updatesDir)
-        if (crashLog && crashLogFile.exists()) {
-            val len = crashLogFile.length()
-            if (crashLogFile.delete()) freed += len
-        }
-        return freed
-    }
 
     /**
      * Use the restored snapshot to reclaim files left by earlier processes.
@@ -71,24 +65,6 @@ class CacheManager(private val context: Context) {
             }
         }
         cleanExpiredShares(context)
-    }
-
-    private fun dirSize(dir: File): Long =
-        if (dir.isDirectory) dir.walkTopDown().filter { it.isFile }.sumOf { it.length() } else 0L
-
-    private fun deleteDir(dir: File): Long {
-        if (!dir.isDirectory) return 0L
-        var freed = 0L
-        dir.walkBottomUp().forEach { f ->
-            if (f.isDirectory) {
-                f.delete()
-            } else if (!f.isDownloadPart()) {
-                // 流式下载在独立临时文件内进行，由下载任务负责收尾。
-                val len = f.length()
-                if (f.delete()) freed += len
-            }
-        }
-        return freed
     }
 
     private fun File.isDownloadPart(): Boolean = name.endsWith(".part") || name.substringAfterLast(".part-", "").toLongOrNull() != null

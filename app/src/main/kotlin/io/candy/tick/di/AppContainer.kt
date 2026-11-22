@@ -12,6 +12,7 @@ import io.candy.tick.data.RepoRepository
 import io.candy.tick.data.CacheManager
 import io.candy.tick.data.SelfUpdater
 import io.candy.tick.data.SyncStatus
+import io.candy.tick.util.forAppLanguage
 import io.candy.tick.worker.SyncScheduler
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
@@ -50,7 +51,7 @@ class AppContainer(context: Context, isAppVisible: () -> Boolean) {
     val cacheManager: CacheManager by lazy { CacheManager(context) }
 
     init {
-        Notifications.ensureChannels(context)
+        Notifications.ensureChannels(context.forAppLanguage(appStateStore.state.value.settings.language))
     }
 
     val repoRepository: RepoRepository by lazy {
@@ -69,6 +70,7 @@ class AppContainer(context: Context, isAppVisible: () -> Boolean) {
             githubApi = githubApi,
             installManager = installManager,
             appContext = context,
+            isAppVisible = isAppVisible,
         )
     }
 }

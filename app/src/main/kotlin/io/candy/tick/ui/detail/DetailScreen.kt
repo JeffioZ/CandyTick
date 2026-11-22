@@ -77,7 +77,6 @@ import top.yukonga.miuix.kmp.theme.MiuixTheme
 import androidx.compose.ui.res.vectorResource
 import androidx.compose.ui.graphics.vector.ImageVector
 import io.candy.tick.ui.common.Motion
-import io.candy.tick.ui.common.rememberBusyIndicator
 import io.candy.tick.ui.common.rememberMotionEnabled
 import kotlin.math.roundToInt
 
@@ -155,15 +154,9 @@ fun DetailScreen(
         }
     }
     val entryTransition = LocalNavAnimatedContentScope.current.transition
-    // Start all requests immediately. Measure fresh rows after the arriving page has settled.
-    // Latch this once so returning, cancelling a back gesture or scrolling never hides existing rows.
-    val rowsReady by produceState(entryTransition.currentState == EnterExitState.Visible, entryTransition) {
-        if (!value) {
-            snapshotFlow { entryTransition.currentState == EnterExitState.Visible }
-                .first { it }
-            value = true
-        }
-    }
+    // History travels with the page. Only acknowledgement, auto-scroll and refresh animations wait for entry.
+    val entrySettled = entryTransition.currentState == EnterExitState.Visible &&
+        entryTransition.targetState == EnterExitState.Visible
     val scheme = MiuixTheme.colorScheme
     val pullSettled by remember(pullState) {
         derivedStateOf { pullState.refreshState == RefreshState.Idle && pullState.dragOffset <= 0f }
@@ -185,11 +178,13 @@ fun DetailScreen(
             IntOffset((12.dp.toPx() * (targetPosition - tabPosition.value)).roundToInt(), 0)
         }
     } else Modifier
-    val tabLoading = if (commitsTab) state.commitsLoading else state.releasesLoading
     val tabReloading = if (commitsTab) state.commitsReloading else state.releasesReloading
     val tabEmpty = if (commitsTab) state.commits.isEmpty() else releases.isEmpty()
-    val hasEmptyOrError = if (commitsTab) state.commitsEnd || state.commitsFailed else state.releasesEnd || state.releasesFailed
-    val firstPagePending = tabLoading && tabEmpty && !hasEmptyOrError
+    // The download notification can outlive the in-memory release page or the remote release itself.
+    val localTarget = state.repo?.downloadedApk?.takeIf { !commitsTab && it.version == tag && releaseIndex < 0 }
+    val commitsPending = state.commitsLoading && state.commits.isEmpty() && !state.commitsEnd && !state.commitsFailed
+    val releasesPending = state.releasesLoading && releases.isEmpty() && localTarget == null && !state.releasesEnd && !state.releasesFailed
+    val firstPagePending = if (commitsTab) commitsPending else releasesPending
     val scrollBehavior = MiuixScrollBehavior(rememberTopAppBarState())
     var showAppPicker by remember { mutableStateOf(false) }
     var showBranchSheet by remember { mutableStateOf(false) }
@@ -198,7 +193,7 @@ fun DetailScreen(
     val scope = androidx.compose.runtime.rememberCoroutineScope()
     // 列表状态提升：点标题回顶部需要驱动滚动动画（真实滚动让折叠顶栏自动展开）
     val detailListState = androidx.compose.foundation.lazy.rememberLazyListState()
-    val lookupTag = tag?.takeIf { awaitingTag && pageAvailable }
+    val lookupTag = tag?.takeIf { awaitingTag && pageAvailable && localTarget == null }
     val obscured = showAppPicker || showBranchSheet || showRemoveDialog
     val accessibility = remember(context) { context.getSystemService(android.view.accessibility.AccessibilityManager::class.java) }
     val touchExploration by produceState(accessibility?.isTouchExplorationEnabled == true, accessibility) {
@@ -208,15 +203,6 @@ fun DetailScreen(
         value = accessibility.isTouchExplorationEnabled
         awaitDispose { accessibility.removeTouchExplorationStateChangeListener(listener) }
     }
-    // Only an unattended, slow first-page reload may cover existing rows. Keep notification
-    // targets, restored reading positions and active controls accessible throughout.
-    val canMask = rowsReady && !tabEmpty && tabReloading && !interacted && pullIdle && !obscured &&
-        releaseRequestId == null && !detailListState.canScrollBackward && !tabMoving &&
-        state.download == null && state.selectedAssets.isEmpty() && !touchExploration
-    val showMask = canMask && key(repoId, tab) { rememberBusyIndicator(true) }
-    val refreshMask = key(repoId, tab) { rememberHistoryRefreshMask(showMask, motion) }
-    val blockMaskedActions by remember(refreshMask, showMask) { derivedStateOf { showMask || refreshMask.value > 0f } }
-
     // Keep the item transition enabled through the frame that publishes new first-page rows.
     var animateRefreshChanges by remember(repoId, tab) { mutableStateOf(false) }
     LaunchedEffect(tabReloading, tabEmpty, tabMoving, motion) {
@@ -227,12 +213,15 @@ fun DetailScreen(
             animateRefreshChanges = false
         }
     }
-    val slowFirstPage = firstPagePending && key(repoId, tab) { rememberBusyIndicator(true) }
-    val placeholderCount = if (rowsReady && slowFirstPage) {
-        visiblePlaceholderCount(detailListState, tab, if (lookupTag != null) RELEASE_LOOKUP_KEY else HISTORY_TABS_KEY)
+    // Both requests start on entry, so switching tabs should not restart either grace period.
+    val commitsPlaceholderReady = key(repoId, state.repo?.branch) { firstPagePlaceholderReady(commitsPending) }
+    val releasesPlaceholderReady = key(repoId) { firstPagePlaceholderReady(releasesPending) }
+    val showPlaceholders = if (commitsTab) commitsPlaceholderReady else releasesPlaceholderReady
+    val placeholderCount = if (showPlaceholders) {
+        historyPlaceholderCount(detailListState, tab, if (lookupTag != null) RELEASE_LOOKUP_KEY else HISTORY_TABS_KEY)
     } else 0
     val historyOpacity = key(repoId, tab) {
-        rememberHistoryContentOpacity(placeholderVisible = !rowsReady || firstPagePending, motionEnabled = motion)
+        rememberHistoryContentOpacity(detailListState, tab, showPlaceholders, motion)
     }
     val historyFading by remember(historyOpacity) { derivedStateOf { historyOpacity.value < 1f } }
     val historyRowModifier = if (motion && !firstPagePending && historyFading) {
@@ -269,13 +258,12 @@ fun DetailScreen(
             vm.protectReadingRows(tab, emptySet())
         }
     }
-    LaunchedEffect(releaseRequestId, browsing, positioned, releaseIndex, rowsReady, lifecycleOwner) {
-        if (browsing || positioned || !rowsReady) return@LaunchedEffect
+    LaunchedEffect(releaseRequestId, browsing, positioned, releaseIndex, localTarget, entrySettled, lifecycleOwner) {
+        if (browsing || positioned || !entrySettled) return@LaunchedEffect
         lifecycleOwner.lifecycle.repeatOnLifecycle(Lifecycle.State.RESUMED) {
-            snapshotFlow { entryTransition.currentState == EnterExitState.Visible }.first { it }
             if (releaseIndex < 0) {
                 // An older notification without a tag can open the tab, but identifies no release to acknowledge.
-                detailListState.scrollToItem(HISTORY_TABS_INDEX)
+                detailListState.scrollToItem(if (localTarget == null) HISTORY_TABS_INDEX else HISTORY_TABS_INDEX + 1)
                 if (tag == null) positioned = true
             } else {
                 val key = "releases:$tag"
@@ -290,13 +278,12 @@ fun DetailScreen(
         }
     }
     val activity = state.snapshot?.activity
-    LaunchedEffect(lifecycleOwner, releaseRequestId, browsing, tab, rowsReady, obscured, tabMoving, canMask, blockMaskedActions,
+    LaunchedEffect(lifecycleOwner, releaseRequestId, browsing, tab, entrySettled, obscured, tabMoving,
         activity?.unreadReleaseTags, activity?.unreadCommitShas) {
-        if (!rowsReady || obscured || tabMoving || canMask || blockMaskedActions) return@LaunchedEffect
+        if (!entrySettled || obscured || tabMoving) return@LaunchedEffect
         lifecycleOwner.lifecycle.repeatOnLifecycle(Lifecycle.State.RESUMED) {
             snapshotFlow {
-                if (historyFading || detailListState.isScrollInProgress || entryTransition.currentState != EnterExitState.Visible ||
-                    entryTransition.targetState != EnterExitState.Visible) emptySet()
+                if (historyFading || detailListState.isScrollInProgress) emptySet()
                 else detailListState.layoutInfo.visibleHistoryKeys(titleHeight)
             }.collect { keys ->
                 if (!browsing) {
@@ -519,7 +506,6 @@ fun DetailScreen(
                         modifier = Modifier.padding(vertical = 8.dp),
                     )
                 }
-                if (!rowsReady) return@LazyColumn
                 if (lookupTag != null) {
                     item(key = RELEASE_LOOKUP_KEY) {
                         val message = when (lookupError) {
@@ -544,7 +530,7 @@ fun DetailScreen(
                 }
                 // 提交跳转基址 + 本机已装版本（Screen 层算一次：列表卡不重复查 pm）
                 val htmlBase = webUrl ?: return@LazyColumn
-                val animateChanges = animateRefreshChanges && !tabMoving && !historyFading &&
+                val animateChanges = entrySettled && animateRefreshChanges && !tabMoving && !historyFading &&
                     !detailListState.isScrollInProgress && releaseRequestId == null
                 if (commitsTab) {
                     commitList(
@@ -552,8 +538,6 @@ fun DetailScreen(
                         contentModifier = historyRowModifier,
                         htmlBase = htmlBase,
                         showPagingIndicator = pullIdle,
-                        refreshMask = refreshMask,
-                        blockMaskedActions = blockMaskedActions,
                         animateRefreshChanges = animateChanges,
                         onLoadMore = vm::loadCommits,
                     )
@@ -561,13 +545,12 @@ fun DetailScreen(
                     releaseList(
                         state = state,
                         releases = releases,
+                        localTarget = localTarget,
                         notificationTag = if (!browsing || extraRelease != null) tag else null,
                         contentModifier = historyRowModifier,
                         localVersion = localVersion,
                         htmlBase = htmlBase,
                         showPagingIndicator = pullIdle,
-                        refreshMask = refreshMask,
-                        blockMaskedActions = blockMaskedActions,
                         animateRefreshChanges = animateChanges,
                         onLoadMore = vm::loadReleases,
                         onSelectAsset = vm::selectAsset,

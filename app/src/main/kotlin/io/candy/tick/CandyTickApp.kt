@@ -47,6 +47,15 @@ class CandyTickApp : Application() {
             defaultHandler?.uncaughtException(thread, throwable)
         }
         container = AppContainer(this) { visible.value }
+        container.appScope.launch(Dispatchers.IO) {
+            val store = container.appStateStore
+            store.awaitLoaded()
+            store.state.map { state -> if (state.settings.notificationsEnabled) state.repos else emptyList() }
+                .distinctUntilChanged()
+                .map { repos -> repos.mapNotNull { repo -> repo.downloadedApk?.let { repo.id to it.fileName } } }
+                .distinctUntilChanged()
+                .collect { Notifications.reconcileRepoDownloads(this@CandyTickApp, store.state) }
+        }
         // 孤儿 APK 回收（后台线程：仓库已删除但 apks/{id}/ 残留）
         container.appScope.launch(start = CoroutineStart.UNDISPATCHED) {
             container.appStateStore.awaitLoaded()

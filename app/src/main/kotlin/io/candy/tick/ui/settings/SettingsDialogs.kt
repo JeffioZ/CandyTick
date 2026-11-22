@@ -50,11 +50,12 @@ internal fun CacheCleanupSheet(
     val scope = rememberCoroutineScope()
     val visible by rememberUpdatedState(show)
     var cleanApk by remember { mutableStateOf(true) }
-    var cleanCrash by remember { mutableStateOf(true) }
+    var cleanCrash by remember { mutableStateOf(false) }
 
     androidx.compose.runtime.LaunchedEffect(show) {
         if (show) {
-            cleanApk = true; cleanCrash = true
+            cleanApk = true
+            cleanCrash = false
             onScan()
         }
     }
@@ -65,6 +66,8 @@ internal fun CacheCleanupSheet(
         onDismissRequest = { if (!state.cleaning) onDismiss() },
         onDismissFinished = { if (!visible) onDismissFinished() },
     ) {
+        val includeApks = cleanApk && !state.scanning && state.apkBytes > 0
+        val includeCrashLog = cleanCrash && !state.scanning && state.crashLogBytes > 0
         Column(
             modifier = Modifier
                 .verticalScroll(rememberScrollState())
@@ -79,20 +82,20 @@ internal fun CacheCleanupSheet(
                 CacheCleanupRow(
                     label = stringResource(R.string.settings_cache_apk),
                     sizeBytes = state.apkBytes.takeUnless { state.scanning },
-                    checked = cleanApk,
+                    checked = includeApks,
                     cleaning = state.cleaning,
                     onChecked = { cleanApk = it },
                 )
                 CacheCleanupRow(
                     label = stringResource(R.string.settings_cache_crash_log),
                     sizeBytes = state.crashLogBytes.takeUnless { state.scanning },
-                    checked = cleanCrash,
+                    checked = includeCrashLog,
                     cleaning = state.cleaning,
                     onChecked = { cleanCrash = it },
                 )
             }
-            val selectedBytes = (if (cleanApk) state.apkBytes else 0L) +
-                (if (cleanCrash) state.crashLogBytes else 0L)
+            val selectedBytes = (if (includeApks) state.apkBytes else 0L) +
+                (if (includeCrashLog) state.crashLogBytes else 0L)
             val action = stringResource(R.string.settings_cache_clean_action)
             val label = when {
                 state.scanning -> action
@@ -111,7 +114,7 @@ internal fun CacheCleanupSheet(
                 enabled = selectedBytes > 0,
                 onClick = {
                     scope.launch {
-                        val freed = onClean(cleanApk, cleanCrash)
+                        val freed = onClean(includeApks, includeCrashLog)
                         io.candy.tick.ui.common.Feedback.show(
                             text = String.format(java.util.Locale.US, freedTemplate, formatBytes(freed)),
                         )
@@ -135,7 +138,7 @@ private fun CacheCleanupRow(
     val hasFiles = sizeBytes != null && sizeBytes > 0
     val enabled = hasFiles && !cleaning
     top.yukonga.miuix.kmp.basic.BasicComponent(
-        modifier = Modifier.fillMaxWidth().clip(SheetChoiceRowShape).switchSemantics(checked && hasFiles, enabled),
+        modifier = Modifier.fillMaxWidth().clip(SheetChoiceRowShape).switchSemantics(checked, enabled),
         title = label,
         summary = when (sizeBytes) {
             null -> "—"
@@ -147,7 +150,7 @@ private fun CacheCleanupRow(
             // 大小为 0 也保留 Switch（灰显）：行结构稳定不闪隐
             top.yukonga.miuix.kmp.basic.Switch(
                 modifier = Modifier.clearAndSetSemantics { },
-                checked = checked && hasFiles,
+                checked = checked,
                 onCheckedChange = onChecked,
                 enabled = enabled,
             )

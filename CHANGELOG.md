@@ -34,7 +34,10 @@
 - 首页的「最近活动」会比较所选分支的最新提交时间和最新安装包的发布时间，显示两者中较近的一个。刷新、置顶或取消置顶时，列表会尽量保留当前阅读位置。
 - 点开单个仓库的新版安装包通知后，详情页会定位到对应版本，只清除这次发布的未读标记。「可更新」仍按本机实际安装的版本判断。
 - 离开详情页后，安装包会继续下载，返回即可查看进度。分包文件保留原扩展名，方便用兼容的安装程序打开。
-- 再次查看最近打开的仓库时，先显示上次的历史记录。刷新较慢时，列表在原位淡入占位。开始浏览后，内容保持可读。手动下拉时，仓库概况和历史记录随「刷新完成」一起更新。
+- 仓库安装包在后台下载完成后，可从通知打开对应版本，即使离线也能安装本机已下载的文件。清理缓存时默认选中扫描到的安装包，崩溃日志可单独勾选。
+- 「跟随系统」会按系统语言列表匹配，后台通知也会使用应用选定的语言。关闭 CandyTick 自动检查后会暂停自动下载，重新开启时恢复此前的下载偏好。
+- 打开仓库时，已缓存的提交和版本记录随页面一起出现，刷新期间仍可查看、点按。没有缓存且首屏请求稍慢时，占位卡片会更早出现，切换到正在加载的页签也不用再等一轮。手动下拉时，仓库概况和历史记录随「刷新完成」一起更新。
+- 首页搜索框展开后再弹出键盘，减少展开长列表时的卡顿。
 - 搜索本机应用时，面板高度保持稳定。
 - 分支选择器支持继续加载下一页。详情页空间不足时，提交和版本页签会一起改用短名称。
 - 仓库卡片为完整路径留出更多宽度，长名称可在连字符等分隔处换行。清空搜索框后可直接继续输入。
@@ -66,12 +69,15 @@
 - Tap the selected sort option again to reverse the order. Pinned repositories stay at the top. Recent activity includes commits on the selected branch and releases with installable packages. Refreshing or pinning a repository keeps the card you’re reading in view where possible.
 - Open a notification for a single repository to go to that release. Only that release is marked as read. Update availability still depends on the installed version.
 - Downloads continue after you leave the details page. Split packages keep their original extensions. After installation, CandyTick cleans up the matching APK and checks for stale update notifications.
+- When a repository download finishes in the background, its notification opens the matching release. You can install the saved file even while offline. Clear cache preselects packages found during its scan and lets you choose whether to delete the crash log.
+- Following the system language respects your full language preference list. Background notifications also use the app’s selected language. Turning off automatic CandyTick update checks pauses automatic downloads and remembers your choice for next time.
 - Long-press the globe icon to copy the repository URL. The installed-app picker stays the same height as you search.
 - Repository cards give the full path more room and wrap long names at separators. Clearing a search field brings the keyboard back for the next query.
 - Search results and previews show the same app icon for a linked repository. You can tap Add while CandyTick looks for a matching installed app.
 - Closing a repository preview returns you to your place in the search results. If you opened a link, you can edit it or press Search to reopen it.
 - Repository search shows the reason for a failed request. If another page of commits or releases fails to load, you can retry at the end of the list.
-- Reopening a recently viewed repository shows its history while it refreshes. On a slow connection, placeholders fade in over the cards until you start browsing. Pulling to refresh updates the overview and history together when the indicator shows “Refresh complete”.
+- Cached commits and releases appear as the detail page opens and stay interactive during refresh. When the first page takes a moment, placeholders appear sooner, including when switching to a tab that is already loading. Pulling to refresh updates the overview and history together when the indicator shows “Refresh complete”.
+- The keyboard opens after the home search field expands, reducing layout work when searching a long repository list.
 - CandyTick can download its own updates over mobile data when automatic downloads are enabled. Repository sync still follows your network settings.
 - Retrying a CandyTick update download now honors the setting to open the installer when the download finishes.
 - Unlinking an app now persists across restarts. Uninstalled apps are unlinked on the next check, and long GitHub tokens can be pasted in full.

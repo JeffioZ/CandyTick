@@ -16,13 +16,19 @@ import androidx.core.content.ContextCompat
 import io.candy.tick.MainActivity
 import io.candy.tick.R
 import io.candy.tick.data.model.AppState
+import io.candy.tick.data.model.DownloadedApk
 import io.candy.tick.util.VersionCompare
+import io.candy.tick.util.forAppLanguage
 import io.candy.tick.util.installedVersionName
+import kotlinx.coroutines.flow.StateFlow
 
 /** 仓库更新、自更新与同步各用独立渠道；13+ 运行时权限检查（被拒 → 设置页常驻提醒，不反复弹窗） */
 object Notifications {
 
     const val CHANNEL_NEW_RELEASE = "new_release"
+    private const val CHANNEL_REPO_DOWNLOAD = "repo_download"
+    private const val DOWNLOAD_READY_ID = 1
+    private const val EXTRA_DOWNLOAD_FILE = "download_file"
     const val CHANNEL_SELF_UPDATE = "self_update"
     const val CHANNEL_SYNC = "sync" // 加急同步前台服务（API 29-30）：独立渠道，不与自更新提醒捆绑
 
@@ -32,6 +38,9 @@ object Notifications {
 
     fun ensureChannels(context: Context) {
         val manager = context.getSystemService(Context.NOTIFICATION_SERVICE) as NotificationManager
+        manager.createNotificationChannel(
+            NotificationChannel(CHANNEL_REPO_DOWNLOAD, context.getString(R.string.notif_channel_repo_download), NotificationManager.IMPORTANCE_LOW),
+        )
         manager.createNotificationChannel(
             NotificationChannel(
                 CHANNEL_NEW_RELEASE,
@@ -74,35 +83,74 @@ object Notifications {
     const val EXTRA_NAV_SETTINGS = "nav_settings" // 自更新就绪 → 设置页
     const val ACTION_NAV_HOME = "io.candy.tick.NOTIFY_REPO_SUMMARY"
 
-    // canNotify() 已在函数头守门（13+ 未授权直接 return），notify 调用另包 runCatching 兜底；
-    // lint 的静态权限分析不识别跨函数守卫，就地标注
-    @SuppressLint("MissingPermission")
-    @Synchronized
-    fun notifyRepoNewVersion(context: Context, repoName: String, tag: String, repoId: Long) {
-        if (!canNotify(context)) return
-        ensureChannels(context)
+    private fun openRepoRelease(context: Context, repoId: Long, tag: String): PendingIntent {
         val intent = Intent(context, MainActivity::class.java)
             // PendingIntent 的身份不含 extras。同仓不同版本各用独立 action，点击旧通知时仍指向旧版。
             .setAction("io.candy.tick.NOTIFY_REPO.$repoId.$tag")
             .putExtra(EXTRA_NAV_REPO, repoId)
             .putExtra(EXTRA_NAV_RELEASE_TAG, tag)
-        val pending = PendingIntent.getActivity(
+        return PendingIntent.getActivity(
             context,
             repoId.hashCode(),
             intent,
             PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE,
         )
+    }
+
+    @SuppressLint("MissingPermission")
+    @Synchronized
+    fun notifyRepoNewVersion(context: Context, repoName: String, tag: String, repoId: Long) {
+        if (!canNotify(context)) return
+        ensureChannels(context)
         val notification = NotificationCompat.Builder(context, CHANNEL_NEW_RELEASE)
             .setSmallIcon(R.drawable.ic_notification)
             .setContentTitle(repoName)
             .setContentText(context.getString(R.string.notif_new_release, tag))
             .addExtras(Bundle().apply { putString(EXTRA_NAV_RELEASE_TAG, tag) })
-            .setContentIntent(pending)
+            .setContentIntent(openRepoRelease(context, repoId, tag))
             .setAutoCancel(true)
             .setGroup(GROUP_REPO_UPDATES) // 多仓库同轮发版折叠（≥2 条时摘要汇总）
             .build()
         runCatching {
             NotificationManagerCompat.from(context).notify(repoId.toString(), 0, notification)
+        }
+    }
+
+    @SuppressLint("MissingPermission")
+    @Synchronized
+    internal fun notifyRepoDownloadReady(context: Context, state: StateFlow<AppState>, repoId: Long, record: DownloadedApk) {
+        val current = state.value
+        val repo = current.repos.firstOrNull { it.id == repoId && it.downloadedApk == record } ?: return
+        if (!current.settings.notificationsEnabled || !canNotify(context)) return
+        val localized = context.forAppLanguage(current.settings.language)
+        ensureChannels(localized)
+        val notice = NotificationCompat.Builder(localized, CHANNEL_REPO_DOWNLOAD)
+            .setSmallIcon(R.drawable.ic_notification)
+            .setContentTitle(repo.noteName ?: "${repo.owner}/${repo.repo}")
+            .setContentText(localized.getString(R.string.notif_repo_download_ready, record.version))
+            .addExtras(Bundle().apply { putString(EXTRA_DOWNLOAD_FILE, record.fileName) })
+            .setContentIntent(openRepoRelease(context, repoId, record.version))
+            .setAutoCancel(true)
+            .build()
+        runCatching { NotificationManagerCompat.from(context).notify(repoId.toString(), DOWNLOAD_READY_ID, notice) }
+    }
+
+    /** Downloads can be replaced, installed or cleared without opening their notification. */
+    @Synchronized
+    internal fun reconcileRepoDownloads(context: Context, state: StateFlow<AppState>) {
+        val manager = NotificationManagerCompat.from(context)
+        val notices = runCatching { manager.activeNotifications.filter { it.notification.channelId == CHANNEL_REPO_DOWNLOAD } }
+            .getOrNull().orEmpty()
+        if (notices.isEmpty()) return
+        val current = state.value
+        val repos = current.repos.associateBy { it.id.toString() }
+        for (notice in notices) {
+            val saved = repos[notice.tag]?.downloadedApk
+            if (!current.settings.notificationsEnabled || saved == null ||
+                saved.fileName != notice.notification.extras.getString(EXTRA_DOWNLOAD_FILE)
+            ) {
+                runCatching { manager.cancel(notice.tag, notice.id) }
+            }
         }
     }
 
@@ -199,7 +247,7 @@ object Notifications {
         if (remaining == 0 && summaryCount != null) {
             runCatching { manager.cancel(SUMMARY_ID) }
         } else if (state.settings.notificationsEnabled && remaining != summaryCount && (remaining >= 2 || summaryCount != null)) {
-            notifyRepoUpdatesSummary(context, remaining)
+            notifyRepoUpdatesSummary(context.forAppLanguage(state.settings.language), remaining)
         }
     }
 

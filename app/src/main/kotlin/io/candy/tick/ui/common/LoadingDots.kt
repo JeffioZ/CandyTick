@@ -88,10 +88,6 @@ private fun Modifier.statusSemantics(label: String?, busy: Boolean): Modifier =
 
 /** Hide brief operations during navigation. Once visible, allow one readable beat. */
 @Composable
-internal fun rememberBusyIndicator(running: Boolean): Boolean =
-    rememberBusyValue(true.takeIf { running }) != null
-
-@Composable
 internal fun <T : Any> rememberBusyValue(value: T?): T? {
     var shown by remember { mutableStateOf<T?>(null) }
     if (value != null || shown != null) {

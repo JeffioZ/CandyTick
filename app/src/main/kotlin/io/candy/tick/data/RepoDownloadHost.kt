@@ -57,6 +57,7 @@ class RepoDownloadHost(
     private val githubApi: GitHubApi,
     private val installManager: InstallManager,
     private val appContext: Context,
+    private val isAppVisible: () -> Boolean,
 ) {
 
     private val _states = MutableStateFlow<Map<Long, RepoDownloadState>>(emptyMap())
@@ -139,12 +140,19 @@ class RepoDownloadHost(
                         onAutoLinked(label?.takeIf { it.isNotBlank() } ?: pkg)
                     }
                 }
-                if (jobGens[repoId] != gen) return@launch
-                val current = repository.state.value
-                if (current.settings.autoInstallDownload && jobGens[repoId] == gen &&
-                    current.repos.any { it.id == repoId && it.downloadedApk == record }
-                ) {
-                    installManager.installApk(dest, repoId, asset.name)
+                // Decide on the same thread as Activity visibility changes, after the file is saved.
+                val completedInBackground = withContext(Dispatchers.Main.immediate) {
+                    if (!isAppVisible()) return@withContext true
+                    val current = repository.state.value
+                    if (current.settings.autoInstallDownload && jobGens[repoId] == gen &&
+                        current.repos.any { it.id == repoId && it.downloadedApk == record }
+                    ) {
+                        installManager.installApk(dest, repoId, asset.name)
+                    }
+                    false
+                }
+                if (completedInBackground && jobGens[repoId] == gen) {
+                    Notifications.notifyRepoDownloadReady(appContext, repository.state, repoId, record)
                 }
             } catch (e: CancellationException) {
                 throw e

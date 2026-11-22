@@ -216,6 +216,7 @@
     <string name="detail_link_change">更改关联应用</string>
     <string name="detail_unlink">解除关联</string>
     <string name="detail_delete_download">删除下载的安装包</string>
+    <string name="detail_saved_package">已下载的安装包 · %1$s</string>
     <string name="toast_copied">已复制到剪贴板</string>
     <string name="commits_load_failed">无法加载提交记录</string>
     <string name="releases_load_failed">无法加载版本记录</string>
@@ -254,6 +255,8 @@
 
     <!-- 通知 -->
     <string name="notif_channel_release">仓库版本更新</string>
+    <string name="notif_channel_repo_download">安装包下载完成</string>
+    <string name="notif_repo_download_ready">%1$s 的安装包已下载，点按查看。</string>
     <string name="notif_channel_release_desc">订阅的仓库发布新版安装包时通知</string>
     <string name="notif_channel_update">CandyTick 更新</string>
     <string name="notif_channel_update_desc">CandyTick 更新下载完成后提醒安装</string>
@@ -333,6 +336,7 @@
     <string name="settings_current_version_title">检查更新</string>
     <string name="settings_self_update_check">自动检查 CandyTick 更新</string>
     <string name="settings_self_update_download">自动下载 CandyTick 更新</string>
+    <string name="settings_self_update_download_requires_check">开启自动检查后可用</string>
     <string name="settings_checking">正在检查…</string>
     <string name="settings_install_update">安装已下载的更新</string>
     <string name="settings_update_failed">检查更新失败</string>

@@ -190,7 +190,9 @@ data class Settings(
     val autoInstallDownload: Boolean = true, // 下载后自动安装：仓库应用 + 自身更新共用（默认开，见设置页说明文案）
     val language: String = "", // 应用内语言（空 = 跟随系统；"zh" / "en"）
     val sortMode: String = "LAST_PUSH", // 首页排序（持久化，重启保留）
-)
+) {
+    val canAutoDownloadUpdate: Boolean get() = selfUpdateCheck && selfUpdateAutoDownload
+}
 
 /** 持久化根：订阅 + 快照 + 设置，单 JSON 文件 */
 @Serializable

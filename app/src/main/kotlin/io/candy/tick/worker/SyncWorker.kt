@@ -10,6 +10,7 @@ import io.candy.tick.data.SnapshotDiff
 import io.candy.tick.data.SourceError
 import io.candy.tick.data.SyncStatus
 import io.candy.tick.data.forEachSyncRepo
+import io.candy.tick.util.forAppLanguage
 import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
 import java.util.concurrent.ConcurrentHashMap
@@ -23,13 +24,15 @@ class SyncWorker(context: Context, params: WorkerParameters) : CoroutineWorker(c
 
     /** API 29-30 上加急作业以前台服务执行，必须提供此信息（否则运行时崩） */
     override suspend fun getForegroundInfo(): androidx.work.ForegroundInfo {
+        val store = (applicationContext as CandyTickApp).container.appStateStore
+        val localized = applicationContext.forAppLanguage(store.state.value.settings.language)
         val notification = androidx.core.app.NotificationCompat.Builder(
             applicationContext,
             io.candy.tick.data.Notifications.CHANNEL_SYNC,
         )
             .setSmallIcon(io.candy.tick.R.drawable.ic_notification)
-            .setContentTitle(applicationContext.getString(io.candy.tick.R.string.app_name))
-            .setContentText(applicationContext.getString(io.candy.tick.R.string.notif_syncing_repos))
+            .setContentTitle(localized.getString(io.candy.tick.R.string.app_name))
+            .setContentText(localized.getString(io.candy.tick.R.string.notif_syncing_repos))
             .setSilent(true)
             .build()
         return androidx.work.ForegroundInfo(id.hashCode(), notification)
@@ -89,7 +92,7 @@ class SyncWorker(context: Context, params: WorkerParameters) : CoroutineWorker(c
                         newReleaseRepos.add(tracked.id)
                         if (current.settings.notificationsEnabled) {
                             Notifications.notifyRepoNewVersion(
-                                context = applicationContext,
+                                context = applicationContext.forAppLanguage(current.settings.language),
                                 repoName = subscribed.noteName ?: "${subscribed.owner}/${subscribed.repo}",
                                 tag = latestTag,
                                 repoId = tracked.id,
@@ -102,8 +105,9 @@ class SyncWorker(context: Context, params: WorkerParameters) : CoroutineWorker(c
             }
         }
         // 组摘要：本轮 ≥2 个仓库发版时折叠为一组（点摘要回首页，子通知各自直达详情）
-        if (newReleaseRepos.size >= 2 && container.appStateStore.state.value.settings.notificationsEnabled) {
-            Notifications.notifyRepoUpdatesSummary(applicationContext, newReleaseRepos.size)
+        val notificationSettings = container.appStateStore.state.value.settings
+        if (newReleaseRepos.size >= 2 && notificationSettings.notificationsEnabled) {
+            Notifications.notifyRepoUpdatesSummary(applicationContext.forAppLanguage(notificationSettings.language), newReleaseRepos.size)
         }
         // 通知对账：装完新版的仓库撤下过期通知（纯本地判定，autoCancel 只在点击时生效）
         runCatching {
@@ -122,8 +126,8 @@ class SyncWorker(context: Context, params: WorkerParameters) : CoroutineWorker(c
 
         // 4) 自身更新（检查默认开；自动下载按设置入队）
         if (container.appStateStore.state.value.settings.selfUpdateCheck) {
-            val hasNew = container.selfUpdater.check()
-            if (hasNew && container.appStateStore.state.value.settings.selfUpdateAutoDownload) {
+            val hasNew = container.selfUpdater.check { it.selfUpdateCheck }
+            if (hasNew && container.appStateStore.state.value.settings.canAutoDownloadUpdate) {
                 container.syncScheduler.enqueueUpdateDownload()
             }
         }

@@ -6,6 +6,7 @@ import androidx.work.WorkerParameters
 import io.candy.tick.CandyTickApp
 import io.candy.tick.data.Notifications
 import io.candy.tick.data.SelfUpdater
+import io.candy.tick.util.forAppLanguage
 
 /**
  * 自身更新自动下载（一次性，全网络——包仅 ~4MB，开关本身即用户同意）：
@@ -17,13 +18,13 @@ class UpdateDownloadWorker(context: Context, params: WorkerParameters) : Corouti
     override suspend fun doWork(): Result {
         val container = (applicationContext as CandyTickApp).container
         if (!container.appStateStore.ensureLoaded()) return Result.retry()
-        val updater = container.selfUpdater
         val settings = container.appStateStore.state.value.settings
-        if (!settings.selfUpdateAutoDownload) return Result.success()
-
+        if (!settings.canAutoDownloadUpdate) return Result.success()
+        val updater = container.selfUpdater
         var newState = updater.state.value as? SelfUpdater.State.NewVersion
         if (newState == null) {
-            if (!updater.check()) {
+            if (!updater.check { it.canAutoDownloadUpdate }) {
+                if (!container.appStateStore.state.value.settings.canAutoDownloadUpdate) return Result.success()
                 val failed = updater.state.value as? SelfUpdater.State.Failed
                 return if (failed?.reason == SelfUpdater.Reason.NETWORK && runAttemptCount < 2) Result.retry() else Result.success()
             }
@@ -32,16 +33,17 @@ class UpdateDownloadWorker(context: Context, params: WorkerParameters) : Corouti
         val asset = newState.asset ?: return Result.success()
         if (newState.incomparable) return Result.success()
 
-        val file = updater.download(asset) ?: return when {
+        val file = updater.downloadAutomatically(asset) ?: return when {
+            !container.appStateStore.state.value.settings.canAutoDownloadUpdate -> Result.success()
             updater.state.value is SelfUpdater.State.Downloaded -> Result.success()
             runAttemptCount < 2 -> Result.retry()
             else -> Result.failure()
         }
         val current = container.appStateStore.state.value.settings
-        if (current.selfUpdateAutoDownload && current.autoInstallDownload && updater.canInstallSilently()) {
+        if (current.canAutoDownloadUpdate && current.autoInstallDownload && updater.canInstallSilently()) {
             updater.installSilently(file)
         } else if (current.notificationsEnabled) {
-            Notifications.notifySelfUpdateReady(applicationContext, newState.tag)
+            Notifications.notifySelfUpdateReady(applicationContext.forAppLanguage(current.language), newState.tag)
         }
         return Result.success()
     }

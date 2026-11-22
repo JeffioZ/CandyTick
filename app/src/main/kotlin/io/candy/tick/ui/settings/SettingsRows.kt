@@ -16,6 +16,7 @@ import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.draw.alpha
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.res.stringResource
@@ -140,17 +141,19 @@ internal fun SwitchRow(
     checked: Boolean,
     onChange: (Boolean) -> Unit,
     summary: String? = null,
+    enabled: Boolean = true,
 ) {
     SettingRow(
-        modifier = Modifier.switchSemantics(checked),
+        modifier = Modifier.switchSemantics(checked, enabled).alpha(if (enabled) 1f else 0.6f),
         title = title,
         summary = summary,
         icon = icon,
         iconTint = iconTint,
-        onClick = { onChange(!checked) },
+        onClick = if (enabled) { { onChange(!checked) } } else null,
         trailing = {
             Switch(
                 checked = checked, onCheckedChange = onChange,
+                enabled = enabled,
                 modifier = Modifier.clearAndSetSemantics { },
             )
         },

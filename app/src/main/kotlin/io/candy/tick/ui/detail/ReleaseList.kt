@@ -23,7 +23,6 @@ import androidx.compose.foundation.background
 import io.candy.tick.ui.common.downloadActionTransition
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
-import androidx.compose.runtime.State
 import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -42,12 +41,14 @@ import io.candy.tick.ui.common.InlineErrorRow
 import io.candy.tick.data.model.ApkAsset
 import io.candy.tick.data.model.ReleaseRecord
 import io.candy.tick.ui.common.PrimaryButton
+import io.candy.tick.ui.common.StatusPage
 import io.candy.tick.ui.common.DownloadProgress
 import io.candy.tick.ui.common.relTimeString
 import io.candy.tick.ui.theme.MonoTokenStyle
 import io.candy.tick.util.ApkPicker
 import io.candy.tick.util.VersionCompare
 import top.yukonga.miuix.kmp.basic.Text
+import top.yukonga.miuix.kmp.basic.Card
 import top.yukonga.miuix.kmp.theme.MiuixTheme
 import androidx.compose.ui.res.vectorResource
 import androidx.compose.ui.graphics.vector.ImageVector
@@ -59,13 +60,12 @@ import io.candy.tick.ui.common.Motion
 fun LazyListScope.releaseList(
     state: DetailViewModel.UiState,
     releases: List<ReleaseRecord>,
+    localTarget: DownloadedApk?,
     notificationTag: String?,
     contentModifier: Modifier,
     localVersion: String?,
     htmlBase: String,
     showPagingIndicator: Boolean,
-    refreshMask: State<Float>,
-    blockMaskedActions: Boolean,
     animateRefreshChanges: Boolean,
     onLoadMore: () -> Unit,
     onSelectAsset: (String, ApkAsset) -> Unit,
@@ -76,6 +76,16 @@ fun LazyListScope.releaseList(
     onDeleteDownloaded: (DownloadedApk) -> Unit,
     onCancelDownload: () -> Unit,
 ) {
+    if (localTarget != null) {
+        item(key = "releases:${localTarget.version}", contentType = "release") {
+            Card(modifier = contentModifier.fillMaxWidth()) {
+                SavedPackageAction(localTarget) {
+                    onRead(it.version)
+                    onInstallDownloaded(it)
+                }
+            }
+        }
+    }
     items(
         count = releases.size,
         key = { "releases:${releases[it].tagName}" },
@@ -85,9 +95,6 @@ fun LazyListScope.releaseList(
         ReleaseCard(
             release = release,
             modifier = refreshItemMotion(animateRefreshChanges).then(contentModifier),
-            index = index,
-            refreshMask = refreshMask,
-            blockMaskedActions = blockMaskedActions,
             state = state,
             localVersion = localVersion,
             htmlBase = htmlBase,
@@ -108,7 +115,7 @@ fun LazyListScope.releaseList(
         HistoryFooter(
             state = state,
             tab = DetailViewModel.DetailTab.RELEASES,
-            displayedCount = releases.size,
+            displayedCount = releases.size + if (localTarget == null) 0 else 1,
             showPagingIndicator = showPagingIndicator,
             modifier = contentModifier,
             onLoadMore = onLoadMore,
@@ -120,9 +127,6 @@ fun LazyListScope.releaseList(
 private fun ReleaseCard(
     release: ReleaseRecord,
     modifier: Modifier,
-    index: Int,
-    refreshMask: State<Float>,
-    blockMaskedActions: Boolean,
     state: DetailViewModel.UiState,
     localVersion: String?,
     htmlBase: String,
@@ -140,23 +144,17 @@ private fun ReleaseCard(
     val (autoPick, isAuto) = remember(release) {
         ApkPicker.pick(release.apkAssets, Build.SUPPORTED_ABIS.toList())
     }
-    val selected = candidates.find { it.name == state.selectedAssets[release.tagName]?.name } ?: autoPick
+    val saved = state.repo?.downloadedApk?.takeIf { it.version == release.tagName }
+    val releaseTransfer = state.download?.takeIf { it.releaseKey == release.tagName }
+    val preferredName = state.selectedAssets[release.tagName]?.name ?: releaseTransfer?.assetName ?: saved?.displayAssetName
+    val selected = candidates.find { it.name == preferredName } ?: autoPick
     // 更新日志展开态：body 有内容才可展开（chevron 提示）
     val hasNotes = release.body.isNotBlank()
     // rememberSaveable：列表项滚出屏销毁后回来保持展开态（remember 会丢）
     var notesExpanded by androidx.compose.runtime.saveable.rememberSaveable(release.tagName) { mutableStateOf(false) }
     val cardInset = 6.dp
     val sectionGap = 4.dp
-    HistoryCard(
-        modifier = modifier,
-        tab = DetailViewModel.DetailTab.RELEASES,
-        index = index,
-        mask = refreshMask,
-        blocked = blockMaskedActions,
-        assetCount = candidates.size,
-        keepVisible = notesExpanded || fromNotification || release.tagName in state.selectedAssets ||
-            state.download?.releaseKey == release.tagName || state.repo?.downloadedApk?.version == release.tagName,
-    ) {
+    Card(modifier.fillMaxWidth()) {
         Column(
             modifier = Modifier.padding(horizontal = 16.dp, vertical = cardInset),
             verticalArrangement = Arrangement.spacedBy(sectionGap),
@@ -216,6 +214,9 @@ private fun ReleaseCard(
                     }
                 }
             }
+            if (saved != null && candidates.none { it.name == saved.displayAssetName }) {
+                SavedPackageAction(saved, onInstallDownloaded)
+            }
             if (candidates.isNotEmpty()) {
                 val multiple = candidates.size > 1
                 Column(if (multiple) Modifier.selectableGroup() else Modifier) {
@@ -236,23 +237,19 @@ private fun ReleaseCard(
                 // 动作区四相（download/progress/failed/downloaded）：AnimatedContent 柔切换，
                 // 尺寸渐变消除删除后按钮宽度突变；进度/失败只归属对应 release+asset（双维匹配防串台），
                 // 头部入口的下载不在卡片重复显示进度
-                val dl = state.download
-                val mine = dl != null && dl.releaseKey == release.tagName &&
-                    dl.assetName == selected?.name
-                val downloaded = state.repo?.downloadedApk?.takeIf {
-                    it.version == release.tagName && it.displayAssetName == selected?.name
-                }
+                val mine = releaseTransfer != null && releaseTransfer.assetName == selected?.name
+                val downloaded = saved?.takeIf { it.displayAssetName == selected?.name }
                 val actionPhase = when {
-                    dl is RepoDownloadState.Active && dl.releaseKey == release.tagName && !dl.fromHeader -> "progress"
+                    releaseTransfer is RepoDownloadState.Active && !releaseTransfer.fromHeader -> "progress"
                     downloaded != null -> "downloaded"
-                    mine && dl is RepoDownloadState.Failed -> "failed"
+                    mine && releaseTransfer is RepoDownloadState.Failed -> "failed"
                     else -> "download"
                 }
                 // 容器尺寸单源化：外挂 animateContentSize 与 AnimatedContent 内置默认 spring
                 // SizeTransform 双层打架 = 切相卡顿根源（取消时高度变化发闷）；收敛为显式
                 // SizeTransform 180 与 fade 同拍；clip=false 容许过渡期两相叠影，由 fade 收尾
                 androidx.compose.animation.AnimatedContent(
-                    targetState = actionPhase to dl,
+                    targetState = actionPhase to releaseTransfer,
                     contentKey = { it.first },
                     transitionSpec = { downloadActionTransition() },
                     label = "releaseAction",
@@ -308,7 +305,7 @@ private fun ReleaseCard(
                                 PrimaryButton(
                                     text = stringResource(R.string.download_apk),
                                     onClick = { onDownload(release, sel) },
-                                    enabled = current && dl !is RepoDownloadState.Active,
+                                    enabled = current && state.download !is RepoDownloadState.Active,
                                     modifier = Modifier.fillMaxWidth(),
                                 )
                             } else {
@@ -329,6 +326,18 @@ private fun ReleaseCard(
             }
         }
     }
+}
+
+@Composable
+private fun SavedPackageAction(record: DownloadedApk, onInstall: (DownloadedApk) -> Unit) {
+    StatusPage(
+        title = stringResource(R.string.detail_saved_package, record.version),
+        subtitle = record.displayAssetName,
+        actionLabel = stringResource(R.string.install_apk),
+        onAction = { onInstall(record) },
+        compact = true,
+        modifier = Modifier.fillMaxWidth().padding(vertical = 8.dp),
+    )
 }
 
 @Composable

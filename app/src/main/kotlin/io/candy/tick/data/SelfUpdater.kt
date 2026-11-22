@@ -5,9 +5,11 @@ import android.os.Build
 import io.candy.tick.data.model.ApkAsset
 import io.candy.tick.data.model.DownloadedApk
 import io.candy.tick.data.model.ReleaseRecord
+import io.candy.tick.data.model.Settings
 import io.candy.tick.util.ApkPicker
 import io.candy.tick.util.VersionCompare
 import io.candy.tick.util.installedVersionName
+import io.candy.tick.util.forAppLanguage
 import java.io.File
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.CancellationException
@@ -80,8 +82,9 @@ class SelfUpdater(
     }
 
     /** true 表示有新版本需要下载，已留存的同版安装包可直接安装。 */
-    suspend fun check(): Boolean = operations.withLock {
+    suspend fun check(allowed: (Settings) -> Boolean = { true }): Boolean = operations.withLock {
         discardInstalledDownload()
+        if (!allowed(store.state.value.settings)) return@withLock false
         val previous = _state.value
         _state.value = State.Checking
         try {
@@ -124,8 +127,10 @@ class SelfUpdater(
         ApkPicker.pick(release.apkAssets.filter { it.name.endsWith(".apk", true) }, Build.SUPPORTED_ABIS.toList()).first
 
     /** 只发布完整 APK，取消或失败时保留上一次成功的文件和记录。 */
-    suspend fun download(asset: ApkAsset): File? = withContext(Dispatchers.IO) {
-        operations.withLock { downloadLocked(asset) }
+    suspend fun downloadAutomatically(asset: ApkAsset): File? = withContext(Dispatchers.IO) {
+        operations.withLock {
+            if (store.state.value.settings.canAutoDownloadUpdate) downloadLocked(asset) else null
+        }
     }
 
     private suspend fun downloadLocked(asset: ApkAsset): File? {
@@ -183,7 +188,7 @@ class SelfUpdater(
                 if (isAppVisible()) {
                     if (settings.autoInstallDownload) install(file)
                 } else if (settings.notificationsEnabled) {
-                    Notifications.notifySelfUpdateReady(context, tag)
+                    Notifications.notifySelfUpdateReady(context.forAppLanguage(settings.language), tag)
                 }
             }
         }
@@ -202,7 +207,8 @@ class SelfUpdater(
                         InstallManager.InstallResult.Success -> discardInstalledDownload()
                         is InstallManager.InstallResult.Failed -> savedDownload()?.let { saved ->
                             _state.value = State.Failed(Reason.INSTALL, saved.tag, saved.file)
-                            if (store.state.value.settings.notificationsEnabled) Notifications.notifySelfUpdateReady(context, saved.tag)
+                            val settings = store.state.value.settings
+                            if (settings.notificationsEnabled) Notifications.notifySelfUpdateReady(context.forAppLanguage(settings.language), saved.tag)
                         }
                         else -> Unit
                     }
@@ -211,10 +217,13 @@ class SelfUpdater(
         }
     }
 
-    suspend fun resetState() = operations.withLock {
-        if (savedDownload() == null) {
+    suspend fun clearMissingDownload() = operations.withLock {
+        if (store.state.value.downloadedSelfUpdate != null && savedDownload() == null) {
             store.update { it.copy(downloadedSelfUpdate = null) }
-            _state.value = State.Idle
+            val current = _state.value
+            if (current is State.Downloaded || current is State.Failed && current.reason == Reason.INSTALL) {
+                _state.value = lastNewVersion ?: State.Idle
+            }
             Notifications.cancelSelfUpdateReady(context)
         }
     }

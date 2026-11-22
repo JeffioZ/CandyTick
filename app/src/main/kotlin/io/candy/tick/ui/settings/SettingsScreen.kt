@@ -283,7 +283,10 @@ fun SettingsScreen(onBack: () -> Unit) {
                 RowDivider()
                 SwitchRow(
                     title = stringResource(R.string.settings_self_update_download),
-                    checked = state.settings.selfUpdateAutoDownload,
+                    checked = state.settings.canAutoDownloadUpdate,
+                    enabled = state.settings.selfUpdateCheck,
+                    summary = if (state.settings.selfUpdateCheck) null else
+                        stringResource(R.string.settings_self_update_download_requires_check),
                     onChange = vm::setSelfUpdateDownload,
                     icon = ImageVector.vectorResource(R.drawable.ic_download),
                     iconTint = ChipSky,

@@ -1,15 +1,20 @@
 package io.candy.tick
 
+import android.content.ContextWrapper
 import android.content.Intent
-import kotlinx.coroutines.flow.map
-import kotlinx.coroutines.flow.distinctUntilChanged
+import android.content.res.Resources
 import android.os.Bundle
+import android.os.LocaleList
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
 import androidx.activity.enableEdgeToEdge
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.setValue
+import androidx.compose.ui.platform.LocalConfiguration
+import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.platform.LocalResources
 import androidx.core.splashscreen.SplashScreen.Companion.installSplashScreen
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import io.candy.tick.data.Notifications
@@ -20,6 +25,11 @@ import io.candy.tick.ui.nav.RouteDetail
 import io.candy.tick.ui.nav.RouteHome
 import io.candy.tick.ui.nav.RouteSettings
 import io.candy.tick.ui.theme.CandyTickTheme
+import io.candy.tick.util.forAppLanguage
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.flow.distinctUntilChanged
+import kotlinx.coroutines.flow.map
+import kotlinx.coroutines.withContext
 import kotlinx.serialization.json.Json
 import java.util.UUID
 
@@ -88,20 +98,8 @@ class MainActivity : ComponentActivity() {
                 Json.decodeFromString<AppRoute>(it)
             }
         }
-        // 应用保存的语言设置（在 setContent 前生效）；跟随系统（空串）时重置为系统 locale
         val container = (application as CandyTickApp).container
         val initialSettings = container.appStateStore.state.value.settings
-        val savedLang = initialSettings.language
-        val locale = if (savedLang.isNotBlank()) {
-            java.util.Locale.forLanguageTag(savedLang)
-        } else {
-            android.content.res.Resources.getSystem().configuration.locales[0]
-        }
-        java.util.Locale.setDefault(locale)
-        val config = android.content.res.Configuration(resources.configuration)
-        config.setLocale(locale)
-        @Suppress("DEPRECATION")
-        resources.updateConfiguration(config, resources.displayMetrics)
         enableEdgeToEdge()
         val settingsFlow = container.appStateStore.state.map { it.settings }.distinctUntilChanged()
         setContent {
@@ -110,24 +108,22 @@ class MainActivity : ComponentActivity() {
             // 的 locale——ViewModel（LocalViewModelStoreOwner）、startActivity、Window 等
             // 全部委托原 Activity，stringResource 走 wrapper.resources 拿新 locale 的串
             val activity = this
-            val localizedContext = androidx.compose.runtime.remember(settings.language) {
-                val lang = settings.language
-                val locale = if (lang.isNotBlank()) {
-                    java.util.Locale.forLanguageTag(lang)
-                } else {
-                    android.content.res.Resources.getSystem().configuration.locales[0]
-                }
-                // 进程级默认 locale 同步（String.format 等非 resources 路径的格式化）
-                java.util.Locale.setDefault(locale)
-                val config = android.content.res.Configuration(activity.resources.configuration)
-                config.setLocale(locale)
-                val localizedRes = activity.createConfigurationContext(config).resources
-                object : android.content.ContextWrapper(activity) {
-                    override fun getResources(): android.content.res.Resources = localizedRes
+            val baseConfiguration = LocalConfiguration.current
+            val localizedContext = androidx.compose.runtime.remember(settings.language, baseConfiguration) {
+                val localizedRes = activity.forAppLanguage(settings.language).resources
+                object : ContextWrapper(activity) {
+                    override fun getResources(): Resources = localizedRes
                 }
             }
+            val locales = localizedContext.resources.configuration.locales
+            LaunchedEffect(locales) {
+                LocaleList.setDefault(locales)
+                withContext(Dispatchers.IO) { Notifications.ensureChannels(localizedContext) }
+            }
             androidx.compose.runtime.CompositionLocalProvider(
-                androidx.compose.ui.platform.LocalContext provides localizedContext,
+                LocalContext provides localizedContext,
+                LocalConfiguration provides localizedContext.resources.configuration,
+                LocalResources provides localizedContext.resources,
             ) {
                 CandyTickTheme(themeMode = settings.themeMode) {
                     StorageStatusHost(container.appStateStore) {

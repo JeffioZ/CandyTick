@@ -2,6 +2,7 @@ package io.candy.tick.ui.settings
 
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
+import io.candy.tick.data.CacheManager
 import io.candy.tick.data.GitHubApi
 import io.candy.tick.data.RepoRepository
 import io.candy.tick.data.SelfUpdater
@@ -25,7 +26,7 @@ class SettingsViewModel(
     private val repository: RepoRepository,
     private val githubApi: GitHubApi,
     private val selfUpdater: SelfUpdater,
-    private val cacheManager: io.candy.tick.data.CacheManager,
+    private val cacheManager: CacheManager,
 ) : ViewModel() {
 
     enum class TokenTest { TESTING, VALID, INVALID, NETWORK }
@@ -103,7 +104,7 @@ class SettingsViewModel(
     }
 
     fun setSelfUpdateDownload(enabled: Boolean) {
-        mutateSettings { it.copy(selfUpdateAutoDownload = enabled) }
+        mutateSettings { if (it.selfUpdateCheck) it.copy(selfUpdateAutoDownload = enabled) else it }
     }
 
     // ---- Token ----
@@ -153,15 +154,17 @@ class SettingsViewModel(
 
     // ---- 缓存清理 ----
 
-    data class CacheState(
-        val scanning: Boolean = true,
-        val apkBytes: Long = 0, // 仓库 + 自身更新安装包合计（浮层一行展示）
-        val crashLogBytes: Long = 0,
+    internal data class CacheState(
+        val scan: CacheManager.CacheInfo? = null,
         val cleaning: Boolean = false,
-    )
+    ) {
+        val scanning: Boolean get() = scan == null
+        val apkBytes: Long get() = scan?.apkBytes ?: 0L
+        val crashLogBytes: Long get() = scan?.crashLogBytes ?: 0L
+    }
 
     private val _cacheState = MutableStateFlow(CacheState())
-    val cacheState: StateFlow<CacheState> = _cacheState.asStateFlow()
+    internal val cacheState: StateFlow<CacheState> = _cacheState.asStateFlow()
     private var cacheScan: Job? = null
 
     /** 打开清理浮层：实时扫描各类大小 */
@@ -170,11 +173,7 @@ class SettingsViewModel(
         cacheScan = viewModelScope.launch {
             _cacheState.value = CacheState()
             val scan = withContext(Dispatchers.IO) { cacheManager.scan() }
-            _cacheState.value = CacheState(
-                scanning = false,
-                apkBytes = scan.repoApkBytes + scan.updateApkBytes,
-                crashLogBytes = scan.crashLogBytes,
-            )
+            _cacheState.value = CacheState(scan)
         }
     }
 
@@ -183,14 +182,16 @@ class SettingsViewModel(
      * 同步清空 downloadedApk 记录（UI 状态自动变更）+ SelfUpdater 状态复位。
      */
     suspend fun cleanCache(apks: Boolean, crashLog: Boolean): Long {
-        _cacheState.value = _cacheState.value.copy(cleaning = true)
+        val shown = _cacheState.value
+        val scan = shown.scan ?: return 0L
+        if (shown.cleaning || !_cacheState.compareAndSet(shown, shown.copy(cleaning = true))) return 0L
         return try {
             // 文件已删后，即使 UI 离场也要核对相应记录。
             withContext(NonCancellable + Dispatchers.IO) {
-                val freed = cacheManager.clean(apks, apks, crashLog)
+                val freed = scan.clean(apks, crashLog)
                 if (apks) {
                     repository.clearMissingDownloads()
-                    selfUpdater.resetState()
+                    selfUpdater.clearMissingDownload()
                 }
                 freed
             }

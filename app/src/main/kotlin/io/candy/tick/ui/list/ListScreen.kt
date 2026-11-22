@@ -2,6 +2,7 @@ package io.candy.tick.ui.list
 
 import androidx.compose.animation.EnterTransition
 import androidx.compose.animation.ExitTransition
+import androidx.compose.animation.core.MutableTransitionState
 import androidx.compose.animation.core.tween
 import androidx.compose.animation.expandHorizontally
 import androidx.compose.animation.fadeIn
@@ -40,10 +41,13 @@ import androidx.compose.runtime.key
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
+import androidx.compose.runtime.snapshotFlow
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clipToBounds
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.layout.LayoutBoundsHolder
+import androidx.compose.ui.layout.layout
 import androidx.compose.ui.layout.layoutBounds
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalResources
@@ -57,6 +61,7 @@ import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.repeatOnLifecycle
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.collectLatest
+import kotlinx.coroutines.flow.first
 import androidx.lifecycle.viewmodel.compose.viewModel
 import io.candy.tick.CandyTickApp
 import io.candy.tick.R
@@ -192,6 +197,11 @@ fun ListScreen(
     val scrollBehavior = MiuixScrollBehavior(rememberTopAppBarState())
     val pullState = rememberPullToRefreshState()
     var showSearch by androidx.compose.runtime.saveable.rememberSaveable { mutableStateOf(false) }
+    val searchVisibility = remember { MutableTransitionState(showSearch) }.apply { targetState = showSearch }
+    // Capture the populated viewport once, before the field starts taking space.
+    val openingListHeight = remember(showSearch, listState) {
+        if (showSearch && listState.canScrollForward) listState.layoutInfo.viewportSize.height else 0
+    }
     val keyboard = androidx.compose.ui.platform.LocalSoftwareKeyboardController.current
     val searchFocus = remember { androidx.compose.ui.focus.FocusRequester() }
     val clearSearch = clearTextFieldAction(searchFocus) { vm.setQuery("") }
@@ -381,18 +391,17 @@ fun ListScreen(
             ) {
                 Column(modifier = Modifier.fillMaxSize()) {
                     androidx.compose.animation.AnimatedVisibility(
-                        visible = showSearch,
-                        // 表层档 220：展开/收起高度与透明度同拍（默认 spring 不可控且不在四档体系）
-                        enter = androidx.compose.animation.expandVertically(
+                        visibleState = searchVisibility,
+                        enter = if (motionEnabled) androidx.compose.animation.expandVertically(
                             animationSpec = androidx.compose.animation.core.tween(Motion.PANEL),
                         ) + androidx.compose.animation.fadeIn(
                             animationSpec = androidx.compose.animation.core.tween(Motion.PANEL),
-                        ),
-                        exit = androidx.compose.animation.shrinkVertically(
+                        ) else EnterTransition.None,
+                        exit = if (motionEnabled) androidx.compose.animation.shrinkVertically(
                             animationSpec = androidx.compose.animation.core.tween(Motion.PANEL),
                         ) + androidx.compose.animation.fadeOut(
                             animationSpec = androidx.compose.animation.core.tween(Motion.PANEL),
-                        ),
+                        ) else ExitTransition.None,
                     ) {
                         top.yukonga.miuix.kmp.basic.TextField(
                             value = state.query,
@@ -416,11 +425,12 @@ fun ListScreen(
                                 .focusRequester(searchFocus)
                                 .padding(horizontal = 16.dp, vertical = 6.dp),
                         )
-                        // 展开即聚焦（等一帧入场布局稳定，防未挂载请求崩溃）
-                        androidx.compose.runtime.LaunchedEffect(showSearch) {
+                        LaunchedEffect(showSearch) {
                             if (showSearch) {
-                                kotlinx.coroutines.delay(100)
-                                runCatching { searchFocus.requestFocus() }
+                                snapshotFlow { searchVisibility.isIdle }.first { it }
+                                if (lifecycleOwner.lifecycle.currentState == Lifecycle.State.RESUMED) {
+                                    searchFocus.requestFocus()
+                                }
                             }
                         }
                     }
@@ -454,7 +464,11 @@ fun ListScreen(
                     } else {
                         LazyColumn(
                             state = listState,
-                            modifier = Modifier.fillMaxSize().layoutBounds(listBounds),
+                            modifier = Modifier.fillMaxSize().layoutBounds(listBounds).then(
+                                if (openingListHeight > 0 && !searchVisibility.isIdle) {
+                                    Modifier.holdOpeningViewport(openingListHeight)
+                                } else Modifier,
+                            ),
                             contentPadding = PaddingValues(
                                 start = 16.dp,
                                 end = 16.dp,
@@ -538,6 +552,13 @@ fun ListScreen(
             )
         }
     }
+}
+
+/** Slide a scrollable list with the field; clip its lower edge until the final viewport is known. */
+private fun Modifier.holdOpeningViewport(height: Int): Modifier = clipToBounds().layout { measurable, constraints ->
+    val listHeight = maxOf(height, constraints.maxHeight)
+    val list = measurable.measure(constraints.copy(minHeight = listHeight, maxHeight = listHeight))
+    layout(list.width, constraints.maxHeight) { list.placeRelative(0, 0) }
 }
 
 /** 完成反馈属于用户在首页目睹的这一轮同步。每次回到首页都从空状态开始。 */
