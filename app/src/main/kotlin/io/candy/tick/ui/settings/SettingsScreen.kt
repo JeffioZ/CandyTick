@@ -328,6 +328,11 @@ fun SettingsScreen(onBack: () -> Unit) {
                     onClick = {
                         scope.launch {
                             val text = vm.exportSubscriptions()
+                            if (text == null) {
+                                // 数据未就绪时中止导出，避免空备份覆盖用户手头的旧备份
+                                Feedback.show(resources.getString(R.string.export_unavailable), isError = true)
+                                return@launch
+                            }
                             if (text.length <= MAX_SHARED_TEXT_CHARS && runCatching {
                                     clipboard.setPrimaryClip(ClipData.newPlainText(null, text))
                                 }.isSuccess

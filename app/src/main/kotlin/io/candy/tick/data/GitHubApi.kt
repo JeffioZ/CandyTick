@@ -378,7 +378,14 @@ class GitHubApi(private val tokenProvider: () -> String?) {
         }
     } catch (_: RejectedToken) {
         if (request.header("Authorization") == "Bearer ${tokenProvider()}") rejected.value = true
-        readResponse(request.newBuilder().removeHeader("Authorization").build(), httpClient, read)
+        try {
+            readResponse(request.newBuilder().removeHeader("Authorization").build(), httpClient, read)
+        } catch (e: SourceException) {
+            // 401 后匿名重试仍 404：是私有仓库或 Token 已失效——归并为「Token 无效/无权」，
+            // 不再让私有仓用户看到误导性的「仓库不存在」（还多烧一次配额）
+            if (e.error is SourceError.NotFound) throw SourceException(SourceError.TokenRejected, e)
+            throw e
+        }
     }
 
     private fun checkHttp(response: Response) {

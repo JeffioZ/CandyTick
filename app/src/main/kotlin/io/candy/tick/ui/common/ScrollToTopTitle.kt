@@ -82,14 +82,23 @@ internal fun SheetScrollToTopTitle(text: String, canScroll: Boolean, scrollToTop
     val onClick: (() -> Unit)? = if (canScroll) {
         { scope.launch { scrollToTop(animated) } }
     } else null
-    Text(
-        text = text,
-        modifier = Modifier.fillMaxWidth().wrapContentWidth().titleAction(onClick).widthIn(min = 48.dp),
-        fontSize = MiuixTheme.textStyles.title4.fontSize,
-        fontWeight = FontWeight.Medium,
-        textAlign = TextAlign.Center,
-        color = MiuixTheme.colorScheme.onSurface,
-    )
+    // 与非 sheet 版同款 48dp 命中区：此前可点击高度只有一行文字高（titleAction 挂在 Text 上）
+    Box(
+        modifier = Modifier
+            .fillMaxWidth()
+            .wrapContentWidth()
+            .titleAction(onClick)
+            .sizeIn(minWidth = 48.dp, minHeight = 48.dp),
+        contentAlignment = Alignment.Center,
+    ) {
+        Text(
+            text = text,
+            fontSize = MiuixTheme.textStyles.title4.fontSize,
+            fontWeight = FontWeight.Medium,
+            textAlign = TextAlign.Center,
+            color = MiuixTheme.colorScheme.onSurface,
+        )
+    }
 }
 
 @Composable

@@ -44,7 +44,8 @@ class AppStateStoreTest {
         val store = AppStateStore(files, noBackup)
         assertEquals("test-legacy-secret", store.state.value.settings.githubToken)
         assertFalse(stateFile.readText().contains("test-legacy-secret"))
-        assertFalse(store.exportJson().contains("test-legacy-secret"))
+        // 测试内存储存就绪，导出必非空（null 语义只用于运行时守卫）
+        assertFalse(store.exportJson()!!.contains("test-legacy-secret"))
 
         val reopened = AppStateStore(files, noBackup)
         assertEquals("test-legacy-secret", reopened.state.value.settings.githubToken)
@@ -64,7 +65,7 @@ class AppStateStoreTest {
         assertNull(store.state.value.settings.githubToken)
         assertNull(store.state.value.repos.single().downloadedApk)
         store.update { it.copy(repos = listOf(it.repos.single().copy(downloadedApk = DownloadedApk("local.apk", "2")))) }
-        assertFalse(store.exportJson().contains("local.apk"))
+        assertFalse(store.exportJson()!!.contains("local.apk"))
     }
 
     private fun repo(id: Long) = TrackedRepo(id, "owner", "repo-$id", addedAt = Instant.EPOCH)
@@ -76,7 +77,7 @@ class AppStateStoreTest {
         val backup = AppStateStore(temporary.newFolder("source"), temporary.newFolder("sourceCredentials"))
         target.update { it.copy(repos = listOf(repo(1)), snapshots = mapOf(1L to snapshot)) }
         backup.update { it.copy(repos = listOf(repo(2)), snapshots = mapOf(2L to snapshot)) }
-        assertEquals(1, target.importJson(backup.exportJson()))
+        assertEquals(1, target.importJson(backup.exportJson()!!))
         val after = snapshot.copy(latestReleaseTag = "2", lastCommitSha = "b")
         assertTrue(SnapshotDiff.hasNewActivity(target.state.value.snapshots.getValue(1), after))
         assertFalse(SnapshotDiff.hasNewActivity(target.state.value.snapshots.getValue(2), after))

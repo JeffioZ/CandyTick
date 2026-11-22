@@ -16,8 +16,10 @@ import java.nio.file.NoSuchFileException
 import java.nio.file.StandardCopyOption
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.NonCancellable
+import kotlinx.coroutines.flow.MutableSharedFlow
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
+import kotlinx.coroutines.flow.asSharedFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.sync.Mutex
@@ -54,6 +56,15 @@ class AppStateStore internal constructor(filesDir: File, noBackupDir: File) {
     internal val saveStatus = _saveStatus.asStateFlow()
     private val _loadStatus = MutableStateFlow(LoadStatus.READY)
     internal val loadStatus = _loadStatus.asStateFlow()
+
+    // 必须先于 _state 声明：构造期 readState() 的损坏分支就要 tryEmit，后置声明会初始化顺序 NPE
+    /** 本进程内发生过「损坏重置」。导出守卫用它拦住空列表覆盖用户唯一旧备份。 */
+    @Volatile internal var corruptReset = false
+        private set
+    private val _corruptResetNotices = MutableSharedFlow<Unit>(replay = 1)
+    /** 损坏重置通知；replay=1 因为构造期读盘即可能触发，晚到的收集器也要收到一次 */
+    internal val corruptResetNotices = _corruptResetNotices.asSharedFlow()
+
     private val _state = MutableStateFlow(readState() ?: AppState())
     val state: StateFlow<AppState> = _state.asStateFlow()
     private val stateLock = Any()
@@ -61,7 +72,11 @@ class AppStateStore internal constructor(filesDir: File, noBackupDir: File) {
     private var saved = _state.value
 
     internal suspend fun awaitLoaded() {
-        if (_loadStatus.value != LoadStatus.READY) loadStatus.first { it == LoadStatus.READY }
+        if (_loadStatus.value != LoadStatus.READY) {
+            // FAILED 先自愈一次：瞬时 IO 故障可当场恢复；持续失败维持挂起语义（由调用方限时兜底）
+            if (_loadStatus.value == LoadStatus.FAILED) ensureLoaded()
+            loadStatus.first { it == LoadStatus.READY }
+        }
     }
 
     internal suspend fun ensureLoaded(): Boolean {
@@ -119,8 +134,11 @@ class AppStateStore internal constructor(filesDir: File, noBackupDir: File) {
     @Serializable
     private data class SubscriptionBackup(val repos: List<TrackedRepo>, val snapshots: Map<Long, RepoSnapshot> = emptyMap())
 
-    fun exportJson(): String {
+    /** null = 数据未就绪（读盘失败 / 损坏重置后仍是空列表）：调用方应中止导出而不是分享空备份 */
+    fun exportJson(): String? {
+        if (_loadStatus.value != LoadStatus.READY) return null
         val current = _state.value
+        if (corruptReset && current.repos.isEmpty()) return null
         val sanitized = SubscriptionBackup(
             repos = current.repos.map { it.copy(downloadedApk = null) },
             snapshots = current.snapshots.mapValues { (_, snapshot) -> snapshot.copy(activity = RepoActivity()) },
@@ -191,6 +209,9 @@ class AppStateStore internal constructor(filesDir: File, noBackupDir: File) {
     } catch (e: kotlinx.serialization.SerializationException) {
         Log.w(TAG, "state file corrupt, keeping a copy", e)
         Files.move(file.toPath(), File(file.parentFile, file.name + ".corrupt").toPath(), REPLACE_EXISTING)
+        // 必须让用户看见重置，而不是表现为「订阅悄悄变空」；.corrupt 副本留在 files 目录供人工恢复
+        corruptReset = true
+        _corruptResetNotices.tryEmit(Unit)
         AppState()
     }
 

@@ -14,6 +14,7 @@ import kotlinx.coroutines.Job
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.NonCancellable
 import kotlinx.coroutines.withContext
+import kotlinx.coroutines.withTimeoutOrNull
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
@@ -29,7 +30,7 @@ class SettingsViewModel(
     private val cacheManager: CacheManager,
 ) : ViewModel() {
 
-    enum class TokenTest { TESTING, VALID, INVALID, NETWORK }
+    enum class TokenTest { TESTING, VALID, INVALID, NETWORK, SAVE_FAILED }
 
     data class UiState(
         val settings: Settings = Settings(),
@@ -109,6 +110,15 @@ class SettingsViewModel(
 
     // ---- Token ----
 
+    /**
+     * 存储未就绪时 updateSettings 会无限等待；限时后转 SAVE_FAILED，
+     * 让弹窗给出失败出口而不是停在「验证中」。
+     */
+    private suspend fun persistSettings(
+        timeoutMs: Long = 3_000L,
+        transform: (Settings) -> Settings,
+    ): Boolean = withTimeoutOrNull(timeoutMs) { repository.updateSettings(transform) } != null
+
     fun onTokenInput(text: String) {
         tokenValidation?.cancel()
         tokenInput.value = text
@@ -121,16 +131,23 @@ class SettingsViewModel(
         tokenValidation?.cancel()
         tokenValidation = viewModelScope.launch {
             if (token == null) {
+                if (!persistSettings { it.copy(githubToken = null) }) {
+                    tokenTest.value = TokenTest.SAVE_FAILED
+                    return@launch
+                }
+                // 保存成功后才清被拒标记：失败时保留提示，避免「坏 Token 仍在用且不再提示被拒」
                 githubApi.clearTokenRejected()
-                repository.updateSettings { it.copy(githubToken = null) }
                 tokenTest.value = null
                 return@launch
             }
             tokenTest.value = TokenTest.TESTING
             val result = try {
                 if (githubApi.validateToken(token)) {
+                    if (!persistSettings { it.copy(githubToken = token) }) {
+                        tokenTest.value = TokenTest.SAVE_FAILED
+                        return@launch
+                    }
                     githubApi.clearTokenRejected()
-                    repository.updateSettings { it.copy(githubToken = token) }
                     TokenTest.VALID
                 } else {
                     TokenTest.INVALID
@@ -208,7 +225,8 @@ class SettingsViewModel(
 
     // ---- 备份 ----
 
-    suspend fun exportSubscriptions(): String = withContext(Dispatchers.Default) { repository.exportState() }
+    /** null = 数据未就绪：调用方应中止分享并提示，而不是把空备份送进分享流 */
+    suspend fun exportSubscriptions(): String? = withContext(Dispatchers.Default) { repository.exportState() }
 
     suspend fun importSubscriptions(text: String): Int = withContext(Dispatchers.Default) { repository.importState(text) }
 

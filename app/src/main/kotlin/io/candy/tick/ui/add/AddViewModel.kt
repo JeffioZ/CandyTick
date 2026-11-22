@@ -16,6 +16,7 @@ import io.candy.tick.util.appDisplayName
 import io.candy.tick.util.labelOf
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
+import kotlinx.coroutines.NonCancellable
 import kotlinx.coroutines.channels.Channel
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.Flow
@@ -205,6 +206,9 @@ class AddViewModel(
 
     private fun showPreview(info: RepoInfo, saved: SavedLink? = repository.state.value.repos.savedLink(info.githubId)) {
         linkJob?.cancel()
+        // 新预览实例使旧的手动选择失效（那是针对上一个预览的）：必须复位，
+        // 否则 resolveLink 的 linkEdited 早退会让 matchingApp 永不复位、确认按钮永久置灰
+        linkEdited = false
         previewSavedLink = saved
         val linkedPkg = saved?.packageName
         val name = linkedPkg?.let { rememberAppName(it, saved.label) }
@@ -285,12 +289,13 @@ class AddViewModel(
                 if (linkEdited) {
                     repository.setLinkedPackage(preview.info.githubId, preview.linkedPackage, preview.linkedLabel)
                 }
-                _events.send(Event.Added(preview.info.githubId))
+                // 取消可能落在「已写库、事件未发」之间；NonCancellable 保证写入成功必有完成信号
+                withContext(NonCancellable) { _events.send(Event.Added(preview.info.githubId)) }
                 return@launch
             }
             when (val result = repository.addRepo(preview.info, preview.linkedPackage, preview.linkedLabel)) {
                 is RepoRepository.AddResult.Added -> {
-                    _events.send(Event.Added(result.repo.id))
+                    withContext(NonCancellable) { _events.send(Event.Added(result.repo.id)) }
                 }
                 is RepoRepository.AddResult.Duplicate -> {
                     _state.update { it.copy(duplicate = true, adding = false) }

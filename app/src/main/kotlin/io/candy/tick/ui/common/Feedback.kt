@@ -70,6 +70,9 @@ object Feedback {
     private val _current = MutableStateFlow<Message?>(null)
     val current: StateFlow<Message?> = _current
 
+    /** 被逐出的可操作消息（单条暂存；连撤多条时只保最新一条被逐出的） */
+    private var held: Message? = null
+
     /** 展示一条反馈；同屏只保留最新（瞬时消息不排队）。破坏性动作的撤销窗口可放长 */
     fun show(
         text: String,
@@ -78,6 +81,14 @@ object Feedback {
         onAction: (() -> Unit)? = null,
         durationMs: Long? = null,
     ) {
+        // 被逐出的可操作消息（目前仅滑删撤销）若仍在有效期内，暂存待槽空出后重新上屏：
+        // 单槽只显示最新，但「可撤销」承诺不因后续消息静默作废（自然到期才作废）
+        val evicted = _current.value
+        if (evicted?.onAction != null &&
+            SystemClock.elapsedRealtime() - evicted.createdAt < evicted.durationMs
+        ) {
+            held = evicted
+        }
         _current.value = Message(
             text = text,
             isError = isError,
@@ -88,6 +99,17 @@ object Feedback {
     }
 
     internal fun dismiss(message: Message): Boolean = _current.compareAndSet(message, null)
+
+    /** 槽空出后取回仍在窗口内的暂存消息（过期即作废，返回 null） */
+    internal fun retakeHeld(): Message? {
+        val m = held ?: return null
+        held = null
+        return m.takeIf { SystemClock.elapsedRealtime() - it.createdAt < it.durationMs }
+    }
+
+    internal fun resurface(message: Message) {
+        _current.value = message
+    }
 }
 
 private val feedbackRadius = 16.dp
@@ -110,22 +132,26 @@ fun FeedbackHost() {
         val m = msg
         if (m == null) {
             visible = false
+            // 退出动画结束后释放引用：onAction 闭包持有 VM/快照，不能留到进程结束
+            delay(Motion.PANEL.toLong() + 100)
+            if (Feedback.current.value == null) {
+                shown = null
+                // 被逐出的撤销类消息：槽已空且仍在窗口内，重新上屏（显示窗口重算，可撤销性以 createdAt 为准）
+                Feedback.retakeHeld()?.let { Feedback.resurface(it) }
+            }
             return@LaunchedEffect
         }
+        // 窗口从首次上屏起算：后台/被遮挡期间不计时（此前在后台就把窗口耗尽，表现为从未显示就消失）
+        val firstShownAt = SystemClock.elapsedRealtime()
         val timeout = accessibility?.calculateRecommendedTimeoutMillis(
             originalTimeoutMillis = m.durationMs,
             containsIcons = true,
             containsText = true,
             containsControls = m.onAction != null,
         ) ?: m.durationMs
-        val remaining = timeout - (SystemClock.elapsedRealtime() - m.createdAt)
-        if (remaining <= 0) {
-            Feedback.dismiss(m)
-            return@LaunchedEffect
-        }
         shown = m
         visible = true
-        delay(remaining)
+        delay(timeout)
         Feedback.dismiss(m)
     }
 

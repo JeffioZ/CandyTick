@@ -60,6 +60,8 @@ class SelfUpdater(
 
     private val updateDir = File(context.filesDir, "updates")
     private val operations = Mutex()
+    /** 本进程内静默安装失败过的 tag：worker 不再对其反复补装（每次失败都会发一次「点击安装」通知） */
+    @Volatile private var installFailedTag: String? = null
     private val _state = MutableStateFlow<State>(savedDownload() ?: State.Idle)
     val state: StateFlow<State> = _state.asStateFlow()
     private var lastNewVersion: State.NewVersion? = null
@@ -204,8 +206,12 @@ class SelfUpdater(
             installManager.resultsFor(null).collect { result ->
                 operations.withLock {
                     when (result) {
-                        InstallManager.InstallResult.Success -> discardInstalledDownload()
+                        InstallManager.InstallResult.Success -> {
+                            installFailedTag = null
+                            discardInstalledDownload()
+                        }
                         is InstallManager.InstallResult.Failed -> savedDownload()?.let { saved ->
+                            installFailedTag = saved.tag
                             _state.value = State.Failed(Reason.INSTALL, saved.tag, saved.file)
                             val settings = store.state.value.settings
                             if (settings.notificationsEnabled) Notifications.notifySelfUpdateReady(context.forAppLanguage(settings.language), saved.tag)
@@ -231,6 +237,9 @@ class SelfUpdater(
     suspend fun installSilently(file: File) = withContext(Dispatchers.IO) {
         installManager.installViaSession(file, silentSelfUpdate = true)
     }
+
+    /** worker 静默补装闸门：本进程内安装失败过的 tag 不再反复尝试 */
+    fun canRetrySilentInstall(tag: String?): Boolean = tag != null && installFailedTag != tag
 
     fun canInstallSilently(): Boolean {
         if (Build.VERSION.SDK_INT < Build.VERSION_CODES.S || !installManager.canRequestInstalls()) return false

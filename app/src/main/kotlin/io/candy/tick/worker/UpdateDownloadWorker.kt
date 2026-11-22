@@ -17,7 +17,10 @@ class UpdateDownloadWorker(context: Context, params: WorkerParameters) : Corouti
 
     override suspend fun doWork(): Result {
         val container = (applicationContext as CandyTickApp).container
-        if (!container.appStateStore.ensureLoaded()) return Result.retry()
+        // 读盘持续失败：封顶后按成功收尾（一次性任务，下一轮自更新检查会重新入队）
+        if (!container.appStateStore.ensureLoaded()) {
+            return if (runAttemptCount < 2) Result.retry() else Result.success()
+        }
         val settings = container.appStateStore.state.value.settings
         if (!settings.canAutoDownloadUpdate) return Result.success()
         val updater = container.selfUpdater
@@ -25,6 +28,18 @@ class UpdateDownloadWorker(context: Context, params: WorkerParameters) : Corouti
         if (newState == null) {
             if (!updater.check { it.canAutoDownloadUpdate }) {
                 if (!container.appStateStore.state.value.settings.canAutoDownloadUpdate) return Result.success()
+                // 补装：最新 tag 已下载但安装从未落地（进程被杀 / 上次会话中断）。
+                // 每轮自更新检查重入一次；本进程内安装失败过的 tag 不再补装（防通知轰炸，用户可经弹窗手动重试）
+                val downloaded = updater.state.value as? SelfUpdater.State.Downloaded
+                if (downloaded != null) {
+                    val current = container.appStateStore.state.value.settings
+                    if (current.autoInstallDownload && updater.canInstallSilently() &&
+                        updater.canRetrySilentInstall(downloaded.tag) && downloaded.file.isFile
+                    ) {
+                        updater.installSilently(downloaded.file)
+                    }
+                    return Result.success()
+                }
                 val failed = updater.state.value as? SelfUpdater.State.Failed
                 return if (failed?.reason == SelfUpdater.Reason.NETWORK && runAttemptCount < 2) Result.retry() else Result.success()
             }

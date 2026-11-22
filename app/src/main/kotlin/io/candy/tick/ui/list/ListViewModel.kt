@@ -343,21 +343,30 @@ class ListViewModel(
         } catch (cancelled: CancellationException) {
             throw cancelled
         } catch (_: Exception) {
-            emptyMap()
+            null
         }
-        repoErrors.value = errors
-        val total = repository.state.value.repos.size
-        banner.value = if (errors.isNotEmpty() && errors.size >= total) {
-            errors.values.firstOrNull()
+        if (errors != null) {
+            repoErrors.value = errors
+            val total = repository.state.value.repos.size
+            banner.value = if (errors.isNotEmpty() && errors.size >= total) {
+                errors.values.firstOrNull()
+            } else {
+                errors.values.firstOrNull { it is SourceError.RateLimited }
+            }
         } else {
-            errors.values.firstOrNull { it is SourceError.RateLimited }
+            // 整轮管线异常：保留旧错误表、按网络类横幅提示——不能清空错误表伪装成刷新成功
+            banner.value = SourceError.NetworkUnreachable
         }
         previews.values.joinAll()
     }
 
     fun markReleaseSeen(id: Long, tag: String) {
         viewModelScope.launch {
-            repository.markActivityRead(id, releaseTags = setOf(tag), visibleReleaseHead = tag)
+            // 展开面板的版本行呈现的是「当前版本状态」：看到它即视为看过更早的全部未读
+            // release——此前只清最新一个，积压的未读必须进详情页才能清掉
+            val unread = repository.state.value.snapshots[id]?.activity?.unreadReleaseTags.orEmpty()
+            val tags = if (tag in unread) unread else setOf(tag)
+            repository.markActivityRead(id, releaseTags = tags, visibleReleaseHead = tag)
         }
     }
 
@@ -510,6 +519,8 @@ class ListViewModel(
     /** 乐观删除 + 撤销事件（Snackbar）；撤销 restore 不需要恢复下载会话 */
     fun remove(item: RepoListItem) {
         downloadHost.clear(item.repo.id) // 退订清场：撤掉在跑的下载任务（与详情页删除同口径）
+        // 撤销恢复带回同 id 仓库时不该继承旧错误角标
+        repoErrors.value = repoErrors.value - item.repo.id
         viewModelScope.launch {
             repository.removeRepo(item.repo.id)
             _events.send(Event.Removed(item.repo, item.snapshot))

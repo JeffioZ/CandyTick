@@ -123,6 +123,7 @@ fun sourceErrorText(error: SourceError): String = when (error) {
     is SourceError.NetworkUnreachable -> stringResource(R.string.err_network)
     is SourceError.Timeout -> stringResource(R.string.err_timeout)
     is SourceError.NotFound -> stringResource(R.string.err_not_found)
+    is SourceError.TokenRejected -> stringResource(R.string.err_token_rejected)
     is SourceError.RateLimited -> error.retryAt?.let {
         stringResource(R.string.err_rate_limited, relTimeUntilString(it))
     } ?: stringResource(R.string.err_rate_limited_plain)

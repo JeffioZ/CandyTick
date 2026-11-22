@@ -210,30 +210,31 @@ fun SwipeToDelete(
                 }
             })
         }
-        // 粒子层：删除消散时从卡片中心迸散（红/薄荷双色系，重力下坠），不随卡片缩放
-        if (dissolve.value < 0.999f) {
-            androidx.compose.foundation.Canvas(
-                modifier = Modifier
-                    .matchParentSize()
-                    .offset { IntOffset(offsetX.roundToInt(), 0) },
-            ) {
-                val p = 1f - dissolve.value
-                val accent = scheme.onErrorContainer
-                val main = scheme.primaryVariant
-                repeat(22) { i ->
-                    val angle = (i / 22f) * 2f * Math.PI + i * 2.399963f
-                    val speed = 0.5f + ((i * 37) % 100) / 100f
-                    val dist = size.minDimension * 0.62f * p * speed
-                    val cx = center.x + kotlin.math.cos(angle).toFloat() * dist
-                    val cy = center.y + kotlin.math.sin(angle).toFloat() * dist +
-                        size.height * 0.3f * p * p // 重力
-                    drawCircle(
-                        color = if (i % 3 == 0) accent else main,
-                        radius = 3.dp.toPx() * (1f - p * 0.6f),
-                        center = androidx.compose.ui.geometry.Offset(cx, cy),
-                        alpha = (1f - p).coerceIn(0f, 1f),
-                    )
-                }
+        // 粒子层：删除消散时从卡片中心迸散（红/薄荷双色系，重力下坠），不随卡片缩放。
+        // dissolve 读取放在 draw 阶段——组合期的条件读取会让整个内容子树随动画每帧重组
+        androidx.compose.foundation.Canvas(
+            modifier = Modifier
+                .matchParentSize()
+                .offset { IntOffset(offsetX.roundToInt(), 0) },
+        ) {
+            val value = dissolve.value
+            if (value >= 0.999f) return@Canvas
+            val p = 1f - value
+            val accent = scheme.onErrorContainer
+            val main = scheme.primaryVariant
+            repeat(22) { i ->
+                val angle = (i / 22f) * 2f * Math.PI + i * 2.399963f
+                val speed = 0.5f + ((i * 37) % 100) / 100f
+                val dist = size.minDimension * 0.62f * p * speed
+                val cx = center.x + kotlin.math.cos(angle).toFloat() * dist
+                val cy = center.y + kotlin.math.sin(angle).toFloat() * dist +
+                    size.height * 0.3f * p * p // 重力
+                drawCircle(
+                    color = if (i % 3 == 0) accent else main,
+                    radius = 3.dp.toPx() * (1f - p * 0.6f),
+                    center = androidx.compose.ui.geometry.Offset(cx, cy),
+                    alpha = (1f - p).coerceIn(0f, 1f),
+                )
             }
         }
     }

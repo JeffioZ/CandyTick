@@ -4,6 +4,8 @@ import android.app.Activity
 import android.app.Application
 import io.candy.tick.data.Notifications
 import io.candy.tick.di.AppContainer
+import io.candy.tick.ui.common.Feedback
+import io.candy.tick.util.forAppLanguage
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.CoroutineStart
 import kotlinx.coroutines.Dispatchers
@@ -47,6 +49,21 @@ class CandyTickApp : Application() {
             defaultHandler?.uncaughtException(thread, throwable)
         }
         container = AppContainer(this) { visible.value }
+        // 状态文件损坏重置：向用户明说，而不是表现为「订阅悄悄变空」
+        container.appScope.launch {
+            container.appStateStore.corruptResetNotices.collect {
+                runCatching {
+                    val localized = applicationContext.forAppLanguage(
+                        container.appStateStore.state.value.settings.language,
+                    )
+                    Feedback.show(
+                        localized.getString(io.candy.tick.R.string.state_corrupt_notice),
+                        isError = true,
+                        durationMs = 6_000L,
+                    )
+                }
+            }
+        }
         container.appScope.launch(Dispatchers.IO) {
             val store = container.appStateStore
             store.awaitLoaded()
@@ -54,7 +71,11 @@ class CandyTickApp : Application() {
                 .distinctUntilChanged()
                 .map { repos -> repos.mapNotNull { repo -> repo.downloadedApk?.let { repo.id to it.fileName } } }
                 .distinctUntilChanged()
-                .collect { Notifications.reconcileRepoDownloads(this@CandyTickApp, store.state) }
+                .collect {
+                    // app 级作用域无兜底 handler：这里抛错会杀进程，收集必须自兜
+                    runCatching { Notifications.reconcileRepoDownloads(this@CandyTickApp, store.state) }
+                        .onFailure { android.util.Log.w("CandyTickApp", "reconcileRepoDownloads failed", it) }
+                }
         }
         // 孤儿 APK 回收（后台线程：仓库已删除但 apks/{id}/ 残留）
         container.appScope.launch(start = CoroutineStart.UNDISPATCHED) {

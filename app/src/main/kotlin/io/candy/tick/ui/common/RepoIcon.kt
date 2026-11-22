@@ -81,6 +81,15 @@ internal data class AppIconResult(val bitmap: ImageBitmap?, val lastUpdateTime: 
 
 private val ownerAvatar = AppIconResult(null)
 
+/**
+ * 进程级图标缓存：可见行随滚动反复进出组合，PM 解码不能每次重来。
+ * key 含 lastUpdateTime——应用更新/重装后自动失效；8MB 字节限额（56dp×3x ARGB ≈ 113KB/枚）。
+ */
+private val iconCache = object : android.util.LruCache<String, AppIconResult>(8 * 1024 * 1024) {
+    override fun sizeOf(key: String, value: AppIconResult): Int =
+        value.bitmap?.let { it.width * it.height * 4 } ?: 0
+}
+
 /** Null reserves the avatar slot while its identity or bitmap is still being resolved. */
 internal fun repoAvatarIcon(packageName: String?, result: AppIconResult?, matching: Boolean = false): AppIconResult? =
     if (packageName == null && !matching) ownerAvatar else result
@@ -105,8 +114,15 @@ internal fun rememberAppIconResult(
                 try {
                     val pm = context.packageManager
                     val info = pm.getPackageInfo(packageName, 0)
-                    if (previous?.bitmap != null && previous.lastUpdateTime == info.lastUpdateTime) previous
-                    else AppIconResult(info.applicationInfo?.loadIcon(pm)?.toImageBitmap(iconSizePx), info.lastUpdateTime)
+                    if (previous?.bitmap != null && previous.lastUpdateTime == info.lastUpdateTime) {
+                        previous
+                    } else {
+                        val cacheKey = "$packageName@${info.lastUpdateTime}@$iconSizePx"
+                        iconCache.get(cacheKey) ?: AppIconResult(
+                            info.applicationInfo?.loadIcon(pm)?.toImageBitmap(iconSizePx),
+                            info.lastUpdateTime,
+                        ).also { if (it.bitmap != null) iconCache.put(cacheKey, it) } // 空位图不入缓存：sizeOf=0 的条目永不被淘汰
+                    }
                 } catch (_: Exception) {
                     ownerAvatar
                 }

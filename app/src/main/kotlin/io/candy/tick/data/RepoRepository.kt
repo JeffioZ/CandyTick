@@ -269,8 +269,8 @@ class RepoRepository(
     suspend fun addPreview(owner: String, repo: String): RepoInfoResult =
         provider(PROVIDER_GITHUB).repoInfo(owner, repo)
 
-    /** 备份：导出 / 合并导入（按 id 去重） */
-    fun exportState(): String = store.exportJson()
+    /** 备份：导出 / 合并导入（按 id 去重）。null = 数据未就绪，调用方中止导出 */
+    fun exportState(): String? = store.exportJson()
 
     suspend fun importState(text: String): Int = store.importJson(text)
 

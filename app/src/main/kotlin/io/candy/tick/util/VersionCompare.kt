@@ -97,19 +97,22 @@ object VersionCompare {
         }
     }
 
-    /** 数字基线后的 Git 哈希（如 26.11.caccb78）能辨认构建，无法排序。纯数字尾段仍按版本号处理。 */
+    /**
+     * 数字基线后的 Git 哈希（如 26.11.caccb78）能辨认构建，无法排序。纯数字尾段仍按版本号处理。
+     * 两侧都剔掉哈希段且剩余基线相等才判不可比（26.11.caccb78 vs 26.11.def5678）；
+     * 仅一侧带哈希维持原比较（1.2.3.4f2a1b9 vs 1.2.3 仍判有更新，不吞提醒）。
+     * 基线段数不等（26.11.0.caccb78 vs 26.11.caccb78）走补零比较得 0——同基线不误报更新。
+     */
     private fun differentCommitHashes(remote: List<String>, local: List<String>): Boolean {
-        if (remote.size < 2 || remote.size != local.size) return false
-        val a = remote.last()
-        val b = local.last()
-        if (a.equals(b, ignoreCase = true) || !COMMIT_HASH.matches(a) || !COMMIT_HASH.matches(b)) return false
-        if (a.all(Char::isDigit) && b.all(Char::isDigit)) return false
-        return (0 until remote.lastIndex).all { i ->
-            val x = remote[i]
-            val y = local[i]
-            x.all(Char::isDigit) && y.all(Char::isDigit) && compareSegment(x, y) == 0
-        }
+        val r = remote.dropTrailingHashes()
+        val l = local.dropTrailingHashes()
+        if (r == remote || l == local || r.isEmpty() || l.isEmpty() || r.size != l.size) return false
+        return r.indices.all { compareSegment(r[it], l[it]) == 0 }
     }
+
+    /** 尾部连续的哈希段（7-64 位十六进制且含字母；纯数字仍是版本号，如 26090410 构建日期）。 */
+    private fun List<String>.dropTrailingHashes(): List<String> =
+        dropLastWhile { COMMIT_HASH.matches(it) && !it.all(Char::isDigit) }
 
     /**
      * 拆成主版本和预发布标识，只比较以数字开头的版本。

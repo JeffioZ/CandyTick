@@ -6,11 +6,13 @@ import androidx.work.WorkerParameters
 import io.candy.tick.CandyTickApp
 import io.candy.tick.data.Notifications
 import io.candy.tick.data.RepoRepository
+import io.candy.tick.data.SelfUpdater
 import io.candy.tick.data.SnapshotDiff
 import io.candy.tick.data.SourceError
 import io.candy.tick.data.SyncStatus
 import io.candy.tick.data.forEachSyncRepo
 import io.candy.tick.util.forAppLanguage
+import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
 import java.util.concurrent.ConcurrentHashMap
@@ -49,7 +51,11 @@ class SyncWorker(context: Context, params: WorkerParameters) : CoroutineWorker(c
     }
 
     private suspend fun sync(container: io.candy.tick.di.AppContainer): Result {
-        if (!container.appStateStore.ensureLoaded()) return Result.retry()
+        // 读盘持续失败：封顶后按成功收尾——Result.failure 会让周期任务永久 FAILED（不再排下一轮），
+        // 读盘问题留给下一个调度周期再试
+        if (!container.appStateStore.ensureLoaded()) {
+            return if (runAttemptCount < 2) Result.retry() else Result.success()
+        }
         val state = container.appStateStore.state.value
         val total = state.repos.size
 
@@ -60,7 +66,15 @@ class SyncWorker(context: Context, params: WorkerParameters) : CoroutineWorker(c
         val before = state.snapshots
         val errors = ConcurrentHashMap<Long, SourceError>()
         state.repos.forEachSyncRepo { tracked ->
-            val error = container.repoRepository.refreshRepo(tracked.id)
+            // 逐仓兜底：forEachSyncRepo 的 coroutineScope 会让单仓意外异常取消整批兄弟任务
+            val error = try {
+                container.repoRepository.refreshRepo(tracked.id)
+            } catch (cancelled: CancellationException) {
+                throw cancelled
+            } catch (e: Exception) {
+                android.util.Log.w("SyncWorker", "refresh failed for repo ${tracked.id}", e)
+                SourceError.NetworkUnreachable
+            }
             if (error != null) errors[tracked.id] = error
         }
 
@@ -80,7 +94,15 @@ class SyncWorker(context: Context, params: WorkerParameters) : CoroutineWorker(c
         // 写 null 会漏报一条通知 + 清掉「可更新」标识；方向判定：本机已装 ≥ tag 不算新版
         val newReleaseRepos = ConcurrentHashMap.newKeySet<Long>()
         state.repos.forEachSyncRepo { tracked ->
-            when (val outcome = container.repoRepository.syncLatestReleaseTag(tracked.id)) {
+            val outcome = try {
+                container.repoRepository.syncLatestReleaseTag(tracked.id)
+            } catch (cancelled: CancellationException) {
+                throw cancelled
+            } catch (e: Exception) {
+                android.util.Log.w("SyncWorker", "tag sync failed for repo ${tracked.id}", e)
+                RepoRepository.SyncTagOutcome.Failed(SourceError.NetworkUnreachable)
+            }
+            when (outcome) {
                 is RepoRepository.SyncTagOutcome.Tag -> {
                     val latestTag = outcome.tag
                     val current = container.appStateStore.state.value
@@ -125,9 +147,14 @@ class SyncWorker(context: Context, params: WorkerParameters) : CoroutineWorker(c
         if (total > 0) syncStatus.value = SyncStatus.Done(run, changed = changedCount, failed = errors.size, total = total)
 
         // 4) 自身更新（检查默认开；自动下载按设置入队）
-        if (container.appStateStore.state.value.settings.selfUpdateCheck) {
+        val updateSettings = container.appStateStore.state.value.settings
+        if (updateSettings.selfUpdateCheck) {
             val hasNew = container.selfUpdater.check { it.selfUpdateCheck }
-            if (hasNew && container.appStateStore.state.value.settings.canAutoDownloadUpdate) {
+            // 补装兜底：Downloaded 悬置（进程被杀/会话中断）也重新入队——
+            // worker 会按 installFailedTag 决定是否重装，冷启动不再漏
+            val pendingInstall = updateSettings.autoInstallDownload &&
+                container.selfUpdater.state.value is SelfUpdater.State.Downloaded
+            if ((hasNew || pendingInstall) && updateSettings.canAutoDownloadUpdate) {
                 container.syncScheduler.enqueueUpdateDownload()
             }
         }
@@ -139,10 +166,14 @@ class SyncWorker(context: Context, params: WorkerParameters) : CoroutineWorker(c
         return if (allNetworkFailed && runAttemptCount < 2) Result.retry() else Result.success()
     }
 
-    /** 本机已装版本 ≥ tag（降级/重发同名 release 不吵）：可比较且 ≤ 0 才算已最新；不可比仍通知 */
+    /**
+     * 本机已装版本 ≥ tag（降级/重发同名 release 不吵）：可比较且 ≤ 0 才算已最新。
+     * 不可比视为已最新：与自更新链路同口径（design.md「不宣称有更新」）——
+     * 未读角标仍会亮，只是不再推送可能误报的「发现新版」通知。
+     */
     private fun alreadyUpToDate(tracked: io.candy.tick.data.model.TrackedRepo, tag: String): Boolean {
         val local = io.candy.tick.util.installedVersionName(applicationContext, tracked) ?: return false
-        return io.candy.tick.util.VersionCompare.compare(tag, local)?.let { it <= 0 } == true
+        return io.candy.tick.util.VersionCompare.compare(tag, local)?.let { it <= 0 } ?: true
     }
 
     private companion object {

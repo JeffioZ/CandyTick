@@ -66,6 +66,7 @@ import io.candy.tick.R
 import io.candy.tick.ui.common.AppLinkRow
 import io.candy.tick.ui.common.AppIconResult
 import io.candy.tick.ui.common.AppPickerSheet
+import io.candy.tick.ui.common.Feedback
 import io.candy.tick.ui.common.LinkedRepoAvatar
 import io.candy.tick.ui.common.RepoAvatar
 import io.candy.tick.ui.common.rememberAppIconResult
@@ -157,13 +158,21 @@ fun AddScreen(
     }
     androidx.activity.compose.BackHandler(enabled = resultsCovered, onBack = ::goBack)
 
+    // 仓库已写入但页面已离开本预览（取消窗口竞态）时的兜底提示：组合外取词
+    val addedToast = stringResource(R.string.toast_subscription_added)
     LaunchedEffect(Unit) {
         vm.events.collect { event ->
             when (event) {
                 is AddViewModel.Event.Added -> {
                     val current = vm.state.value
                     val preview = current.preview as? AddViewModel.PreviewState.Loaded
-                    if (current.adding && preview?.info?.githubId == event.repoId) onAdded(event.repoId)
+                    if (current.adding && preview?.info?.githubId == event.repoId) {
+                        onAdded(event.repoId)
+                    } else if (!current.duplicate) {
+                        // 仓库已写入但页面已离开本预览（取消窗口竞态）：至少告知结果；
+                        // duplicate 路径（本就已订阅）不提示，避免「已添加」误导
+                        Feedback.show(addedToast)
+                    }
                 }
             }
         }

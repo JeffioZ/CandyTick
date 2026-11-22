@@ -106,6 +106,7 @@ sealed interface SourceError {
     data object NetworkUnreachable : SourceError
     data object Timeout : SourceError
     data object NotFound : SourceError // 不存在或已私有
+    data object TokenRejected : SourceError // 401 后匿名重试仍 404：Token 无效/无权，私有仓不再误报「不存在」
     data class RateLimited(val retryAt: Instant?) : SourceError // 403 + 恢复时间
     data class Http(val code: Int) : SourceError // 其余 HTTP 错误
 }

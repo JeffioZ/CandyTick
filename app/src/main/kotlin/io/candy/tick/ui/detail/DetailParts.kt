@@ -217,8 +217,9 @@ internal fun HeaderCard(
             val hasUpdate = version?.comparison?.let { it > 0 } == true
             val downloadedMatches = repo.downloadedApk?.version == tag
             val updatePhase = when {
+                // 进度必须绑定正在浏览的 tag：下载中改选资产/换版本后，旧传输不得显示到新版本行下
                 state.download is RepoDownloadState.Active &&
-                    state.download.fromHeader -> "progress"
+                    state.download.fromHeader && state.download.releaseKey == tag -> "progress"
                 // 失败相：此前头部无 failed 分支——失败回落"下载"按钮复原 + 错误条只在
                 // 版本 tab 的卡里（停留提交 tab 时不可见）→ 感知"点了没反应"
                 hasUpdate && state.download is RepoDownloadState.Failed &&

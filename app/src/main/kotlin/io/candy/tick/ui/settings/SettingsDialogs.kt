@@ -286,6 +286,7 @@ internal fun TokenDialog(
             val tokenError = when {
                 state.tokenTest == SettingsViewModel.TokenTest.INVALID -> R.string.token_invalid_short
                 state.tokenTest == SettingsViewModel.TokenTest.NETWORK -> R.string.token_network_error
+                state.tokenTest == SettingsViewModel.TokenTest.SAVE_FAILED -> R.string.token_save_failed
                 state.tokenRejected -> R.string.settings_token_rejected
                 else -> null
             }

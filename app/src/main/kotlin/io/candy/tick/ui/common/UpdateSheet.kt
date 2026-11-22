@@ -57,6 +57,15 @@ object UpdateSheetController {
     var manualRequest by androidx.compose.runtime.mutableStateOf(false)
 }
 
+/** 弹窗有内容可渲染的相位才带 tag：NewVersion/Downloading/Downloaded/Failed */
+private fun contentTagOf(state: SelfUpdater.State): String? = when (state) {
+    is SelfUpdater.State.NewVersion -> state.tag
+    is SelfUpdater.State.Downloading -> state.tag
+    is SelfUpdater.State.Downloaded -> state.tag
+    is SelfUpdater.State.Failed -> state.tag
+    else -> null
+}
+
 @Composable
 fun UpdateSheet(selfUpdater: SelfUpdater) {
     val state by selfUpdater.state.collectAsStateWithLifecycle()
@@ -68,10 +77,21 @@ fun UpdateSheet(selfUpdater: SelfUpdater) {
         if (state is SelfUpdater.State.Idle) show = false
     }
     val release = state as? SelfUpdater.State.NewVersion
-    LaunchedEffect(UpdateSheetController.manualRequest, release) {
+    val contentTag = contentTagOf(state)
+    // state::class 入键：Checking 直转 UpToDate 时 contentTag 仍为 null，不加会漏掉 manualRequest 的消费
+    LaunchedEffect(UpdateSheetController.manualRequest, contentTag, state::class) {
         if (UpdateSheetController.manualRequest) {
-            UpdateSheetController.manualRequest = false
-            show = true
+            when (contentTag) {
+                null -> if (state !is SelfUpdater.State.Checking) {
+                    // Idle/UpToDate 无内容可弹：静默消费（设置页检查结果已走全局胶囊）；
+                    // Checking 等出结果再决定，不提前消费
+                    UpdateSheetController.manualRequest = false
+                }
+                else -> {
+                    UpdateSheetController.manualRequest = false
+                    show = true
+                }
+            }
         } else if (release != null && release.tag != dismissedTag && !release.incomparable) {
             // 自动检查发现新版：每版本自动弹一次；无法比较版本不弹（不宣称「有更新」，
             // design.md:183）——入口在设置页版本行，用户主动点开再看
@@ -85,7 +105,9 @@ fun UpdateSheet(selfUpdater: SelfUpdater) {
         show = show,
         onDismissRequest = {
             show = false
-            (state as? SelfUpdater.State.NewVersion)?.let { dismissedTag = it.tag }
+            // 任意内容相位关闭都记 tag：Downloading/Failed 期间关掉后，
+            // 同 tag 回到 NewVersion 不得再次自动弹出
+            dismissedTag = contentTag
         },
         onDismissFinished = { scope.launch { scroll.scrollTo(0) } },
         startAction = {
