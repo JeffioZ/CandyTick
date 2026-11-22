@@ -89,6 +89,9 @@ jobs:
           }
           apk="$dir/$output_file"
           apksigner=$(find "$ANDROID_HOME/build-tools" -name apksigner -type f | sort -V | tail -n 1)
+          echo "apksigner path: $apksigner"
+          "$apksigner" --version || true
+          "$apksigner" verify --print-certs "$apk" || echo "apksigner exit=$? (raw output above)"
           # Signing certificate of the publicly distributed v0.4.2 APK.
           release_cert=af65b854edac67a07735417a12d7d96d39fbf1d6f4ab0c1018529e209a6452fd
           # 逐行比较：新版 apksigner 对多签名方案可能把同一证书打印成多行 Signer 摘要，
