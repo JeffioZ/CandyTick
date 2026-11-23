@@ -48,6 +48,12 @@ import top.yukonga.miuix.kmp.theme.MiuixTheme
  * 仓库头像唯一来源（首页卡/搜索卡/预览卡/详情头卡共用）：
  * 已关联本机应用 → 真 APP 图标；未关联 → 首字母块（owner hash 8 色环，135° 渐变）。
  */
+
+/** 图标解码上限 = 全应用最大展示槽（LinkedRepoAvatar 的 56dp）：所有槽共用一份缓存，
+ *  解码不随槽位分裂（同应用出现两处只存一份位图）；新增更大槽位须同步改这里，
+ *  否则位图被拉伸发虚 */
+private val IconDecodeCeiling = 56.dp
+
 @Composable
 fun RepoIconBlock(repo: TrackedRepo, installedVersion: String?, size: Dp = 48.dp, corner: Dp = 12.dp) {
     val pkg = repo.linkedPackage
@@ -69,10 +75,10 @@ internal fun RepoAvatar(owner: String, icon: AppIconResult?, size: Dp, corner: D
 internal fun LinkedRepoAvatar(owner: String, icon: AppIconResult?) {
     if (rememberMotionEnabled()) {
         Crossfade(targetState = icon, animationSpec = tween(Motion.PHASE), label = "linkedAvatar") {
-            RepoAvatar(owner, it, 56.dp, 14.dp)
+            RepoAvatar(owner, it, IconDecodeCeiling, 14.dp)
         }
     } else {
-        RepoAvatar(owner, icon, 56.dp, 14.dp)
+        RepoAvatar(owner, icon, IconDecodeCeiling, 14.dp)
     }
 }
 
@@ -106,7 +112,7 @@ internal fun rememberAppIconResult(
 ): AppIconResult? {
     if (packageName == null) return null
     val context = LocalContext.current
-    val iconSizePx = with(LocalDensity.current) { 56.dp.roundToPx().coerceAtLeast(1) }
+    val iconSizePx = with(LocalDensity.current) { IconDecodeCeiling.roundToPx().coerceAtLeast(1) }
     return key(context, packageName, iconSizePx) {
         produceState(initial, refreshKey) {
             val previous = value

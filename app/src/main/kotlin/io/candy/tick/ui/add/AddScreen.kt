@@ -377,6 +377,8 @@ private fun SearchContent(
                         val pkg = state.resultPackages[info.githubId]
                         val icon = rememberAppIconResult(pkg, refreshKey = iconRevision)
                         io.candy.tick.ui.common.PressableCard(
+                            // 点按只打开预览卡（确认后才入库），标签如实（DSH 双 review：add_repo 与实际动作不符）
+                            onClickLabel = stringResource(R.string.preview_repo_a11y),
                             onClick = {
                                 val selected = if (pkg != null && icon?.bitmap != null) {
                                     ResultIcon(info.githubId, pkg, icon)

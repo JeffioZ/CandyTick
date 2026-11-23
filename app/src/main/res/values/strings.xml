@@ -85,6 +85,8 @@
     <string name="card_unread_release">New release</string>
     <string name="card_unread_commit">New commits</string>
     <string name="card_unread_both">New releases and commits</string>
+    <string name="card_open_repo_a11y">Open repository</string>
+    <string name="preview_repo_a11y">Preview repository</string>
     <string name="card_activity_with_unread">%1$s · %2$s</string>
     <string name="card_details_failed">Couldn\'t load details</string>
     <string name="card_refreshing">Refreshing repository details</string>

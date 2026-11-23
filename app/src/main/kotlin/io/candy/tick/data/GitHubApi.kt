@@ -33,8 +33,9 @@ import okhttp3.Response
  */
 class GitHubApi(private val tokenProvider: () -> String?) {
 
-    /** 匿名限额保护场景的判断（如分支日期的全量拉取）：是否配置了可用令牌 */
-    val hasToken: Boolean get() = !tokenProvider().isNullOrBlank()
+    /** 匿名限额保护场景的判断（如分支日期的全量拉取）：是否配置了未遭 401 拒绝的令牌——
+     *  rejected 后实际走匿名 60/h，fullPage 门必须跟着关（DSH 全量 review H1） */
+    val hasToken: Boolean get() = !tokenProvider().isNullOrBlank() && !rejected.value
 
     private val json = Json { ignoreUnknownKeys = true }
     private val client = OkHttpClient.Builder()
@@ -259,6 +260,10 @@ class GitHubApi(private val tokenProvider: () -> String?) {
         withContext(Dispatchers.IO) {
             try {
                 dest.parentFile?.mkdirs()
+                // 磁盘预检：写一半 ENOSPC 体验最差；repo 与自更新下载共用此口，一处拦住两处
+                if (asset.size > 0 && (dest.parentFile?.usableSpace ?: Long.MAX_VALUE) < asset.size + DISK_HEADROOM_BYTES) {
+                    throw IOException("Not enough disk space")
+                }
                 val endpoint = asset.url.toHttpUrl()
                 val request = Request.Builder().url(endpoint).apply {
                     if (endpoint.isHttps && endpoint.host == "api.github.com" && endpoint.port == 443) {
@@ -284,6 +289,7 @@ class GitHubApi(private val tokenProvider: () -> String?) {
                                 downloadContext.ensureActive()
                                 output.write(buffer, 0, n)
                                 read += n
+                                if (read > MAX_DOWNLOAD_BYTES) throw IOException("Download exceeds size limit")
                                 if (total > 0) {
                                     val progress = (read.toDouble() / total).toFloat().coerceIn(0f, 1f)
                                     val percent = (progress * 100).toInt()
@@ -447,6 +453,11 @@ class GitHubApi(private val tokenProvider: () -> String?) {
     private companion object {
         const val BASE_URL = "https://api.github.com"
         const val TIMEOUT_S = 15L
+
+        // 下载写盘守卫：已知大小而剩余空间不够（含 64MiB 余量）就不开下载；
+        // Content-Length 未知/说谎时按 2GiB 上限止损，不无限写盘
+        const val DISK_HEADROOM_BYTES = 64L * 1024 * 1024
+        const val MAX_DOWNLOAD_BYTES = 2L * 1024 * 1024 * 1024
     }
 }
 

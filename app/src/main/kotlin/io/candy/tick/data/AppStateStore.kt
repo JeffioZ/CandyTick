@@ -274,7 +274,7 @@ class AppStateStore internal constructor(filesDir: File, noBackupDir: File) {
         }
     }
 
-    private companion object {
+    internal companion object {
         const val TAG = "AppStateStore"
         const val STATE_FILE = "app_state.json"
     }

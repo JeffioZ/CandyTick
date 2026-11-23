@@ -21,6 +21,7 @@ import androidx.compose.foundation.layout.statusBarsPadding
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
@@ -97,6 +98,14 @@ object Feedback {
 
     internal fun dismiss(message: Message): Boolean = _current.compareAndSet(message, null)
 
+    /** 宿主销毁（Activity 重建）即清空：current/held 里的 onAction 持有旧页闭包，
+     *  换代后重放等于在死上下文里执行（此前跨代残留，撤销动作打到已销毁的页面状态上）。
+     *  代价：旋转等重建瞬间正在展示的可撤销消息会一并丢弃（toast 生命周期本就秒级，接受） */
+    internal fun clear() {
+        held = null
+        _current.value = null
+    }
+
     /** 槽空出后取回仍在窗口内的暂存消息（过期即作废，返回 null） */
     internal fun retakeHeld(): Message? {
         val m = held ?: return null
@@ -125,6 +134,9 @@ fun FeedbackHost() {
     // 末值捕获：退出动画期间继续渲染（内容塌空 = 瞬间消失的教训）
     var shown by remember { mutableStateOf<Feedback.Message?>(null) }
     var visible by remember { mutableStateOf(false) }
+    DisposableEffect(Unit) {
+        onDispose { Feedback.clear() }
+    }
     LaunchedEffect(msg, accessibility) {
         val m = msg
         if (m == null) {

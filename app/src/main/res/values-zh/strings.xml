@@ -83,6 +83,8 @@
     <string name="card_unread_release">有新版本</string>
     <string name="card_unread_commit">有新提交</string>
     <string name="card_unread_both">有新版本和提交</string>
+    <string name="card_open_repo_a11y">查看仓库</string>
+    <string name="preview_repo_a11y">预览仓库</string>
     <string name="card_activity_with_unread">%1$s · %2$s</string>
     <string name="card_details_failed">详情加载失败</string>
     <string name="card_refreshing">正在刷新仓库信息</string>

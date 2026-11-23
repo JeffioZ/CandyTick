@@ -111,7 +111,8 @@ sealed interface SourceError {
     data class Http(val code: Int) : SourceError // 其余 HTTP 错误
 }
 
-class SourceException(val error: SourceError, cause: Throwable? = null) : Exception(cause)
+// message 补上错误描述：此前为 null，日志里只剩 cause 链，定位不到是哪种源错误
+class SourceException(val error: SourceError, cause: Throwable? = null) : Exception(error.toString(), cause)
 
 /** 「仓库不可访问」判定：只有源明确说「没了/无权」才算；网络/超时/限流是瞬时失败，
  *  不该把徽章翻成不可访问（首页卡片与详情页据此同口径，快照状态继续表达活跃度） */

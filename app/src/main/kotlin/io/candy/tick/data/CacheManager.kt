@@ -46,22 +46,29 @@ class CacheManager(private val context: Context) {
      * Use the restored snapshot to reclaim files left by earlier processes.
      * Current-process downloads may already be running when this scan reaches their directory.
      */
-    fun cleanStaleFiles(restored: AppState) {
+    fun cleanStaleFiles(restored: AppState, corruptReset: Boolean = false) {
         // 上个进程崩溃留下的临时文件没有任务再负责收尾。按进程启动时间区分活跃下载。
-        val startedAt = System.currentTimeMillis() -
-            (android.os.SystemClock.elapsedRealtime() - android.os.Process.getStartElapsedRealtime())
-        val retained = restored.repos.associate { it.id to it.downloadedApk?.fileName }
-        apksRoot.listFiles()?.forEach { dir ->
-            val id = dir.name.toLongOrNull() ?: return@forEach
-            val keep = retained[id]
-            dir.listFiles()?.forEach { file ->
-                if (file.isFile && file.name != keep && file.lastModified() < startedAt) file.delete()
+        // 状态损坏重置后快照是空的，按它回收等于把用户手里的 APK 全删掉：本进程跳过（corruptReset），
+        // 跨进程以 .corrupt 备份的 mtime（=损坏时刻）起 7 天宽限——留出 adb 取回状态与 APK 人工恢复的窗口。
+        val corruptBackup = File(context.filesDir, AppStateStore.STATE_FILE + ".corrupt")
+        val inCorruptGrace = corruptReset ||
+            (corruptBackup.isFile && System.currentTimeMillis() - corruptBackup.lastModified() < CORRUPT_GRACE_MS)
+        if (!inCorruptGrace) {
+            val startedAt = System.currentTimeMillis() -
+                (android.os.SystemClock.elapsedRealtime() - android.os.Process.getStartElapsedRealtime())
+            val retained = restored.repos.associate { it.id to it.downloadedApk?.fileName }
+            apksRoot.listFiles()?.forEach { dir ->
+                val id = dir.name.toLongOrNull() ?: return@forEach
+                val keep = retained[id]
+                dir.listFiles()?.forEach { file ->
+                    if (file.isFile && file.name != keep && file.lastModified() < startedAt) file.delete()
+                }
+                if (id !in retained) dir.delete() // Succeeds only when empty.
             }
-            if (id !in retained) dir.delete() // Succeeds only when empty.
-        }
-        updatesDir.listFiles()?.forEach { file ->
-            if (file.isFile && file.name != restored.downloadedSelfUpdate?.fileName && file.lastModified() < startedAt) {
-                file.delete()
+            updatesDir.listFiles()?.forEach { file ->
+                if (file.isFile && file.name != restored.downloadedSelfUpdate?.fileName && file.lastModified() < startedAt) {
+                    file.delete()
+                }
             }
         }
         cleanExpiredShares(context)
@@ -70,6 +77,9 @@ class CacheManager(private val context: Context) {
     private fun File.isDownloadPart(): Boolean = name.endsWith(".part") || name.substringAfterLast(".part-", "").toLongOrNull() != null
 
     companion object {
+        /** 损坏重置后 APK 回收的宽限期（DSH 双 review：内存标志只保一个进程，冷启动会照删） */
+        private val CORRUPT_GRACE_MS = TimeUnit.DAYS.toMillis(7)
+
         private fun cleanExpiredShares(context: Context) {
             val cutoff = System.currentTimeMillis() - TimeUnit.DAYS.toMillis(1)
             File(context.cacheDir, "shares").listFiles()?.forEach {

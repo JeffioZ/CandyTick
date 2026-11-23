@@ -83,7 +83,7 @@ class CandyTickApp : Application() {
             val restored = container.appStateStore.state.value
             withContext(Dispatchers.IO) {
                 runCatching {
-                    container.cacheManager.cleanStaleFiles(restored)
+                    container.cacheManager.cleanStaleFiles(restored, container.appStateStore.corruptReset)
                     // Android restores the subscription file without the device's downloaded APKs.
                     container.repoRepository.clearMissingDownloads()
                 }

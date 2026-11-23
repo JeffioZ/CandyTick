@@ -56,7 +56,7 @@ class SelfUpdater(
         ) : State
     }
 
-    enum class Reason { NETWORK, DOWNLOAD, INSTALL }
+    enum class Reason { NETWORK, RATE_LIMITED, DOWNLOAD, INSTALL }
 
     private val updateDir = File(context.filesDir, "updates")
     private val operations = Mutex()
@@ -119,8 +119,11 @@ class SelfUpdater(
         } catch (cancelled: CancellationException) {
             _state.value = previous
             throw cancelled
-        } catch (_: SourceException) {
-            _state.value = savedDownload() ?: State.Failed(Reason.NETWORK)
+        } catch (e: SourceException) {
+            // 限流折成「网络失败」会诱导立刻重试（再吃一次 403），单列出来
+            _state.value = savedDownload() ?: State.Failed(
+                if (e.error is SourceError.RateLimited) Reason.RATE_LIMITED else Reason.NETWORK
+            )
             false
         }
     }

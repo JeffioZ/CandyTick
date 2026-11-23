@@ -86,6 +86,7 @@ fun RepoCard(
     io.candy.tick.ui.common.PressableCard(
         onClick = onClick,
         modifier = modifier.fillMaxWidth(),
+        onClickLabel = stringResource(R.string.card_open_repo_a11y),
         interactionModifier = interactionModifier.semantics {
             if (pinnedDescription != null) stateDescription = pinnedDescription
         },
@@ -283,6 +284,8 @@ private fun ExpandedDetails(
             extras.failed -> InlineErrorRow(
                 message = stringResource(R.string.card_details_failed),
                 onRetry = onRetry,
+                // 卡内错误条不做 liveRegion 播报：会被 clickable merge，相对时间每分钟刷新时整卡重读
+                announce = false,
             )
         }
         if (extras?.load != ListViewModel.CardLoad.INITIAL) {

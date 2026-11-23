@@ -47,6 +47,7 @@ internal fun InlineErrorRow(
     onRetry: (() -> Unit)?,
     retryEnabled: Boolean = true,
     showRetryLabel: Boolean = false,
+    announce: Boolean = true,
 ) {
     val scheme = MiuixTheme.colorScheme
     Row(
@@ -65,7 +66,9 @@ internal fun InlineErrorRow(
         Text(
             text = message,
             modifier = Modifier.weight(1f).padding(vertical = 10.dp)
-                .semantics { liveRegion = LiveRegionMode.Polite },
+                // liveRegion 只给不在可点卡内的调用点：merge 进 clickable 后，卡内相对时间
+                // 每分钟一变会让 TalkBack 整卡重播（RepoCard 关掉）
+                .semantics { if (announce) liveRegion = LiveRegionMode.Polite },
             style = MiuixTheme.textStyles.footnote1,
             color = scheme.onErrorContainer,
         )

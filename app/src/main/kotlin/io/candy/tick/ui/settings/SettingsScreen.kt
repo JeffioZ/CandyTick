@@ -92,6 +92,7 @@ fun SettingsScreen(onBack: () -> Unit, autoOpenImport: Boolean = false) {
     // （发现新版 → UpdateSheet、下载/安装失败 → 各自重试入口）仍走既有路径
     val upToDateMsg = stringResource(R.string.version_local_current)
     val checkFailedMsg = stringResource(R.string.settings_update_failed)
+    val rateLimitedMsg = stringResource(R.string.err_rate_limited_plain)
     val context = LocalContext.current
     val resources = LocalResources.current
     val scope = androidx.compose.runtime.rememberCoroutineScope()
@@ -400,10 +401,13 @@ fun SettingsScreen(onBack: () -> Unit, autoOpenImport: Boolean = false) {
                                 when (val result = vm.checkUpdate()) {
                                     SelfUpdater.State.UpToDate ->
                                         io.candy.tick.ui.common.Feedback.show(upToDateMsg)
-                                    is SelfUpdater.State.Failed -> if (result.reason == SelfUpdater.Reason.NETWORK) {
-                                        io.candy.tick.ui.common.Feedback.show(checkFailedMsg, isError = true)
-                                    } else {
-                                        io.candy.tick.ui.common.UpdateSheetController.manualRequest = true
+                                    is SelfUpdater.State.Failed -> when (result.reason) {
+                                        SelfUpdater.Reason.NETWORK ->
+                                            io.candy.tick.ui.common.Feedback.show(checkFailedMsg, isError = true)
+                                        // 限流：Failed 无 tag，弹窗打不开（contentTag=null 被静默消费）——胶囊直接给原因
+                                        SelfUpdater.Reason.RATE_LIMITED ->
+                                            io.candy.tick.ui.common.Feedback.show(rateLimitedMsg, isError = true)
+                                        else -> io.candy.tick.ui.common.UpdateSheetController.manualRequest = true
                                     }
                                     is SelfUpdater.State.NewVersion, is SelfUpdater.State.Downloaded ->
                                         io.candy.tick.ui.common.UpdateSheetController.manualRequest = true

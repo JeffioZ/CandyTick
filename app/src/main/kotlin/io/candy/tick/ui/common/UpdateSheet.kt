@@ -230,6 +230,8 @@ fun UpdateSheet(selfUpdater: SelfUpdater) {
                                         stringResource(R.string.settings_download_failed)
                                     SelfUpdater.Reason.NETWORK ->
                                         stringResource(R.string.settings_update_failed)
+                                    SelfUpdater.Reason.RATE_LIMITED ->
+                                        stringResource(R.string.err_rate_limited_plain)
                                 },
                                 onRetry = null,
                             )
@@ -251,6 +253,8 @@ fun UpdateSheet(selfUpdater: SelfUpdater) {
                                     onClick = { runAction { selfUpdater.check() } },
                                     modifier = Modifier.fillMaxWidth(),
                                 )
+                                // 限流：立即重试只会再吃 403，文案已说明稍后再试
+                                SelfUpdater.Reason.RATE_LIMITED -> Unit
                             }
                         }
                         SelfUpdater.State.Checking -> Row(

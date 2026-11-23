@@ -29,6 +29,7 @@ import androidx.compose.ui.graphics.drawscope.ContentDrawScope
 import androidx.compose.ui.graphics.lerp
 import androidx.compose.ui.node.DelegatableNode
 import androidx.compose.ui.node.DrawModifierNode
+import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import kotlinx.coroutines.CoroutineStart
@@ -48,6 +49,7 @@ fun PressableCard(
     modifier: Modifier = Modifier,
     cornerRadius: Dp = CardDefaults.CornerRadius,
     interactionModifier: Modifier = Modifier,
+    onClickLabel: String? = null,
     content: @Composable ColumnScope.() -> Unit,
 ) {
     val scheme = MiuixTheme.colorScheme
@@ -67,6 +69,9 @@ fun PressableCard(
             modifier = interactionModifier.fillMaxWidth().clickable(
                 interactionSource = null,
                 indication = indication,
+                // 整卡可点：补按钮语义，TalkBack 播报「点按两次即可…」而不是普通文本
+                role = Role.Button,
+                onClickLabel = onClickLabel,
                 onClick = onClick,
             ),
             content = content,

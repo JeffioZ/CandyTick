@@ -41,7 +41,10 @@ class UpdateDownloadWorker(context: Context, params: WorkerParameters) : Corouti
                     return Result.success()
                 }
                 val failed = updater.state.value as? SelfUpdater.State.Failed
-                return if (failed?.reason == SelfUpdater.Reason.NETWORK && runAttemptCount < 2) Result.retry() else Result.success()
+                // 限流同样退避重试（WorkManager backoff 可能跨过限额窗口，≤2 次代价可忽略）——
+                // 拆出 RATE_LIMITED 后这里若只认 NETWORK，后台检查撞限流会静默变成「不重试」
+                val retryable = failed?.reason == SelfUpdater.Reason.NETWORK || failed?.reason == SelfUpdater.Reason.RATE_LIMITED
+                return if (retryable && runAttemptCount < 2) Result.retry() else Result.success()
             }
             newState = updater.state.value as? SelfUpdater.State.NewVersion ?: return Result.success()
         }

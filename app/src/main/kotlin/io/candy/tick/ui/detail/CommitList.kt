@@ -11,7 +11,9 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.text.buildAnnotatedString
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.text.withStyle
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.dp
+import io.candy.tick.R
 import io.candy.tick.ui.common.rememberExternalUriHandler
 import io.candy.tick.ui.common.PressableCard
 import io.candy.tick.ui.common.RelTimeText
@@ -40,6 +42,7 @@ fun LazyListScope.commitList(
             modifier = refreshItemMotion(animateRefreshChanges).then(contentModifier).fillMaxWidth(),
             // 点击跳 GitHub 查 diff/详情（GitHub app 同款延伸）；无浏览器时给出反馈而非静默
             onClick = { links.openUri("$htmlBase/commit/${commit.sha}") },
+            onClickLabel = stringResource(R.string.open_in_browser),
         ) {
             Column(modifier = Modifier.padding(horizontal = 16.dp, vertical = 8.dp)) {
                 Row(verticalAlignment = Alignment.CenterVertically) {
