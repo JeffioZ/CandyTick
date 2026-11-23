@@ -10,7 +10,8 @@
 在相应版本的中文条目后附英文摘要。发版工作流会提取整个版本章节作为 GitHub Release 正文。
 -->
 
-[未发布]: https://github.com/JeffioZ/CandyTick/compare/v0.5.0...main
+[未发布]: https://github.com/JeffioZ/CandyTick/compare/v0.5.1...main
+[0.5.1]: https://github.com/JeffioZ/CandyTick/releases/tag/v0.5.1
 [0.5.0]: https://github.com/JeffioZ/CandyTick/releases/tag/v0.5.0
 [0.4.2]: https://github.com/JeffioZ/CandyTick/releases/tag/v0.4.2
 [0.4.1]: https://github.com/JeffioZ/CandyTick/releases/tag/v0.4.1
@@ -21,6 +22,29 @@
 [0.2.1]: https://github.com/JeffioZ/CandyTick/releases/tag/v0.2.1
 [0.2.0]: https://github.com/JeffioZ/CandyTick/releases/tag/v0.2.0
 [0.1.0]: https://github.com/JeffioZ/CandyTick/releases/tag/v0.1.0
+
+## [0.5.1]
+
+### 优化
+
+- 检查 CandyTick 更新遇到 GitHub 请求上限时，会直接说明稍后再试，不再显示成网络问题。
+- 读屏更清楚：仓库卡片、搜索结果和提交记录会读出点按后的动作；展开卡片里的错误提示不再每分钟重复播报整张卡片。
+- 英文界面全面校对：设置项和输入框提示不再折行，用词和标点更统一。
+
+### 修复
+
+- 订阅数据损坏被重置时，已下载的安装包不再被当作残留清掉，会保留一段时间供你找回。
+- GitHub 令牌失效后，打开分支选择器仍会一页页加载全部日期，白白消耗每小时有限的请求次数；现在会自动改用省请求的方式。
+- 剩余存储空间不够时，下载会直接失败并提示，不再下载到一半才出错。
+
+### English summary
+
+- Update checks that hit the GitHub request limit now say to try again later, instead of reporting a network problem.
+- TalkBack reads out the action for repository cards, search results, and commit rows, and an error inside an expanded card no longer re-reads the whole card every minute.
+- The English interface had a full copy pass: settings rows and input hints fit on one line, with more consistent wording and punctuation.
+- When local data is corrupted and reset, downloaded packages are kept for a while instead of being cleaned up as leftovers.
+- With an invalid GitHub token, the branch picker no longer pages through every branch and burns the hourly request quota.
+- Downloads fail fast with a clear message when storage is low, instead of failing halfway through.
 
 ## [0.5.0]
 
