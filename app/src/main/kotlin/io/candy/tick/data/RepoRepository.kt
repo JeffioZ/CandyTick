@@ -399,15 +399,26 @@ class RepoRepository(
         }
     }
 
-    /** Fetch optional dates separately so branch selection never waits for commit requests. */
-    suspend fun branchDates(repoId: Long, names: List<String>, firstPage: Boolean): Map<String, Instant?> {
-        val tracked = trackedOrNull(repoId) ?: return emptyMap()
+    /** Fetch optional dates separately so branch selection never waits for commit requests.
+     *  每个结果到达即回调（progressive）；null = 该分支查不到。 */
+    suspend fun branchDates(
+        repoId: Long,
+        names: List<String>,
+        firstPage: Boolean,
+        fullPage: Boolean = false,
+        onDate: (String, Instant?) -> Unit,
+    ) {
+        val tracked = trackedOrNull(repoId) ?: return
         val source = provider(tracked.provider)
         val priority = setOfNotNull(tracked.branch, state.value.snapshots[repoId]?.defaultBranch)
-        val wanted = (if (firstPage) names.take(20) else emptyList()) + names.filter { it in priority }
-        return coroutineScope {
+        // 优先分支（默认+当前浏览）最先请求——UI 置顶显示但 API 按字母序返回，
+        // 不提前的话 main 的副标题要等好几波才到（真机反馈）；首页前 20 + fullPage 同前
+        val wanted = (names.filter { it in priority } +
+            (if (firstPage) names.take(20) else emptyList()) +
+            (if (fullPage) names else emptyList())).distinct()
+        coroutineScope {
             val gate = Semaphore(6)
-            wanted.distinct().map { name ->
+            wanted.map { name ->
                 async {
                     val date = gate.withPermit {
                         try {
@@ -416,9 +427,11 @@ class RepoRepository(
                             null
                         }
                     }
-                    name to date
+                    // 逐条回调而非 awaitAll 后批量返回：副标题随到达逐个出现，
+                    // 不再「等最慢的一个、然后 20 条同帧齐刷刷弹出」（真机反馈突兀）
+                    onDate(name, date)
                 }
-            }.awaitAll().toMap()
+            }.awaitAll()
         }
     }
 

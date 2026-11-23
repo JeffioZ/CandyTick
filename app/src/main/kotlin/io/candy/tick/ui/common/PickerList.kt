@@ -65,6 +65,11 @@ private fun PickerSearchField(
         trailingIcon = if (query.isEmpty()) null else {
             { TextFieldActionButton(onClick = clearTextFieldAction(focus) { onQueryChange("") }) }
         },
-        modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp).focusRequester(focus),
+        modifier = Modifier.fillMaxWidth()
+            .padding(horizontal = 16.dp)
+            // 搜索框下方 8dp：平衡标题→搜索框 vs 搜索框→首行——上方有 WindowBottomSheet
+            // 库 insideMargin + 标题 40dp 触控槽的文字下空隙（选择器专用），叠加后视觉偏大
+            .padding(bottom = 8.dp)
+            .focusRequester(focus),
     )
 }

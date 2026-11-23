@@ -4,9 +4,9 @@ import androidx.compose.animation.core.LinearEasing
 import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.animation.core.tween
 import androidx.compose.foundation.layout.Arrangement
-import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.layout.heightIn
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
@@ -48,32 +48,43 @@ internal fun DownloadProgress(progress: Float?, sizeBytes: Long = 0, onCancel: (
                 val downloaded = (sizeBytes * progress.toDouble()).toLong()
                 "$percent · ${CountFormat.formatBytes(downloaded)} / ${CountFormat.formatBytes(sizeBytes)}"
             } else percent
-            Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(4.dp)) {
-                val bar by animateFloatAsState(
-                    targetValue = progress,
-                    animationSpec = tween(Motion.PROGRESS, easing = LinearEasing),
-                    label = "downloadProgress",
+            val bar by animateFloatAsState(
+                targetValue = progress,
+                animationSpec = tween(Motion.PROGRESS, easing = LinearEasing),
+                label = "downloadProgress",
+            )
+            // 单行布局：条(weight) + 标签 + 取消钮同线居中——块高恒 48dp（取消钮触摸区），
+            // 与「下载」按钮相位等高，点击下载前后卡片高度不变（真机反馈高度跳变）。
+            // 标签随条同行（skill: 紧凑标签保持单行），窄屏时条自动收窄
+            Row(
+                modifier = Modifier.weight(1f),
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.spacedBy(12.dp),
+            ) {
+                LinearProgressIndicator(
+                    progress = bar,
+                    // 条保底 48dp：Row 先量非 weight 子项（标签+取消钮），无保底时
+                    // 大字号/长标签会把条压到 0dp（DSH R12）
+                    modifier = Modifier.weight(1f).widthIn(min = 48.dp),
                 )
-                // 取消钮与进度条同线居中（不是与「条+标签」整块居中——那会让钮偏高于条）；
-                // 条→钮 16dp = 钮→卡片内容缘 16dp（卡内衬），两侧等距（真机反馈）。
-                // 代价：48dp 触摸区使本行高≈72（条+标签分组）——「大小未知→已知」的罕见
-                // 瞬间块高 +24 一次；相位间切换走 AnimatedContent 高度动画不受影响
-                Row(
-                    verticalAlignment = Alignment.CenterVertically,
-                    horizontalArrangement = Arrangement.spacedBy(16.dp),
-                ) {
-                    LinearProgressIndicator(progress = bar, modifier = Modifier.weight(1f))
-                    if (onCancel != null) {
-                        CompactTextAction(onClick = onCancel, enabled = cancelEnabled, alignment = Alignment.Center) {
-                            Text(
-                                text = stringResource(R.string.cancel),
-                                style = MiuixTheme.textStyles.footnote1,
-                                color = scheme.primaryVariant,
-                            )
-                        }
+                Text(
+                    label,
+                    style = MiuixTheme.textStyles.footnote2,
+                    color = scheme.onBackgroundVariant,
+                    // 单行 + 省略号：长标签不折行（破坏 48dp 恒高），超出部分截断
+                    maxLines = 1,
+                    softWrap = false,
+                    overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis,
+                )
+                if (onCancel != null) {
+                    CompactTextAction(onClick = onCancel, enabled = cancelEnabled, alignment = Alignment.Center) {
+                        Text(
+                            text = stringResource(R.string.cancel),
+                            style = MiuixTheme.textStyles.footnote1,
+                            color = scheme.primaryVariant,
+                        )
                     }
                 }
-                Text(label, style = MiuixTheme.textStyles.footnote2, color = scheme.onBackgroundVariant)
             }
         }
         if (onCancel != null && progress == null) {

@@ -77,19 +77,25 @@ internal fun ScrollToTopTitle(
 
 /** Occupies the Miuix title row, which already provides the top and bottom spacing. */
 @Composable
-internal fun SheetScrollToTopTitle(text: String, canScroll: Boolean, scrollToTop: suspend (Boolean) -> Unit) {
+internal fun SheetScrollToTopTitle(
+    text: String,
+    canScroll: Boolean,
+    scrollToTop: suspend (Boolean) -> Unit,
+    // 40dp：有搜索框的选择器传此值——标题→搜索框的间距需要收紧（真机反馈）；
+    // 其他浮层保持默认 48dp 触控规范
+    minHeight: Dp = 48.dp,
+) {
     val scope = rememberCoroutineScope()
     val animated = rememberMotionEnabled()
     val onClick: (() -> Unit)? = if (canScroll) {
         { scope.launch { scrollToTop(animated) } }
     } else null
-    // 与非 sheet 版同款 48dp 命中区：此前可点击高度只有一行文字高（titleAction 挂在 Text 上）
     Box(
         modifier = Modifier
             .fillMaxWidth()
             .wrapContentWidth()
             .titleAction(onClick)
-            .sizeIn(minWidth = 48.dp, minHeight = 48.dp),
+            .sizeIn(minWidth = 48.dp, minHeight = minHeight),
         contentAlignment = Alignment.Center,
     ) {
         Text(

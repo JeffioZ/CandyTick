@@ -79,29 +79,44 @@ internal fun BranchPickerSheet(
                 text = stringResource(R.string.branch_picker_title),
                 canScroll = listState.canScrollBackward,
                 scrollToTop = listState::scrollToTop,
+                minHeight = 40.dp, // 有搜索框的选择器收紧标题槽（间距平衡，真机反馈）
             )
         },
     ) {
         Column(
             modifier = Modifier
                 .fillMaxWidth()
+                // 有搜索框时 top=0：搜索框自身高度已是分隔，叠 4dp 会使上方大于下方（同应用选择器）；
+                // 无搜索框（少量分支）保留 4dp 与设置/更新弹窗统一
+                .padding(top = if (searchable) 0.dp else 4.dp)
                 .animateContentSize(tween(Motion.PANEL))
                 .then(if (searchable) Modifier.height(maxSheetHeight) else Modifier.heightIn(max = maxSheetHeight)),
         ) {
             PickerList(listState, searchable, query, stringResource(R.string.branch_search_hint), { query = it }) {
                 if (listReady && filtered.isEmpty() && missingSelection == null) {
-                    item {
-                        StatusPage(
-                            icon = ImageVector.vectorResource(if (keyword.isEmpty()) R.drawable.ic_git_branch else R.drawable.ic_search),
-                            title = stringResource(if (keyword.isEmpty()) R.string.branch_empty else R.string.branch_no_match),
-                            compact = true,
-                            modifier = Modifier.fillMaxWidth().padding(vertical = 24.dp),
-                        )
+                    item(key = "empty") {
+                        // fillParentMaxHeight + Center：空态在剩余空间内垂直居中（此前贴顶不居中，
+                        // 展示/不展示输入法都有问题——真机反馈；分支+应用选择器同修）
+                        Box(
+                            modifier = Modifier.fillParentMaxHeight().fillMaxWidth(),
+                            contentAlignment = Alignment.Center,
+                        ) {
+                            StatusPage(
+                                icon = ImageVector.vectorResource(if (keyword.isEmpty()) R.drawable.ic_git_branch else R.drawable.ic_search),
+                                title = stringResource(if (keyword.isEmpty()) R.string.branch_empty else R.string.branch_no_match),
+                                compact = true,
+                                modifier = Modifier.fillMaxWidth(),
+                            )
+                        }
                     }
                 }
                 items(filtered, key = { it.name }) { b ->
-                    // 点默认分支 = 存 null（保留「跟随默认」语义，上游改名自动跟）
-                    OptionRow(b.name, b.name == currentViewed, summary = b.tipDate?.let { relTimeString(it) }) {
+                    // 点默认分支 = 存 null（保留「跟随默认」语义，上游改名自动跟）。
+                    // 副标题 null 时传占位空格：行高恒为「有副标题」高度，日期到达只换文字
+                    // 不变高度——标题零位移（animateContentSize 只动画容器尺寸，内部布局
+                    // 的标题居中位置变化是瞬时的，真机反馈仍跳——此为根治）
+                    val summary = b.tipDate?.let { relTimeString(it) } ?: " "
+                    OptionRow(b.name, b.name == currentViewed, summary = summary) {
                         onSelect(if (b.name == defaultBranch) null else b.name)
                         onDismiss()
                     }

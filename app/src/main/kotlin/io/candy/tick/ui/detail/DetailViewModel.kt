@@ -1,5 +1,6 @@
 package io.candy.tick.ui.detail
 
+import io.candy.tick.CandyTickApp
 import io.candy.tick.data.RepoDownloadState
 import io.candy.tick.data.RepoDownloadHost
 import android.content.Context
@@ -313,12 +314,17 @@ class DetailViewModel(
                     nextBranchPage = if (result.hasNext) page + 1 else null,
                 )
             }
-            val dates = repository.branchDates(repoId, result.names, firstPage = page == 1)
-            if (dates.values.any { it != null }) {
-                _state.update { state ->
-                    state.copy(branches = state.branches?.map { row ->
-                        dates[row.name]?.let { row.copy(tipDate = it) } ?: row
-                    })
+            // 逐条到达逐条写入：副标题随网络返回错开出现；已配令牌时整页拉取
+            // （匿名 60/h 维持「首页前 20 + 优先分支」的原截断）
+            val fullPage = (appContext as CandyTickApp).container.githubApi.hasToken
+            repository.branchDates(repoId, result.names, firstPage = page == 1, fullPage = fullPage) { name, date ->
+                if (date != null) _state.update { state ->
+                    val branches = state.branches
+                    if (branches?.any { it.name == name } == true) {
+                        state.copy(branches = branches.map { row ->
+                            if (row.name == name) row.copy(tipDate = date) else row
+                        })
+                    } else state
                 }
             }
         }

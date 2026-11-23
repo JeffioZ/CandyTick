@@ -114,6 +114,7 @@ fun AppPickerSheet(
                 text = stringResource(R.string.detail_link_app),
                 canScroll = listState.canScrollBackward,
                 scrollToTop = listState::scrollToTop,
+                minHeight = 40.dp, // 有搜索框的选择器收紧标题槽（间距平衡，真机反馈）
             )
         },
     ) {
@@ -131,6 +132,10 @@ fun AppPickerSheet(
         Column(
             modifier = Modifier
                 .fillMaxWidth()
+                // 有搜索框时 top=0：搜索框自身高度已是标题与内容的分隔，再叠 4dp 会
+                // 使上方间距大于下方（真机反馈）；无搜索框（少量选项）保留 4dp 与
+                // 设置/更新弹窗统一
+                .padding(top = if (searchable) 0.dp else 4.dp)
                 // The sheet applies IME insets. The requested height is clamped to its available space.
                 .then(if (page.fullHeight) Modifier.height(maxSheetHeight) else Modifier.heightIn(max = maxSheetHeight)),
         ) {
@@ -168,13 +173,18 @@ fun AppPickerSheet(
             }
             PickerList(listState, searchable, query, stringResource(R.string.picker_search_app), { query = it }) {
                 if (searchable && filtered.isEmpty()) {
-                    item {
-                        StatusPage(
-                            icon = ImageVector.vectorResource(R.drawable.ic_search),
-                            title = stringResource(R.string.picker_no_match),
-                            compact = true,
-                            modifier = Modifier.fillMaxWidth().padding(vertical = 24.dp),
-                        )
+                    item(key = "empty") {
+                        Box(
+                            modifier = Modifier.fillParentMaxHeight().fillMaxWidth(),
+                            contentAlignment = Alignment.Center,
+                        ) {
+                            StatusPage(
+                                icon = ImageVector.vectorResource(R.drawable.ic_search),
+                                title = stringResource(R.string.picker_no_match),
+                                compact = true,
+                                modifier = Modifier.fillMaxWidth(),
+                            )
+                        }
                     }
                 }
                 items(filtered, key = { it.packageName }) { app ->

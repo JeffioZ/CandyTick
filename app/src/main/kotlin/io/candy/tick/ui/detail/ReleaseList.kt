@@ -457,7 +457,9 @@ private fun AssetRow(
             .heightIn(min = 48.dp)
     } else Modifier
     Row(
-        modifier = Modifier.fillMaxWidth().then(selection).padding(vertical = AssetRowInset),
+        // 按压色块内 8dp 水平内距：与标题展开行的按压块同语言（内容不贴色块边缘）；
+        // 触摸区（heightIn 48）在 padding 之外不受影响
+        modifier = Modifier.fillMaxWidth().then(selection).padding(horizontal = 8.dp, vertical = AssetRowInset),
         verticalAlignment = Alignment.CenterVertically,
     ) {
         if (selectable) {

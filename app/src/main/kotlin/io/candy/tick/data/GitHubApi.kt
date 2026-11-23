@@ -33,6 +33,9 @@ import okhttp3.Response
  */
 class GitHubApi(private val tokenProvider: () -> String?) {
 
+    /** 匿名限额保护场景的判断（如分支日期的全量拉取）：是否配置了可用令牌 */
+    val hasToken: Boolean get() = !tokenProvider().isNullOrBlank()
+
     private val json = Json { ignoreUnknownKeys = true }
     private val client = OkHttpClient.Builder()
         .connectTimeout(TIMEOUT_S, TimeUnit.SECONDS)
