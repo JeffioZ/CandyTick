@@ -122,7 +122,7 @@
 ### English summary
 
 - Paginated lists such as commit and release history show an end marker with the total count once you scroll to the bottom.
-- The delete-download button aligns with its neighbours in height, and pressed rows share the same rounded highlight and chip styles as the rest of the app.
+- The delete-download button aligns with its neighbors in height, and pressed rows share the same rounded highlight and chip styles as the rest of the app.
 
 ## [0.4.1] - 2026-11-20
 
@@ -312,7 +312,7 @@
 ### English summary
 
 - The detail page can browse other branches and search them by name; swipe a home card left to pin or unpin it.
-- Installing an app auto-links its repository, titles follow the app name, and the header downloads the new version with optional auto-install on completion.
+- Adding a repository auto-links its matching installed app, the title follows the app name, and the header downloads the new version with optional auto-install on completion.
 - Version comparison understands date-plus-hash schemes like `26.11.caccb78` and prereleases such as `2.2.2-rc0`.
 - Deletions dissolve into particles, syncing shows three bouncing dots by the title, and sheets share one slide animation.
 - Fixed hash-bearing versions being reported incomparable, active repositories repeatedly flagged as updated, and all imported repositories lighting up after the first sync.
@@ -336,4 +336,4 @@
 
 ### English summary
 
-- First public release: subscribe to GitHub repositories, browse commits and releases, link installed apps for version checks, architecture-aware APK picks, background sync with notifications, optional token support, search, sort and undo on the home list, backup export and import, self-updates, dark and light themes in Chinese and English.
+- First public release: subscribe to GitHub repositories, browse commits and releases, link installed apps for version checks, architecture-aware APK picks, background sync with notifications, optional token support, search, sort and undo on the home list, backup export and import, self-updates, dark and light themes, and Chinese and English interfaces.

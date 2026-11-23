@@ -64,7 +64,7 @@
     </plurals>
     <string name="open_in_browser">Open in browser</string>
     <string name="copy_repo_link">Copy repository link</string>
-    <string name="copy_repo_link_failed">Couldn\'t copy the repository link</string>
+    <string name="copy_repo_link_failed">Couldn’t copy the repository link</string>
     <string name="detail_remove_repo">Remove repository</string>
     <string name="remove_confirm_title">Remove this repository?</string>
     <string name="remove_confirm_body">CandyTick will stop checking %1$s for updates. Packages downloaded from this repository will be removed the next time you open CandyTick.</string>
@@ -88,7 +88,7 @@
     <string name="card_open_repo_a11y">Open repository</string>
     <string name="preview_repo_a11y">Preview repository</string>
     <string name="card_activity_with_unread">%1$s · %2$s</string>
-    <string name="card_details_failed">Couldn\'t load details</string>
+    <string name="card_details_failed">Couldn’t load details</string>
     <string name="card_refreshing">Refreshing repository details</string>
 
     <!-- 状态五色 + 失效 -->
@@ -110,15 +110,15 @@
     <string name="version_release_label">Latest release</string>
     <string name="version_installed_label">Installed</string>
     <string name="version_local_newer">Newer than release</string>
-    <string name="version_order_unknown">Can\'t compare</string>
+    <string name="version_order_unknown">Can’t compare</string>
 
     <!-- 四类失败 -->
     <string name="err_network">Network unavailable</string>
     <string name="err_timeout">Request timed out</string>
     <string name="err_not_found">Content not found or access denied</string>
-    <string name="err_token_rejected">Token is invalid or lacks access to this repo. Check it in Settings.</string>
-    <string name="err_rate_limited">GitHub request limit reached. Try again %1$s; a token in Settings raises the limit.</string>
-    <string name="err_rate_limited_plain">GitHub request limit reached. Try again later.</string>
+    <string name="err_token_rejected">Token is invalid or lacks access to this repository. Check it in Settings.</string>
+    <string name="err_rate_limited">GitHub rate limit reached. Try again %1$s; a token in Settings raises the limit.</string>
+    <string name="err_rate_limited_plain">GitHub rate limit reached. Try again later.</string>
     <string name="err_http">Request failed (HTTP %1$d)</string>
 
     <!-- 相对时间（过去 → … ago；未来 → in …） -->
@@ -143,7 +143,7 @@
     </plurals>
     <plurals name="rel_minutes">
         <item quantity="one">%d min ago</item>
-        <item quantity="other">%d mins ago</item>
+        <item quantity="other">%d min ago</item>
     </plurals>
     <plurals name="rel_hours">
         <item quantity="one">%d hour ago</item>
@@ -163,7 +163,7 @@
     </plurals>
     <plurals name="rel_minutes_until">
         <item quantity="one">in %d min</item>
-        <item quantity="other">in %d mins</item>
+        <item quantity="other">in %d min</item>
     </plurals>
     <plurals name="rel_hours_until">
         <item quantity="one">in %d hour</item>
@@ -192,16 +192,16 @@
     <string name="branch_empty">This repository has no branches yet</string>
     <string name="branch_load_more">Load more branches</string>
     <string name="branch_search_next">Search the next page</string>
-    <string name="branch_removed_hint">Branch unavailable. Tap to follow the default branch.</string>
+    <string name="branch_removed_hint">Branch unavailable. Tap to switch to the default branch.</string>
 
     <!-- 添加页 -->
-    <string name="add_input_hint">Paste a link or search repositories</string>
+    <string name="add_input_hint">Paste a link or search</string>
     <string name="add_parse_error">Enter a GitHub repository URL or owner/repo</string>
     <string name="add_search_failed">Search failed</string>
     <string name="add_preview_failed">Couldn’t load repository details</string>
     <string name="add_search_empty">No repositories found</string>
     <string name="add_search_empty_hint">Try a different keyword or paste a repository link.</string>
-    <string name="picker_search_app">Search by app name or package name</string>
+    <string name="picker_search_app">Search apps or packages</string>
     <string name="picker_no_match">No matching apps</string>
     <string name="clear_input">Clear input</string>
     <string name="add_guide_title">Paste a repository link, or search by keyword</string>
@@ -281,9 +281,9 @@
     <string name="notif_channel_release">Repository releases</string>
     <string name="notif_channel_repo_download">Downloaded packages</string>
     <string name="notif_repo_download_ready">Package for %1$s downloaded. Tap to view.</string>
-    <string name="notif_channel_release_desc">Notifies you when a repository you follow releases a new APK.</string>
+    <string name="notif_channel_release_desc">Notifies you when a subscribed repository releases a new APK.</string>
     <string name="notif_channel_update">CandyTick updates</string>
-    <string name="notif_channel_update_desc">When a CandyTick update is ready to install</string>
+    <string name="notif_channel_update_desc">Notifies you when a CandyTick update is ready to install</string>
     <string name="notif_new_release">New release: %1$s</string>
     <plurals name="notif_updates_summary">
         <item quantity="one">%1$d repository has a new release</item>
@@ -294,26 +294,26 @@
     <string name="notif_channel_sync">Background sync</string>
     <string name="notif_channel_sync_desc">Shown while repositories sync in the background.</string>
     <string name="notif_syncing_repos">Syncing repositories</string>
-    <string name="open_failed">Couldn\'t open the link</string>
+    <string name="open_failed">Couldn’t open the link</string>
     <string name="picker_empty_apps">No apps available to link</string>
 
     <!-- 设置页 -->
     <string name="settings_appearance">Appearance</string>
     <string name="action_search">Search</string>
-    <string name="search_hint">Search subscribed repositories</string>
+    <string name="search_hint">Search subscriptions</string>
     <string name="search_no_results">No matching repositories</string>
-    <string name="search_no_results_hint">Try a shorter keyword or check the spelling</string>
+    <string name="search_no_results_hint">Try a shorter keyword or check the spelling.</string>
     <string name="close_search">Close search</string>
     <string name="search_clear">Clear search</string>
     <string name="toast_subscription_added">Subscription added</string>
     <string name="empty_import">Import subscriptions</string>
     <string name="settings_backup_group">Data</string>
     <string name="settings_export">Export subscriptions</string>
-    <string name="settings_export_summary">Share a JSON backup. Small backups are also copied.</string>
+    <string name="settings_export_summary">Share a JSON backup; small ones copy too</string>
     <string name="export_unavailable">Subscriptions aren’t ready; export cancelled</string>
     <string name="state_corrupt_notice">Local data was unreadable; subscriptions were reset (a backup copy was kept)</string>
     <string name="settings_import">Import subscriptions</string>
-    <string name="settings_import_summary">Import a backup from a file or the clipboard</string>
+    <string name="settings_import_summary">Import from a file or the clipboard</string>
     <plurals name="import_result">
         <item quantity="one">Imported %1$d repository</item>
         <item quantity="other">Imported %1$d repositories</item>
@@ -325,10 +325,10 @@
     <string name="settings_theme_mode">Theme</string>
     <string name="settings_sync_and_notify">Sync &amp; notifications</string>
     <string name="settings_sync_frequency">Sync frequency</string>
-    <string name="settings_sync_wifi_only">Pause auto-sync on metered networks</string>
-    <string name="settings_sync_wifi_only_summary">You can still pull to refresh on mobile data.</string>
+    <string name="settings_sync_wifi_only">Pause auto-sync on data</string>
+    <string name="settings_sync_wifi_only_summary">Pull to refresh still works</string>
     <string name="settings_token_row">GitHub token</string>
-    <string name="settings_token_hint_short">Raises the API request limit</string>
+    <string name="settings_token_hint_short">Raises the API rate limit</string>
     <string name="token_input_hint">Paste a token</string>
     <string name="token_set">Set</string>
     <string name="token_unset">Not set</string>
@@ -345,7 +345,7 @@
     <string name="token_hide">Hide token</string>
     <string name="download_update_action">Download update</string>
     <string name="settings_auto_install">Open installer after download</string>
-    <string name="settings_auto_install_summary">APKs and CandyTick updates</string>
+    <string name="settings_auto_install_summary">Packages and CandyTick updates</string>
     <string name="token_verified">Token verified</string>
     <string name="token_invalid_short">Invalid token. Check it and try again.</string>
     <string name="token_network_error">Couldn’t verify the token. Check your connection and try again.</string>
@@ -355,19 +355,19 @@
 
     <!-- 权限 -->
     <string name="settings_perm_install_unknown">App installation permission</string>
-    <string name="settings_perm_install_summary">Allow CandyTick to install unknown apps</string>
+    <string name="settings_perm_install_summary">Allow installing unknown apps</string>
     <string name="settings_perm_notifications">Notification permission</string>
     <string name="perm_granted">Granted</string>
     <string name="perm_not_granted">Not granted</string>
-    <string name="system_settings_unavailable">Couldn\'t open system settings</string>
-    <string name="share_unavailable">Couldn\'t open the share menu</string>
-    <string name="file_picker_unavailable">Couldn\'t open the file picker</string>
+    <string name="system_settings_unavailable">Couldn’t open system settings</string>
+    <string name="share_unavailable">Couldn’t open the share menu</string>
+    <string name="file_picker_unavailable">Couldn’t open the file picker</string>
     <string name="detail_need_install_permission">Allow CandyTick to install unknown apps in system settings, then try again.</string>
     <string name="settings_app_updates">Updates and installation</string>
     <string name="settings_current_version_title">Check for updates</string>
-    <string name="settings_self_update_check">Check for CandyTick updates automatically</string>
-    <string name="settings_self_update_download">Download CandyTick updates automatically</string>
-    <string name="settings_self_update_download_requires_check">Available when automatic update checks are on</string>
+    <string name="settings_self_update_check">Auto-check for app updates</string>
+    <string name="settings_self_update_download">Auto-download app updates</string>
+    <string name="settings_self_update_download_requires_check">Available when auto-check is on</string>
     <string name="settings_checking">Checking…</string>
     <string name="settings_install_update">Install downloaded update</string>
     <string name="settings_update_failed">Update check failed</string>
@@ -385,7 +385,7 @@
     <string name="settings_license">License</string>
     <string name="settings_cache_summary">Downloaded packages and crash logs</string>
     <string name="settings_cache_cleanup">Clear cache</string>
-    <string name="settings_cache_apk">Downloaded APKs</string>
+    <string name="settings_cache_apk">Downloaded packages</string>
     <string name="settings_cache_crash_log">Crash log</string>
     <string name="settings_cache_scanning">Scanning cache</string>
     <string name="settings_cache_cleaning">Clearing cache</string>

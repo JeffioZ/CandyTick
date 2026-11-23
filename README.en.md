@@ -2,7 +2,7 @@
 
 # CandyTick
 
-<p><strong>Follow GitHub repositories on Android, browse commits and releases, and find updates for your installed apps.</strong></p>
+<p><strong>Subscribe to GitHub repositories on Android, browse commits and releases, and find updates for your installed apps.</strong></p>
 
 <p>Subscribe to public repositories without an account, browse commits by branch,<br>read release notes, and get notified when a new version is published.</p>
 
@@ -27,10 +27,10 @@
 ## 🏠 Home
 
 <p align="center"><sub>Subscribed repositories appear as cards that keep your reading position across refreshes.<br>
-Sort five ways — recent pushes, available updates, activity, and more — each with a reverse order.</sub></p>
+Sort five ways — recent pushes, available updates, activity, and more — each reversible.</sub></p>
 
 <p align="center">
-  <a href="docs/fastlane/metadata/android/en-US/images/phoneScreenshots/1.png"><img src="docs/fastlane/metadata/android/en-US/images/phoneScreenshots/1.png" alt="Home screen in light mode showing followed repositories and their activity levels" width="42%"></a>
+  <a href="docs/fastlane/metadata/android/en-US/images/phoneScreenshots/1.png"><img src="docs/fastlane/metadata/android/en-US/images/phoneScreenshots/1.png" alt="Home screen in light mode showing subscribed repositories and their activity levels" width="42%"></a>
   &ensp;
   <a href="docs/fastlane/metadata/android/en-US/images/phoneScreenshots/2.png"><img src="docs/fastlane/metadata/android/en-US/images/phoneScreenshots/2.png" alt="The same repository list in dark mode" width="42%"></a>
 </p>
@@ -44,7 +44,7 @@ Sort five ways — recent pushes, available updates, activity, and more — each
 | 📲 | **Update apps** | Matches each repository to its installed app and compares versions; when a release has several packages, recommends the right one for your device. |
 | 🔔 | **Notifications** | Background sync checks for new packages and notifies you; automatic checks can wait for unmetered networks. |
 | 📌 | **Organize** | Pin what you check often, search by name, sort by activity or available updates, and undo a deletion. |
-| 💾 | **Backup** | Export subscriptions as JSON and import them on another device; repositories you already follow are skipped. |
+| 💾 | **Backup** | Export subscriptions as JSON and import them on another device; repositories you already subscribe to are skipped. |
 
 **Small by design:** CandyTick needs no account and no cloud service — all data stays on your device. Anonymous requests are limited to 60 per hour; adding a [GitHub token](https://docs.github.com/en/rest/using-the-rest-api/rate-limits-for-the-rest-api) in Settings raises it to 5,000.
 
