@@ -478,6 +478,10 @@ private data class GhRepo(
     val default_branch: String? = null,
     val stargazers_count: Int = 0,
     val owner: GhOwner = GhOwner(),
+    val forks_count: Int = 0,
+    val open_issues_count: Int = 0,
+    val license: GhLicense? = null,
+    val html_url: String = "",
 ) {
     fun toInfo(owner: String, repo: String, etag: String?) = RepoInfo(
         githubId = id,
@@ -489,11 +493,19 @@ private data class GhRepo(
         description = description,
         etag = etag,
         defaultBranch = default_branch,
+        forks = forks_count,
+        openIssues = open_issues_count,
+        license = license?.spdx_id,
+        ownerAvatar = this.owner.avatar_url,
+        htmlUrl = html_url,
     )
 }
 
 @Serializable
-private data class GhOwner(val login: String = "")
+private data class GhOwner(val login: String = "", val avatar_url: String? = null)
+
+@Serializable
+private data class GhLicense(val spdx_id: String? = null)
 
 @Serializable
 private data class GhCommit(

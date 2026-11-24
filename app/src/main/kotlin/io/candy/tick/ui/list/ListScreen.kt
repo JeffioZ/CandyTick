@@ -1,5 +1,6 @@
 package io.candy.tick.ui.list
 
+import android.view.ViewTreeObserver
 import androidx.compose.animation.AnimatedContent
 import androidx.compose.animation.EnterTransition
 import androidx.compose.animation.ExitTransition
@@ -37,6 +38,7 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.produceState
 import androidx.compose.runtime.getValue
@@ -55,6 +57,7 @@ import androidx.compose.ui.layout.layout
 import androidx.compose.ui.layout.layoutBounds
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalResources
+import androidx.compose.ui.platform.LocalView
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.semantics.clearAndSetSemantics
 import androidx.compose.ui.unit.dp
@@ -62,9 +65,12 @@ import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.lifecycle.compose.currentStateAsState
 import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.repeatOnLifecycle
+import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.delay
-import kotlinx.coroutines.flow.collectLatest
+import kotlinx.coroutines.flow.combine
+import kotlinx.coroutines.flow.distinctUntilChanged
 import kotlinx.coroutines.flow.first
+import kotlinx.coroutines.flow.transformLatest
 import androidx.lifecycle.viewmodel.compose.viewModel
 import io.candy.tick.CandyTickApp
 import io.candy.tick.R
@@ -75,6 +81,7 @@ import io.candy.tick.ui.common.clearTextFieldAction
 import io.candy.tick.ui.common.scrollToTop
 import top.yukonga.miuix.kmp.basic.Icon
 import top.yukonga.miuix.kmp.basic.MiuixScrollBehavior
+import top.yukonga.miuix.kmp.basic.RefreshState
 import top.yukonga.miuix.kmp.basic.Scaffold
 import top.yukonga.miuix.kmp.basic.SmallTopAppBar
 import io.candy.tick.ui.common.TopBarActionRow
@@ -90,6 +97,16 @@ import io.candy.tick.ui.common.rememberMotionEnabled
 private class SortSheetSession(val initial: SortOrder) {
     var open by mutableStateOf(true)
     var selected by mutableStateOf(initial)
+}
+
+internal class CardReadViewport {
+    val bounds = LayoutBoundsHolder()
+    var focusInterval by mutableStateOf<Any?>(null)
+        private set
+
+    fun onWindowFocusChanged(focused: Boolean) {
+        focusInterval = if (focused) focusInterval ?: Any() else null
+    }
 }
 
 @Composable
@@ -109,7 +126,18 @@ fun ListScreen(
     // 从安装器返回（ON_RESUME）：本机版本可能已变（装完新 APK），通知 VM 重算版本对比
     val lifecycleOwner = androidx.lifecycle.compose.LocalLifecycleOwner.current
     val lifecycleState by lifecycleOwner.lifecycle.currentStateAsState()
-    val listBounds = remember { LayoutBoundsHolder() }
+    val view = LocalView.current
+    val readViewport = remember(view) { CardReadViewport() }
+    DisposableEffect(view, readViewport) {
+        // A dialog or notification shade can take window focus while the Activity stays resumed.
+        val listener = ViewTreeObserver.OnWindowFocusChangeListener(readViewport::onWindowFocusChanged)
+        view.viewTreeObserver.addOnWindowFocusChangeListener(listener)
+        readViewport.onWindowFocusChanged(view.hasWindowFocus())
+        onDispose {
+            view.viewTreeObserver.removeOnWindowFocusChangeListener(listener)
+            readViewport.onWindowFocusChanged(false)
+        }
+    }
     var sortSheet by remember(vm) { mutableStateOf<SortSheetSession?>(null) }
     var keepReadingOrder by remember(vm) { mutableStateOf(false) }
     androidx.compose.runtime.DisposableEffect(lifecycleOwner, vm) {
@@ -172,19 +200,21 @@ fun ListScreen(
     // 时机：等首页把这一轮的结果落实完再报数。最典型的是「打开 App 时后台同步在跑、用户又下拉刷新」：
     // 这一轮归下拉接管，同步一结束提示就到，而下拉头还在收、名次还没切（名次在刷新期间保持旧的，
     // 刷新结束才切到最新，经后台线程回到界面要几帧）。先等下拉刷新收尾、行位移动画走完，
-    // 再留出下拉头收起的时间，最后才弹
+    // 下拉头实际回到原位后才弹。
+    val pullState = if (state.items.isEmpty()) null else rememberPullToRefreshState()
+    val currentPull by rememberUpdatedState(pullState)
     val currentRows by rememberUpdatedState(rows)
     LaunchedEffect(syncResult) {
         val d = syncResult ?: return@LaunchedEffect
-        // 下拉刷新进行中：这一轮归下拉接管，等它收尾（名次要到这时才切到最新）
-        var afterPull = vm.manualRefresh.value
-        while (true) {
-            snapshotFlow { vm.manualRefresh.value || currentRows.motion?.active == true }.first { !it }
-            delay(if (afterPull) SYNC_RESULT_SETTLE_AFTER_PULL_MS else SYNC_RESULT_SETTLE_MS)
-            // 等待期间用户又开始下拉：接着等这一轮收尾再报，免得胶囊盖在刚出现的下拉头上
-            if (!vm.manualRefresh.value) break
-            afterPull = true
+        if (d.changed == 0 && d.failed == 0) return@LaunchedEffect
+        awaitSyncFeedback(vm) {
+            val pull = currentPull
+            currentRows.motion?.active != true &&
+                (pull == null || (pull.refreshState == RefreshState.Idle && pull.dragOffset <= 0f))
         }
+        if (lifecycleOwner.lifecycle.currentState != Lifecycle.State.RESUMED ||
+            vm.titleSync.interruptedRun === d.run || vm.syncStatus.value !== d
+        ) return@LaunchedEffect
         when {
             d.allFailed -> io.candy.tick.ui.common.Feedback.show(
                 text = if (d.rateLimited) {
@@ -216,7 +246,6 @@ fun ListScreen(
         }
     }
     val scrollBehavior = MiuixScrollBehavior(rememberTopAppBarState())
-    val pullState = rememberPullToRefreshState()
     var showSearch by androidx.compose.runtime.saveable.rememberSaveable { mutableStateOf(false) }
     val searchVisibility = remember { MutableTransitionState(showSearch) }.apply { targetState = showSearch }
     // Capture the populated viewport once, before the field starts taking space.
@@ -532,7 +561,7 @@ fun ListScreen(
                     // 内容切换（空态 ⇄ 列表）：直接切换——Crossfade 包裹与行动画/布局系统
                     // 交互后真机出现「首仓库卡片沉到屏底」（回归），润色不值得这个风险。
                     // 语义修复保留：判空只看 items（此前含 !refreshing，空列表下拉刷新会闪切）
-                    if (state.items.isEmpty()) {
+                    if (pullState == null) {
                         BoxWithConstraints(Modifier.weight(1f).fillMaxWidth()) {
                             val viewport = Modifier.fillMaxWidth()
                                 .verticalScroll(emptyScroll)
@@ -567,7 +596,7 @@ fun ListScreen(
                         ) {
                         LazyColumn(
                             state = listState,
-                            modifier = Modifier.fillMaxSize().layoutBounds(listBounds).then(
+                            modifier = Modifier.fillMaxSize().layoutBounds(readViewport.bounds).then(
                                 if (openingListHeight > 0 && !searchVisibility.isIdle) {
                                     Modifier.holdOpeningViewport(openingListHeight)
                                 } else Modifier,
@@ -606,11 +635,9 @@ fun ListScreen(
                                     updatable = item.repo.id in state.updatableIds,
                                     onToggle = { vm.toggleExpand(item.repo.id) },
                                     onClick = { leaveHome { onOpenDetail(item.repo.id) } },
-                                    readViewport = listBounds.takeIf {
-                                        lifecycleState == Lifecycle.State.RESUMED && sortSheet == null && !holdOrder
-                                    },
-                                    onReleaseSeen = { vm.markReleaseSeen(item.repo.id, it) },
-                                    onCommitSeen = { sha, isHead -> vm.markCommitSeen(item.repo.id, sha, isHead) },
+                                    readViewport = readViewport.takeIf { sortSheet == null && !holdOrder },
+                                    onReleaseSeen = { tag, unread -> vm.markReleaseSeen(item.repo, tag, unread) },
+                                    onCommitSeen = { sha, unread -> vm.markCommitSeen(item, sha, unread) },
                                     onRetryExtras = { vm.retryCard(item.repo.id) },
                                 )
                             }
@@ -663,12 +690,19 @@ fun ListScreen(
  */
 private const val SYNC_RESULT_SETTLE_MS = 300L
 
-/**
- * 下拉刷新刚收尾时的等待，按最坏情况取：下拉头收起 = 最短驻留最多 300ms（CandyPullToRefresh）
- * + 库的完成动画 200ms（PullToRefresh）。最坏情况（下拉刚开始同步就结束）胶囊仍在下拉头收起之后；
- * 常见情况下拉头收起后约 300ms 胶囊才出现
- */
-private const val SYNC_RESULT_SETTLE_AFTER_PULL_MS = 500L
+/** 下拉和行位移都结束后才开始计时；等待期间再次拉动或重排会重新计时。 */
+@OptIn(ExperimentalCoroutinesApi::class)
+private suspend fun awaitSyncFeedback(vm: ListViewModel, layoutSettled: () -> Boolean) {
+    val settled = combine(vm.manualRefresh, snapshotFlow(layoutSettled)) { refreshing, idle -> !refreshing && idle }
+    do {
+        settled.distinctUntilChanged().transformLatest { idle ->
+            if (idle) {
+                delay(SYNC_RESULT_SETTLE_MS)
+                emit(Unit)
+            }
+        }.first()
+    } while (vm.manualRefresh.value || !layoutSettled())
+}
 
 /** Slide a scrollable list with the field; clip its lower edge until the final viewport is known. */
 private fun Modifier.holdOpeningViewport(height: Int): Modifier = clipToBounds().layout { measurable, constraints ->
@@ -684,14 +718,10 @@ private fun rememberSyncResult(vm: ListViewModel, lifecycle: Lifecycle): SyncSta
         lifecycle.repeatOnLifecycle(Lifecycle.State.RESUMED) {
             var observed: SyncStatus.Running? = null
             try {
-                vm.syncStatus.collectLatest { status ->
+                vm.syncStatus.collect { status ->
                     val completed = (status as? SyncStatus.Done)?.takeIf { it.run === observed }
                     observed = status as? SyncStatus.Running
                     value = completed
-                    if (completed != null) {
-                        delay(if (completed.changed > 0 || completed.failed > 0) 4_000L else 2_000L)
-                        value = null
-                    }
                 }
             } finally {
                 value = null

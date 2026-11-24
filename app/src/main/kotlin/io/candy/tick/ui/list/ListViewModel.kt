@@ -364,19 +364,16 @@ class ListViewModel(
         previews.values.joinAll()
     }
 
-    fun markReleaseSeen(id: Long, tag: String) {
+    fun markReleaseSeen(repo: TrackedRepo, tag: String, displayedUnread: Set<String>) {
         viewModelScope.launch {
-            // 展开面板的版本行呈现的是「当前版本状态」：看到它即视为看过更早的全部未读
-            // release——此前只清最新一个，积压的未读必须进详情页才能清掉
-            val unread = repository.state.value.snapshots[id]?.activity?.unreadReleaseTags.orEmpty()
-            val tags = if (tag in unread) unread else setOf(tag)
-            repository.markActivityRead(id, releaseTags = tags, visibleReleaseHead = tag)
+            repository.markCardReleaseSeen(repo, tag, displayedUnread)
         }
     }
 
-    fun markCommitSeen(id: Long, sha: String, isHead: Boolean) {
+    fun markCommitSeen(item: RepoListItem, sha: String, displayedUnread: Set<String>) {
+        val branch = item.repo.branch ?: item.snapshot?.defaultBranch
         viewModelScope.launch {
-            repository.markActivityRead(id, commitShas = setOf(sha), visibleCommitHead = sha.takeIf { isHead })
+            repository.markCardCommitSeen(item.repo, branch, sha, displayedUnread)
         }
     }
 

@@ -351,6 +351,7 @@
     <string name="settings_self_update_download_requires_check">开启自动检查后可用</string>
     <string name="settings_checking">正在检查…</string>
     <string name="settings_install_update">安装已下载的更新</string>
+    <string name="self_update_install_saved_version">安装已下载的 %1$s</string>
     <string name="settings_update_failed">检查更新失败</string>
     <string name="settings_download_failed">下载失败</string>
     <string name="settings_install_failed">安装失败</string>

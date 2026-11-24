@@ -15,6 +15,7 @@ import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.key
 import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
@@ -66,6 +67,7 @@ fun UpdateSheet(selfUpdater: SelfUpdater) {
     var show by rememberSaveable { mutableStateOf(false) }
     var dismissedTag by rememberSaveable { mutableStateOf<String?>(null) }
     val scope = rememberCoroutineScope()
+    var lastCheck by remember(show) { mutableStateOf<Pair<SelfUpdater.State.Downloaded, SelfUpdater.State>?>(null) }
 
     LaunchedEffect(state is SelfUpdater.State.Idle) {
         if (state is SelfUpdater.State.Idle) show = false
@@ -201,14 +203,33 @@ fun UpdateSheet(selfUpdater: SelfUpdater) {
                         }
                         is SelfUpdater.State.Downloading -> DownloadProgress(phase.progress)
                         is SelfUpdater.State.Downloaded -> {
+                            val checked = lastCheck?.takeIf { it.first == phase }?.second
                             Text(
-                                text = phase.tag,
+                                text = if (checked == phase) stringResource(R.string.version_latest_only, phase.tag) else phase.tag,
                                 style = MonoTokenStyle.copy(fontWeight = FontWeight.Bold),
                                 color = MiuixTheme.colorScheme.primaryVariant,
                             )
+                            if (checked is SelfUpdater.State.Failed) {
+                                InlineErrorRow(
+                                    message = stringResource(
+                                        if (checked.reason == SelfUpdater.Reason.RATE_LIMITED) R.string.err_rate_limited_plain
+                                        else R.string.settings_update_failed,
+                                    ),
+                                    onRetry = null,
+                                )
+                            }
                             PrimaryButton(
                                 text = stringResource(R.string.settings_install_update),
-                                onClick = { runAction { selfUpdater.install(phase.file) } },
+                                onClick = { runAction { selfUpdater.installDownloaded(phase) } },
+                                modifier = Modifier.fillMaxWidth(),
+                            )
+                            SecondaryButton(
+                                text = stringResource(R.string.settings_current_version_title),
+                                onClick = { runAction {
+                                    lastCheck = null
+                                    val result = selfUpdater.recheckDownloaded(phase)
+                                    if (result != null && selfUpdater.state.value == phase) lastCheck = phase to result
+                                } },
                                 modifier = Modifier.fillMaxWidth(),
                             )
                         }
@@ -229,16 +250,24 @@ fun UpdateSheet(selfUpdater: SelfUpdater) {
                                 onRetry = null,
                             )
                             when (f.reason) {
-                                // 下载失败：文件已清理，重试从零下
-                                SelfUpdater.Reason.DOWNLOAD -> PrimaryButton(
-                                    text = stringResource(R.string.retry),
-                                    onClick = { runAction { selfUpdater.requestManualDownload(f) } },
-                                    modifier = Modifier.fillMaxWidth(),
-                                )
+                                SelfUpdater.Reason.DOWNLOAD -> {
+                                    PrimaryButton(
+                                        text = stringResource(R.string.retry),
+                                        onClick = { runAction { selfUpdater.requestManualDownload(f) } },
+                                        modifier = Modifier.fillMaxWidth(),
+                                    )
+                                    f.downloaded?.let { saved ->
+                                        SecondaryButton(
+                                            text = stringResource(R.string.self_update_install_saved_version, saved.tag),
+                                            onClick = { runAction { selfUpdater.installDownloaded(f) } },
+                                            modifier = Modifier.fillMaxWidth(),
+                                        )
+                                    }
+                                }
                                 // 安装失败：安装包已保留，直接重装
                                 SelfUpdater.Reason.INSTALL -> PrimaryButton(
                                     text = stringResource(R.string.settings_install_update),
-                                    onClick = { runAction { f.file?.let(selfUpdater::install) } },
+                                    onClick = { runAction { selfUpdater.installDownloaded(f) } },
                                     modifier = Modifier.fillMaxWidth(),
                                 )
                                 SelfUpdater.Reason.NETWORK -> PrimaryButton(

@@ -32,12 +32,7 @@ class UpdateDownloadWorker(context: Context, params: WorkerParameters) : Corouti
                 // 每轮自更新检查重入一次；本进程内安装失败过的 tag 不再补装（防通知轰炸，用户可经弹窗手动重试）
                 val downloaded = updater.state.value as? SelfUpdater.State.Downloaded
                 if (downloaded != null) {
-                    val current = container.appStateStore.state.value.settings
-                    if (current.autoInstallDownload && updater.canInstallSilently() &&
-                        updater.canRetrySilentInstall(downloaded.tag) && downloaded.file.isFile
-                    ) {
-                        updater.installSilently(downloaded.file)
-                    }
+                    updater.installAutomatically(downloaded)
                     return Result.success()
                 }
                 val failed = updater.state.value as? SelfUpdater.State.Failed
@@ -48,20 +43,19 @@ class UpdateDownloadWorker(context: Context, params: WorkerParameters) : Corouti
             }
             newState = updater.state.value as? SelfUpdater.State.NewVersion ?: return Result.success()
         }
-        val asset = newState.asset ?: return Result.success()
-        if (newState.incomparable) return Result.success()
+        if (newState.asset == null || newState.incomparable) return Result.success()
 
-        val file = updater.downloadAutomatically(asset) ?: return when {
+        val downloaded = updater.downloadAutomatically(newState) ?: return when {
             !container.appStateStore.state.value.settings.canAutoDownloadUpdate -> Result.success()
             updater.state.value is SelfUpdater.State.Downloaded -> Result.success()
             runAttemptCount < 2 -> Result.retry()
             else -> Result.failure()
         }
-        val current = container.appStateStore.state.value.settings
-        if (current.canAutoDownloadUpdate && current.autoInstallDownload && updater.canInstallSilently()) {
-            updater.installSilently(file)
-        } else if (current.notificationsEnabled) {
-            Notifications.notifySelfUpdateReady(applicationContext.forAppLanguage(current.language), newState.tag)
+        if (!updater.installAutomatically(downloaded)) {
+            val current = container.appStateStore.state.value.settings
+            if (current.notificationsEnabled && updater.state.value == downloaded) {
+                Notifications.notifySelfUpdateReady(applicationContext.forAppLanguage(current.language), downloaded.tag)
+            }
         }
         return Result.success()
     }

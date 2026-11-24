@@ -136,7 +136,13 @@ fun SyncDots(
         } else {
             if (phase is SyncStatus.Running) waitForMinimumDisplay(shownAt)
             // A quick sync can finish before its dots appear. Only conclude a wave the user saw.
-            phase = result?.takeIf { it.run === revealedRun } ?: SyncStatus.Idle
+            val completed = result?.takeIf { it.run === revealedRun }
+            phase = completed ?: SyncStatus.Idle
+            if (completed != null) {
+                // This timer belongs to the title icon. Feedback can still be waiting for a pull to settle.
+                delay(if (completed.changed > 0 || completed.failed > 0) 4_000L else 2_000L)
+                phase = SyncStatus.Idle
+            }
         }
     }
 

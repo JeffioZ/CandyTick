@@ -146,6 +146,12 @@ data class RepoSnapshot(
     val releaseBaselineKnown: Boolean = false, // 成功查过空列表后，首次发布也算新版本。
     val activity: RepoActivity = RepoActivity(),
     val latestApk: ApkPublication? = null,
+    // v0.5.1 requires all five keys when reopening the persisted subscription state.
+    val forks: Int = 0,
+    val openIssues: Int = 0,
+    val license: String? = null,
+    val ownerAvatar: String? = null,
+    val htmlUrl: String = "",
 ) {
     val currentReleaseTag: String? get() = latestApk?.tag ?: latestReleaseTag
 }

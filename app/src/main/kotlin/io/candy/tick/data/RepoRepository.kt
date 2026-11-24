@@ -91,9 +91,31 @@ class RepoRepository(
         commitShas: Set<String> = emptySet(),
         visibleReleaseHead: String? = null,
         visibleCommitHead: String? = null,
-    ) = store.update { s ->
+    ) = updateActivity(id) { _, snapshot ->
+        snapshot.activity.markRead(releaseTags, commitShas, visibleReleaseHead, visibleCommitHead)
+    }
+
+    /** The card summarizes the batch that was on screen. A newer head can arrive before this write. */
+    suspend fun markCardReleaseSeen(repo: TrackedRepo, tag: String, displayedUnread: Set<String>) =
+        updateActivity(repo.id) { tracked, snapshot ->
+            if (tracked.addedAt != repo.addedAt) return@updateActivity snapshot.activity
+            val older = if (snapshot.currentReleaseTag == tag) displayedUnread - tag else emptySet()
+            snapshot.activity.markRead(older, emptySet(), visibleReleaseHead = tag, visibleCommitHead = null)
+        }
+
+    suspend fun markCardCommitSeen(repo: TrackedRepo, branch: String?, sha: String, displayedUnread: Set<String>) =
+        updateActivity(repo.id) { tracked, snapshot ->
+            if (tracked.addedAt != repo.addedAt || tracked.branch != repo.branch ||
+                (tracked.branch ?: snapshot.defaultBranch) != branch
+            ) return@updateActivity snapshot.activity
+            val older = if (snapshot.lastCommitSha == sha) displayedUnread - sha else emptySet()
+            snapshot.activity.markRead(emptySet(), older, visibleReleaseHead = null, visibleCommitHead = sha)
+        }
+
+    private suspend fun updateActivity(id: Long, transform: (TrackedRepo, RepoSnapshot) -> RepoActivity) = store.update { s ->
+        val tracked = s.repos.firstOrNull { it.id == id } ?: return@update s
         val snapshot = s.snapshots[id] ?: return@update s
-        val activity = snapshot.activity.markRead(releaseTags, commitShas, visibleReleaseHead, visibleCommitHead)
+        val activity = transform(tracked, snapshot)
         if (activity === snapshot.activity) s else s.copy(snapshots = s.snapshots + (id to snapshot.copy(activity = activity)))
     }
 

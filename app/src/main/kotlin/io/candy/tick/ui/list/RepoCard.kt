@@ -19,19 +19,26 @@ import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.key
+import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberUpdatedState
+import androidx.compose.runtime.setValue
+import androidx.compose.runtime.snapshotFlow
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.alpha
 import androidx.compose.ui.draw.clip
-import androidx.compose.ui.layout.LayoutBoundsHolder
 import androidx.compose.ui.layout.onVisibilityChanged
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.semantics.stateDescription
 import androidx.compose.ui.unit.dp
+import androidx.lifecycle.Lifecycle
+import androidx.lifecycle.compose.LocalLifecycleOwner
+import androidx.lifecycle.repeatOnLifecycle
 import io.candy.tick.R
 import io.candy.tick.ui.common.InlineErrorRow
 import io.candy.tick.ui.common.InaccessibleBadge
@@ -49,18 +56,22 @@ import androidx.compose.ui.res.vectorResource
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.graphics.vector.ImageVector
 import io.candy.tick.ui.common.Motion
+import kotlinx.coroutines.coroutineScope
+import kotlinx.coroutines.delay
+import kotlinx.coroutines.flow.collectLatest
+import kotlinx.coroutines.launch
 
 /** 首页仓库卡片：图标 + 名称 + 徽章 + 相对时间；展开显示提交与版本行 */
 @Composable
-fun RepoCard(
+internal fun RepoCard(
     item: ListViewModel.RepoListItem,
     extras: ListViewModel.CardExtras?,
     expanded: Boolean,
     onToggle: () -> Unit,
     onClick: () -> Unit,
-    readViewport: LayoutBoundsHolder?,
-    onReleaseSeen: (String) -> Unit,
-    onCommitSeen: (String, Boolean) -> Unit,
+    readViewport: CardReadViewport?,
+    onReleaseSeen: (String, Set<String>) -> Unit,
+    onCommitSeen: (String, Set<String>) -> Unit,
     modifier: Modifier = Modifier,
     pageRefreshing: Boolean = false,
     isChanged: Boolean = false,
@@ -301,9 +312,9 @@ private fun ExpandedDetails(
     extras: ListViewModel.CardExtras?,
     releaseTag: String?,
     onRetry: (() -> Unit)?,
-    readViewport: LayoutBoundsHolder?,
-    onReleaseSeen: (String) -> Unit,
-    onCommitSeen: (String, Boolean) -> Unit,
+    readViewport: CardReadViewport?,
+    onReleaseSeen: (String, Set<String>) -> Unit,
+    onCommitSeen: (String, Set<String>) -> Unit,
 ) {
     val scheme = MiuixTheme.colorScheme
     val activity = item.snapshot?.activity
@@ -337,11 +348,14 @@ private fun ExpandedDetails(
         }
         if (extras?.load != ListViewModel.CardLoad.INITIAL) {
             extras?.commits?.take(3)?.forEachIndexed { index, commit ->
-                key(commit.sha) {
+                // 只有与当前快照一致的首行代表积压。预览落后或首行不在屏内时，仍逐行确认。
+                val head = index == 0 && commit.sha == item.snapshot?.lastCommitSha
+                val batch = if (head) activity?.unreadCommitShas.orEmpty() else emptySet()
+                key(item.repo.addedAt, item.repo.branch, item.repo.branch ?: item.snapshot?.defaultBranch, commit.sha, head) {
                     val observe = activity != null && (commit.sha in activity.unreadCommitShas ||
-                        (index == 0 && commit.sha !in activity.recentlyViewedCommits))
+                        batch.isNotEmpty() || (index == 0 && commit.sha !in activity.recentlyViewedCommits))
                     Row(
-                        modifier = Modifier.whenRowSeen(readViewport.takeIf { observe }) { onCommitSeen(commit.sha, index == 0) },
+                        modifier = Modifier.whenRowSeen(readViewport.takeIf { observe }, batch) { onCommitSeen(commit.sha, it) },
                         verticalAlignment = Alignment.CenterVertically,
                     ) {
                         Text(
@@ -362,20 +376,66 @@ private fun ExpandedDetails(
         }
 
         // 版本行：最新 release vs 本机版本（与详情页头部共用组件，口径一致）
-        if (releaseTag != null) key(releaseTag) {
-            val observe = activity != null && (releaseTag in activity.unreadReleaseTags ||
-                releaseTag !in activity.recentlyViewedReleases)
-            VersionStatusLine(
-                remoteTag = releaseTag,
-                installed = item.installedVersion,
-                comparison = item.comparisonFor(releaseTag),
-                modifier = Modifier.whenRowSeen(readViewport.takeIf { observe }) { onReleaseSeen(releaseTag) },
-            )
+        if (releaseTag != null) {
+            val head = releaseTag == item.snapshot?.currentReleaseTag
+            val batch = if (head) activity?.unreadReleaseTags.orEmpty() else emptySet()
+            key(item.repo.addedAt, releaseTag, head) {
+                val observe = activity != null && (batch.isNotEmpty() || releaseTag in activity.unreadReleaseTags ||
+                    releaseTag !in activity.recentlyViewedReleases)
+                VersionStatusLine(
+                    remoteTag = releaseTag,
+                    installed = item.installedVersion,
+                    comparison = item.comparisonFor(releaseTag),
+                    modifier = Modifier.whenRowSeen(readViewport.takeIf { observe }, batch) { onReleaseSeen(releaseTag, it) },
+                )
+            }
         }
     }
 }
 
-private fun Modifier.whenRowSeen(viewport: LayoutBoundsHolder?, onSeen: () -> Unit): Modifier =
-    if (viewport == null) this else onVisibilityChanged(250L, 1f, viewport) { visible ->
-        if (visible) onSeen()
+@Composable
+private fun Modifier.whenRowSeen(
+    viewport: CardReadViewport?,
+    batch: Set<String>,
+    onSeen: (Set<String>) -> Unit,
+): Modifier {
+    if (viewport == null) return this
+    val lifecycle = LocalLifecycleOwner.current.lifecycle
+    // Fresh tokens distinguish a brief loss of visibility or focus, even between emissions.
+    var visibleInterval by remember(viewport) { mutableStateOf<Any?>(null) }
+    val latestBatch by rememberUpdatedState(batch)
+    val notifySeen by rememberUpdatedState(onSeen)
+    LaunchedEffect(lifecycle, viewport) {
+        lifecycle.repeatOnLifecycle(Lifecycle.State.RESUMED) {
+            snapshotFlow { visibleInterval to viewport.focusInterval }.collectLatest { (visible, focused) ->
+                if (visible == null || focused == null) return@collectLatest
+                coroutineScope {
+                    // Entries first displayed together share a timer. A removal followed by a
+                    // rediscovery starts a new timer even if the old one hasn't fired yet.
+                    val timers = mutableMapOf<String, Any>()
+                    var firstBatch = true
+                    snapshotFlow { latestBatch }.collect { displayed ->
+                        timers.keys.retainAll(displayed)
+                        val added = displayed - timers.keys
+                        val includesRow = firstBatch
+                        if (!includesRow && added.isEmpty()) return@collect
+                        firstBatch = false
+                        val timer = Any()
+                        added.forEach { timers[it] = timer }
+                        launch {
+                            delay(250L)
+                            if (visibleInterval !== visible || viewport.focusInterval !== focused ||
+                                lifecycle.currentState != Lifecycle.State.RESUMED
+                            ) return@launch
+                            val ready = added.filterTo(mutableSetOf()) { timers[it] === timer && it in latestBatch }
+                            if (includesRow || ready.isNotEmpty()) notifySeen(ready)
+                        }
+                    }
+                }
+            }
+        }
     }
+    return onVisibilityChanged(0L, 1f, viewport.bounds) { visible ->
+        visibleInterval = if (visible) visibleInterval ?: Any() else null
+    }
+}

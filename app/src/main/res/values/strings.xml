@@ -373,6 +373,7 @@
     <string name="settings_self_update_download_requires_check">Available when auto-check is on</string>
     <string name="settings_checking">Checking…</string>
     <string name="settings_install_update">Install downloaded update</string>
+    <string name="self_update_install_saved_version">Install downloaded %1$s</string>
     <string name="settings_update_failed">Update check failed</string>
     <string name="settings_download_failed">Download failed</string>
     <string name="settings_install_failed">Installation failed</string>

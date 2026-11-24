@@ -52,7 +52,7 @@ class SelfUpdater(
         data class Failed(
             val reason: Reason,
             val tag: String? = null, // DOWNLOAD/INSTALL 失败时携带，供重试与状态复原
-            val file: File? = null, // INSTALL 失败时保留的安装包（可直接重装）
+            val downloaded: Downloaded? = null, // 上一次完整下载的包，版本可能与本次下载失败的 tag 不同
         ) : State
     }
 
@@ -76,7 +76,9 @@ class SelfUpdater(
     private suspend fun discardInstalledDownload() {
         val saved = savedDownload() ?: return
         val installed = localVersionName() ?: return
-        if (!VersionCompare.installedIsUpToDate(saved.tag, installed)) return
+        // Keep the offline installer until the installed version is confirmed to have caught up.
+        val comparison = VersionCompare.compare(saved.tag, installed) ?: return
+        if (comparison > 0) return
         saved.file.delete()
         store.update { it.copy(downloadedSelfUpdate = null) }
         Notifications.cancelSelfUpdateReady(context)
@@ -84,9 +86,21 @@ class SelfUpdater(
     }
 
     /** true 表示有新版本需要下载，已留存的同版安装包可直接安装。 */
-    suspend fun check(allowed: (Settings) -> Boolean = { true }): Boolean = operations.withLock {
+    suspend fun check(allowed: (Settings) -> Boolean = { true }): Boolean {
+        val available = checkRelease(allowed = allowed) as? State.NewVersion ?: return false
+        return !available.incomparable && available.asset != null
+    }
+
+    /** Report the outcome to the open sheet even when a failed check restores the offline installer. */
+    suspend fun recheckDownloaded(downloaded: State.Downloaded): State? = checkRelease(expected = downloaded)
+
+    private suspend fun checkRelease(
+        expected: State.Downloaded? = null,
+        allowed: (Settings) -> Boolean = { true },
+    ): State? = operations.withLock {
+        if (expected != null && _state.value != expected) return@withLock null
         discardInstalledDownload()
-        if (!allowed(store.state.value.settings)) return@withLock false
+        if (!allowed(store.state.value.settings)) return@withLock null
         val previous = _state.value
         _state.value = State.Checking
         try {
@@ -96,12 +110,12 @@ class SelfUpdater(
             if (latest == null || (comparison != null && comparison <= 0)) {
                 lastNewVersion = null
                 _state.value = State.UpToDate
-                return@withLock false
+                return@withLock State.UpToDate
             }
             val downloaded = savedDownload()
             if (downloaded?.tag == latest.tagName) {
                 _state.value = downloaded
-                return@withLock false
+                return@withLock downloaded
             }
             val body = latest.body.takeIf { it.isNotBlank() }?.let { markdown ->
                 val lines = markdown.lineSequence()
@@ -115,16 +129,17 @@ class SelfUpdater(
             )
             lastNewVersion = available
             _state.value = available
-            comparison != null && available.asset != null
+            available
         } catch (cancelled: CancellationException) {
             _state.value = previous
             throw cancelled
         } catch (e: SourceException) {
             // 限流折成「网络失败」会诱导立刻重试（再吃一次 403），单列出来
-            _state.value = savedDownload() ?: State.Failed(
+            val failure = State.Failed(
                 if (e.error is SourceError.RateLimited) Reason.RATE_LIMITED else Reason.NETWORK
             )
-            false
+            _state.value = savedDownload() ?: failure
+            failure
         }
     }
 
@@ -132,14 +147,17 @@ class SelfUpdater(
         ApkPicker.pick(release.apkAssets.filter { it.name.endsWith(".apk", true) }, Build.SUPPORTED_ABIS.toList()).first
 
     /** 只发布完整 APK，取消或失败时保留上一次成功的文件和记录。 */
-    suspend fun downloadAutomatically(asset: ApkAsset): File? = withContext(Dispatchers.IO) {
+    suspend fun downloadAutomatically(available: State.NewVersion): State.Downloaded? = withContext(Dispatchers.IO) {
         operations.withLock {
-            if (store.state.value.settings.canAutoDownloadUpdate) downloadLocked(asset) else null
+            if (!store.state.value.settings.canAutoDownloadUpdate || available.incomparable ||
+                _state.value != available
+            ) return@withLock null
+            downloadLocked(available)
         }
     }
 
-    private suspend fun downloadLocked(asset: ApkAsset): File? {
-        val available = lastNewVersion?.takeIf { it.asset == asset } ?: return null
+    private suspend fun downloadLocked(available: State.NewVersion): State.Downloaded? {
+        val asset = available.asset ?: return null
         val previous = _state.value
         if (previous !is State.NewVersion && !(previous is State.Failed && previous.reason == Reason.DOWNLOAD)) {
             return null
@@ -157,19 +175,20 @@ class SelfUpdater(
             val dest = File(updateDir, temp.nameWithoutExtension + ".apk")
             if (!temp.renameTo(dest)) throw java.io.IOException("Unable to publish update")
             val saved = DownloadedApk(dest.name, available.tag, context.packageName, asset.name)
+            val downloaded = State.Downloaded(available.tag, dest)
             withContext(NonCancellable) {
                 store.update { it.copy(downloadedSelfUpdate = saved) }
-                _state.value = State.Downloaded(available.tag, dest)
+                _state.value = downloaded
                 if (store.saveStatus.value == AppStateStore.SaveStatus.SAVED) {
                     updateDir.listFiles()?.filter { it != dest }?.forEach { it.delete() }
                 }
             }
-            dest
+            downloaded
         } catch (cancelled: CancellationException) {
             _state.value = savedDownload() ?: available
             throw cancelled
         } catch (_: Exception) {
-            _state.value = State.Failed(Reason.DOWNLOAD, available.tag)
+            _state.value = State.Failed(Reason.DOWNLOAD, available.tag, savedDownload())
             null
         } finally {
             part?.delete()
@@ -179,27 +198,37 @@ class SelfUpdater(
     /** A user-initiated transfer survives Activity recreation. Present the installer only while the app is visible. */
     fun requestManualDownload(expected: State) {
         scope.launch(Dispatchers.IO) {
-            val result = operations.withLock {
+            val downloaded = operations.withLock {
                 if (_state.value != expected) return@launch
                 val available = lastNewVersion ?: return@launch
-                val asset = available.asset ?: return@launch
-                val file = downloadLocked(asset) ?: return@launch
-                available.tag to file
+                downloadLocked(available) ?: return@launch
             }
             withContext(Dispatchers.Main.immediate) {
-                val (tag, file) = result
-                if ((_state.value as? State.Downloaded)?.file != file) return@withContext
+                if (_state.value != downloaded) return@withContext
                 val settings = store.state.value.settings
                 if (isAppVisible()) {
-                    if (settings.autoInstallDownload) install(file)
+                    if (settings.autoInstallDownload) installManager.installApk(downloaded.file)
                 } else if (settings.notificationsEnabled) {
-                    Notifications.notifySelfUpdateReady(context.forAppLanguage(settings.language), tag)
+                    Notifications.notifySelfUpdateReady(context.forAppLanguage(settings.language), downloaded.tag)
                 }
             }
         }
     }
 
-    fun install(file: File) = installManager.installApk(file)
+    suspend fun installDownloaded(expected: State) = operations.withLock {
+        if (_state.value != expected) return@withLock
+        val shown = when (expected) {
+            is State.Downloaded -> expected
+            is State.Failed -> expected.downloaded
+            else -> null
+        } ?: return@withLock
+        val saved = savedDownload()
+        if (saved == shown) {
+            installManager.installApk(shown.file)
+        } else {
+            reconcileDownloadLocked(saved)
+        }
+    }
 
     fun observeInstallResults() {
         // Installing this app normally replaces its process. Clear the restored download
@@ -215,7 +244,7 @@ class SelfUpdater(
                         }
                         is InstallManager.InstallResult.Failed -> savedDownload()?.let { saved ->
                             installFailedTag = saved.tag
-                            _state.value = State.Failed(Reason.INSTALL, saved.tag, saved.file)
+                            _state.value = State.Failed(Reason.INSTALL, saved.tag, saved)
                             val settings = store.state.value.settings
                             if (settings.notificationsEnabled) Notifications.notifySelfUpdateReady(context.forAppLanguage(settings.language), saved.tag)
                         }
@@ -227,24 +256,43 @@ class SelfUpdater(
     }
 
     suspend fun clearMissingDownload() = operations.withLock {
-        if (store.state.value.downloadedSelfUpdate != null && savedDownload() == null) {
+        if (savedDownload() == null) reconcileDownloadLocked(null)
+    }
+
+    private suspend fun reconcileDownloadLocked(saved: State.Downloaded?) {
+        if (saved == null && store.state.value.downloadedSelfUpdate != null) {
             store.update { it.copy(downloadedSelfUpdate = null) }
-            val current = _state.value
-            if (current is State.Downloaded || current is State.Failed && current.reason == Reason.INSTALL) {
-                _state.value = lastNewVersion ?: State.Idle
-            }
             Notifications.cancelSelfUpdateReady(context)
+        }
+        val current = _state.value
+        _state.value = when {
+            current is State.Failed && current.reason == Reason.DOWNLOAD -> current.copy(downloaded = saved)
+            current is State.Downloaded || current is State.Failed && current.reason == Reason.INSTALL ->
+                saved ?: lastNewVersion ?: State.Idle
+            else -> current
         }
     }
 
-    suspend fun installSilently(file: File) = withContext(Dispatchers.IO) {
-        installManager.installViaSession(file, silentSelfUpdate = true)
+    /** Both enqueue and submission require a known upgrade. Manual downloads may have incomparable tags. */
+    fun canAutoInstall(downloaded: State.Downloaded): Boolean {
+        val settings = store.state.value.settings
+        if (!settings.canAutoDownloadUpdate || !settings.autoInstallDownload || _state.value != downloaded ||
+            installFailedTag == downloaded.tag || !downloaded.file.isFile
+        ) return false
+        val installed = localVersionName() ?: return false
+        val comparison = VersionCompare.compare(downloaded.tag, installed) ?: return false
+        return comparison > 0 && canInstallSilently()
     }
 
-    /** worker 静默补装闸门：本进程内安装失败过的 tag 不再反复尝试 */
-    fun canRetrySilentInstall(tag: String?): Boolean = tag != null && installFailedTag != tag
+    suspend fun installAutomatically(downloaded: State.Downloaded): Boolean = withContext(Dispatchers.IO) {
+        operations.withLock {
+            if (!canAutoInstall(downloaded)) return@withLock false
+            installManager.installViaSession(downloaded.file, silentSelfUpdate = true)
+            true
+        }
+    }
 
-    fun canInstallSilently(): Boolean {
+    private fun canInstallSilently(): Boolean {
         if (Build.VERSION.SDK_INT < Build.VERSION_CODES.S || !installManager.canRequestInstalls()) return false
         return runCatching {
             context.packageManager.getInstallSourceInfo(context.packageName)

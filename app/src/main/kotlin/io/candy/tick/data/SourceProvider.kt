@@ -49,7 +49,7 @@ data class RepoSearchPage(val repositories: List<RepoInfo> = emptyList(), val is
 
 data class BranchPage(val names: List<String>, val hasNext: Boolean)
 
-/** 拉取到的仓库信息（改名跟随后的最终 owner/repo 在此）。只保留界面会读的字段，其余不搬运。 */
+/** 拉取到的仓库信息（改名跟随后的最终 owner/repo 在此），用于预览和持久化快照。 */
 data class RepoInfo(
     val githubId: Long,
     val owner: String,
@@ -60,6 +60,11 @@ data class RepoInfo(
     val description: String?,
     val etag: String?,
     val defaultBranch: String?, // 上游当前默认分支名（分支选择器打勾用）
+    val forks: Int = 0,
+    val openIssues: Int = 0,
+    val license: String? = null,
+    val ownerAvatar: String? = null,
+    val htmlUrl: String = "",
 ) {
     fun toSnapshot() = RepoSnapshot(
         stars = stars,
@@ -69,6 +74,11 @@ data class RepoInfo(
         lastSyncAt = Instant.now(),
         etag = etag,
         defaultBranch = defaultBranch,
+        forks = forks,
+        openIssues = openIssues,
+        license = license,
+        ownerAvatar = ownerAvatar,
+        htmlUrl = htmlUrl,
     )
 }
 

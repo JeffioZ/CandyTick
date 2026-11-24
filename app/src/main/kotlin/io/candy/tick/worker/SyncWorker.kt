@@ -170,10 +170,9 @@ class SyncWorker(context: Context, params: WorkerParameters) : CoroutineWorker(c
         val updateSettings = container.appStateStore.state.value.settings
         if (updateSettings.selfUpdateCheck) {
             val hasNew = container.selfUpdater.check { it.selfUpdateCheck }
-            // 补装兜底：Downloaded 悬置（进程被杀/会话中断）也重新入队——
-            // worker 会按 installFailedTag 决定是否重装，冷启动不再漏
-            val pendingInstall = updateSettings.autoInstallDownload &&
-                container.selfUpdater.state.value is SelfUpdater.State.Downloaded
+            // 已留存的安装包仅在符合自动安装条件时才需要再唤起 worker。
+            val downloaded = container.selfUpdater.state.value as? SelfUpdater.State.Downloaded
+            val pendingInstall = downloaded != null && container.selfUpdater.canAutoInstall(downloaded)
             if ((hasNew || pendingInstall) && updateSettings.canAutoDownloadUpdate) {
                 container.syncScheduler.enqueueUpdateDownload()
             }
