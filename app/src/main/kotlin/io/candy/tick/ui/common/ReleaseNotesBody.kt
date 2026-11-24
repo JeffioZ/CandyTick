@@ -44,9 +44,11 @@ internal fun ReleaseNotesBody(
             )
         }
         if (showSource || ReleaseNotes.isPreview(markdown)) {
+            // 图标与正文左缘对齐（墨迹块的内衬用负偏移抵消）；按下时色块起点比正文左缘靠外 6dp
             LinkText(
                 text = stringResource(R.string.release_view_on_github),
                 showIcon = true,
+                alignInk = true,
                 spaceAfter = spaceAfter,
                 onClick = { uriHandler.openUri("$repoUrl/releases/tag/${Uri.encode(tag)}") },
             )

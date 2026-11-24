@@ -186,6 +186,8 @@ fun UpdateSheet(selfUpdater: SelfUpdater) {
                                             uriHandler.openUri("https://github.com/$slug/releases")
                                         },
                                         showIcon = true,
+                                        // 图标与上方提示文字左缘对齐
+                                        alignInk = true,
                                     )
                                 }
                             } else {

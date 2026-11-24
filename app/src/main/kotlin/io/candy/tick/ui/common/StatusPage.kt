@@ -50,9 +50,10 @@ internal fun InlineErrorRow(
 ) {
     val scheme = MiuixTheme.colorScheme
     Row(
+        // 圆角与内衬同卡内按压块（10dp 圆角、8dp 内衬）：图标落在所在卡片的文字线上
         modifier = Modifier.fillMaxWidth()
-            .background(scheme.errorContainer, RoundedCornerShape(12.dp))
-            .padding(start = 12.dp, end = if (onRetry == null) 12.dp else 4.dp),
+            .background(scheme.errorContainer, RoundedCornerShape(10.dp))
+            .padding(start = 8.dp, end = if (onRetry == null) 8.dp else 4.dp),
         horizontalArrangement = Arrangement.spacedBy(8.dp),
         verticalAlignment = Alignment.CenterVertically,
     ) {

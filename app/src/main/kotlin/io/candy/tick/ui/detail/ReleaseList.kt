@@ -179,6 +179,7 @@ private fun ReleaseCard(
                     text = stringResource(R.string.detail_release_from_notification),
                     style = MiuixTheme.textStyles.footnote2,
                     color = scheme.primaryVariant,
+                    modifier = Modifier.padding(horizontal = TextInset),
                 )
             }
 
@@ -200,8 +201,10 @@ private fun ReleaseCard(
                     // 图层隔离（graphicsLayer 空参 = 强制独立层）：展开动画逐帧改的是
                     // 裁剪/尺寸，文本等重内容缓存在自身层里，每帧只重绘裁剪区，
                     // 不拖整卡重录显示列表——长日志展开偶发掉帧的主缓解
+                    // 正文是「字」，不占「形」的宽度：与标题文字同一条线（左右对称内衬，正文区在卡内居中）。
+                    // 此前正文贴卡片内边距，比标题每侧宽 8dp，恰好等于按下时的色块宽度
                     Column(
-                        modifier = Modifier.graphicsLayer(),
+                        modifier = Modifier.graphicsLayer().padding(horizontal = TextInset),
                     ) {
                         io.candy.tick.ui.common.ReleaseNotesBody(
                             markdown = release.body,
@@ -380,8 +383,8 @@ private fun ReleaseHeader(
         ).heightIn(min = 48.dp)
     } else Modifier
     Column(
-        // 按压块内 8dp 对称内衬（与首页卡片展开行同款）：文字与 chevron 都不贴色块边缘
-        Modifier.fillMaxWidth().then(expandAction).padding(start = 8.dp, end = 8.dp, top = 4.dp, bottom = 4.dp),
+        // 按压块内对称内衬 TextInset（与首页卡片展开行同款）：文字与 chevron 都不贴色块边缘
+        Modifier.fillMaxWidth().then(expandAction).padding(start = TextInset, end = TextInset, top = 4.dp, bottom = 4.dp),
         verticalArrangement = Arrangement.spacedBy(2.dp, Alignment.CenterVertically),
     ) {
         Text(
@@ -432,6 +435,12 @@ private fun ReleaseHeader(
 
 private val AssetRowInset = 4.dp
 
+/**
+ * 按压块内衬 = 卡内文字线（卡片内边距 16 + 8）：标题、更新内容、APK 行的可见起点都落在这条线上，
+ * 按压色块和实心按钮则贴卡片内边距（「形」比「字」每侧宽 8dp）。三处共用一个值，改其一时不会漏。
+ */
+private val TextInset = 8.dp
+
 @Composable
 private fun AssetRow(
     asset: ApkAsset,
@@ -456,9 +465,9 @@ private fun AssetRow(
             .heightIn(min = 48.dp)
     } else Modifier
     Row(
-        // 按压色块内 8dp 水平内距：与标题展开行的按压块同语言（内容不贴色块边缘）；
+        // 按压色块内水平内衬 TextInset：与标题展开行的按压块同语言（内容不贴色块边缘）；
         // 触摸区（heightIn 48）在 padding 之外不受影响
-        modifier = Modifier.fillMaxWidth().then(selection).padding(horizontal = 8.dp, vertical = AssetRowInset),
+        modifier = Modifier.fillMaxWidth().then(selection).padding(horizontal = TextInset, vertical = AssetRowInset),
         verticalAlignment = Alignment.CenterVertically,
     ) {
         if (selectable) {

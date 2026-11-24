@@ -52,7 +52,8 @@ internal fun AppLinkRow(
         onClick = onClick,
     )
     Row(
-        modifier.fillMaxWidth().clip(RoundedCornerShape(12.dp)).background(tint)
+        // 圆角同卡内其他色块（版本卡标题行、APK 行、首页展开行）：10dp
+        modifier.fillMaxWidth().clip(RoundedCornerShape(10.dp)).background(tint)
             .then(rowAction).heightIn(min = 48.dp),
         verticalAlignment = Alignment.CenterVertically,
     ) {

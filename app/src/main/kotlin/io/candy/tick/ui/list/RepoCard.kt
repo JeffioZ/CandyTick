@@ -184,7 +184,8 @@ fun RepoCard(
                     }
                     // 「发现新版」直显标识（薄荷胶囊）：收起态的唯一新版提示；
                     // 展开且版本行可见时隐藏（版本行已给完整 tag 对比，两处同说=重复），
-                    // 版本行暂无数据时保留兜底（展开也不至于零提示）
+                    // 版本行暂无数据时保留兜底（展开也不至于零提示）。
+                    // 内衬与状态徽章同值（8/3）：同是 footnote2 文字的胶囊，同一张卡上高度一致
                     if (updatable && !(expanded && releaseTag != null)) {
                         Text(
                             text = stringResource(R.string.card_updatable),
@@ -192,7 +193,7 @@ fun RepoCard(
                             color = scheme.primaryVariant,
                             modifier = Modifier
                                 .background(scheme.primaryContainer, CircleShape)
-                                .padding(horizontal = 6.dp, vertical = 1.dp),
+                                .padding(horizontal = 8.dp, vertical = 3.dp),
                         )
                         Spacer(Modifier.width(6.dp))
                     }
@@ -268,10 +269,11 @@ private fun ExpandedDetails(
     Column(
         modifier = Modifier
             .fillMaxWidth()
-            // 全宽（与按压色块同宽同圆角）：「按哪里、展开哪里」的视觉逻辑一致
+            // 全宽（与按压色块同宽同圆角）：「按哪里、展开哪里」的视觉逻辑一致；
+            // 内衬 8dp 与上方展开行同值：面板里的文字和「最近提交…」落在同一条文字线上
             .clip(RoundedCornerShape(10.dp))
             .background(scheme.secondaryVariant)
-            .padding(horizontal = 12.dp, vertical = 10.dp),
+            .padding(horizontal = 8.dp, vertical = 10.dp),
         verticalArrangement = Arrangement.spacedBy(6.dp),
     ) {
         when {

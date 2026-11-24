@@ -132,8 +132,9 @@ private fun CacheCleanupRow(
 ) {
     val hasFiles = sizeBytes != null && sizeBytes > 0
     val enabled = hasFiles && !cleaning
+    // 色块比文字左右各宽 8dp（与选项弹层的行同款）：按下染色不贴文字和开关
     top.yukonga.miuix.kmp.basic.BasicComponent(
-        modifier = Modifier.fillMaxWidth().clip(SheetChoiceRowShape).switchSemantics(checked, enabled),
+        modifier = Modifier.fillMaxWidth().padding(horizontal = 8.dp).clip(SheetChoiceRowShape).switchSemantics(checked, enabled),
         title = label,
         summary = when (sizeBytes) {
             null -> "—"
@@ -151,7 +152,7 @@ private fun CacheCleanupRow(
             )
         },
         insideMargin = androidx.compose.foundation.layout.PaddingValues(
-            start = 0.dp, end = 0.dp, top = 10.dp, bottom = 10.dp,
+            start = 8.dp, end = 8.dp, top = 10.dp, bottom = 10.dp,
         ),
     )
 }
@@ -303,6 +304,8 @@ internal fun TokenDialog(
                     text = stringResource(R.string.token_help_link),
                     onClick = onOpenHelp,
                     showIcon = true,
+                    // 图标与弹层内的说明、输入框、按钮左缘对齐
+                    alignInk = true,
                 )
             }
         }

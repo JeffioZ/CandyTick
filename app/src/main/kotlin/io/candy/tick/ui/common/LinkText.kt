@@ -7,6 +7,7 @@ import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.RowScope
+import androidx.compose.foundation.layout.offset
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.sizeIn
@@ -36,6 +37,8 @@ import top.yukonga.miuix.kmp.theme.MiuixTheme
  * footnote1 + 薄荷 primaryVariant + 下划线（色相近时下划线是「可点」的最强信号）。
  * showIcon 时带 13dp external_link 前缀（离开 App 的预期暗示）。
  * 自绘 clickable 无 ripple，padding 计入命中区。
+ * [alignInk]：图标/文字落在所在文字流的起点上，而不是墨迹块的左缘（用等量负偏移抵消内衬）；
+ * 用于链接正上方有正文、需要左缘对齐的场合。默认关。
  */
 @Composable
 fun LinkText(
@@ -44,13 +47,15 @@ fun LinkText(
     modifier: Modifier = Modifier,
     showIcon: Boolean = false,
     spaceAfter: Dp = 0.dp,
+    alignInk: Boolean = false,
 ) {
     // Count the parent's trailing gap once. The visible surface stays centred between
     // its neighbours even when a large font makes the tap target taller than 48dp.
     val inset = maxOf(8.dp, spaceAfter)
     CompactTextAction(
         onClick = onClick,
-        modifier = modifier,
+        // offset(x) 按「起始侧」镜像，RTL 下同样是朝文字流起点外扩
+        modifier = if (alignInk) modifier.offset(x = -TextActionInset) else modifier,
         hitAreaPadding = PaddingValues(top = inset, bottom = inset - spaceAfter),
     ) {
         if (showIcon) {
@@ -70,6 +75,9 @@ fun LinkText(
         )
     }
 }
+
+/** 文字动作墨迹块的水平内衬：按下时色块与图标/文字的间距 */
+internal val TextActionInset = 6.dp
 
 /** Keep the tap target generous while the tinted surface hugs the icon and label. */
 @Composable
@@ -95,7 +103,7 @@ internal fun CompactTextAction(
         Row(
             modifier = Modifier
                 .background(tint, RoundedCornerShape(8.dp))
-                .padding(horizontal = 6.dp, vertical = 5.dp),
+                .padding(horizontal = TextActionInset, vertical = 5.dp),
             verticalAlignment = Alignment.CenterVertically,
             horizontalArrangement = Arrangement.spacedBy(6.dp),
             content = content,
