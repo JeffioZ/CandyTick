@@ -29,6 +29,7 @@
 
 - 按下按钮和设置项时的反馈更明显：一按就变色，松手后稍作停留再淡出，与卡片、图标按钮的手感一致。
 - 对齐了几处界面细节：版本卡片里展开的更新内容与标题齐平，首页卡片展开后的内容、清除缓存弹层里的行和帮助链接的图标也落在同一条线上。
+- 首页卡片展开、收起时的几处硬切改成过渡：未读圆点、「发现新版」标签、面板高度和「正在刷新」文字。同步结果提示改为列表更新完成后再出现。
 
 ### 修复
 
@@ -43,6 +44,7 @@
 - Text fields had no visible edge when not focused; they now show a faint outline.
 - Bottom sheets now keep their content clear of the system navigation bar instead of letting it be covered.
 - A few alignment details are tidied up: expanded release notes now line up with the title, and so do the expanded panel on home cards, the rows in the clear-cache sheet and the icons of help links.
+- Several hard cuts on the home card now animate when it expands or collapses: the unread dot, the "update available" pill, the panel height and the "refreshing" label. The sync result toast appears after the list has updated instead of before it.
 - Pasting a repository clone URL that ends in ".git" no longer reports it as missing or inaccessible.
 - Running out of storage while downloading a package now says so instead of blaming the network; an incomplete download or a file that could not be saved gets a clear message instead of raw English text.
 

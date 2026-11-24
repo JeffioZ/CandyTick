@@ -43,6 +43,7 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.key
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberUpdatedState
 import androidx.compose.runtime.setValue
 import androidx.compose.runtime.snapshotFlow
 import androidx.compose.ui.Alignment
@@ -129,44 +130,6 @@ fun ListScreen(
     val state by vm.state.collectAsStateWithLifecycle()
     val syncStatus by vm.syncStatus.collectAsStateWithLifecycle()
     val syncResult = rememberSyncResult(vm, lifecycleOwner.lifecycle)
-    // 同步结果使用页面选定的语言，和设置中的语言切换即时一致。
-    // 胶囊只在有信息量时出（有更新计数/有失败）；无变化不出——顶栏 ✓ 已确认成功，
-    // 卡片圆点缺席已说明无更新，静默即无变化
-    androidx.compose.runtime.LaunchedEffect(syncResult) {
-        syncResult?.let { d ->
-            // 三分位：全挂（failed>=total）才叫「同步失败」；部分失败无更新如实报数——
-            // 此前 failed>0 && changed==0 即判 allFailed，5 中 1 失败也弹红色全挂文案
-            when {
-                d.allFailed -> io.candy.tick.ui.common.Feedback.show(
-                    text = if (d.rateLimited) {
-                        // 限流是唯一「可行动」的后台失败（等恢复时间/去配令牌）：报因不报数。
-                        // 胶囊是瞬时的，直接给绝对时刻（relTimeUntilString 是组合函数，此处不可用）
-                        d.rateLimitRetryAt?.let {
-                            // 同一天只给时刻；跨午夜补日期（否则 00:32 读起来像已经过去的时间）
-                            val zone = java.time.ZoneId.systemDefault()
-                            val pattern = if (it.atZone(zone).toLocalDate() == java.time.LocalDate.now(zone)) "HH:mm" else "MM-dd HH:mm"
-                            val clock = java.time.format.DateTimeFormatter.ofPattern(pattern).withZone(zone).format(it)
-                            resources.getString(R.string.sync_rate_limited_until, clock)
-                        } ?: resources.getString(R.string.err_rate_limited_plain)
-                    } else {
-                        resources.getQuantityString(R.plurals.sync_result_all_failed, d.failed, d.failed)
-                    },
-                    isError = true,
-                )
-                d.failed > 0 && d.changed == 0 -> io.candy.tick.ui.common.Feedback.show(
-                    text = resources.getQuantityString(R.plurals.sync_result_partial_failed, d.failed, d.failed),
-                    isError = true,
-                )
-                d.changed > 0 -> {
-                    val updated = resources.getQuantityString(R.plurals.sync_result_updated, d.changed, d.changed)
-                    val message = if (d.failed > 0) {
-                        resources.getString(R.string.sync_result_with_failures, updated, d.failed)
-                    } else updated
-                    io.candy.tick.ui.common.Feedback.show(text = message)
-                }
-            }
-        }
-    }
     val scheme = MiuixTheme.colorScheme
     // 瞬时反馈走全局 FeedbackHost（撤销动作由胶囊承载）
     val listState = androidx.compose.foundation.lazy.rememberLazyListState()
@@ -202,6 +165,56 @@ fun ListScreen(
     )
     // A sort may bring distant keys into the lazy layout's tracking range. They are existing cards.
     val fadeMembership = motionEnabled && sortSheet == null && !holdOrder && !rows.revealingSort
+
+    // 同步结果使用页面选定的语言，和设置中的语言切换即时一致。
+    // 胶囊只在有信息量时出（有更新计数/有失败）；无变化不出——顶栏 ✓ 已确认成功，
+    // 卡片圆点缺席已说明无更新，静默即无变化。
+    // 时机：等首页把这一轮的结果落实完再报数。最典型的是「打开 App 时后台同步在跑、用户又下拉刷新」：
+    // 这一轮归下拉接管，同步一结束提示就到，而下拉头还在收、名次还没切（名次在刷新期间保持旧的，
+    // 刷新结束才切到最新，经后台线程回到界面要几帧）。先等下拉刷新收尾、行位移动画走完，
+    // 再留出下拉头收起的时间，最后才弹
+    val currentRows by rememberUpdatedState(rows)
+    LaunchedEffect(syncResult) {
+        val d = syncResult ?: return@LaunchedEffect
+        // 下拉刷新进行中：这一轮归下拉接管，等它收尾（名次要到这时才切到最新）
+        var afterPull = vm.manualRefresh.value
+        while (true) {
+            snapshotFlow { vm.manualRefresh.value || currentRows.motion?.active == true }.first { !it }
+            delay(if (afterPull) SYNC_RESULT_SETTLE_AFTER_PULL_MS else SYNC_RESULT_SETTLE_MS)
+            // 等待期间用户又开始下拉：接着等这一轮收尾再报，免得胶囊盖在刚出现的下拉头上
+            if (!vm.manualRefresh.value) break
+            afterPull = true
+        }
+        when {
+            d.allFailed -> io.candy.tick.ui.common.Feedback.show(
+                text = if (d.rateLimited) {
+                    // 限流是唯一「可行动」的后台失败（等恢复时间/去配令牌）：报因不报数。
+                    // 胶囊是瞬时的，直接给绝对时刻（relTimeUntilString 是组合函数，此处不可用）
+                    d.rateLimitRetryAt?.let {
+                        // 同一天只给时刻；跨午夜补日期（否则 00:32 读起来像已经过去的时间）
+                        val zone = java.time.ZoneId.systemDefault()
+                        val pattern = if (it.atZone(zone).toLocalDate() == java.time.LocalDate.now(zone)) "HH:mm" else "MM-dd HH:mm"
+                        val clock = java.time.format.DateTimeFormatter.ofPattern(pattern).withZone(zone).format(it)
+                        resources.getString(R.string.sync_rate_limited_until, clock)
+                    } ?: resources.getString(R.string.err_rate_limited_plain)
+                } else {
+                    resources.getQuantityString(R.plurals.sync_result_all_failed, d.failed, d.failed)
+                },
+                isError = true,
+            )
+            d.failed > 0 && d.changed == 0 -> io.candy.tick.ui.common.Feedback.show(
+                text = resources.getQuantityString(R.plurals.sync_result_partial_failed, d.failed, d.failed),
+                isError = true,
+            )
+            d.changed > 0 -> {
+                val updated = resources.getQuantityString(R.plurals.sync_result_updated, d.changed, d.changed)
+                val message = if (d.failed > 0) {
+                    resources.getString(R.string.sync_result_with_failures, updated, d.failed)
+                } else updated
+                io.candy.tick.ui.common.Feedback.show(text = message)
+            }
+        }
+    }
     val scrollBehavior = MiuixScrollBehavior(rememberTopAppBarState())
     val pullState = rememberPullToRefreshState()
     var showSearch by androidx.compose.runtime.saveable.rememberSaveable { mutableStateOf(false) }
@@ -644,6 +657,18 @@ fun ListScreen(
         }
     }
 }
+
+/**
+ * 同步结果胶囊在首页落实完之后还要等的一拍：名次切回最新界面只要几帧，再让人先看到列表落位
+ */
+private const val SYNC_RESULT_SETTLE_MS = 300L
+
+/**
+ * 下拉刷新刚收尾时的等待，按最坏情况取：下拉头收起 = 最短驻留最多 300ms（CandyPullToRefresh）
+ * + 库的完成动画 200ms（PullToRefresh）。最坏情况（下拉刚开始同步就结束）胶囊仍在下拉头收起之后；
+ * 常见情况下拉头收起后约 300ms 胶囊才出现
+ */
+private const val SYNC_RESULT_SETTLE_AFTER_PULL_MS = 500L
 
 /** Slide a scrollable list with the field; clip its lower edge until the final viewport is known. */
 private fun Modifier.holdOpeningViewport(height: Int): Modifier = clipToBounds().layout { measurable, constraints ->

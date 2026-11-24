@@ -1,6 +1,7 @@
 package io.candy.tick.ui.list
 
 import io.candy.tick.data.isInaccessible
+import androidx.compose.animation.animateContentSize
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.LocalIndication
@@ -23,6 +24,7 @@ import androidx.compose.runtime.key
 import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.alpha
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.layout.LayoutBoundsHolder
 import androidx.compose.ui.layout.onVisibilityChanged
@@ -36,6 +38,7 @@ import io.candy.tick.ui.common.InaccessibleBadge
 import io.candy.tick.ui.common.RepoIdentityHeader
 import io.candy.tick.ui.common.StatusBadge
 import io.candy.tick.ui.common.VersionStatusLine
+import io.candy.tick.ui.common.downloadActionTransition
 import io.candy.tick.ui.common.relTimeString
 import io.candy.tick.ui.theme.MonoTokenStyle
 import top.yukonga.miuix.kmp.basic.Icon
@@ -125,50 +128,76 @@ fun RepoCard(
                     verticalAlignment = Alignment.CenterVertically,
                 ) {
                     Row(modifier = Modifier.weight(1f), verticalAlignment = Alignment.CenterVertically) {
-                        if (isChanged) {
-                            // 低调「有更新」标记：6dp 薄荷圆点，静态无动画
-                            Box(
-                                modifier = Modifier
-                                    .size(6.dp)
-                                    .background(scheme.primaryVariant, CircleShape),
-                            )
-                            Spacer(Modifier.width(5.dp))
-                        }
+                        // 低调「有更新」标记：6dp 薄荷圆点，自身静态；出现 / 消失走微反馈档（150ms）：圆点缩小 +
+                        // 淡入淡出，间距同步归零——内容被看到记为已读时，后面的文字平移回位，
+                        // 而不是圆点瞬间消失、文字跳 11dp。（不用 AnimatedVisibility：它的宽度收展是矩形裁切，
+                        // 圆点后半段会被竖着切掉一截，不如缩放自然）
+                        val unreadDot by androidx.compose.animation.core.animateDpAsState(
+                            if (isChanged) 6.dp else 0.dp,
+                            androidx.compose.animation.core.tween(Motion.MICRO),
+                            label = "unreadDot",
+                        )
+                        val unreadDotAlpha by androidx.compose.animation.core.animateFloatAsState(
+                            if (isChanged) 1f else 0f,
+                            androidx.compose.animation.core.tween(Motion.MICRO),
+                            label = "unreadDotAlpha",
+                        )
+                        Box(
+                            modifier = Modifier
+                                .size(unreadDot)
+                                .alpha(unreadDotAlpha)
+                                .background(scheme.primaryVariant, CircleShape),
+                        )
+                        Spacer(Modifier.width(unreadDot * (5f / 6f)))
                         // 用户展开或重试时才替换时间。批量刷新由页面提示，卡片保留已知时间。
-                        if (expanded && !pageRefreshing && extras?.load == ListViewModel.CardLoad.USER_REFRESH) {
-                            Row(verticalAlignment = Alignment.CenterVertically) {
-                                io.candy.tick.ui.common.LoadingDots(contentDescription = null)
-                                Spacer(Modifier.width(5.dp))
-                                Text(
-                                    text = stringResource(R.string.card_refreshing),
+                        // 时间文字与「正在刷新」之间走相变过渡（与下载按钮四态同一套，180ms），不再硬切
+                        val refreshingLabel = expanded && !pageRefreshing && extras?.load == ListViewModel.CardLoad.USER_REFRESH
+                        androidx.compose.animation.AnimatedContent(
+                            targetState = refreshingLabel,
+                            transitionSpec = { downloadActionTransition() },
+                            label = "cardActivity",
+                        ) { refreshing ->
+                            if (refreshing) {
+                                Row(verticalAlignment = Alignment.CenterVertically) {
+                                    io.candy.tick.ui.common.LoadingDots(contentDescription = null)
+                                    Spacer(Modifier.width(5.dp))
+                                    Text(
+                                        text = stringResource(R.string.card_refreshing),
+                                        style = MiuixTheme.textStyles.footnote2,
+                                        color = scheme.onBackgroundVariant,
+                                    )
+                                }
+                            } else {
+                                val timeLabel = item.activityAt?.let { instant ->
+                                    val label = when {
+                                        item.releaseIsLatest -> R.string.card_last_release
+                                        item.snapshot?.lastCommitDate != null -> R.string.card_last_commit
+                                        else -> R.string.card_last_push
+                                    }
+                                    stringResource(label, relTimeString(instant))
+                                }
+                                val otherUnread = when {
+                                    item.releaseIsLatest && unreadCommit -> R.string.card_unread_commit
+                                    !item.releaseIsLatest && unreadRelease -> R.string.card_unread_release
+                                    else -> null
+                                }
+                                val label = when {
+                                    timeLabel == null -> unread
+                                    otherUnread != null -> stringResource(R.string.card_activity_with_unread, timeLabel, stringResource(otherUnread))
+                                    else -> timeLabel
+                                }
+                                // 与圆点同一条时间线：记为已读时薄荷绿随圆点一起淡回次要色，而不是瞬间换色
+                                val labelTint by androidx.compose.animation.animateColorAsState(
+                                    targetValue = if (isChanged) scheme.primaryVariant else scheme.onBackgroundVariant,
+                                    animationSpec = androidx.compose.animation.core.tween(Motion.MICRO),
+                                    label = "activityTint",
+                                )
+                                if (label != null) Text(
+                                    text = label,
                                     style = MiuixTheme.textStyles.footnote2,
-                                    color = scheme.onBackgroundVariant,
+                                    color = labelTint,
                                 )
                             }
-                        } else {
-                            val timeLabel = item.activityAt?.let { instant ->
-                                val label = when {
-                                    item.releaseIsLatest -> R.string.card_last_release
-                                    item.snapshot?.lastCommitDate != null -> R.string.card_last_commit
-                                    else -> R.string.card_last_push
-                                }
-                                stringResource(label, relTimeString(instant))
-                            }
-                            val otherUnread = when {
-                                item.releaseIsLatest && unreadCommit -> R.string.card_unread_commit
-                                !item.releaseIsLatest && unreadRelease -> R.string.card_unread_release
-                                else -> null
-                            }
-                            val label = when {
-                                timeLabel == null -> unread
-                                otherUnread != null -> stringResource(R.string.card_activity_with_unread, timeLabel, stringResource(otherUnread))
-                                else -> timeLabel
-                            }
-                            if (label != null) Text(
-                                text = label,
-                                style = MiuixTheme.textStyles.footnote2,
-                                color = if (isChanged) scheme.primaryVariant else scheme.onBackgroundVariant,
-                            )
                         }
                     }
                     // Reserve the pin's place as cards change groups, including at larger text sizes.
@@ -185,17 +214,29 @@ fun RepoCard(
                     // 「发现新版」直显标识（薄荷胶囊）：收起态的唯一新版提示；
                     // 展开且版本行可见时隐藏（版本行已给完整 tag 对比，两处同说=重复），
                     // 版本行暂无数据时保留兜底（展开也不至于零提示）。
-                    // 内衬与状态徽章同值（8/3）：同是 footnote2 文字的胶囊，同一张卡上高度一致
-                    if (updatable && !(expanded && releaseTag != null)) {
-                        Text(
-                            text = stringResource(R.string.card_updatable),
-                            style = MiuixTheme.textStyles.footnote2,
-                            color = scheme.primaryVariant,
-                            modifier = Modifier
-                                .background(scheme.primaryContainer, CircleShape)
-                                .padding(horizontal = 8.dp, vertical = 3.dp),
-                        )
-                        Spacer(Modifier.width(6.dp))
+                    // 内衬与状态徽章同值（8/3）：同是 footnote2 文字的胶囊，同一张卡上高度一致。
+                    // 显隐只做淡入淡出（微反馈档）：标签贴着右侧箭头排，宽度一动位置就会跑；
+                    // 不带宽度收展时占位保留到淡出结束，标签在原位淡出后再让出空间
+                    androidx.compose.animation.AnimatedVisibility(
+                        visible = updatable && !(expanded && releaseTag != null),
+                        enter = androidx.compose.animation.fadeIn(
+                            animationSpec = androidx.compose.animation.core.tween(Motion.MICRO),
+                        ),
+                        exit = androidx.compose.animation.fadeOut(
+                            animationSpec = androidx.compose.animation.core.tween(Motion.MICRO),
+                        ),
+                    ) {
+                        Row(verticalAlignment = Alignment.CenterVertically) {
+                            Text(
+                                text = stringResource(R.string.card_updatable),
+                                style = MiuixTheme.textStyles.footnote2,
+                                color = scheme.primaryVariant,
+                                modifier = Modifier
+                                    .background(scheme.primaryContainer, CircleShape)
+                                    .padding(horizontal = 8.dp, vertical = 3.dp),
+                            )
+                            Spacer(Modifier.width(6.dp))
+                        }
                     }
                     // 普通 ⌄/⌃ 箭头，交叉淡入淡出（不旋转，无「转圈」感）
                     androidx.compose.animation.Crossfade(
@@ -269,6 +310,10 @@ private fun ExpandedDetails(
     Column(
         modifier = Modifier
             .fillMaxWidth()
+            // 首次展开时加载占位换成提交行、出错条出现 / 消失：面板高度走 220ms 渐变，
+            // 下面的卡片跟着平滑移动，而不是瞬间跳一段。内容按完整高度排版，
+            // 超出渐变高度的部分由外层 AnimatedVisibility 裁掉
+            .animateContentSize(androidx.compose.animation.core.tween(Motion.PANEL))
             // 全宽（与按压色块同宽同圆角）：「按哪里、展开哪里」的视觉逻辑一致；
             // 内衬 8dp 与上方展开行同值：面板里的文字和「最近提交…」落在同一条文字线上
             .clip(RoundedCornerShape(10.dp))
