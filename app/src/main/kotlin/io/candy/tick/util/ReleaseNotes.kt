@@ -5,12 +5,12 @@ import androidx.compose.ui.text.AnnotatedString
 import androidx.compose.ui.text.LinkAnnotation
 import androidx.compose.ui.text.SpanStyle
 import androidx.compose.ui.text.TextLinkStyles
+import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontStyle
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextDecoration
 import androidx.compose.ui.unit.TextUnit
-import androidx.compose.ui.unit.sp
 import org.commonmark.ext.autolink.AutolinkExtension
 import org.commonmark.ext.gfm.strikethrough.Strikethrough
 import org.commonmark.ext.gfm.strikethrough.StrikethroughExtension
@@ -101,12 +101,16 @@ object ReleaseNotes {
 
     fun isPreview(md: String): Boolean = md.length > MAX_BODY_CHARS
 
+    /** 行内代码的默认字体：只切等宽，字号随正文。页面里传 [monoStyle] 以对齐全局等宽字阶 */
+    private val MonoOnly = TextStyle(fontFamily = FontFamily.Monospace)
+
     fun annotated(
         md: String,
         linkColor: Color,
         repoSlug: String? = null, // "owner/repo"：提供时 #123 变为可点 issue 链接
+        monoStyle: TextStyle = MonoOnly, // 行内代码的字体：与页面其他等宽文本同一定义，不在这里写死字号
     ): AnnotatedString {
-        val r = Renderer(linkColor, repoSlug)
+        val r = Renderer(linkColor, repoSlug, monoStyle)
         r.blocks(parser.parse(truncate(md)), indent = "")
         return r.build()
     }
@@ -136,6 +140,7 @@ object ReleaseNotes {
     private class Renderer(
         linkColor: Color,
         val repoSlug: String?,
+        private val monoStyle: TextStyle,
     ) {
         private val sb = StringBuilder()
         private val styles = mutableListOf<AnnotatedString.Range<SpanStyle>>()
@@ -169,8 +174,8 @@ object ReleaseNotes {
                 val style = SpanStyle(
                     fontWeight = if (bold > 0) FontWeight.Bold else null,
                     fontStyle = if (italic > 0) FontStyle.Italic else null,
-                    fontFamily = if (mono > 0) FontFamily.Monospace else null,
-                    fontSize = if (mono > 0) 13.sp else TextUnit.Unspecified,
+                    fontFamily = if (mono > 0) monoStyle.fontFamily else null,
+                    fontSize = if (mono > 0) monoStyle.fontSize else TextUnit.Unspecified,
                     textDecoration = if (strike > 0) TextDecoration.LineThrough else null,
                 )
                 styles += AnnotatedString.Range(style, start, sb.length)

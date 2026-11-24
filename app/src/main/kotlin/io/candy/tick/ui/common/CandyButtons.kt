@@ -31,6 +31,8 @@ import androidx.compose.ui.unit.dp
 import io.candy.tick.R
 import io.candy.tick.ui.theme.DarkFieldActionContainer
 import io.candy.tick.ui.theme.DarkFieldActionOutline
+import io.candy.tick.ui.theme.DarkFieldActionTint
+import io.candy.tick.ui.theme.LightFieldActionTint
 import io.candy.tick.ui.theme.LocalDarkTheme
 import top.yukonga.miuix.kmp.basic.Button
 import top.yukonga.miuix.kmp.basic.ButtonDefaults
@@ -196,7 +198,7 @@ internal fun TextFieldActionButton(
             Icon(
                 imageVector = ImageVector.vectorResource(res),
                 contentDescription = null,
-                tint = if (dark) colors.onSurfaceSecondary else colors.onBackgroundVariant,
+                tint = if (dark) DarkFieldActionTint else LightFieldActionTint,
             )
         }
     }

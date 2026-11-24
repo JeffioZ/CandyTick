@@ -28,17 +28,23 @@
 ### 优化
 
 - 按下按钮和设置项时的反馈更明显：一按就变色，松手后稍作停留再淡出，与卡片、图标按钮的手感一致。
+- 对齐了几处界面细节：版本卡片里展开的更新内容与标题齐平，首页卡片展开后的内容、清除缓存弹层里的行和帮助链接的图标也落在同一条线上。
 
 ### 修复
 
 - 输入框没有焦点时几乎看不出边界，现在带一圈淡淡的描边。
 - 底部弹层的内容现在会避开系统导航栏，不再被它挡住。
+- 粘贴以 `.git` 结尾的仓库克隆地址时，不再被误报为「内容不存在或无权访问」。
+- 下载安装包时存储空间不足，现在提示「存储空间不足」，不再显示成网络不可用；下载不完整、安装包保存失败也改为明确的提示，不再显示英文原文。
 
 ### English summary
 
 - Pressing a button or a settings row now gives clearer feedback: it changes color at once and fades out shortly after release, matching cards and icon buttons.
 - Text fields had no visible edge when not focused; they now show a faint outline.
 - Bottom sheets now keep their content clear of the system navigation bar instead of letting it be covered.
+- A few alignment details are tidied up: expanded release notes now line up with the title, and so do the expanded panel on home cards, the rows in the clear-cache sheet and the icons of help links.
+- Pasting a repository clone URL that ends in ".git" no longer reports it as missing or inaccessible.
+- Running out of storage while downloading a package now says so instead of blaming the network; an incomplete download or a file that could not be saved gets a clear message instead of raw English text.
 
 ## [0.5.1]
 

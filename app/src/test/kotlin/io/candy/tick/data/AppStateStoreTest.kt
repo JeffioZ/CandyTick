@@ -77,7 +77,7 @@ class AppStateStoreTest {
     private fun repo(id: Long) = TrackedRepo(id, "owner", "repo-$id", addedAt = Instant.EPOCH)
 
     @Test fun importingRepositoryOnlySuppressesItsOwnFirstActivity() = runBlocking {
-        val snapshot = RepoSnapshot(0, 0, 0, null, false, null, null, null, "", Instant.EPOCH, null,
+        val snapshot = RepoSnapshot(0, null, false, null, Instant.EPOCH, null,
             latestReleaseTag = "1", lastCommitSha = "a")
         val target = AppStateStore(temporary.newFolder("target"), temporary.newFolder("targetCredentials"))
         // 导出已瘦身（不带快照）；带基线的导入只剩旧版完整备份这一条路，直接喂旧格式

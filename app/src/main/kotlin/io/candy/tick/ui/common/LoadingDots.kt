@@ -41,7 +41,8 @@ import top.yukonga.miuix.kmp.theme.MiuixTheme
 import kotlin.math.PI
 import kotlin.math.sin
 
-private const val BusyRevealDelayMillis = 300L
+/** 短抖动不点亮；与下拉刷新头的最短驻留共用同一档时长 */
+private val BusyRevealDelayMillis = Motion.PROGRESS.toLong()
 
 /** Pass a null description when adjacent text already describes the operation. */
 @Composable

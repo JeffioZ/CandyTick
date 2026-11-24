@@ -18,7 +18,10 @@ import org.junit.rules.TemporaryFolder
 class RepoRepositoryTest {
     @get:Rule val temporary = TemporaryFolder()
     private val tracked = TrackedRepo(42, "o", "r", addedAt = Instant.EPOCH)
-    private val info = RepoInfo(42, "o", "r", 0, 0, 0, null, false, null, null, null, "", null, "main")
+    private val info = RepoInfo(
+        githubId = 42, owner = "o", repo = "r", stars = 0, pushedAt = null, archived = false,
+        description = null, etag = null, defaultBranch = "main",
+    )
 
     @Test fun removingRepoDuringRefreshCannotRestoreItsSnapshot() = runBlocking {
         val entered = CompletableDeferred<Unit>()

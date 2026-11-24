@@ -234,9 +234,8 @@ object Notifications {
             val tag = entry.notification.extras.getString(EXTRA_NAV_RELEASE_TAG)
                 ?: repo?.let { state.snapshots[it.id]?.latestReleaseTag }
             val local = repo?.let { installedVersionName(context, it) }
-            // 不可比视为已追平（与 SyncWorker 通知口径一致）：过期通知撤下，不再半边口径
-            val installed = tag != null && local != null &&
-                (VersionCompare.compare(tag, local)?.let { it <= 0 } ?: true)
+            // 与 SyncWorker 推送通知同一规则（不可比视为已追平）：过期通知撤下，不再半边口径
+            val installed = tag != null && VersionCompare.installedIsUpToDate(tag, local)
             val noPublishedApk = repo?.let { state.snapshots[it.id] }?.let {
                 it.releaseBaselineKnown && it.currentReleaseTag == null
             } == true

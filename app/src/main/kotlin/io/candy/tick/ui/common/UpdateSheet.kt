@@ -37,9 +37,9 @@ import top.yukonga.miuix.kmp.theme.MiuixTheme
  * SyncWorker 后台自动检查发现新版同样触发）。
  *
  * 弹出策略：
- * - 自动：state 变为 NewVersion 且该 tag 未被用户关过（进程存活期防骚扰；
- *   冷启动 dismissedTag 随 remember 重置——有新版未处理时每次冷启动提醒一次，
- *   与系统更新提醒语义一致）
+ * - 自动：state 变为 NewVersion 且该 tag 未被用户关过。dismissedTag 用 rememberSaveable 保存：
+ *   旋转、进程被系统回收后恢复都不重弹已关掉的版本；从桌面冷启动才重置——
+ *   有新版未处理时每次冷启动提醒一次，与系统更新提醒语义一致
  * - 手动：设置页点「立即检查」置 [UpdateSheetController.manualRequest]，
  *   NewVersion/Downloading/Downloaded 任一可用相强制弹（重开进度/安装入口）
  *

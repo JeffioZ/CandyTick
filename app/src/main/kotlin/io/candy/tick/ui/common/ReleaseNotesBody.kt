@@ -15,6 +15,7 @@ import androidx.compose.ui.platform.LocalUriHandler
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.Dp
 import io.candy.tick.R
+import io.candy.tick.ui.theme.MonoTokenStyle
 import io.candy.tick.util.ReleaseNotes
 import top.yukonga.miuix.kmp.theme.MiuixTheme
 
@@ -32,7 +33,7 @@ internal fun ReleaseNotesBody(
 ) {
     val scheme = MiuixTheme.colorScheme
     val notes = remember(markdown, repoSlug, scheme.primaryVariant) {
-        ReleaseNotes.annotated(markdown, scheme.primaryVariant, repoSlug)
+        ReleaseNotes.annotated(markdown, scheme.primaryVariant, repoSlug, MonoTokenStyle)
     }
     val uriHandler = rememberExternalUriHandler()
     Column {

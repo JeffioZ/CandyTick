@@ -513,7 +513,7 @@ fun DetailScreen(
                 item(key = HISTORY_TABS_KEY) {
                     val tabsTopPadding by animateDpAsState(
                         targetValue = if (state.banner != null) 0.dp else 8.dp,
-                        animationSpec = if (motion) tween(Motion.PHASE) else snap(),
+                        animationSpec = if (motion) tween(Motion.PANEL) else snap(),
                         label = "tabsTop",
                     )
                     DetailTabs(
@@ -527,7 +527,8 @@ fun DetailScreen(
                             browsing = true
                         },
                         // 错误横幅在场时页签顶部留白归零：横幅内衬 6 + item 间距 10 = 16dp，
-                        // 与横幅上方 10+6=16 对齐；随横幅 180ms 尺寸过渡同拍动画，避免两段跳动
+                        // 与横幅上方 10+6=16 对齐；随横幅 220ms 尺寸过渡同拍动画（与首页列表顶隙
+                        // 同规则），避免两段跳动
                         modifier = Modifier.padding(
                             top = tabsTopPadding,
                             bottom = 8.dp,

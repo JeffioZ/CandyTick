@@ -31,6 +31,8 @@ val LightFeedbackOutline = Color(0xFFC9D1CD)
 // 输入框未聚焦描边（outline 槽）。规则：两套主题的感知对比度相同（APCA Lc ≈ 20，APCA 区分深浅极性）。
 // WCAG 比值不分极性，同为 3:1 时浅色看起来重得多，所以浅色不按 WCAG 比值取，而是对齐深色的观感
 val LightFieldBorder = LightFeedbackOutline // 对页面底 1.43:1，低于 WCAG 1.4.11 的 3:1，有意取舍
+// 输入框尾部按钮的图标色：浅色是无底块的次要文字；深色见 DarkFieldActionTint
+val LightFieldActionTint = LightTextSecondary
 val DarkFieldBorder = Color(0xFF59625D) // 对页面底 3.03:1，WCAG 1.4.11 达标的最淡取值
 val LightDivider = LightOutline
 val LightSurfaceHigh = Color(0xFFE9EDEB)
@@ -82,6 +84,8 @@ val DarkSecondaryVariant = DarkDivider
 val DarkSecondaryContainer = Color(0xFF1C211F)
 val DarkFieldActionContainer = Color(0xFF49574F)
 val DarkFieldActionOutline = Color(0xFF666F6A)
+// 深色尾部按钮带可见底块，图标提亮到正文色的 80%
+val DarkFieldActionTint = DarkOnSurfaceSecondary
 val DarkTertiaryContainer = Color(0xFF0C3D2E)
 val DarkError = Color(0xFFF87171)
 val DarkOnError = Color(0xFF450A0A)

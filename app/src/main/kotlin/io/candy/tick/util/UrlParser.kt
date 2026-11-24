@@ -15,8 +15,11 @@ object UrlParser {
     fun parse(input: String): Pair<String, String>? {
         val text = input.trim()
         val match = REPO_PATH.matchEntire(text) ?: BARE.matchEntire(text)?.takeUnless { looksLikeUrl(text) } ?: return null
-        val (owner, repo) = match.destructured
-        if (owner == "." || owner == ".." || repo == "." || repo == "..") return null
+        val (owner, rawRepo) = match.destructured
+        // 克隆地址带 .git 后缀，API 路径里没有它（带上会 404，界面误报「不存在或已私有」）；
+        // GitHub 仓库名本身不能以 .git 结尾，剥掉不会改写真实仓库名
+        val repo = if (rawRepo.endsWith(".git", ignoreCase = true)) rawRepo.dropLast(4) else rawRepo
+        if (owner == "." || owner == ".." || repo.isEmpty() || repo == "." || repo == "..") return null
         return owner to repo
     }
 

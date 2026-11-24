@@ -112,7 +112,7 @@
     <string name="version_local_newer">Newer than release</string>
     <string name="version_order_unknown">Can’t compare</string>
 
-    <!-- 四类失败 -->
+    <!-- 失败分类文案 -->
     <string name="err_network">Network unavailable</string>
     <string name="err_timeout">Request timed out</string>
     <string name="err_not_found">Content not found or access denied</string>
@@ -120,6 +120,7 @@
     <string name="err_rate_limited">GitHub rate limit reached. Try again %1$s; a token in Settings raises the limit.</string>
     <string name="err_rate_limited_plain">GitHub rate limit reached. Try again later.</string>
     <string name="err_http">Request failed (HTTP %1$d)</string>
+    <string name="err_storage_full">Not enough storage space</string>
 
     <!-- 相对时间（过去 → … ago；未来 → in …） -->
     <string name="rel_now">just now</string>
@@ -267,6 +268,8 @@
     <string name="asset_recommended">Recommended</string>
     <string name="download_apk">Download APK</string>
     <string name="download_failed_reason">Download failed · %1$s</string>
+    <string name="download_incomplete">The file did not finish downloading</string>
+    <string name="download_save_failed">The file could not be saved</string>
     <string name="download_progress_percent">%1$d%%</string>
     <string name="download_in_progress">Downloading…</string>
 

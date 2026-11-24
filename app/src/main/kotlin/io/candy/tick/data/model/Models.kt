@@ -122,14 +122,9 @@ data class ApkPublication(val tag: String, val publishedAt: Instant?)
 @Serializable
 data class RepoSnapshot(
     val stars: Int,
-    val forks: Int,
-    val openIssues: Int,
     val pushedAt: Instant?,
     val archived: Boolean,
-    val license: String?,
     val description: String?,
-    val ownerAvatar: String?,
-    val htmlUrl: String,
     val lastSyncAt: Instant,
     val etag: String?,
     val latestReleaseTag: String? = null, // 后台已处理通知的发布游标，兼容旧快照。

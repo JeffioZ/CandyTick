@@ -110,7 +110,7 @@
     <string name="version_local_newer">本机较新</string>
     <string name="version_order_unknown">无法判断新旧</string>
 
-    <!-- 四类失败 -->
+    <!-- 失败分类文案 -->
     <string name="err_network">网络不可用</string>
     <string name="err_timeout">请求超时</string>
     <string name="err_not_found">内容不存在或无权访问</string>
@@ -118,6 +118,7 @@
     <string name="err_rate_limited">已达到 GitHub 请求上限，%1$s可重试；设置中配置令牌可提升限额。</string>
     <string name="err_rate_limited_plain">已达到 GitHub 请求上限，请稍后再试。</string>
     <string name="err_http">请求失败（HTTP %1$d）</string>
+    <string name="err_storage_full">存储空间不足</string>
 
     <!-- 相对时间（过去 → …前；未来 → …后） -->
     <string name="rel_now">刚刚</string>
@@ -247,6 +248,8 @@
     <string name="asset_recommended">推荐</string>
     <string name="download_apk">下载安装包</string>
     <string name="download_failed_reason">下载失败 · %1$s</string>
+    <string name="download_incomplete">文件没有下载完整</string>
+    <string name="download_save_failed">文件保存失败</string>
     <string name="download_progress_percent">%1$d%%</string>
     <string name="download_in_progress">正在下载</string>
 

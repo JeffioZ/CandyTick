@@ -53,9 +53,14 @@ import top.yukonga.miuix.kmp.theme.MiuixTheme
 
 // ── 详情页子组件（自 DetailScreen 拆出：头部卡 / 移除确认）──
 
+/** 网络与 API 错误按分类出文案；下载本地环节的失败按资源出文案；其余不透出异常原文。 */
 @Composable
 internal fun downloadFailureText(failure: RepoDownloadState.Failed?): String {
-    val reason = failure?.error?.let { sourceErrorText(it) } ?: failure?.message
+    val reason = failure?.error?.let { sourceErrorText(it) } ?: when (failure?.local) {
+        RepoDownloadState.LocalFailure.INCOMPLETE -> stringResource(R.string.download_incomplete)
+        RepoDownloadState.LocalFailure.SAVE_FAILED -> stringResource(R.string.download_save_failed)
+        else -> null
+    }
     return if (reason.isNullOrBlank()) stringResource(R.string.settings_download_failed)
     else stringResource(R.string.download_failed_reason, reason)
 }

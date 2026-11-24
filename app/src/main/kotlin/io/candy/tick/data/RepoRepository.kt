@@ -22,7 +22,8 @@ import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.sync.Semaphore
 import kotlinx.coroutines.sync.withPermit
 
-/** 用例编排：刷新 / 增删 / 关联 / 设置。Screen 不直连本层以下（拆分红线） */
+/** 用例编排：刷新 / 增删 / 关联 / 设置。Screen 不直连 Store 与数据源（拆分红线）；
+ *  例外是 Token 本身——校验与「是否可用」直接走 GitHubApi */
 class RepoRepository(
     private val store: AppStateStore,
     private val providers: Map<String, SourceProvider>,

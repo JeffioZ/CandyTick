@@ -98,6 +98,17 @@ object VersionCompare {
     }
 
     /**
+     * 本机已装版本（[local]）是否不低于远端 tag（[remote]）：后台同步的「要不要推新版本通知」
+     * 与通知撤回共用这一条规则。不可比视为已追平——宁可不报，不误报（design.md「不宣称有更新」）；
+     * 未读角标不受影响，照常亮。
+     * @param local null = 未关联应用或读不到版本，无法判断，按「未追平」处理
+     */
+    fun installedIsUpToDate(remote: String, local: String?): Boolean {
+        if (local == null) return false
+        return compare(remote, local)?.let { it <= 0 } ?: true
+    }
+
+    /**
      * 数字基线后的 Git 哈希（如 26.11.caccb78）能辨认构建，无法排序。纯数字尾段仍按版本号处理。
      * 两侧都剔掉哈希段且剩余基线相等才判不可比（26.11.caccb78 vs 26.11.def5678）；
      * 仅一侧带哈希维持原比较（1.2.3.4f2a1b9 vs 1.2.3 仍判有更新，不吞提醒）。

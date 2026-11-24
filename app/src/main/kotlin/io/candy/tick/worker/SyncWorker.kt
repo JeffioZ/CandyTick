@@ -87,6 +87,9 @@ class SyncWorker(context: Context, params: WorkerParameters) : CoroutineWorker(c
                 applicationContext.packageManager.getPackageInfo(pkg, 0)
             } catch (_: android.content.pm.PackageManager.NameNotFoundException) {
                 container.repoRepository.setLinkedPackage(tracked.id, null, autoClear = true, expectedPackage = pkg)
+            } catch (_: SecurityException) {
+                // 可见性受限不等于已卸载（与详情页同一规则），保留关联。不接的话异常会穿出 sync()，
+                // 整轮同步在新版本检测之前中止
             }
         }
 
@@ -183,15 +186,11 @@ class SyncWorker(context: Context, params: WorkerParameters) : CoroutineWorker(c
         return if (allNetworkFailed && runAttemptCount < 2) Result.retry() else Result.success()
     }
 
-    /**
-     * 本机已装版本 ≥ tag（降级/重发同名 release 不吵）：可比较且 ≤ 0 才算已最新。
-     * 不可比视为已最新：与自更新链路同口径（design.md「不宣称有更新」）——
-     * 未读角标仍会亮，只是不再推送可能误报的「发现新版」通知。
-     */
-    private fun alreadyUpToDate(tracked: io.candy.tick.data.model.TrackedRepo, tag: String): Boolean {
-        val local = io.candy.tick.util.installedVersionName(applicationContext, tracked) ?: return false
-        return io.candy.tick.util.VersionCompare.compare(tag, local)?.let { it <= 0 } ?: true
-    }
+    /** 本机已装版本已追平该 tag：不推送可能误报的「发现新版」通知。规则见 [io.candy.tick.util.VersionCompare.installedIsUpToDate]。 */
+    private fun alreadyUpToDate(tracked: io.candy.tick.data.model.TrackedRepo, tag: String): Boolean =
+        io.candy.tick.util.VersionCompare.installedIsUpToDate(
+            tag, io.candy.tick.util.installedVersionName(applicationContext, tracked),
+        )
 
     private companion object {
         // 周期任务与「每次打开」使用不同唯一名，设置切换时两者仍可能交叠。

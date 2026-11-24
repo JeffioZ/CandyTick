@@ -262,7 +262,7 @@ class GitHubApi(private val tokenProvider: () -> String?) {
                 dest.parentFile?.mkdirs()
                 // 磁盘预检：写一半 ENOSPC 体验最差；repo 与自更新下载共用此口，一处拦住两处
                 if (asset.size > 0 && (dest.parentFile?.usableSpace ?: Long.MAX_VALUE) < asset.size + DISK_HEADROOM_BYTES) {
-                    throw IOException("Not enough disk space")
+                    throw SourceException(SourceError.StorageFull)
                 }
                 val endpoint = asset.url.toHttpUrl()
                 val request = Request.Builder().url(endpoint).apply {
@@ -331,12 +331,17 @@ class GitHubApi(private val tokenProvider: () -> String?) {
     /**
      * 非 HTTP 异常统一收敛为 SourceException：此前 JSON 解析失败（SerializationException）、
      * 下载写盘失败（IOException，磁盘满）等会裸抛——下拉刷新直接崩、worker 静默失败。
-     * 按「拿不到有效数据」归网络类（四类失败口径内，UI 有既有文案）。
+     * 按「拿不到有效数据」归网络类（UI 有既有文案）；写盘时空间耗尽（ENOSPC）单列——
+     * 它和网络无关，提示「网络不可达」会把用户引去排查网络。
      */
     private fun rethrowMapped(e: Throwable): Nothing = when (e) {
         is kotlinx.coroutines.CancellationException -> throw e
         is SourceException -> throw e
         is InterruptedIOException -> throw SourceException(SourceError.Timeout, e)
+        // Android 把写盘的 errno 拼进 IOException 的 message（"write failed: ENOSPC (No space left on device)"）
+        is IOException -> if (e.message?.contains("ENOSPC") == true) {
+            throw SourceException(SourceError.StorageFull, e)
+        } else throw SourceException(SourceError.NetworkUnreachable, e)
         else -> throw SourceException(SourceError.NetworkUnreachable, e)
     }
 
@@ -461,46 +466,34 @@ class GitHubApi(private val tokenProvider: () -> String?) {
     }
 }
 
-// ---- GitHub DTO（仅本文件可见；容错解析，字段缺失不崩） ----
+// ---- GitHub DTO（仅本文件可见；容错解析，字段缺失不崩）。只声明用得到的字段 ----
 
 @Serializable
 private data class GhRepo(
     val id: Long = 0,
     val name: String = "",
-    val html_url: String = "",
     val description: String? = null,
     val archived: Boolean = false,
     val pushed_at: String? = null,
     val default_branch: String? = null,
     val stargazers_count: Int = 0,
-    val forks_count: Int = 0,
-    val open_issues_count: Int = 0,
     val owner: GhOwner = GhOwner(),
-    val license: GhLicense? = null,
 ) {
     fun toInfo(owner: String, repo: String, etag: String?) = RepoInfo(
         githubId = id,
         owner = owner,
         repo = repo,
         stars = stargazers_count,
-        forks = forks_count,
-        openIssues = open_issues_count,
         pushedAt = parseInstant(pushed_at),
         archived = archived,
-        license = license?.spdx_id,
         description = description,
-        ownerAvatar = this.owner.avatar_url,
-        htmlUrl = html_url,
         etag = etag,
         defaultBranch = default_branch,
     )
 }
 
 @Serializable
-private data class GhOwner(val login: String = "", val avatar_url: String? = null)
-
-@Serializable
-private data class GhLicense(val spdx_id: String? = null)
+private data class GhOwner(val login: String = "")
 
 @Serializable
 private data class GhCommit(

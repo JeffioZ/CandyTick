@@ -6,6 +6,7 @@ import io.candy.tick.data.model.DownloadedApk
 import io.candy.tick.data.model.ReleaseRecord
 import io.candy.tick.util.ApkPicker
 import java.io.File
+import java.io.IOException
 import java.util.concurrent.ConcurrentHashMap
 import java.util.concurrent.atomic.AtomicLong
 import kotlinx.coroutines.CancellationException
@@ -33,14 +34,23 @@ sealed interface RepoDownloadState {
         val fromHeader: Boolean = false, // 头部入口下载：进度只在头部显示，卡片不重复
     ) : RepoDownloadState
 
+    /** 下载链路上本地环节的失败：界面按资源出文案，不透出异常原文 */
+    enum class LocalFailure { INCOMPLETE, SAVE_FAILED }
+
     data class Failed(
         override val releaseKey: String,
         override val assetName: String,
-        val message: String? = null,
         val error: SourceError? = null,
+        val local: LocalFailure? = null,
         val fromHeader: Boolean = false,
     ) : RepoDownloadState
 }
+
+/** 下载流已结束但长度对不上（传输被截断） */
+private class IncompleteDownload : IOException()
+
+/** .part 改名为正式文件失败（目录不可写等） */
+private class SaveFailed : IOException()
 
 /**
  * 仓库 APK 下载宿主（App 级）：此前下载跑在 DetailViewModel.viewModelScope——离开详情页
@@ -122,8 +132,8 @@ class RepoDownloadHost(
                     }
                 }
                 if (jobGens[repoId] != gen) return@launch
-                if (asset.size > 0 && part.length() != asset.size) throw java.io.IOException("Incomplete download")
-                check(part.renameTo(dest)) { "Could not save the downloaded APK" }
+                if (asset.size > 0 && part.length() != asset.size) throw IncompleteDownload()
+                if (!part.renameTo(dest)) throw SaveFailed()
                 val pkg = if (extension == "apk") {
                     appContext.packageManager.getPackageArchiveInfo(dest.absolutePath, 0)?.packageName
                 } else null
@@ -158,9 +168,16 @@ class RepoDownloadHost(
                 throw e
             } catch (e: Exception) {
                 val error = (e as? SourceException)?.error
+                val local = when (e) {
+                    is IncompleteDownload -> RepoDownloadState.LocalFailure.INCOMPLETE
+                    is SaveFailed -> RepoDownloadState.LocalFailure.SAVE_FAILED
+                    else -> null
+                }
                 _states.update { states ->
                     if (jobGens[repoId] != gen) states
-                    else states + (repoId to RepoDownloadState.Failed(release.tagName, asset.name, e.message, error, fromHeader))
+                    else states + (repoId to RepoDownloadState.Failed(
+                        release.tagName, asset.name, error = error, local = local, fromHeader = fromHeader,
+                    ))
                 }
             } finally {
                 _states.update { states ->

@@ -117,7 +117,7 @@ private fun BadgeContainer(
     }
 }
 
-/** 供横幅等场景显示四类失败文案 */
+/** 供横幅等场景显示失败文案 */
 @Composable
 fun sourceErrorText(error: SourceError): String = when (error) {
     is SourceError.NetworkUnreachable -> stringResource(R.string.err_network)
@@ -128,4 +128,5 @@ fun sourceErrorText(error: SourceError): String = when (error) {
         stringResource(R.string.err_rate_limited, relTimeUntilString(it))
     } ?: stringResource(R.string.err_rate_limited_plain)
     is SourceError.Http -> stringResource(R.string.err_http, error.code)
+    SourceError.StorageFull -> stringResource(R.string.err_storage_full)
 }

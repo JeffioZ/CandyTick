@@ -184,6 +184,8 @@ class ListViewModel(
                 cards.value = kept
                 expanded.value = expanded.value.intersect(repos.keys)
                 silentLoaded.value = silentLoaded.value.intersect(kept.keys)
+                // 从详情页退订不经 remove()：同 id 仓库之后重新订阅时不得继承旧的失败角标
+                if (repoErrors.value.keys.any { it !in repos }) repoErrors.value = repoErrors.value.filterKeys { it in repos }
                 for (id in expanded.value) {
                     if (id in cached && id !in kept) loadCard(id)
                 }

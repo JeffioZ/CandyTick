@@ -76,7 +76,7 @@ class SelfUpdater(
     private suspend fun discardInstalledDownload() {
         val saved = savedDownload() ?: return
         val installed = localVersionName() ?: return
-        if (VersionCompare.compare(saved.tag, installed)?.let { it <= 0 } != true) return
+        if (!VersionCompare.installedIsUpToDate(saved.tag, installed)) return
         saved.file.delete()
         store.update { it.copy(downloadedSelfUpdate = null) }
         Notifications.cancelSelfUpdateReady(context)

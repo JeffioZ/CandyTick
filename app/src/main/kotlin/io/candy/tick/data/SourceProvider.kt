@@ -49,33 +49,23 @@ data class RepoSearchPage(val repositories: List<RepoInfo> = emptyList(), val is
 
 data class BranchPage(val names: List<String>, val hasNext: Boolean)
 
-/** 拉取到的仓库信息（改名跟随后的最终 owner/repo 在此） */
+/** 拉取到的仓库信息（改名跟随后的最终 owner/repo 在此）。只保留界面会读的字段，其余不搬运。 */
 data class RepoInfo(
     val githubId: Long,
     val owner: String,
     val repo: String,
     val stars: Int,
-    val forks: Int,
-    val openIssues: Int,
     val pushedAt: Instant?,
     val archived: Boolean,
-    val license: String?,
     val description: String?,
-    val ownerAvatar: String?,
-    val htmlUrl: String,
     val etag: String?,
     val defaultBranch: String?, // 上游当前默认分支名（分支选择器打勾用）
 ) {
     fun toSnapshot() = RepoSnapshot(
         stars = stars,
-        forks = forks,
-        openIssues = openIssues,
         pushedAt = pushedAt,
         archived = archived,
-        license = license,
         description = description,
-        ownerAvatar = ownerAvatar,
-        htmlUrl = htmlUrl,
         lastSyncAt = Instant.now(),
         etag = etag,
         defaultBranch = defaultBranch,
@@ -99,7 +89,7 @@ sealed interface SyncCommitTipResult {
     data object NotModified : SyncCommitTipResult
 }
 
-/** 四类失败（design.md「状态与反馈」；UI 分文案，错误可行动） */
+/** 失败分类（design.md「状态与反馈」；UI 分文案，错误可行动） */
 sealed interface SourceError {
     data object NetworkUnreachable : SourceError
     data object Timeout : SourceError
@@ -107,6 +97,8 @@ sealed interface SourceError {
     data object TokenRejected : SourceError // 401 后匿名重试仍 404：Token 无效/无权，私有仓不再误报「不存在」
     data class RateLimited(val retryAt: Instant?) : SourceError // 403 + 恢复时间
     data class Http(val code: Int) : SourceError // 其余 HTTP 错误
+    // 只出现在下载写盘：剩余空间放不下安装包。此前归入「网络不可达」，会诱导用户去排查网络
+    data object StorageFull : SourceError
 }
 
 // message 补上错误描述：此前为 null，日志里只剩 cause 链，定位不到是哪种源错误
