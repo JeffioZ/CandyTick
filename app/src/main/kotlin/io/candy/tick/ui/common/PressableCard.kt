@@ -128,7 +128,8 @@ fun rememberRowPressTint(
     return source to lerp(surface, scheme.onSurfaceContainer, alpha)
 }
 
-private const val PRESS_TINT = 0.16f
+/** 按压染色强度：CardPressIndication、rememberRowPressTint、CandyIndication 共用。 */
+internal const val PRESS_TINT = 0.16f
 
 internal suspend fun collectPressTint(
     source: InteractionSource,

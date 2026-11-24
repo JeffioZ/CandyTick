@@ -67,9 +67,10 @@ val CandyLightColors = lightColorScheme(
     onSurfaceContainerHigh = LightTextTertiary,
     surfaceContainerHighest = LightSurfaceHighest,
     onSurfaceContainerHighest = LightTextPrimary,
-    // 输入框未聚焦描边（miuix TextField 取 outline 槽）：LightOutline(E4E8E6) 对页面底仅
-    // 1.14:1 几乎不可见；C9D1CD ≈1.4:1——淡而可辨，与 toast 描边同源。dividerLine 是独立槽不受影响
-    outline = LightFeedbackOutline,
+    // 输入框未聚焦描边：CandyTextField 读 outline 槽（miuix 自带的 TextField 不读它，未聚焦时描边为 0dp）。
+    // 浅色 1.43:1，低于 WCAG 1.4.11 的 3:1：规则是两套主题感知对比度相同，而 WCAG 比值不分深浅极性，
+    // 浅色按 3:1 会比深色显眼得多（实机反馈偏重）。有意取舍，取值说明见 Color.kt
+    outline = LightFieldBorder,
     dividerLine = LightDivider,
     windowDimming = LightWindowDimming,
     sliderKeyPoint = LightSliderKeyPoint,
@@ -125,7 +126,7 @@ val CandyDarkColors = darkColorScheme(
     onSurfaceContainerHigh = DarkTextTertiary,
     surfaceContainerHighest = DarkSurfaceHighest,
     onSurfaceContainerHighest = DarkTextPrimary,
-    outline = DarkOutline,
+    outline = DarkFieldBorder,
     dividerLine = DarkDivider,
     windowDimming = DarkWindowDimming,
     sliderKeyPoint = DarkSliderKeyPoint,
@@ -146,12 +147,11 @@ fun CandyTickTheme(
     }
     val colors = if (dark) CandyDarkColors else CandyLightColors
     MiuixTheme(colors = colors) {
-        // 按压反馈按主题定向：MiuixIndication 默认黑色 10% 叠加，深色底上不可见——
-        // 深色改白色叠加（按下变亮），浅色保持黑（按下变暗）；一处覆盖全部默认 clickable/Button
-        val indication = androidx.compose.runtime.remember(dark) {
-            top.yukonga.miuix.kmp.utils.MiuixIndication(
-                if (dark) androidx.compose.ui.graphics.Color.White else androidx.compose.ui.graphics.Color.Black,
-            )
+        // 按压反馈全 App 单一来源：CandyIndication（染色 16%、按下即显、松手保持 80ms）。
+        // miuix Button / BasicComponent 等走默认 indication 的组件在这里拿到与卡片、图标钮
+        // 同一手感，覆盖掉 MiuixTheme 自己提供的 MiuixIndication（10% + spring）
+        val indication = androidx.compose.runtime.remember(colors.onBackground) {
+            io.candy.tick.ui.common.CandyIndication(colors.onBackground)
         }
         // 静态 MiuixTheme 不提供 LocalContentColor，这里按底色补上
         CompositionLocalProvider(

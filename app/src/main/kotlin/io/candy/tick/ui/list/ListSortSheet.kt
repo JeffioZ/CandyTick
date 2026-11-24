@@ -22,13 +22,13 @@ import androidx.compose.ui.semantics.stateDescription
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import io.candy.tick.R
+import io.candy.tick.ui.common.CandySheet
 import io.candy.tick.ui.common.SheetScrollToTopTitle
 import io.candy.tick.ui.common.SheetChoiceRow
 import io.candy.tick.ui.common.scrollToTop
 import top.yukonga.miuix.kmp.basic.Icon
 import top.yukonga.miuix.kmp.basic.Text
 import top.yukonga.miuix.kmp.theme.MiuixTheme
-import top.yukonga.miuix.kmp.window.WindowBottomSheet
 
 private val sortOptions = listOf(
     SortMode.LAST_PUSH to R.string.sort_last_push,
@@ -48,7 +48,7 @@ internal fun SortSheet(
     onDismissFinished: () -> Unit,
 ) {
     val scroll = rememberScrollState()
-    WindowBottomSheet(
+    CandySheet(
         show = show,
         onDismissRequest = onDismiss,
         onDismissFinished = onDismissFinished,

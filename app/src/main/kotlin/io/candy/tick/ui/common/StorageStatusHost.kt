@@ -41,7 +41,6 @@ import io.candy.tick.data.AppStateStore.SaveStatus
 import kotlinx.coroutines.launch
 import top.yukonga.miuix.kmp.basic.Text
 import top.yukonga.miuix.kmp.theme.MiuixTheme
-import top.yukonga.miuix.kmp.window.WindowBottomSheet
 
 /** Keep unreadable data protected at startup and make failed writes recoverable from any screen. */
 @Composable
@@ -97,7 +96,7 @@ internal fun StorageStatusHost(store: AppStateStore, content: @Composable () -> 
         }
         Box(Modifier.fillMaxSize().recalculateWindowInsets()) { content() }
     }
-    WindowBottomSheet(
+    CandySheet(
         show = pending && !minimized,
         title = title,
         onDismissRequest = { minimized = true },

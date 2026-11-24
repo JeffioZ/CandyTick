@@ -10,13 +10,8 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
-import androidx.compose.foundation.layout.WindowInsets
-import androidx.compose.foundation.layout.WindowInsetsSides
 import androidx.compose.foundation.layout.fillMaxWidth
-import androidx.compose.foundation.layout.navigationBars
-import androidx.compose.foundation.layout.only
 import androidx.compose.foundation.layout.padding
-import androidx.compose.foundation.layout.windowInsetsPadding
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.ui.Modifier
@@ -26,13 +21,13 @@ import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.semantics.clearAndSetSemantics
 import androidx.compose.ui.unit.dp
 import io.candy.tick.R
+import io.candy.tick.ui.common.CandyTextField
 import io.candy.tick.ui.common.InlineErrorRow
 import io.candy.tick.ui.common.PrimaryButton
 import io.candy.tick.ui.common.SecondaryButton
 import io.candy.tick.ui.common.SheetChoiceRowShape
 import io.candy.tick.ui.common.TextFieldActionButton
 import top.yukonga.miuix.kmp.basic.Text
-import top.yukonga.miuix.kmp.basic.TextField
 import top.yukonga.miuix.kmp.theme.MiuixTheme
 
 // ── 设置页弹窗与自身更新操作块（自 SettingsScreen 拆出）──
@@ -60,7 +55,7 @@ internal fun CacheCleanupSheet(
         }
     }
 
-    top.yukonga.miuix.kmp.window.WindowBottomSheet(
+    io.candy.tick.ui.common.CandySheet(
         show = show,
         title = stringResource(R.string.settings_cache_cleanup),
         onDismissRequest = { if (!state.cleaning) onDismiss() },
@@ -173,7 +168,7 @@ internal fun ImportSourceDialog(
     onDismiss: () -> Unit,
 ) {
     // 底部浮层容器：与选项浮层同款滑入滑出动效
-    top.yukonga.miuix.kmp.window.WindowBottomSheet(
+    io.candy.tick.ui.common.CandySheet(
         show = show,
         title = stringResource(R.string.settings_import),
         onDismissRequest = onDismiss,
@@ -228,14 +223,13 @@ internal fun TokenDialog(
         }
     }
     // show 直通（勿用 if 包裹）：退场动画依赖组件持续组合；底部浮层与选项浮层动效统一
-    top.yukonga.miuix.kmp.window.WindowBottomSheet(
+    io.candy.tick.ui.common.CandySheet(
         show = show,
         title = stringResource(R.string.settings_token_row),
         onDismissRequest = { onDismiss() },
     ) {
         Column(
             modifier = Modifier
-                .windowInsetsPadding(WindowInsets.navigationBars.only(WindowInsetsSides.Bottom))
                 .verticalScroll(rememberScrollState())
                 .padding(horizontal = 16.dp)
                 .padding(top = 4.dp),
@@ -248,7 +242,7 @@ internal fun TokenDialog(
                 color = scheme.onBackgroundVariant,
             )
             // 输入框：单行密码式，眼睛切换在原生 trailingIcon 槽位（48dp 触控）
-            TextField(
+            CandyTextField(
                 value = state.tokenInput,
                 // Token 不设前端长度上限：官方无长度文档，正确性由 Save & verify 的
                 // 服务端验证兜底——前端瞎猜的上限反而可能废掉未来的有效格式

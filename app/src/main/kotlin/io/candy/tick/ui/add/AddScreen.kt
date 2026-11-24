@@ -74,6 +74,7 @@ import io.candy.tick.ui.common.repoAvatarIcon
 import io.candy.tick.ui.common.CenteredScrollToTopBar
 import io.candy.tick.ui.common.CompactTextAction
 import io.candy.tick.ui.common.FooterText
+import io.candy.tick.ui.common.CandyTextField
 import io.candy.tick.ui.common.TextFieldActionButton
 import io.candy.tick.ui.common.clearTextFieldAction
 import io.candy.tick.ui.common.PrimaryButton
@@ -88,7 +89,6 @@ import top.yukonga.miuix.kmp.basic.ButtonDefaults
 import top.yukonga.miuix.kmp.basic.Icon
 import top.yukonga.miuix.kmp.basic.Scaffold
 import top.yukonga.miuix.kmp.basic.Text
-import top.yukonga.miuix.kmp.basic.TextField
 import top.yukonga.miuix.kmp.squircle.squircleBackground
 import top.yukonga.miuix.kmp.theme.MiuixTheme
 import androidx.compose.ui.res.vectorResource
@@ -203,7 +203,7 @@ fun AddScreen(
             verticalArrangement = Arrangement.spacedBy(12.dp),
         ) {
             Spacer(Modifier.height(4.dp))
-            TextField(
+            CandyTextField(
                 value = state.input,
                 onValueChange = { if (it.length <= io.candy.tick.ui.common.InputLimits.SEARCH) vm.onInput(it) },
                 label = stringResource(R.string.add_input_hint),

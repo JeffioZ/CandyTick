@@ -70,7 +70,7 @@ internal fun RemoveRepoDialog(
 ) {
     val scheme = MiuixTheme.colorScheme
     // 底部浮层容器：与选项浮层同款动效
-    top.yukonga.miuix.kmp.window.WindowBottomSheet(
+    io.candy.tick.ui.common.CandySheet(
         show = show,
         title = stringResource(R.string.remove_confirm_title),
         onDismissRequest = onDismiss,
@@ -88,19 +88,11 @@ internal fun RemoveRepoDialog(
                 color = scheme.onBackgroundVariant,
             )
             // 与导入弹层同构：主上副下、全宽竖排（dialog 式右对齐小按钮不属于 sheet 体系）
-            top.yukonga.miuix.kmp.basic.Button(
+            io.candy.tick.ui.common.DangerButton(
+                text = stringResource(R.string.action_remove),
                 onClick = onConfirm,
-                colors = top.yukonga.miuix.kmp.basic.ButtonDefaults.buttonColors(
-                    color = scheme.error,
-                    contentColor = scheme.onError,
-                ),
                 modifier = Modifier.fillMaxWidth(),
-            ) {
-                Text(
-                    text = stringResource(R.string.action_remove),
-                    style = MiuixTheme.textStyles.button,
-                )
-            }
+            )
             io.candy.tick.ui.common.SecondaryButton(
                 text = stringResource(R.string.action_cancel),
                 onClick = onDismiss,

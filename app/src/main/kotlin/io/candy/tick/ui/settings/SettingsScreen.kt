@@ -43,6 +43,7 @@ import io.candy.tick.data.model.ThemeMode
 import io.candy.tick.data.Notifications
 import io.candy.tick.data.SelfUpdater
 import io.candy.tick.data.model.SyncFrequency
+import io.candy.tick.ui.common.CandySheet
 import io.candy.tick.ui.common.CenteredScrollToTopBar
 import io.candy.tick.ui.common.rememberExternalUriHandler
 import io.candy.tick.ui.common.Feedback
@@ -64,7 +65,6 @@ import io.candy.tick.util.VersionCompare
 import io.candy.tick.util.openAppSettings
 import top.yukonga.miuix.kmp.basic.Scaffold
 import top.yukonga.miuix.kmp.theme.MiuixTheme
-import top.yukonga.miuix.kmp.window.WindowBottomSheet
 import androidx.compose.ui.res.vectorResource
 import androidx.compose.ui.graphics.vector.ImageVector
 
@@ -460,7 +460,7 @@ fun SettingsScreen(onBack: () -> Unit, autoOpenImport: Boolean = false) {
         }
     }
 
-    WindowBottomSheet(
+    CandySheet(
         show = showFrequencySheet,
         title = stringResource(R.string.settings_sync_frequency),
         onDismissRequest = { showFrequencySheet = false },
@@ -473,7 +473,7 @@ fun SettingsScreen(onBack: () -> Unit, autoOpenImport: Boolean = false) {
         }
     }
 
-    WindowBottomSheet(
+    CandySheet(
         show = showThemeSheet,
         title = stringResource(R.string.settings_theme_mode),
         onDismissRequest = { showThemeSheet = false },
@@ -491,7 +491,7 @@ fun SettingsScreen(onBack: () -> Unit, autoOpenImport: Boolean = false) {
         }
     }
 
-    WindowBottomSheet(
+    CandySheet(
         show = showLanguageSheet,
         title = stringResource(R.string.settings_language),
         onDismissRequest = { showLanguageSheet = false },

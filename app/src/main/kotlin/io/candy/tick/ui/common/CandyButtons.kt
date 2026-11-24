@@ -86,13 +86,31 @@ fun SecondaryButton(
     }
 }
 
+/** 危险操作按钮：error 容器 + onError 文字，用于移除仓库这类不可撤销的动作。 */
+@Composable
+fun DangerButton(
+    text: String,
+    onClick: () -> Unit,
+    modifier: Modifier = Modifier,
+    enabled: Boolean = true,
+) {
+    val scheme = MiuixTheme.colorScheme
+    Button(
+        onClick = onClick,
+        modifier = modifier,
+        enabled = enabled,
+        colors = ButtonDefaults.buttonColors(color = scheme.error, contentColor = scheme.onError),
+    ) {
+        Text(text = text, style = MiuixTheme.textStyles.button)
+    }
+}
+
 /**
  * 图标钮统一按压反馈版（全 App 图标钮唯一来源，2026-11-21 起）：
- * Miuix IconButton 的 clickable 不接 indication（0.9.4 字节码核实——库层面无按压
- * 多态），与「所有可点击控件必须有多态」红线冲突。本组件：[size] 圆形热区 +
- * 按压前景染色（rememberRowPressTint，与 PressableCard/信息行同一反馈语言）+
- * Role.Button 语义；可访问名称挂容器（[contentDescription]），槽内 Icon 一律
- * contentDescription = null。
+ * miuix IconButton 的最小尺寸是 40dp，按下反馈是库默认的 10% spring 叠加；本组件改为
+ * [size] 圆形热区（48dp）+ App 标准按压染色（rememberRowPressTint，与 PressableCard/
+ * 信息行同一反馈语言）+ Role.Button 语义；可访问名称挂容器（[contentDescription]），
+ * 槽内 Icon 一律 contentDescription = null。
  *
  * 染色圆直径 = size − 2×[tintInset]（默认 4dp）：热区大于视觉圆——顶栏相邻 48dp
  * 槽位相接时染色圆之间仍有 8dp 视觉间距。输入框用 6dp 内缩保留 36dp 可见圆。

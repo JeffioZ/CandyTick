@@ -5,7 +5,6 @@ import androidx.compose.animation.core.tween
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.RowScope
 import androidx.compose.foundation.layout.fillMaxWidth
-import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.shape.RoundedCornerShape
@@ -38,7 +37,6 @@ internal fun SheetChoiceRow(
             .fillMaxWidth()
             .padding(horizontal = 8.dp, vertical = 2.dp)
             .clip(SheetChoiceRowShape)
-            .heightIn(min = 48.dp)
             // 副标题到达时行高变化走 150 微档动画：标题位移从瞬跳变为平滑过渡
             // （分支选择器逐条到达的日期副标题曾「主标题跳一下」，真机反馈）
             .animateContentSize(tween(Motion.MICRO))

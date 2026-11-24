@@ -23,6 +23,7 @@ import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.res.vectorResource
 import androidx.compose.ui.unit.dp
 import io.candy.tick.R
+import io.candy.tick.ui.common.CandySheet
 import io.candy.tick.ui.common.InlineErrorRow
 import io.candy.tick.ui.common.LoadingDots
 import io.candy.tick.ui.common.Motion
@@ -34,7 +35,6 @@ import io.candy.tick.ui.common.SheetScrollToTopTitle
 import io.candy.tick.ui.common.StatusPage
 import io.candy.tick.ui.common.relTimeString
 import io.candy.tick.ui.common.scrollToTop
-import top.yukonga.miuix.kmp.window.WindowBottomSheet
 
 /**
  * 分支选择器随窗口限高，列表较长时提供筛选。
@@ -67,7 +67,7 @@ internal fun BranchPickerSheet(
     }
     // show 直通（勿用 if 包裹组件）：关闭时组件仍在组合中，库的退场动画才能播放
     val listState = rememberLazyListState()
-    WindowBottomSheet(
+    CandySheet(
         show = show,
         onDismissRequest = onDismiss,
         onDismissFinished = {

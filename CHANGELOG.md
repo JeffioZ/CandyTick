@@ -23,6 +23,23 @@
 [0.2.0]: https://github.com/JeffioZ/CandyTick/releases/tag/v0.2.0
 [0.1.0]: https://github.com/JeffioZ/CandyTick/releases/tag/v0.1.0
 
+## [未发布]
+
+### 优化
+
+- 按下按钮和设置项时的反馈更明显：一按就变色，松手后稍作停留再淡出，与卡片、图标按钮的手感一致。
+
+### 修复
+
+- 输入框没有焦点时几乎看不出边界，现在带一圈淡淡的描边。
+- 底部弹层的内容现在会避开系统导航栏，不再被它挡住。
+
+### English summary
+
+- Pressing a button or a settings row now gives clearer feedback: it changes color at once and fades out shortly after release, matching cards and icon buttons.
+- Text fields had no visible edge when not focused; they now show a faint outline.
+- Bottom sheets now keep their content clear of the system navigation bar instead of letting it be covered.
+
 ## [0.5.1]
 
 ### 优化

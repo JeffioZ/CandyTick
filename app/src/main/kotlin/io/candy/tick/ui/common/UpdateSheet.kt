@@ -7,14 +7,9 @@ import androidx.compose.foundation.layout.BoxWithConstraints
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
-import androidx.compose.foundation.layout.WindowInsets
-import androidx.compose.foundation.layout.WindowInsetsSides
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
-import androidx.compose.foundation.layout.navigationBars
-import androidx.compose.foundation.layout.only
 import androidx.compose.foundation.layout.padding
-import androidx.compose.foundation.layout.windowInsetsPadding
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
@@ -36,7 +31,6 @@ import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import kotlinx.coroutines.launch
 import top.yukonga.miuix.kmp.basic.Text
 import top.yukonga.miuix.kmp.theme.MiuixTheme
-import top.yukonga.miuix.kmp.window.WindowBottomSheet
 
 /**
  * 应用自身更新弹窗（全局宿主：挂 MainActivity 层，设置页未打开也能弹——
@@ -101,7 +95,7 @@ fun UpdateSheet(selfUpdater: SelfUpdater) {
 
     // show 直通（勿用 if 包裹）：退场动画依赖组件持续组合（与全 App 弹层同一约定）
     val scroll = key(release?.tag) { rememberScrollState() }
-    WindowBottomSheet(
+    CandySheet(
         show = show,
         onDismissRequest = {
             show = false
@@ -140,11 +134,8 @@ fun UpdateSheet(selfUpdater: SelfUpdater) {
                     scope.launch { if (show && selfUpdater.state.value == phase) action() }
                 }
                 val sectionGap = 10.dp
-                val linkAtBottom = phase is SelfUpdater.State.NewVersion && phase.asset == null
                 Column(
-                    modifier = if (linkAtBottom) {
-                        Modifier.windowInsetsPadding(WindowInsets.navigationBars.only(WindowInsetsSides.Bottom))
-                    } else Modifier.padding(bottom = 16.dp),
+                    modifier = Modifier.padding(bottom = 16.dp),
                     verticalArrangement = Arrangement.spacedBy(sectionGap),
                 ) {
                     when (phase) {

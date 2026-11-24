@@ -17,7 +17,6 @@ import androidx.compose.ui.platform.LocalSoftwareKeyboardController
 import androidx.compose.ui.platform.LocalWindowInfo
 import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.unit.dp
-import top.yukonga.miuix.kmp.basic.TextField
 
 internal const val PICKER_SEARCH_THRESHOLD = 15
 
@@ -55,7 +54,7 @@ private fun PickerSearchField(
 ) {
     val keyboard = LocalSoftwareKeyboardController.current
     val focus = remember { FocusRequester() }
-    TextField(
+    CandyTextField(
         value = query,
         onValueChange = { if (it != query && it.length <= InputLimits.SEARCH) onQueryChange(it) },
         label = label,

@@ -39,7 +39,6 @@ import io.candy.tick.R
 import io.candy.tick.util.appDisplayName
 import io.candy.tick.util.launcherEntries
 import io.candy.tick.util.labelOf
-import top.yukonga.miuix.kmp.window.WindowBottomSheet
 
 private data class AppOption(
     val packageName: String,
@@ -103,7 +102,7 @@ fun AppPickerSheet(
     val listState = key(page) { rememberLazyListState() }
 
     // show 直通（勿用 if 包裹）：退场动画依赖组件持续组合
-    WindowBottomSheet(
+    CandySheet(
         show = open,
         onDismissRequest = onDismiss,
         onDismissFinished = {

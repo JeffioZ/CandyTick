@@ -461,7 +461,7 @@ fun ListScreen(
                             animationSpec = androidx.compose.animation.core.tween(Motion.PANEL),
                         ) else ExitTransition.None,
                     ) {
-                        top.yukonga.miuix.kmp.basic.TextField(
+                        io.candy.tick.ui.common.CandyTextField(
                             value = state.query,
                             onValueChange = { if (it.length <= io.candy.tick.ui.common.InputLimits.SEARCH) vm.setQuery(it) },
                             // singleLine 与全 App 输入框统一（此前列表过滤框会折行）
