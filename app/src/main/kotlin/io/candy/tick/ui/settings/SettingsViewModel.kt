@@ -114,10 +114,8 @@ class SettingsViewModel(
      * 存储未就绪时 updateSettings 会无限等待；限时后转 SAVE_FAILED，
      * 让弹窗给出失败出口而不是停在「验证中」。
      */
-    private suspend fun persistSettings(
-        timeoutMs: Long = 3_000L,
-        transform: (Settings) -> Settings,
-    ): Boolean = withTimeoutOrNull(timeoutMs) { repository.updateSettings(transform) } != null
+    private suspend fun persistSettings(transform: (Settings) -> Settings): Boolean =
+        withTimeoutOrNull(3_000L) { repository.updateSettings(transform) } != null
 
     fun onTokenInput(text: String) {
         tokenValidation?.cancel()

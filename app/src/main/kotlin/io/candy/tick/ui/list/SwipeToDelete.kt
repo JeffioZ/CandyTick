@@ -50,8 +50,8 @@ import io.candy.tick.ui.common.Motion
 @Composable
 fun SwipeToDelete(
     onDelete: () -> Unit,
+    onPin: () -> Unit,
     modifier: Modifier = Modifier,
-    onPin: (() -> Unit)? = null,
     pinned: Boolean = false,
     content: @Composable (Modifier) -> Unit,
 ) {
@@ -73,7 +73,7 @@ fun SwipeToDelete(
     val removeActionLabel = stringResource(R.string.action_remove)
 
     // 手势挂在固定的槽位，只有前景卡片移动。拖动直接写位移，松手后才交给回位动画。
-    val swipe = Modifier.pointerInput(onPin != null, direction) {
+    val swipe = Modifier.pointerInput(direction) {
         val claimPx = 16.dp.toPx()
         val toLogical = if (direction == LayoutDirection.Ltr) 1f else -1f
         try {
@@ -135,8 +135,7 @@ fun SwipeToDelete(
                         }
                         change.consume()
                         val limit = size.width * 1.2f
-                        val min = if (currentOnPin != null) -limit else 0f
-                        offsetX = (offsetX + delta).coerceIn(min, limit)
+                        offsetX = (offsetX + delta).coerceIn(-limit, limit)
                         if (!hapticFired && abs(offsetX) > size.width * 0.42f) {
                             hapticFired = true
                             haptic.performHapticFeedback(HapticFeedbackType.LongPress)
@@ -203,11 +202,9 @@ fun SwipeToDelete(
         ) {
             content(Modifier.semantics {
                 customActions = buildList {
-                    currentOnPin?.let { pin ->
-                        add(CustomAccessibilityAction(pinActionLabel) {
-                            if (committing) false else { pin(); true }
-                        })
-                    }
+                    add(CustomAccessibilityAction(pinActionLabel) {
+                        if (committing) false else { currentOnPin(); true }
+                    })
                     add(CustomAccessibilityAction(removeActionLabel) {
                         if (committing) false else { currentOnDelete(); true }
                     })

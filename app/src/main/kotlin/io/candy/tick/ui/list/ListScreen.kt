@@ -19,7 +19,6 @@ import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.foundation.layout.size
 import androidx.compose.ui.hapticfeedback.HapticFeedbackType
-import androidx.compose.ui.draw.alpha
 import kotlinx.coroutines.launch
 import androidx.compose.ui.focus.focusRequester
 import androidx.compose.ui.focus.focusProperties
@@ -78,7 +77,6 @@ import top.yukonga.miuix.kmp.basic.MiuixScrollBehavior
 import top.yukonga.miuix.kmp.basic.Scaffold
 import top.yukonga.miuix.kmp.basic.SmallTopAppBar
 import io.candy.tick.ui.common.TopBarActionRow
-import top.yukonga.miuix.kmp.basic.Text
 import top.yukonga.miuix.kmp.basic.rememberPullToRefreshState
 import top.yukonga.miuix.kmp.basic.rememberTopAppBarState
 import top.yukonga.miuix.kmp.theme.MiuixTheme
@@ -173,7 +171,6 @@ fun ListScreen(
     // 瞬时反馈走全局 FeedbackHost（撤销动作由胶囊承载）
     val listState = androidx.compose.foundation.lazy.rememberLazyListState()
     val emptyScroll = rememberScrollState()
-    val showingEmpty = state.items.isEmpty() && !state.refreshing
     // 标题「已在顶部」判定：derivedStateOf 只在越过边界时重组标题（canScrollBackward 逐帧变）
     val homeAtTop by remember { androidx.compose.runtime.derivedStateOf { !listState.canScrollBackward && !listState.isScrollInProgress } }
     val scope = androidx.compose.runtime.rememberCoroutineScope()
@@ -281,7 +278,7 @@ fun ListScreen(
                                 ScrollToTopTitle(
                                     text = stringResource(R.string.app_name),
                                     modifier = Modifier.weight(1f, fill = false),
-                                    actionLabel = if (homeAtTop && !showingEmpty &&
+                                    actionLabel = if (homeAtTop &&
                                         state.items.count { it.repo.id in state.expanded } > 0
                                     ) R.string.collapse_all else R.string.scroll_to_top,
                                     onClick = {
@@ -606,7 +603,7 @@ fun ListScreen(
                             }
                         }
                         // 列表末尾标记：始终渲染、紧跟最后一张卡（用户定案——不做按屏判定，
-                        // 颜色在 FooterText 内整体弱化以降噪）。topPadding 24：8 间距 + 24
+                        // 颜色在 FooterText 内整体弱化以降噪）。FooterText 自带顶部留白 24：8 间距 + 24
                         // = 32，与底部 contentPadding 32 上下对称（原版节奏）
                         item(key = "list-end") {
                             io.candy.tick.ui.common.FooterText(

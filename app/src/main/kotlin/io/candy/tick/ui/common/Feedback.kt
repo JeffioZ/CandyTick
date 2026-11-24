@@ -60,7 +60,7 @@ object Feedback {
         val isError: Boolean = false,
         val actionLabel: String? = null,
         val onAction: (() -> Unit)? = null,
-        val durationMs: Long = if (actionLabel != null) 4_500L else 2_200L,
+        val durationMs: Long,
     ) {
         val createdAt = SystemClock.elapsedRealtime()
     }
@@ -150,8 +150,7 @@ fun FeedbackHost() {
             }
             return@LaunchedEffect
         }
-        // 窗口从首次上屏起算：后台/被遮挡期间不计时（此前在后台就把窗口耗尽，表现为从未显示就消失）
-        val firstShownAt = SystemClock.elapsedRealtime()
+        // 展示窗口自上屏起一次性计时（不随后台/遮挡暂停）；可撤销性另由 Message.createdAt 把关
         val timeout = accessibility?.calculateRecommendedTimeoutMillis(
             originalTimeoutMillis = m.durationMs,
             containsIcons = true,

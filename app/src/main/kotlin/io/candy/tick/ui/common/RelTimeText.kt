@@ -37,19 +37,9 @@ private val relativeClock: StateFlow<Instant> = flow {
 
 /** 「3 天前」双语相对时间文本 */
 @Composable
-fun RelTimeText(
-    date: Instant?,
-    modifier: Modifier = Modifier,
-    color: Color = Color.Unspecified,
-    style: TextStyle? = null,
-) {
+fun RelTimeText(date: Instant?, modifier: Modifier = Modifier, color: Color, style: TextStyle) {
     if (date == null) return
-    val text = relTimeString(date)
-    if (style != null) {
-        Text(text = text, modifier = modifier, color = color, style = style)
-    } else {
-        Text(text = text, modifier = modifier, color = color)
-    }
+    Text(text = relTimeString(date), modifier = modifier, color = color, style = style)
 }
 
 /** 过去时间 → 「3 天前 / 3 days ago」（分钟节拍自动重算，不冻结） */

@@ -45,19 +45,17 @@ private val IconChipSize = 30.dp
 
 @Composable
 internal fun SettingsGroup(
-    title: String?,
+    title: String,
     modifier: Modifier = Modifier,
     content: @Composable ColumnScope.() -> Unit,
 ) {
     Column(modifier = modifier.fillMaxWidth()) {
-        if (title != null) {
-            Text(
-                text = title,
-                style = MiuixTheme.textStyles.footnote1,
-                color = MiuixTheme.colorScheme.onBackgroundVariant,
-                modifier = Modifier.padding(start = RowSideInset, top = 20.dp, bottom = 8.dp),
-            )
-        }
+        Text(
+            text = title,
+            style = MiuixTheme.textStyles.footnote1,
+            color = MiuixTheme.colorScheme.onBackgroundVariant,
+            modifier = Modifier.padding(start = RowSideInset, top = 20.dp, bottom = 8.dp),
+        )
         Card(modifier = Modifier.fillMaxWidth()) {
             Column(content = content)
         }

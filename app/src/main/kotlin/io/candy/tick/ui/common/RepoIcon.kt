@@ -55,9 +55,9 @@ import top.yukonga.miuix.kmp.theme.MiuixTheme
 private val IconDecodeCeiling = 56.dp
 
 @Composable
-fun RepoIconBlock(repo: TrackedRepo, installedVersion: String?, size: Dp = 48.dp, corner: Dp = 12.dp) {
+fun RepoIconBlock(repo: TrackedRepo, installedVersion: String?) {
     val pkg = repo.linkedPackage
-    RepoAvatar(repo.owner, repoAvatarIcon(pkg, rememberAppIconResult(pkg, refreshKey = installedVersion)), size, corner)
+    RepoAvatar(repo.owner, repoAvatarIcon(pkg, rememberAppIconResult(pkg, refreshKey = installedVersion)), 48.dp, 12.dp)
 }
 
 @Composable

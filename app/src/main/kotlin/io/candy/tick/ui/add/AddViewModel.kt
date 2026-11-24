@@ -300,9 +300,6 @@ class AddViewModel(
                 is RepoRepository.AddResult.Duplicate -> {
                     _state.update { it.copy(duplicate = true, adding = false) }
                 }
-                is RepoRepository.AddResult.Failed -> {
-                    _state.update { it.copy(preview = PreviewState.Failed(result.error), adding = false) }
-                }
             }
         }
     }

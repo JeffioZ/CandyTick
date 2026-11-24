@@ -30,7 +30,6 @@ import androidx.compose.ui.graphics.lerp
 import androidx.compose.ui.node.DelegatableNode
 import androidx.compose.ui.node.DrawModifierNode
 import androidx.compose.ui.semantics.Role
-import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import kotlinx.coroutines.CoroutineStart
 import kotlinx.coroutines.delay
@@ -47,7 +46,6 @@ import top.yukonga.miuix.kmp.theme.MiuixTheme
 fun PressableCard(
     onClick: () -> Unit,
     modifier: Modifier = Modifier,
-    cornerRadius: Dp = CardDefaults.CornerRadius,
     interactionModifier: Modifier = Modifier,
     onClickLabel: String? = null,
     content: @Composable ColumnScope.() -> Unit,
@@ -58,7 +56,6 @@ fun PressableCard(
     }
     Card(
         modifier = modifier,
-        cornerRadius = cornerRadius,
         insideMargin = PaddingValues(0.dp),
         colors = CardDefaults.defaultColors(
             color = scheme.surfaceContainer,

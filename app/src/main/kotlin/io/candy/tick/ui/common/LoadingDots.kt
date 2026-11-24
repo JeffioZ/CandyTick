@@ -111,7 +111,7 @@ private suspend fun waitForMinimumDisplay(shownAt: Long) {
 
 /**
  * 首页标题右侧的三点与完成／失败符。
- * 36dp 固定占位槽——槽常在，标题再长 dots 也不会被挤出/挤进 actions 区；
+ * 固定宽度占位槽（宽度由调用方的 modifier 给）——槽常在，标题再长 dots 也不会被挤出/挤进 actions 区；
  * 300ms 延迟防闪（短抖动不点亮），结束后停一拍再收。
  */
 @Composable
@@ -149,7 +149,7 @@ fun SyncDots(
         }
     }
     val scheme = MiuixTheme.colorScheme
-    Box(modifier = modifier.width(36.dp), contentAlignment = Alignment.CenterStart) {
+    Box(modifier = modifier, contentAlignment = Alignment.CenterStart) {
         // One semantic node describes the target while both glyphs are drawn during the fade.
         Crossfade(
             targetState = phase,

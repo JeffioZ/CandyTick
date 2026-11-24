@@ -52,7 +52,6 @@ import top.yukonga.miuix.kmp.basic.Card
 import top.yukonga.miuix.kmp.theme.MiuixTheme
 import androidx.compose.ui.res.vectorResource
 import androidx.compose.ui.graphics.vector.ImageVector
-import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.setValue
 import io.candy.tick.ui.common.Motion
 

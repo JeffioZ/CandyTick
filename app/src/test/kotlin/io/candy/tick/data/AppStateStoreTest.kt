@@ -1,5 +1,6 @@
 package io.candy.tick.data
 
+import io.candy.tick.data.model.AppState
 import io.candy.tick.data.model.DownloadedApk
 import io.candy.tick.data.model.TrackedRepo
 import io.candy.tick.data.model.RepoSnapshot
@@ -9,6 +10,8 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.coroutineScope
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.runBlocking
+import kotlinx.serialization.encodeToString
+import kotlinx.serialization.json.Json
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
 import org.junit.Assert.assertNull
@@ -16,6 +19,9 @@ import org.junit.Assert.assertTrue
 import org.junit.Rule
 import org.junit.Test
 import org.junit.rules.TemporaryFolder
+
+/** 旧版（瘦身前）完整备份的写出格式：全部字段都显式写出 */
+private val legacyJson = Json { encodeDefaults = true }
 
 class AppStateStoreTest {
     @get:Rule val temporary = TemporaryFolder()
@@ -74,10 +80,12 @@ class AppStateStoreTest {
         val snapshot = RepoSnapshot(0, 0, 0, null, false, null, null, null, "", Instant.EPOCH, null,
             latestReleaseTag = "1", lastCommitSha = "a")
         val target = AppStateStore(temporary.newFolder("target"), temporary.newFolder("targetCredentials"))
-        val backup = AppStateStore(temporary.newFolder("source"), temporary.newFolder("sourceCredentials"))
+        // 导出已瘦身（不带快照）；带基线的导入只剩旧版完整备份这一条路，直接喂旧格式
+        val legacyBackup = legacyJson.encodeToString(
+            AppState(repos = listOf(repo(2)), snapshots = mapOf(2L to snapshot)),
+        )
         target.update { it.copy(repos = listOf(repo(1)), snapshots = mapOf(1L to snapshot)) }
-        backup.update { it.copy(repos = listOf(repo(2)), snapshots = mapOf(2L to snapshot)) }
-        assertEquals(1, target.importJson(backup.exportJson()!!))
+        assertEquals(1, target.importJson(legacyBackup))
         val after = snapshot.copy(latestReleaseTag = "2", lastCommitSha = "b")
         assertTrue(SnapshotDiff.hasNewActivity(target.state.value.snapshots.getValue(1), after))
         assertFalse(SnapshotDiff.hasNewActivity(target.state.value.snapshots.getValue(2), after))

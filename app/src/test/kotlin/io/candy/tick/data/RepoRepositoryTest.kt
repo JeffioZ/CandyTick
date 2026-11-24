@@ -40,7 +40,7 @@ class RepoRepositoryTest {
 
     @Test fun concurrentAddsAndUndoKeepOneRepository() = runBlocking {
         val repo = repository { RepoInfoResult.Fetched(info) }
-        val results = (1..8).map { async { repo.addRepo("o", "r") } }.awaitAll()
+        val results = (1..8).map { async { repo.addRepo(info) } }.awaitAll()
         assertEquals(1, results.count { it is RepoRepository.AddResult.Added })
         assertEquals(7, results.count { it == RepoRepository.AddResult.Duplicate })
         repo.restoreRepo(tracked, info.toSnapshot())
@@ -67,11 +67,10 @@ class RepoRepositoryTest {
         val files = temporary.newFolder("files")
         val store = AppStateStore(files, temporary.newFolder("noBackup"))
         val provider = object : SourceProvider {
-            override val name = PROVIDER_GITHUB
             override suspend fun repoInfo(owner: String, repo: String, etag: String?) = fetch()
             override suspend fun commits(owner: String, repo: String, page: Int, sha: String?) = emptyList<CommitRecord>()
             override suspend fun releases(owner: String, repo: String, page: Int, perPage: Int) = emptyList<ReleaseRecord>()
         }
-        return RepoRepository(store, mapOf(provider.name to provider), files)
+        return RepoRepository(store, mapOf(PROVIDER_GITHUB to provider), files)
     }
 }

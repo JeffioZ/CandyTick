@@ -111,9 +111,7 @@ class ListViewModel(
         val expanded: Set<Long> = emptySet(),
         val updatableIds: Set<Long> = emptySet(), // 有可比新版的仓库（折叠卡直显标识）
         val cards: Map<Long, CardExtras> = emptyMap(),
-    ) {
-        val isEmpty: Boolean get() = items.isEmpty() && !refreshing && query.isBlank()
-    }
+    )
 
     sealed interface Event {
         data class Removed(val repo: TrackedRepo, val snapshot: RepoSnapshot?) : Event

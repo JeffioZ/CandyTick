@@ -47,20 +47,9 @@ class RepoRepository(
     sealed interface AddResult {
         data object Duplicate : AddResult // 已在列表
         data class Added(val repo: TrackedRepo) : AddResult
-        data class Failed(val error: SourceError) : AddResult
     }
 
-    /** 添加订阅：拉取信息（顺带完成改名跟随）→ 按 GitHub id 查重 → 落库 */
-    suspend fun addRepo(owner: String, repo: String): AddResult = try {
-        when (val result = provider(PROVIDER_GITHUB).repoInfo(owner.trim(), repo.trim())) {
-            RepoInfoResult.NotModified -> AddResult.Failed(SourceError.Http(304))
-            is RepoInfoResult.Fetched -> addRepo(result.info)
-        }
-    } catch (e: SourceException) {
-        AddResult.Failed(e.error)
-    }
-
-    /** 用户确认的预览已含完整快照，订阅与关联一次写入。 */
+    /** 添加订阅：按 GitHub id 查重 → 落库。用户确认的预览已含完整快照，订阅与关联一次写入。 */
     suspend fun addRepo(info: RepoInfo, linkedPackage: String? = null, linkedLabel: String? = null): AddResult {
         val tracked = TrackedRepo(
             id = info.githubId, owner = info.owner, repo = info.repo, addedAt = Instant.now(),

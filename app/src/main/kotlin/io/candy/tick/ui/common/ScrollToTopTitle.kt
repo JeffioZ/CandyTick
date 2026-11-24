@@ -12,7 +12,6 @@ import androidx.compose.foundation.layout.RowScope
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.sizeIn
-import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.layout.wrapContentWidth
 import androidx.compose.foundation.lazy.LazyListState
@@ -56,7 +55,6 @@ internal fun ScrollToTopTitle(
     modifier: Modifier = Modifier,
     actionLabel: Int = R.string.scroll_to_top,
     style: TextStyle = MiuixTheme.textStyles.title4,
-    color: Color = MiuixTheme.colorScheme.onBackground,
 ) {
     Box(
         modifier = modifier
@@ -67,7 +65,7 @@ internal fun ScrollToTopTitle(
         Text(
             text = text,
             style = style,
-            color = color,
+            color = MiuixTheme.colorScheme.onBackground,
             maxLines = 1,
             softWrap = false,
             overflow = TextOverflow.Ellipsis,

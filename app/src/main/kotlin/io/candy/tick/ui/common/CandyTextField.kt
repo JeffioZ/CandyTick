@@ -40,8 +40,7 @@ fun CandyTextField(
     value: String,
     onValueChange: (String) -> Unit,
     modifier: Modifier = Modifier,
-    label: String = "",
-    enabled: Boolean = true,
+    label: String,
     singleLine: Boolean = false,
     keyboardOptions: KeyboardOptions = KeyboardOptions.Default,
     keyboardActions: KeyboardActions = KeyboardActions.Default,
@@ -62,7 +61,6 @@ fun CandyTextField(
         modifier = modifier
             .fillMaxWidth()
             .fieldBorder(borderWidth, borderColor, TextFieldDefaults.CornerRadius, isSquircleEnabled()),
-        enabled = enabled,
         label = label,
         singleLine = singleLine,
         keyboardOptions = keyboardOptions,

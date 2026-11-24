@@ -13,8 +13,6 @@ const val RELEASES_PER_PAGE = 10
 
 /** 信息源抽象（V1 仅 GitHub；预留源扩展位） */
 interface SourceProvider {
-    val name: String
-
     /** 携带 ETag 条件请求；304 时返回 NotModified。 */
     suspend fun repoInfo(owner: String, repo: String, etag: String? = null): RepoInfoResult
 
@@ -121,8 +119,6 @@ val SourceError.isInaccessible: Boolean
 
 /** GitHub 实现：纯委托，OkHttp 细节收敛在 GitHubApi.kt */
 class GitHubProvider(private val api: GitHubApi) : SourceProvider {
-    override val name = PROVIDER_GITHUB
-
     override suspend fun repoInfo(owner: String, repo: String, etag: String?) =
         api.repoInfo(owner, repo, etag)
 

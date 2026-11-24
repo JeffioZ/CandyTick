@@ -33,7 +33,6 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.LineBreak
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
-import androidx.compose.ui.unit.Dp
 import io.candy.tick.R
 import io.candy.tick.data.SourceError
 import top.yukonga.miuix.kmp.basic.Icon
@@ -169,7 +168,7 @@ fun StatusPage(
 
 /** 在列表末尾显示当前列表的数量与单位。 */
 @Composable
-fun FooterText(@PluralsRes countLabel: Int, count: Int, modifier: Modifier = Modifier, topPadding: Dp = 24.dp) {
+fun FooterText(@PluralsRes countLabel: Int, count: Int, modifier: Modifier = Modifier) {
     // 列表终点标记：文字两侧短线与文字同色——印刷式「线·文·线」终点语言；
     // 常驻弱化：次级文字色 75% 透明（线同色），要「在」但不与内容争注意力
     val scheme = MiuixTheme.colorScheme
@@ -179,7 +178,7 @@ fun FooterText(@PluralsRes countLabel: Int, count: Int, modifier: Modifier = Mod
         horizontalArrangement = Arrangement.Center,
         modifier = modifier
             .fillMaxWidth()
-            .padding(top = topPadding),
+            .padding(top = 24.dp),
     ) {
         Box(
             Modifier

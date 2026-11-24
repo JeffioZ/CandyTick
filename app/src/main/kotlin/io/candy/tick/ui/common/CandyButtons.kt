@@ -92,13 +92,11 @@ fun DangerButton(
     text: String,
     onClick: () -> Unit,
     modifier: Modifier = Modifier,
-    enabled: Boolean = true,
 ) {
     val scheme = MiuixTheme.colorScheme
     Button(
         onClick = onClick,
         modifier = modifier,
-        enabled = enabled,
         colors = ButtonDefaults.buttonColors(color = scheme.error, contentColor = scheme.onError),
     ) {
         Text(text = text, style = MiuixTheme.textStyles.button)
@@ -108,11 +106,11 @@ fun DangerButton(
 /**
  * 图标钮统一按压反馈版（全 App 图标钮唯一来源，2026-11-21 起）：
  * miuix IconButton 的最小尺寸是 40dp，按下反馈是库默认的 10% spring 叠加；本组件改为
- * [size] 圆形热区（48dp）+ App 标准按压染色（rememberRowPressTint，与 PressableCard/
+ * 48dp 圆形热区 + App 标准按压染色（rememberRowPressTint，与 PressableCard/
  * 信息行同一反馈语言）+ Role.Button 语义；可访问名称挂容器（[contentDescription]），
  * 槽内 Icon 一律 contentDescription = null。
  *
- * 染色圆直径 = size − 2×[tintInset]（默认 4dp）：热区大于视觉圆——顶栏相邻 48dp
+ * 染色圆直径 = 48dp − 2×[tintInset]（默认 4dp）：热区大于视觉圆——顶栏相邻 48dp
  * 槽位相接时染色圆之间仍有 8dp 视觉间距。输入框用 6dp 内缩保留 36dp 可见圆。
  */
 @Composable
@@ -120,7 +118,6 @@ fun PressIconButton(
     onClick: () -> Unit,
     contentDescription: String?,
     modifier: Modifier = Modifier,
-    size: Dp = 48.dp,
     tintInset: Dp = 4.dp,
     containerColor: Color = MiuixTheme.colorScheme.surfaceContainer,
     border: BorderStroke? = null,
@@ -145,7 +142,7 @@ fun PressIconButton(
     }
     Box(
         modifier = modifier
-            .size(size)
+            .size(48.dp)
             .then(gestures)
             .semantics { contentDescription?.let { this.contentDescription = it } }
             // padding 在 clickable 之后：染色圆缩进、热区不缩

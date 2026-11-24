@@ -36,7 +36,6 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.runtime.snapshotFlow
-import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.input.key.onPreviewKeyEvent
@@ -476,10 +475,8 @@ fun DetailScreen(
                             localVersion = localVersion,
                             onChangeLinked = { showAppPicker = true },
                             onUnlink = {
-                                scope.launch {
-                                    vm.setLinkedApp(null)
-                                    // 不出胶囊：头卡关联行当场消失，视觉已确认
-                                }
+                                // 不出胶囊：头卡关联行当场消失，视觉已确认
+                                vm.setLinkedApp(null)
                             },
                             onLinkSuggestion = {
                                 state.linkSuggestion?.let { (pkg, label) -> vm.setLinkedApp(pkg, newLabel = label) }

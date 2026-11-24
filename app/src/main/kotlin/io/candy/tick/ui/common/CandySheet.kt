@@ -25,10 +25,7 @@ internal fun CandySheet(
     modifier: Modifier = Modifier,
     title: String? = null,
     startAction: @Composable (() -> Unit)? = null,
-    endAction: @Composable (() -> Unit)? = null,
     onDismissFinished: (() -> Unit)? = null,
-    allowDismiss: Boolean = true,
-    enableNestedScroll: Boolean = true,
     content: @Composable () -> Unit,
 ) {
     WindowBottomSheet(
@@ -36,11 +33,8 @@ internal fun CandySheet(
         modifier = modifier,
         title = title,
         startAction = startAction,
-        endAction = endAction,
         onDismissRequest = onDismissRequest,
         onDismissFinished = onDismissFinished,
-        allowDismiss = allowDismiss,
-        enableNestedScroll = enableNestedScroll,
     ) {
         Column(
             modifier = Modifier
