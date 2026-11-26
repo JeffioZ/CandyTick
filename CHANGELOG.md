@@ -10,7 +10,8 @@
 在相应版本的中文条目后附英文摘要。发版工作流会提取整个版本章节作为 GitHub Release 正文。
 -->
 
-[未发布]: https://github.com/JeffioZ/CandyTick/compare/v0.7.0...main
+[未发布]: https://github.com/JeffioZ/CandyTick/compare/v0.7.1...main
+[0.7.1]: https://github.com/JeffioZ/CandyTick/releases/tag/v0.7.1
 [0.7.0]: https://github.com/JeffioZ/CandyTick/releases/tag/v0.7.0
 [0.6.0]: https://github.com/JeffioZ/CandyTick/releases/tag/v0.6.0
 [0.5.1]: https://github.com/JeffioZ/CandyTick/releases/tag/v0.5.1
@@ -24,6 +25,22 @@
 [0.2.1]: https://github.com/JeffioZ/CandyTick/releases/tag/v0.2.1
 [0.2.0]: https://github.com/JeffioZ/CandyTick/releases/tag/v0.2.0
 [0.1.0]: https://github.com/JeffioZ/CandyTick/releases/tag/v0.1.0
+
+## [0.7.1]
+
+### 优化
+
+- 首页顶栏排序入口图标支持随升序 / 降序做 180° 平滑垂直翻转，与排序浮层内的方向指示保持一致。
+- 首页仓库卡片展开 / 收起箭头统一为 180° 平滑旋转动效（遵循系统减弱动效），与详情页版本卡片手感一致。
+- 自身更新浮层顶部新增无框柔和版本信息条（展示当前 → 目标版本与安装包体积），并在下载过程中保持连贯展示；后台已下载完成的新版在打开应用时也会主动提醒一次安装。
+- 设置页「开源许可」改用天平图标，避免与「本地文件导入」重复。
+
+### English summary
+
+- Added a smooth 180° vertical flip animation to the home top-bar sort icon so it reflects the active ascending or descending order.
+- Unified the home repository card expand/collapse chevron with a smooth 180° rotation (respecting reduced-motion settings) matching detail release cards.
+- Polished the self-update sheet with a soft version banner showing current → target version and package size across NewVersion, Downloading, and Downloaded states, and auto-prompts once to install already-downloaded updates on launch.
+- Updated the Open-source licenses row to use a Lucide scale icon.
 
 ## [0.7.0]
 
