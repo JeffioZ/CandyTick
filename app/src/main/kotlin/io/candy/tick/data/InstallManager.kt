@@ -31,7 +31,11 @@ class InstallManager(private val context: Context, private val scope: CoroutineS
         data object PendingUserAction : InstallResult // 系统确认界面已拉起
         data object Cancelled : InstallResult // 用户在系统确认页取消（不是失败，不出错误胶囊）
         data object NeedsInstallPermission : InstallResult // 未授予「安装未知应用」，已带去系统设置
-        data class Failed(val message: String?, val signatureMismatch: Boolean) : InstallResult
+        data class Failed(
+            val message: String?,
+            val signatureMismatch: Boolean,
+            val statusCode: Int? = null,
+        ) : InstallResult
     }
 
     private data class Event(val repoId: Long?, val result: InstallResult)
@@ -97,6 +101,7 @@ class InstallManager(private val context: Context, private val scope: CoroutineS
                     InstallResult.Failed(
                         message = message,
                         signatureMismatch = message?.contains("UPDATE_INCOMPATIBLE") == true,
+                        statusCode = status,
                     )
                 }
             }

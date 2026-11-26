@@ -60,6 +60,7 @@ class CandyTickApp : Application() {
                         localized.getString(io.candy.tick.R.string.state_corrupt_notice),
                         isError = true,
                         durationMs = 6_000L,
+                        errorCode = "E-STATE",
                     )
                 }
             }

@@ -101,6 +101,7 @@ fun SettingsScreen(onBack: () -> Unit, autoOpenImport: Boolean = false) {
     val clipboard = remember(context) { context.getSystemService(ClipboardManager::class.java) }
     var showFrequencySheet by remember { mutableStateOf(false) }
     var showThemeSheet by remember { mutableStateOf(false) }
+    var showIconSheet by remember { mutableStateOf(false) }
     var showLanguageSheet by remember { mutableStateOf(false) }
     var showTokenDialog by rememberSaveable { mutableStateOf(false) }
     var tokenVisible by rememberSaveable { mutableStateOf(false) }
@@ -129,6 +130,9 @@ fun SettingsScreen(onBack: () -> Unit, autoOpenImport: Boolean = false) {
         onDispose { lifecycleOwner.lifecycle.removeObserver(observer) }
     }
 
+    LaunchedEffect(Unit) {
+        vm.refreshRateLimit()
+    }
     // rememberSaveable：空态「导入直达」拉起后旋转屏幕浮层不丢（此前 remember 旋转即关）
     var showImportDialog by rememberSaveable { mutableStateOf(false) }
     var showCacheCleanup by remember { mutableStateOf(false) }
@@ -150,7 +154,7 @@ fun SettingsScreen(onBack: () -> Unit, autoOpenImport: Boolean = false) {
             added == 0 -> resources.getString(R.string.import_no_new)
             else -> resources.getQuantityString(R.plurals.import_result, added, added)
         }
-        Feedback.show(msg, isError = added < 0)
+        Feedback.show(msg, isError = added < 0, errorCode = if (added < 0) "E-IMPORT" else null)
     }
     val importLauncher = rememberLauncherForActivityResult(ActivityResultContracts.OpenDocument()) { uri ->
         if (uri != null) scope.launch {
@@ -170,7 +174,7 @@ fun SettingsScreen(onBack: () -> Unit, autoOpenImport: Boolean = false) {
         } catch (cancelled: CancellationException) {
             throw cancelled
         } catch (_: Exception) {
-            Feedback.show(resources.getString(R.string.share_unavailable), isError = true)
+            Feedback.show(resources.getString(R.string.share_unavailable), isError = true, errorCode = "E-SHARE")
         }
     }
 
@@ -220,6 +224,14 @@ fun SettingsScreen(onBack: () -> Unit, autoOpenImport: Boolean = false) {
                     iconTint = ChipPeriwinkle,
                     onClick = { showThemeSheet = true },
                 )
+                RowDivider()
+                SettingRow(
+                    title = stringResource(R.string.settings_app_icon),
+                    value = appIconModeLabel(state.settings.appIconMode),
+                    icon = ImageVector.vectorResource(R.drawable.ic_app_icon),
+                    iconTint = ChipTeal,
+                    onClick = { showIconSheet = true },
+                )
             }
             }
 
@@ -244,14 +256,27 @@ fun SettingsScreen(onBack: () -> Unit, autoOpenImport: Boolean = false) {
                 )
 
                 RowDivider()
+                val rateLimit = state.rateLimit
+                val tokenSummary = when {
+                    state.tokenRejected -> stringResource(R.string.token_quota_rejected_short)
+                    rateLimit != null -> stringResource(
+                        R.string.token_quota_summary,
+                        rateLimit.used,
+                        rateLimit.remaining,
+                        rateLimit.limit,
+                    )
+                    else -> stringResource(R.string.settings_token_hint_short)
+                }
+                val tokenValue = when {
+                    !state.settings.githubToken.isNullOrBlank() && !state.settings.githubUsername.isNullOrBlank() ->
+                        "@${state.settings.githubUsername}"
+                    !state.settings.githubToken.isNullOrBlank() -> stringResource(R.string.token_set)
+                    else -> stringResource(R.string.token_unset)
+                }
                 SettingRow(
                     title = stringResource(R.string.settings_token_row),
-                    summary = stringResource(R.string.settings_token_hint_short),
-                    value = if (!state.settings.githubToken.isNullOrBlank()) {
-                        stringResource(R.string.token_set)
-                    } else {
-                        stringResource(R.string.token_unset)
-                    },
+                    summary = tokenSummary,
+                    value = tokenValue,
                     icon = ImageVector.vectorResource(R.drawable.ic_lock),
                     iconTint = ChipOrange,
                     onClick = {
@@ -280,7 +305,7 @@ fun SettingsScreen(onBack: () -> Unit, autoOpenImport: Boolean = false) {
                         val intent = Intent(Settings.ACTION_APP_NOTIFICATION_SETTINGS)
                             .putExtra(Settings.EXTRA_APP_PACKAGE, context.packageName)
                         if (!context.openAppSettings(intent)) {
-                            Feedback.show(resources.getString(R.string.system_settings_unavailable), isError = true)
+                            Feedback.show(resources.getString(R.string.system_settings_unavailable), isError = true, errorCode = "E-SYS")
                         }
                     },
                 )
@@ -327,7 +352,7 @@ fun SettingsScreen(onBack: () -> Unit, autoOpenImport: Boolean = false) {
                     value = permText(installPermGranted),
                     onClick = {
                         if (!app.container.installManager.openInstallPermissionSettings()) {
-                            Feedback.show(resources.getString(R.string.system_settings_unavailable), isError = true)
+                            Feedback.show(resources.getString(R.string.system_settings_unavailable), isError = true, errorCode = "E-SYS")
                         }
                     },
                 )
@@ -347,7 +372,7 @@ fun SettingsScreen(onBack: () -> Unit, autoOpenImport: Boolean = false) {
                             val text = vm.exportSubscriptions()
                             if (text == null) {
                                 // 数据未就绪时中止导出，避免空备份覆盖用户手头的旧备份
-                                Feedback.show(resources.getString(R.string.export_unavailable), isError = true)
+                                Feedback.show(resources.getString(R.string.export_unavailable), isError = true, errorCode = "E-EXPORT")
                                 return@launch
                             }
                             if (text.length <= MAX_SHARED_TEXT_CHARS && runCatching {
@@ -403,10 +428,10 @@ fun SettingsScreen(onBack: () -> Unit, autoOpenImport: Boolean = false) {
                                         io.candy.tick.ui.common.Feedback.show(upToDateMsg)
                                     is SelfUpdater.State.Failed -> when (result.reason) {
                                         SelfUpdater.Reason.NETWORK ->
-                                            io.candy.tick.ui.common.Feedback.show(checkFailedMsg, isError = true)
+                                            io.candy.tick.ui.common.Feedback.show(checkFailedMsg, isError = true, errorCode = "E-NET")
                                         // 限流：Failed 无 tag，弹窗打不开（contentTag=null 被静默消费）——胶囊直接给原因
                                         SelfUpdater.Reason.RATE_LIMITED ->
-                                            io.candy.tick.ui.common.Feedback.show(rateLimitedMsg, isError = true)
+                                            io.candy.tick.ui.common.Feedback.show(rateLimitedMsg, isError = true, errorCode = "HTTP 403")
                                         else -> io.candy.tick.ui.common.UpdateSheetController.manualRequest = true
                                     }
                                     is SelfUpdater.State.NewVersion, is SelfUpdater.State.Downloaded ->
@@ -492,6 +517,41 @@ fun SettingsScreen(onBack: () -> Unit, autoOpenImport: Boolean = false) {
     }
 
     CandySheet(
+        show = showIconSheet,
+        title = stringResource(R.string.settings_app_icon),
+        onDismissRequest = { showIconSheet = false },
+    ) {
+        fun selectIcon(mode: io.candy.tick.data.model.AppIconMode) {
+            showIconSheet = false
+            if (mode == state.settings.appIconMode) return
+            if (io.candy.tick.util.AppIconManager.apply(context, mode)) {
+                vm.setAppIconMode(mode)
+                Feedback.show(resources.getString(R.string.app_icon_switched))
+            } else {
+                Feedback.show(
+                    resources.getString(R.string.app_icon_switch_failed),
+                    isError = true,
+                    errorCode = "E-ICON",
+                )
+            }
+        }
+        Column(Modifier.verticalScroll(rememberScrollState())) {
+            OptionRow(
+                stringResource(R.string.app_icon_system),
+                state.settings.appIconMode == io.candy.tick.data.model.AppIconMode.SYSTEM,
+            ) { selectIcon(io.candy.tick.data.model.AppIconMode.SYSTEM) }
+            OptionRow(
+                stringResource(R.string.app_icon_light),
+                state.settings.appIconMode == io.candy.tick.data.model.AppIconMode.LIGHT,
+            ) { selectIcon(io.candy.tick.data.model.AppIconMode.LIGHT) }
+            OptionRow(
+                stringResource(R.string.app_icon_dark),
+                state.settings.appIconMode == io.candy.tick.data.model.AppIconMode.DARK,
+            ) { selectIcon(io.candy.tick.data.model.AppIconMode.DARK) }
+        }
+    }
+
+    CandySheet(
         show = showLanguageSheet,
         title = stringResource(R.string.settings_language),
         onDismissRequest = { showLanguageSheet = false },
@@ -519,7 +579,7 @@ fun SettingsScreen(onBack: () -> Unit, autoOpenImport: Boolean = false) {
             runCatching {
                 importLauncher.launch(arrayOf("application/json", "text/plain", "application/octet-stream"))
             }.onFailure {
-                Feedback.show(resources.getString(R.string.file_picker_unavailable), isError = true)
+                Feedback.show(resources.getString(R.string.file_picker_unavailable), isError = true, errorCode = "E-PICK")
             }
         },
         onFromClipboard = {
@@ -540,6 +600,7 @@ fun SettingsScreen(onBack: () -> Unit, autoOpenImport: Boolean = false) {
         onToggleVisible = { tokenVisible = !tokenVisible },
         onTokenInput = vm::onTokenInput,
         onSaveAndTest = vm::saveAndTestToken,
+        onRefreshRateLimit = vm::refreshRateLimit,
         onOpenHelp = { links.openUri("https://docs.github.com/en/authentication/keeping-your-account-and-data-secure/managing-your-personal-access-tokens") },
         onDismiss = {
             showTokenDialog = false
@@ -576,6 +637,15 @@ private fun themeModeLabel(mode: ThemeMode): String = stringResource(
         ThemeMode.SYSTEM -> R.string.theme_mode_system
         ThemeMode.LIGHT -> R.string.theme_mode_light
         ThemeMode.DARK -> R.string.theme_mode_dark
+    },
+)
+
+@Composable
+private fun appIconModeLabel(mode: io.candy.tick.data.model.AppIconMode): String = stringResource(
+    when (mode) {
+        io.candy.tick.data.model.AppIconMode.SYSTEM -> R.string.app_icon_system
+        io.candy.tick.data.model.AppIconMode.LIGHT -> R.string.app_icon_light
+        io.candy.tick.data.model.AppIconMode.DARK -> R.string.app_icon_dark
     },
 )
 

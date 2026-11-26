@@ -17,6 +17,10 @@ import kotlinx.serialization.encoding.Encoder
 @Serializable
 enum class ThemeMode { SYSTEM, LIGHT, DARK }
 
+/** 桌面图标颜色三档（跟随系统 / 固定浅色 / 固定深色） */
+@Serializable
+enum class AppIconMode { SYSTEM, LIGHT, DARK }
+
 /** 同步频率（默认「每次打开应用」；hours 仅用于周期模式排程） */
 @Serializable
 enum class SyncFrequency(val hours: Int) {
@@ -189,9 +193,11 @@ data class ApkAsset(
 @Serializable
 data class Settings(
     val themeMode: ThemeMode = ThemeMode.SYSTEM,
+    val appIconMode: AppIconMode = AppIconMode.SYSTEM,
     val syncFrequency: SyncFrequency = SyncFrequency.ON_OPEN,
     val wifiOnly: Boolean = false,
     val githubToken: String? = null,
+    val githubUsername: String? = null,
     val notificationsEnabled: Boolean = true,
     val selfUpdateCheck: Boolean = true, // 自身更新：自动检查（默认开）
     val selfUpdateAutoDownload: Boolean = false, // 自身更新：自动下载（默认关，全网络——包仅 ~4MB）

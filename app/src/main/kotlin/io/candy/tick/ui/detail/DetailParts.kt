@@ -57,12 +57,15 @@ import top.yukonga.miuix.kmp.theme.MiuixTheme
 @Composable
 internal fun downloadFailureText(failure: RepoDownloadState.Failed?): String {
     val reason = failure?.error?.let { sourceErrorText(it) } ?: when (failure?.local) {
-        RepoDownloadState.LocalFailure.INCOMPLETE -> stringResource(R.string.download_incomplete)
-        RepoDownloadState.LocalFailure.SAVE_FAILED -> stringResource(R.string.download_save_failed)
+        RepoDownloadState.LocalFailure.INCOMPLETE ->
+            io.candy.tick.ui.common.Feedback.withErrorCode(stringResource(R.string.download_incomplete), "E-DL")
+        RepoDownloadState.LocalFailure.SAVE_FAILED ->
+            io.candy.tick.ui.common.Feedback.withErrorCode(stringResource(R.string.download_save_failed), "E-IO")
         else -> null
     }
-    return if (reason.isNullOrBlank()) stringResource(R.string.settings_download_failed)
-    else stringResource(R.string.download_failed_reason, reason)
+    return if (reason.isNullOrBlank()) {
+        io.candy.tick.ui.common.Feedback.withErrorCode(stringResource(R.string.settings_download_failed), "E-DL")
+    } else stringResource(R.string.download_failed_reason, reason)
 }
 
 /** 移除订阅确认（破坏性操作：红色主按钮） */
@@ -150,6 +153,7 @@ internal fun HeaderCard(
     onDownloadUpdate: () -> Unit,
     onInstallUpdate: () -> Unit,
     onCancelDownload: () -> Unit = {},
+    translatedDescription: String? = null,
 ) {
     val repo = state.repo ?: return
     val snapshot = state.snapshot
@@ -194,13 +198,24 @@ internal fun HeaderCard(
             // ── 信息组（描述；无描述时跨组 8dp 不叠加）——统计行与推送时间已分别
             // 迁往名称旁（star）与首页折叠卡，此处只承载描述 ──
             HeaderInfoSection(snapshot?.description?.takeIf { it.isNotBlank() }, { it }) { description ->
-                Text(
-                    text = description,
-                    style = MiuixTheme.textStyles.body2,
-                    color = scheme.onBackgroundVariant,
-                    maxLines = 3,
-                    overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis,
-                )
+                val shownDescription = translatedDescription ?: description
+                val motion = rememberMotionEnabled()
+                AnimatedContent(
+                    targetState = shownDescription,
+                    transitionSpec = {
+                        val spec = tween<Float>(if (motion) Motion.PHASE else 0)
+                        (fadeIn(spec) togetherWith fadeOut(spec)).using(SizeTransform(clip = false))
+                    },
+                    label = "repoDescTranslate",
+                ) { text ->
+                    Text(
+                        text = text,
+                        style = MiuixTheme.textStyles.body2,
+                        color = scheme.onBackgroundVariant,
+                        maxLines = 3,
+                        overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis,
+                    )
+                }
             }
             // 统计行已删（Fork/Issue 是档案页惯性搬运，健康度由活跃徽章承担；
             // star 挪名称旁，push 时间由首页折叠卡表达）

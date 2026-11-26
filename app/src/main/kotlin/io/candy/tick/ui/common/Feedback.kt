@@ -78,7 +78,9 @@ object Feedback {
         actionLabel: String? = null,
         onAction: (() -> Unit)? = null,
         durationMs: Long? = null,
+        errorCode: String? = null,
     ) {
+        val displayText = withErrorCode(text, errorCode)
         // 被逐出的可操作消息（目前仅滑删撤销）若仍在有效期内，暂存待槽空出后重新上屏：
         // 单槽只显示最新，但「可撤销」承诺不因后续消息静默作废（自然到期才作废）
         val evicted = _current.value
@@ -88,12 +90,18 @@ object Feedback {
             held = evicted
         }
         _current.value = Message(
-            text = text,
+            text = displayText,
             isError = isError,
             actionLabel = actionLabel,
             onAction = onAction,
             durationMs = durationMs ?: if (actionLabel != null) 4_500L else 2_200L,
         )
+    }
+
+    /** 统一在失败文案末尾拼短错误码（已含同码时不重复追加） */
+    fun withErrorCode(text: String, errorCode: String?): String {
+        val code = errorCode?.trim()?.takeIf { it.isNotEmpty() } ?: return text
+        return if (text.contains("($code)")) text else "$text ($code)"
     }
 
     internal fun dismiss(message: Message): Boolean = _current.compareAndSet(message, null)

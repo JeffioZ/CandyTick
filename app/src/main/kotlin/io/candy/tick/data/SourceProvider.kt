@@ -119,6 +119,18 @@ class SourceException(val error: SourceError, cause: Throwable? = null) : Except
 val SourceError.isInaccessible: Boolean
     get() = this is SourceError.NotFound || this is SourceError.TokenRejected
 
+/** 简短诊断错误码（用于失败提示后缀，方便截图定位根因） */
+val SourceError.errorCode: String
+    get() = when (this) {
+        SourceError.NetworkUnreachable -> "E-NET"
+        SourceError.Timeout -> "E-TIME"
+        SourceError.NotFound -> "HTTP 404"
+        SourceError.TokenRejected -> "HTTP 401"
+        is SourceError.RateLimited -> "HTTP 403"
+        is SourceError.Http -> "HTTP $code"
+        SourceError.StorageFull -> "E-DISK"
+    }
+
 /** GitHub 实现：纯委托，OkHttp 细节收敛在 GitHubApi.kt */
 class GitHubProvider(private val api: GitHubApi) : SourceProvider {
     override suspend fun repoInfo(owner: String, repo: String, etag: String?) =

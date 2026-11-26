@@ -96,6 +96,7 @@ class SyncWorker(context: Context, params: WorkerParameters) : CoroutineWorker(c
         // 2) 新版本检测：ETag 条件请求（304 无需响应正文）；拉取失败保旧 tag——此前瞬时失败
         // 写 null 会漏报一条通知 + 清掉「可更新」标识；方向判定：本机已装 ≥ tag 不算新版
         val newReleaseRepos = ConcurrentHashMap.newKeySet<Long>()
+        val notifiedReleaseRepos = ConcurrentHashMap.newKeySet<Long>()
         state.repos.forEachSyncRepo { tracked ->
             val outcome = try {
                 container.repoRepository.syncLatestReleaseTag(tracked.id)
@@ -115,7 +116,9 @@ class SyncWorker(context: Context, params: WorkerParameters) : CoroutineWorker(c
                         !alreadyUpToDate(subscribed, latestTag)
                     ) {
                         newReleaseRepos.add(tracked.id)
-                        if (current.settings.notificationsEnabled) {
+                        // 未关联本地 App 的仓库仅保留应用内红点，不推送系统更新通知
+                        if (subscribed.linkedPackage != null && current.settings.notificationsEnabled) {
+                            notifiedReleaseRepos.add(tracked.id)
                             Notifications.notifyRepoNewVersion(
                                 context = applicationContext.forAppLanguage(current.settings.language),
                                 repoName = subscribed.noteName ?: "${subscribed.owner}/${subscribed.repo}",
@@ -136,10 +139,10 @@ class SyncWorker(context: Context, params: WorkerParameters) : CoroutineWorker(c
                 else -> Unit
             }
         }
-        // 组摘要：本轮 ≥2 个仓库发版时折叠为一组（点摘要回首页，子通知各自直达详情）
+        // 组摘要：本轮 ≥2 个仓库发版通知时折叠为一组（点摘要回首页，子通知各自直达详情）
         val notificationSettings = container.appStateStore.state.value.settings
-        if (newReleaseRepos.size >= 2 && notificationSettings.notificationsEnabled) {
-            Notifications.notifyRepoUpdatesSummary(applicationContext.forAppLanguage(notificationSettings.language), newReleaseRepos.size)
+        if (notifiedReleaseRepos.size >= 2 && notificationSettings.notificationsEnabled) {
+            Notifications.notifyRepoUpdatesSummary(applicationContext.forAppLanguage(notificationSettings.language), notifiedReleaseRepos.size)
         }
         // 通知对账：装完新版的仓库撤下过期通知（纯本地判定，autoCancel 只在点击时生效）
         runCatching {

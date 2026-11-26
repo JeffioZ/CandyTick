@@ -1,5 +1,11 @@
 package io.candy.tick.ui.detail
 
+import androidx.compose.animation.AnimatedContent
+import androidx.compose.animation.SizeTransform
+import androidx.compose.animation.core.tween
+import androidx.compose.animation.fadeIn
+import androidx.compose.animation.fadeOut
+import androidx.compose.animation.togetherWith
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.Row
@@ -14,7 +20,9 @@ import androidx.compose.ui.text.withStyle
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.dp
 import io.candy.tick.R
+import io.candy.tick.ui.common.Motion
 import io.candy.tick.ui.common.rememberExternalUriHandler
+import io.candy.tick.ui.common.rememberMotionEnabled
 import io.candy.tick.ui.common.PressableCard
 import io.candy.tick.ui.common.RelTimeText
 import io.candy.tick.ui.theme.MonoTokenStyle
@@ -29,6 +37,7 @@ fun LazyListScope.commitList(
     showPagingIndicator: Boolean,
     animateRefreshChanges: Boolean,
     onLoadMore: () -> Unit,
+    translatedTexts: Map<String, String> = emptyMap(),
 ) {
     items(
         count = state.commits.size,
@@ -72,13 +81,24 @@ fun LazyListScope.commitList(
                         style = MiuixTheme.textStyles.footnote2,
                     )
                 }
-                Text(
-                    text = title,
-                    maxLines = 3,
-                    overflow = TextOverflow.Ellipsis,
-                    style = MiuixTheme.textStyles.body1,
-                    color = MiuixTheme.colorScheme.onBackground,
-                )
+                val shownTitle = translatedTexts[title] ?: title
+                val motion = rememberMotionEnabled()
+                AnimatedContent(
+                    targetState = shownTitle,
+                    transitionSpec = {
+                        val spec = tween<Float>(if (motion) Motion.PHASE else 0)
+                        (fadeIn(spec) togetherWith fadeOut(spec)).using(SizeTransform(clip = false))
+                    },
+                    label = "commitTitleTranslate",
+                ) { text ->
+                    Text(
+                        text = text,
+                        maxLines = 3,
+                        overflow = TextOverflow.Ellipsis,
+                        style = MiuixTheme.textStyles.body1,
+                        color = MiuixTheme.colorScheme.onBackground,
+                    )
+                }
             }
         }
     }

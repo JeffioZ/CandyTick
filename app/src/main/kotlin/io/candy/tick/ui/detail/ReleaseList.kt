@@ -3,6 +3,7 @@ package io.candy.tick.ui.detail
 import io.candy.tick.data.RepoDownloadState
 import io.candy.tick.data.model.DownloadedApk
 import android.os.Build
+import androidx.compose.animation.togetherWith
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -76,6 +77,9 @@ fun LazyListScope.releaseList(
     onInstallDownloaded: (DownloadedApk) -> Unit,
     onDeleteDownloaded: (DownloadedApk) -> Unit,
     onCancelDownload: () -> Unit,
+    translatedTexts: Map<String, String> = emptyMap(),
+    translateEnabled: Boolean = false,
+    failedBodies: Set<String> = emptySet(),
 ) {
     if (localTarget != null) {
         item(key = "releases:${localTarget.version}", contentType = "release") {
@@ -112,6 +116,9 @@ fun LazyListScope.releaseList(
             },
             onDeleteDownloaded = onDeleteDownloaded,
             onCancelDownload = onCancelDownload,
+            translatedTexts = translatedTexts,
+            translateEnabled = translateEnabled,
+            failedBodies = failedBodies,
         )
     }
     item(key = "releases-footer") {
@@ -143,6 +150,9 @@ private fun ReleaseCard(
     onInstallDownloaded: (DownloadedApk) -> Unit,
     onDeleteDownloaded: (DownloadedApk) -> Unit,
     onCancelDownload: () -> Unit,
+    translatedTexts: Map<String, String> = emptyMap(),
+    translateEnabled: Boolean = false,
+    failedBodies: Set<String> = emptySet(),
 ) {
     val scheme = MiuixTheme.colorScheme
     val candidates = remember(release) { ApkPicker.apkCandidates(release.apkAssets) }
@@ -165,6 +175,7 @@ private fun ReleaseCard(
         ) {
             ReleaseHeader(
                 release = release,
+                translatedName = release.name?.trim()?.let { translatedTexts[it] },
                 hasPackages = candidates.isNotEmpty(),
                 hasNotes = hasNotes,
                 current = localVersion != null && VersionCompare.matchesTag(release.tagName, localVersion),
@@ -206,18 +217,84 @@ private fun ReleaseCard(
                     Column(
                         modifier = Modifier.graphicsLayer().padding(horizontal = TextInset),
                     ) {
-                        io.candy.tick.ui.common.ReleaseNotesBody(
-                            markdown = release.body,
-                            repoSlug = state.repo?.let { "${it.owner}/${it.repo}" },
-                            repoUrl = htmlBase,
-                            tag = release.tagName,
-                            maxHeight = 260.dp,
-                            spaceAfter = when (candidates.size) {
-                                0 -> cardInset
-                                1 -> sectionGap + AssetRowInset
-                                else -> sectionGap
-                            },
+                        val shownMarkdown = translatedTexts[release.body] ?: release.body
+                        val bodyTranslating = translateEnabled &&
+                            release.body.isNotBlank() &&
+                            release.body !in translatedTexts &&
+                            release.body !in failedBodies
+                        val motion = io.candy.tick.ui.common.rememberMotionEnabled()
+                        val bodyAlpha by androidx.compose.animation.core.animateFloatAsState(
+                            targetValue = if (bodyTranslating) 0.50f else 1f,
+                            animationSpec = androidx.compose.animation.core.tween(if (motion) Motion.PHASE else 0),
+                            label = "releaseBodyAlpha",
                         )
+                        androidx.compose.animation.AnimatedVisibility(
+                            visible = bodyTranslating,
+                            enter = androidx.compose.animation.expandVertically(
+                                animationSpec = androidx.compose.animation.core.tween(if (motion) Motion.PHASE else 0),
+                            ) + androidx.compose.animation.fadeIn(
+                                animationSpec = androidx.compose.animation.core.tween(if (motion) Motion.PHASE else 0),
+                            ),
+                            exit = androidx.compose.animation.shrinkVertically(
+                                animationSpec = androidx.compose.animation.core.tween(if (motion) Motion.PHASE else 0),
+                            ) + androidx.compose.animation.fadeOut(
+                                animationSpec = androidx.compose.animation.core.tween(if (motion) Motion.PHASE else 0),
+                            ),
+                        ) {
+                            Row(
+                                modifier = Modifier
+                                    .padding(bottom = 8.dp)
+                                    .clip(RoundedCornerShape(8.dp))
+                                    .background(scheme.primaryVariant.copy(alpha = 0.12f))
+                                    .padding(horizontal = 10.dp, vertical = 5.dp),
+                                horizontalArrangement = Arrangement.spacedBy(6.dp),
+                                verticalAlignment = Alignment.CenterVertically,
+                            ) {
+                                io.candy.tick.ui.common.LoadingDots(dotSize = 4.5.dp, contentDescription = null)
+                                Text(
+                                    text = stringResource(R.string.detail_translating),
+                                    style = MiuixTheme.textStyles.footnote2.copy(fontWeight = FontWeight.Medium),
+                                    color = scheme.primaryVariant,
+                                )
+                            }
+                        }
+                        androidx.compose.animation.AnimatedContent(
+                            targetState = shownMarkdown,
+                            transitionSpec = {
+                                val enterDur = if (motion) Motion.PANEL else 0
+                                val exitDur = if (motion) Motion.MICRO else 0
+                                (
+                                    androidx.compose.animation.fadeIn(
+                                        androidx.compose.animation.core.tween(enterDur),
+                                    ) + androidx.compose.animation.slideInVertically(
+                                        androidx.compose.animation.core.tween(enterDur, easing = Motion.Decelerate),
+                                    ) { 10 }
+                                ).togetherWith(
+                                    androidx.compose.animation.fadeOut(
+                                        androidx.compose.animation.core.tween(exitDur),
+                                    ),
+                                ).using(
+                                    androidx.compose.animation.SizeTransform(clip = false) { _, _ ->
+                                        androidx.compose.animation.core.tween(enterDur)
+                                    },
+                                )
+                            },
+                            modifier = Modifier.graphicsLayer { alpha = bodyAlpha },
+                            label = "releaseBodyTranslate",
+                        ) { bodyText ->
+                            io.candy.tick.ui.common.ReleaseNotesBody(
+                                markdown = bodyText,
+                                repoSlug = state.repo?.let { "${it.owner}/${it.repo}" },
+                                repoUrl = htmlBase,
+                                tag = release.tagName,
+                                maxHeight = 260.dp,
+                                spaceAfter = when (candidates.size) {
+                                    0 -> cardInset
+                                    1 -> sectionGap + AssetRowInset
+                                    else -> sectionGap
+                                },
+                            )
+                        }
                     }
                 }
             }
@@ -352,6 +429,7 @@ private fun SavedPackageAction(record: DownloadedApk, onInstall: (DownloadedApk)
 @Composable
 private fun ReleaseHeader(
     release: ReleaseRecord,
+    translatedName: String?,
     hasPackages: Boolean,
     hasNotes: Boolean,
     current: Boolean,
@@ -359,9 +437,10 @@ private fun ReleaseHeader(
     onToggleNotes: () -> Unit,
 ) {
     val scheme = MiuixTheme.colorScheme
-    val name = release.name?.trim()?.takeIf {
+    val rawName = release.name?.trim()?.takeIf {
         it.isNotEmpty() && !VersionCompare.displayVersion(it).equals(VersionCompare.displayVersion(release.tagName), ignoreCase = true)
     }
+    val name = if (rawName != null) translatedName ?: rawName else null
     val published = release.publishedAt?.let { relTimeString(it) }
     val noPackage = if (hasPackages) null else stringResource(R.string.detail_no_apk)
     val details = buildAnnotatedString {

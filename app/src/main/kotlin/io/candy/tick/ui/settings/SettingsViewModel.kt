@@ -7,6 +7,7 @@ import io.candy.tick.data.GitHubApi
 import io.candy.tick.data.RepoRepository
 import io.candy.tick.data.SelfUpdater
 import io.candy.tick.data.SourceException
+import io.candy.tick.data.model.AppIconMode
 import io.candy.tick.data.model.Settings
 import io.candy.tick.data.model.SyncFrequency
 import io.candy.tick.data.model.ThemeMode
@@ -38,28 +39,42 @@ class SettingsViewModel(
         val tokenInput: String = "",
         val tokenTest: TokenTest? = null,
         val tokenRejected: Boolean = false,
+        val rateLimit: GitHubApi.RateLimitInfo? = null,
+        val rateLimitLoading: Boolean = false,
         val localVersion: String? = null,
+    )
+
+    private data class TokenTransient(
+        val input: String,
+        val test: TokenTest?,
+        val rateLimitLoading: Boolean,
     )
 
     // 回填已保存的 Token：重进设置页能看到现值，而非空白
     private val tokenInput = MutableStateFlow(repository.state.value.settings.githubToken ?: "")
     private val tokenTest = MutableStateFlow<TokenTest?>(null)
+    private val rateLimitLoading = MutableStateFlow(false)
     private var tokenValidation: Job? = null
+    private var rateLimitJob: Job? = null
     private val localVersion = selfUpdater.localVersionName()
+
+    private val tokenTransient = combine(tokenInput, tokenTest, rateLimitLoading, ::TokenTransient)
 
     val state: StateFlow<UiState> = combine(
         repository.state,
         selfUpdater.state,
-        tokenInput,
-        tokenTest,
+        tokenTransient,
         githubApi.tokenRejected,
-    ) { s, update, input, test, rejected ->
+        githubApi.rateLimit,
+    ) { s, update, transient, rejected, rateLimit ->
         UiState(
             settings = s.settings,
             selfUpdate = update,
-            tokenInput = input,
-            tokenTest = test,
+            tokenInput = transient.input,
+            tokenTest = transient.test,
             tokenRejected = rejected,
+            rateLimit = rateLimit,
+            rateLimitLoading = transient.rateLimitLoading,
             localVersion = localVersion,
         )
     }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), UiState(
@@ -67,6 +82,7 @@ class SettingsViewModel(
         selfUpdate = selfUpdater.state.value,
         tokenInput = tokenInput.value,
         tokenRejected = githubApi.tokenRejected.value,
+        rateLimit = githubApi.rateLimit.value,
         localVersion = localVersion,
     ))
 
@@ -78,6 +94,10 @@ class SettingsViewModel(
 
     fun setThemeMode(mode: ThemeMode) {
         mutateSettings { it.copy(themeMode = mode) }
+    }
+
+    fun setAppIconMode(mode: AppIconMode) {
+        mutateSettings { it.copy(appIconMode = mode) }
     }
 
     fun setSyncFrequency(frequency: SyncFrequency) {
@@ -129,26 +149,32 @@ class SettingsViewModel(
         tokenValidation?.cancel()
         tokenValidation = viewModelScope.launch {
             if (token == null) {
-                if (!persistSettings { it.copy(githubToken = null) }) {
+                if (!persistSettings { it.copy(githubToken = null, githubUsername = null) }) {
                     tokenTest.value = TokenTest.SAVE_FAILED
                     return@launch
                 }
                 // 保存成功后才清被拒标记：失败时保留提示，避免「坏 Token 仍在用且不再提示被拒」
                 githubApi.clearTokenRejected()
                 tokenTest.value = null
+                refreshRateLimit()
                 return@launch
             }
             tokenTest.value = TokenTest.TESTING
             val result = try {
-                if (githubApi.validateToken(token)) {
-                    if (!persistSettings { it.copy(githubToken = token) }) {
-                        tokenTest.value = TokenTest.SAVE_FAILED
-                        return@launch
+                when (val validation = githubApi.validateToken(token)) {
+                    is GitHubApi.TokenValidation.Valid -> {
+                        if (!persistSettings {
+                                it.copy(githubToken = token, githubUsername = validation.username)
+                            }
+                        ) {
+                            tokenTest.value = TokenTest.SAVE_FAILED
+                            return@launch
+                        }
+                        githubApi.clearTokenRejected()
+                        validation.rateLimit?.let(githubApi::applyRateLimit) ?: refreshRateLimit()
+                        TokenTest.VALID
                     }
-                    githubApi.clearTokenRejected()
-                    TokenTest.VALID
-                } else {
-                    TokenTest.INVALID
+                    GitHubApi.TokenValidation.Invalid -> TokenTest.INVALID
                 }
             } catch (e: SourceException) {
                 TokenTest.NETWORK
@@ -157,6 +183,32 @@ class SettingsViewModel(
                 TokenTest.INVALID
             }
             tokenTest.value = result
+        }
+    }
+
+    /** 免费查询当前 GitHub core 额度，并在已有 Token 但未缓存用户名时顺手补拉一次 */
+    fun refreshRateLimit() {
+        rateLimitJob?.cancel()
+        rateLimitJob = viewModelScope.launch {
+            rateLimitLoading.value = true
+            try {
+                githubApi.fetchRateLimit()
+                val settings = repository.state.value.settings
+                if (!settings.githubToken.isNullOrBlank() &&
+                    settings.githubUsername.isNullOrBlank() &&
+                    !githubApi.tokenRejected.value
+                ) {
+                    val username = githubApi.fetchUsername()
+                    if (!username.isNullOrBlank()) {
+                        persistSettings { current ->
+                            if (current.githubToken == settings.githubToken) current.copy(githubUsername = username)
+                            else current
+                        }
+                    }
+                }
+            } finally {
+                rateLimitLoading.value = false
+            }
         }
     }
 

@@ -239,13 +239,13 @@ fun UpdateSheet(selfUpdater: SelfUpdater) {
                             InlineErrorRow(
                                 message = when (f.reason) {
                                     SelfUpdater.Reason.INSTALL ->
-                                        stringResource(R.string.self_update_install_failed_note)
+                                        Feedback.withErrorCode(stringResource(R.string.self_update_install_failed_note), "E-APK")
                                     SelfUpdater.Reason.DOWNLOAD ->
-                                        stringResource(R.string.settings_download_failed)
+                                        Feedback.withErrorCode(stringResource(R.string.settings_download_failed), "E-DL")
                                     SelfUpdater.Reason.NETWORK ->
-                                        stringResource(R.string.settings_update_failed)
+                                        Feedback.withErrorCode(stringResource(R.string.settings_update_failed), "E-NET")
                                     SelfUpdater.Reason.RATE_LIMITED ->
-                                        stringResource(R.string.err_rate_limited_plain)
+                                        Feedback.withErrorCode(stringResource(R.string.err_rate_limited_plain), "HTTP 403")
                                 },
                                 onRetry = null,
                             )

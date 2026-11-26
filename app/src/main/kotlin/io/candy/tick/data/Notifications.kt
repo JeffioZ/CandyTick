@@ -239,7 +239,7 @@ object Notifications {
             val noPublishedApk = repo?.let { state.snapshots[it.id] }?.let {
                 it.releaseBaselineKnown && it.currentReleaseTag == null
             } == true
-            if (repo == null || installed || noPublishedApk) {
+            if (repo == null || repo.linkedPackage == null || installed || noPublishedApk) {
                 if (runCatching { manager.cancel(entry.tag, entry.id) }.isFailure) remaining++
             } else {
                 remaining++

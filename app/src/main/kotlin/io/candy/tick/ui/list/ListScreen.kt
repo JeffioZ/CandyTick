@@ -231,10 +231,12 @@ fun ListScreen(
                     resources.getQuantityString(R.plurals.sync_result_all_failed, d.failed, d.failed)
                 },
                 isError = true,
+                errorCode = if (d.rateLimited) "HTTP 403" else "E-SYNC",
             )
             d.failed > 0 && d.changed == 0 -> io.candy.tick.ui.common.Feedback.show(
                 text = resources.getQuantityString(R.plurals.sync_result_partial_failed, d.failed, d.failed),
                 isError = true,
+                errorCode = "E-SYNC",
             )
             d.changed > 0 -> {
                 val updated = resources.getQuantityString(R.plurals.sync_result_updated, d.changed, d.changed)

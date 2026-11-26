@@ -2,7 +2,12 @@ package io.candy.tick.ui.common
 
 import androidx.annotation.DrawableRes
 import androidx.annotation.StringRes
+import androidx.compose.animation.AnimatedContent
+import androidx.compose.animation.animateColorAsState
 import androidx.compose.animation.core.tween
+import androidx.compose.animation.fadeIn
+import androidx.compose.animation.fadeOut
+import androidx.compose.animation.togetherWith
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
@@ -15,6 +20,7 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.getValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.focus.FocusRequester
@@ -55,19 +61,57 @@ fun PrimaryButton(
     busyText: String? = null,
 ) {
     val shownBusyText = rememberBusyValue(busyText)
+    val scheme = MiuixTheme.colorScheme
+    val motion = rememberMotionEnabled()
+    val interactive = enabled && busyText == null && shownBusyText == null
+    val busy = busyText != null || shownBusyText != null
+    // 忙碌态保持主题色柔化而非硬跳浅灰禁用色，状态切换平滑过渡不突兀
+    val targetBg = when {
+        interactive -> scheme.primary
+        busy -> scheme.primary.copy(alpha = 0.72f)
+        else -> scheme.disabledPrimaryButton
+    }
+    val targetTextColor = when {
+        interactive || busy -> scheme.onPrimary
+        else -> scheme.disabledOnPrimaryButton
+    }
+    val bg by animateColorAsState(
+        targetValue = targetBg,
+        animationSpec = tween(if (motion) Motion.PHASE else 0),
+        label = "primaryBtnBg",
+    )
+    val contentColor by animateColorAsState(
+        targetValue = targetTextColor,
+        animationSpec = tween(if (motion) Motion.PHASE else 0),
+        label = "primaryBtnFg",
+    )
     Button(
         onClick = onClick,
         modifier = modifier,
-        enabled = enabled && busyText == null && shownBusyText == null,
-        colors = ButtonDefaults.buttonColorsPrimary(),
+        enabled = interactive,
+        colors = ButtonDefaults.buttonColors(
+            color = bg,
+            disabledColor = bg,
+            contentColor = contentColor,
+            disabledContentColor = contentColor,
+        ),
     ) {
-        if (shownBusyText != null) {
-            Row(horizontalArrangement = Arrangement.spacedBy(8.dp), verticalAlignment = Alignment.CenterVertically) {
-                LoadingDots(color = LocalContentColor.current, contentDescription = null)
-                Text(text = shownBusyText, style = MiuixTheme.textStyles.button)
+        AnimatedContent(
+            targetState = shownBusyText,
+            transitionSpec = {
+                val spec = tween<Float>(if (motion) Motion.MICRO else 0)
+                fadeIn(spec) togetherWith fadeOut(spec)
+            },
+            label = "primaryBtnContent",
+        ) { currentBusy ->
+            if (currentBusy != null) {
+                Row(horizontalArrangement = Arrangement.spacedBy(8.dp), verticalAlignment = Alignment.CenterVertically) {
+                    LoadingDots(color = LocalContentColor.current, contentDescription = null)
+                    Text(text = currentBusy, style = MiuixTheme.textStyles.button)
+                }
+            } else {
+                Text(text = text, style = MiuixTheme.textStyles.button)
             }
-        } else {
-            Text(text = text, style = MiuixTheme.textStyles.button)
         }
     }
 }

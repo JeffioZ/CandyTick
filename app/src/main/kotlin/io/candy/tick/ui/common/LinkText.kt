@@ -121,10 +121,10 @@ internal fun rememberExternalUriHandler(): UriHandler {
                 try {
                     when (uri.toUri().scheme?.lowercase()) {
                         "http", "https", "mailto" -> delegate.openUri(uri)
-                        else -> Feedback.show(openFailed, isError = true)
+                        else -> Feedback.show(openFailed, isError = true, errorCode = "E-LINK")
                     }
                 } catch (_: RuntimeException) {
-                    Feedback.show(openFailed, isError = true)
+                    Feedback.show(openFailed, isError = true, errorCode = "E-LINK")
                 }
             }
         }

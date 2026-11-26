@@ -46,13 +46,35 @@ class GitHubApi(private val tokenProvider: () -> String?) {
         .build()
     private val downloadClient = client.newBuilder().callTimeout(0, TimeUnit.SECONDS).build()
 
+    /** GitHub core API 额度快照（来自每次响应头或免费 /rate_limit 接口） */
+    data class RateLimitInfo(
+        val limit: Int,
+        val used: Int,
+        val remaining: Int,
+        val resetAt: Instant?,
+        val authenticated: Boolean,
+    )
+
+    sealed interface TokenValidation {
+        data class Valid(val username: String?, val rateLimit: RateLimitInfo?) : TokenValidation
+        data object Invalid : TokenValidation
+    }
+
     /** Token 被 GitHub 拒绝（401）过：已自动降级匿名，设置页提示用户清理 */
     private val rejected = MutableStateFlow(false)
     val tokenRejected: StateFlow<Boolean> = rejected.asStateFlow()
 
+    private val _rateLimit = MutableStateFlow<RateLimitInfo?>(null)
+    val rateLimit: StateFlow<RateLimitInfo?> = _rateLimit.asStateFlow()
+
     /** 换新 Token 验证通过后清除降级标记 */
     fun clearTokenRejected() {
         rejected.value = false
+    }
+
+    /** 新凭据已确认落盘后写入对应的额度快照 */
+    fun applyRateLimit(info: RateLimitInfo) {
+        updateRateLimit(info, force = true)
     }
 
     suspend fun repoInfo(owner: String, repo: String, etag: String? = null): RepoInfoResult =
@@ -309,21 +331,125 @@ class GitHubApi(private val tokenProvider: () -> String?) {
             }
         }
 
-    /** Token 测试连接：200 ✓ / 401 ✗ / 网络类异常上抛 */
-    suspend fun validateToken(token: String): Boolean = withContext(Dispatchers.IO) {
+    /** Token 测试连接：200 返回用户名与额度 / 401 无效 / 403 兜底查 /rate_limit / 网络异常上抛 */
+    suspend fun validateToken(token: String): TokenValidation = withContext(Dispatchers.IO) {
+        val trimmed = token.trim()
         val url = BASE_URL.toHttpUrl().newBuilder().addPathSegment("user").build()
         val request = Request.Builder()
             .url(url)
-            .header("Authorization", "Bearer ${token.trim()}")
+            .header("Authorization", "Bearer $trimmed")
             .header("Accept", "application/vnd.github+json")
             .build()
-        readResponse(request, client) {
+        val probe = readResponse(request, client) {
             when (it.code) {
-                200 -> true
-                401 -> false
+                200 -> {
+                    val user = runCatching { json.decodeFromString<GhUser>(it.body.string()) }.getOrNull()
+                    val rate = parseRateLimitHeader(it, authenticated = true)
+                    TokenValidation.Valid(
+                        username = user?.login?.takeIf { login -> login.isNotBlank() },
+                        rateLimit = rate,
+                    )
+                }
+                401 -> TokenValidation.Invalid
+                403 -> null
                 else -> throw SourceException(SourceError.Http(it.code))
             }
         }
+        if (probe != null) return@withContext probe
+        // 少数细粒度 PAT 可能禁用了 /user，但仍享有 5000/h core 额度：用免费的 /rate_limit 兜底确认
+        val rate = runCatching { fetchRateLimitForToken(trimmed) }.getOrNull()
+        if (rate != null && rate.limit > 60) {
+            TokenValidation.Valid(username = null, rateLimit = rate)
+        } else {
+            throw SourceException(SourceError.Http(403))
+        }
+    }
+
+    /** 免费查询当前 core API 额度（官方不消耗配额）；未填或已失效时查匿名额度 */
+    suspend fun fetchRateLimit(): RateLimitInfo? = withContext(Dispatchers.IO) {
+        val activeToken = if (!rejected.value) tokenProvider()?.takeIf { it.isNotBlank() } else null
+        runCatching {
+            fetchRateLimitForToken(activeToken).also { updateRateLimit(it, force = true) }
+        }.getOrNull()
+    }
+
+    /** 已配置有效 Token 但本地未缓存用户名时，补拉一次当前登录用户名 */
+    suspend fun fetchUsername(): String? = withContext(Dispatchers.IO) {
+        val activeToken = (if (!rejected.value) tokenProvider()?.takeIf { it.isNotBlank() } else null)
+            ?: return@withContext null
+        val url = BASE_URL.toHttpUrl().newBuilder().addPathSegment("user").build()
+        val request = Request.Builder()
+            .url(url)
+            .header("Authorization", "Bearer ${activeToken.trim()}")
+            .header("Accept", "application/vnd.github+json")
+            .build()
+        runCatching {
+            readResponse(request, client) {
+                if (it.code == 200) {
+                    json.decodeFromString<GhUser>(it.body.string()).login.takeIf { login -> login.isNotBlank() }
+                } else null
+            }
+        }.getOrNull()
+    }
+
+    private suspend fun fetchRateLimitForToken(token: String?): RateLimitInfo {
+        val url = BASE_URL.toHttpUrl().newBuilder().addPathSegment("rate_limit").build()
+        val request = Request.Builder()
+            .url(url)
+            .apply { if (!token.isNullOrBlank()) header("Authorization", "Bearer ${token.trim()}") }
+            .header("Accept", "application/vnd.github+json")
+            .build()
+        return readResponse(request, client) { response ->
+            checkHttp(response)
+            val core = json.decodeFromString<GhRateLimitResponse>(response.body.string()).resources.core
+            val used = core.used ?: (core.limit - core.remaining).coerceAtLeast(0)
+            RateLimitInfo(
+                limit = core.limit,
+                used = used,
+                remaining = core.remaining,
+                resetAt = core.reset?.let(Instant::ofEpochSecond),
+                authenticated = !token.isNullOrBlank(),
+            )
+        }
+    }
+
+    /**
+     * 额度状态更新：
+     * - force=true（主动 /rate_limit 或新 Token 验证通过）：直接采用最新权威值；
+     * - force=false（普通请求响应头顺手捕获）：仅接受与当前认证态一致的响应，且在同一重置窗口内
+     *   保持已用数单调不减，防止并发同步乱序返回时 UI 数字来回跳动。
+     */
+    private fun updateRateLimit(incoming: RateLimitInfo, force: Boolean = false) {
+        if (force) {
+            _rateLimit.value = incoming
+            return
+        }
+        if (incoming.authenticated != hasToken) return
+        while (true) {
+            val prev = _rateLimit.value
+            val sameWindow = prev != null &&
+                prev.authenticated == incoming.authenticated &&
+                prev.limit == incoming.limit &&
+                prev.resetAt == incoming.resetAt
+            if (sameWindow && incoming.used < prev.used) return
+            if (_rateLimit.compareAndSet(prev, incoming)) return
+        }
+    }
+
+    private fun parseRateLimitHeader(response: Response, authenticated: Boolean): RateLimitInfo? {
+        val resource = response.header("x-ratelimit-resource")
+        if (resource != null && resource != "core") return null
+        val limit = response.header("x-ratelimit-limit")?.toIntOrNull() ?: return null
+        val remaining = response.header("x-ratelimit-remaining")?.toIntOrNull() ?: return null
+        val used = response.header("x-ratelimit-used")?.toIntOrNull() ?: (limit - remaining).coerceAtLeast(0)
+        val reset = response.header("x-ratelimit-reset")?.toLongOrNull()?.let(Instant::ofEpochSecond)
+        return RateLimitInfo(
+            limit = limit,
+            used = used,
+            remaining = remaining,
+            resetAt = reset,
+            authenticated = authenticated,
+        )
     }
 
     // ---- 内部：请求 / 错误映射 ----
@@ -370,6 +496,13 @@ class GitHubApi(private val tokenProvider: () -> String?) {
 
                 override fun onResponse(call: Call, response: Response) {
                     try {
+                        if (request.url.host == "api.github.com" &&
+                            request.url.encodedPath != "/rate_limit" &&
+                            response.code != 401
+                        ) {
+                            parseRateLimitHeader(response, authenticated = request.header("Authorization") != null)
+                                ?.let { updateRateLimit(it, force = false) }
+                        }
                         val result = response.use(read)
                         continuation.resumeWith(Result.success(result))
                     } catch (e: Exception) {
@@ -548,4 +681,21 @@ private data class GhSearch(
     val total_count: Int = 0,
     val incomplete_results: Boolean = true,
     val items: List<GhRepo> = emptyList(),
+)
+
+@Serializable
+private data class GhUser(val login: String = "")
+
+@Serializable
+private data class GhRateLimitResponse(val resources: GhRateLimitResources = GhRateLimitResources())
+
+@Serializable
+private data class GhRateLimitResources(val core: GhRateLimitBucket = GhRateLimitBucket())
+
+@Serializable
+private data class GhRateLimitBucket(
+    val limit: Int = 60,
+    val remaining: Int = 0,
+    val used: Int? = null,
+    val reset: Long? = null,
 )

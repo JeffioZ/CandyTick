@@ -12,6 +12,7 @@ import io.candy.tick.data.RepoRepository
 import io.candy.tick.data.CacheManager
 import io.candy.tick.data.SelfUpdater
 import io.candy.tick.data.SyncStatus
+import io.candy.tick.data.Translator
 import io.candy.tick.util.forAppLanguage
 import io.candy.tick.worker.SyncScheduler
 import kotlinx.coroutines.CoroutineScope
@@ -49,6 +50,7 @@ class AppContainer(context: Context, isAppVisible: () -> Boolean) {
 
     val syncScheduler: SyncScheduler by lazy { SyncScheduler(context) }
     val cacheManager: CacheManager by lazy { CacheManager(context) }
+    val translator: Translator by lazy { Translator() }
 
     init {
         Notifications.ensureChannels(context.forAppLanguage(appStateStore.state.value.settings.language))

@@ -17,6 +17,7 @@ import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.dp
 import io.candy.tick.R
 import io.candy.tick.data.SourceError
+import io.candy.tick.data.errorCode
 import io.candy.tick.data.model.RepoStatus
 import io.candy.tick.ui.theme.LocalDarkTheme
 import io.candy.tick.ui.theme.StatusAbandonedDark
@@ -117,16 +118,19 @@ private fun BadgeContainer(
     }
 }
 
-/** 供横幅等场景显示失败文案 */
+/** 供横幅等场景显示失败文案（附带短错误码便于排查） */
 @Composable
-fun sourceErrorText(error: SourceError): String = when (error) {
-    is SourceError.NetworkUnreachable -> stringResource(R.string.err_network)
-    is SourceError.Timeout -> stringResource(R.string.err_timeout)
-    is SourceError.NotFound -> stringResource(R.string.err_not_found)
-    is SourceError.TokenRejected -> stringResource(R.string.err_token_rejected)
-    is SourceError.RateLimited -> error.retryAt?.let {
-        stringResource(R.string.err_rate_limited, relTimeUntilString(it))
-    } ?: stringResource(R.string.err_rate_limited_plain)
-    is SourceError.Http -> stringResource(R.string.err_http, error.code)
-    SourceError.StorageFull -> stringResource(R.string.err_storage_full)
+fun sourceErrorText(error: SourceError): String {
+    val base = when (error) {
+        is SourceError.NetworkUnreachable -> stringResource(R.string.err_network)
+        is SourceError.Timeout -> stringResource(R.string.err_timeout)
+        is SourceError.NotFound -> stringResource(R.string.err_not_found)
+        is SourceError.TokenRejected -> stringResource(R.string.err_token_rejected)
+        is SourceError.RateLimited -> error.retryAt?.let {
+            stringResource(R.string.err_rate_limited, relTimeUntilString(it))
+        } ?: stringResource(R.string.err_rate_limited_plain)
+        is SourceError.Http -> return stringResource(R.string.err_http, error.code)
+        SourceError.StorageFull -> stringResource(R.string.err_storage_full)
+    }
+    return Feedback.withErrorCode(base, error.errorCode)
 }

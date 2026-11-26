@@ -77,6 +77,9 @@ import top.yukonga.miuix.kmp.basic.rememberTopAppBarState
 import top.yukonga.miuix.kmp.theme.MiuixTheme
 import androidx.compose.ui.res.vectorResource
 import androidx.compose.ui.graphics.vector.ImageVector
+import androidx.compose.animation.core.animateFloat
+import androidx.compose.ui.draw.clip
+import androidx.compose.foundation.layout.size
 import io.candy.tick.ui.common.Motion
 import io.candy.tick.ui.common.rememberMotionEnabled
 import kotlin.math.roundToInt
@@ -329,14 +332,20 @@ fun DetailScreen(
                             else -> failedWithReason.format(r.message)
                         },
                         isError = true,
+                        errorCode = when {
+                            r.signatureMismatch -> "E-APK-SIG"
+                            r.statusCode != null -> "E-APK-${r.statusCode}"
+                            else -> "E-APK"
+                        },
                     )
                     InstallManager.InstallResult.PendingUserAction -> Unit // 系统确认界面已接管
                     InstallManager.InstallResult.Cancelled -> Unit // 用户取消≠失败（design.md:180）
                     InstallManager.InstallResult.NeedsInstallPermission ->
-                        io.candy.tick.ui.common.Feedback.show(text = needPermMsg, isError = true)
+                        io.candy.tick.ui.common.Feedback.show(text = needPermMsg, isError = true, errorCode = "E-PERM")
                 }
                 is DetailViewModel.Event.AutoLinked -> io.candy.tick.ui.common.Feedback.show(autoLinkedFmt.format(event.displayName))
-                DetailViewModel.Event.DownloadMissing -> io.candy.tick.ui.common.Feedback.show(missingDownloadMsg, isError = true)
+                DetailViewModel.Event.DownloadMissing ->
+                    io.candy.tick.ui.common.Feedback.show(missingDownloadMsg, isError = true, errorCode = "E-FILE")
             }
         }
     }
@@ -344,6 +353,135 @@ fun DetailScreen(
     val repo = state.repo
     val webUrl = remember(repo?.owner, repo?.repo) {
         repo?.let { "https://github.com/${Uri.encode(it.owner)}/${Uri.encode(it.repo)}" }
+    }
+    // ── 一键翻译（总开关，仅翻译当前可见/已展开内容，跟随应用语言）──
+    val appState by app.container.appStateStore.state.collectAsStateWithLifecycle()
+    val targetLang = remember(appState.settings.language) {
+        app.container.translator.resolveTargetLanguage(appState.settings.language)
+    }
+    var translateEnabled by rememberSaveable(repoId) { mutableStateOf(false) }
+    var translating by remember { mutableStateOf(false) }
+    var failedBodies by remember(repoId, targetLang) { mutableStateOf<Set<String>>(emptySet()) }
+    var translations by remember(repoId, targetLang) { mutableStateOf<Map<String, String>>(emptyMap()) }
+    var showMoreSheet by remember { mutableStateOf(false) }
+    val translateFailedMsg = stringResource(R.string.detail_translate_failed)
+    val visibleItemKeys by remember(detailListState) {
+        derivedStateOf { detailListState.layoutInfo.visibleItemsInfo.map { it.key }.toSet() }
+    }
+    LaunchedEffect(
+        translateEnabled,
+        targetLang,
+        commitsTab,
+        repo?.id,
+        state.snapshot?.description,
+        state.commits,
+        releases,
+        expandedNotes,
+        visibleItemKeys,
+    ) {
+        if (!translateEnabled) {
+            translating = false
+            failedBodies = emptySet()
+            return@LaunchedEffect
+        }
+        val translator = app.container.translator
+        val shortMissing = LinkedHashSet<String>()
+        val markdownMissing = LinkedHashSet<String>()
+        val cachedHits = LinkedHashMap<String, String>()
+
+        fun collectShort(text: String?) {
+            val trimmed = text?.trim()?.takeIf { it.isNotEmpty() } ?: return
+            if (trimmed in translations) return
+            val cached = translator.getCached(trimmed, targetLang)
+            if (cached != null) cachedHits[trimmed] = cached else shortMissing.add(trimmed)
+        }
+
+        // 1) 仓库简介
+        collectShort(state.snapshot?.description)
+
+        // 2) 当前页签可见内容（不展示的不翻）
+        if (commitsTab) {
+            val visibleIndices = state.commits.indices.filter { "commits:${state.commits[it].sha}" in visibleItemKeys }
+            val start = ((visibleIndices.minOrNull() ?: 0) - 2).coerceAtLeast(0)
+            val end = ((visibleIndices.maxOrNull() ?: (state.commits.size.coerceAtMost(12) - 1)) + 3)
+                .coerceAtMost(state.commits.lastIndex)
+            if (start <= end) {
+                for (i in start..end) {
+                    collectShort(commitTitlePreview(state.commits[i].message))
+                }
+            }
+        } else {
+            val visibleIndices = releases.indices.filter { "releases:${releases[it].tagName}" in visibleItemKeys }
+            val start = ((visibleIndices.minOrNull() ?: 0) - 1).coerceAtLeast(0)
+            val end = ((visibleIndices.maxOrNull() ?: (releases.size.coerceAtMost(8) - 1)) + 2)
+                .coerceAtMost(releases.lastIndex)
+            if (start <= end) {
+                for (i in start..end) {
+                    val rel = releases[i]
+                    val customName = rel.name?.trim()?.takeIf {
+                        it.isNotEmpty() && !io.candy.tick.util.VersionCompare.displayVersion(it)
+                            .equals(io.candy.tick.util.VersionCompare.displayVersion(rel.tagName), ignoreCase = true)
+                    }
+                    collectShort(customName)
+                }
+            }
+            for (rel in releases) {
+                if (rel.tagName in expandedNotes &&
+                    rel.body.isNotBlank() &&
+                    rel.body !in translations &&
+                    rel.body !in failedBodies
+                ) {
+                    val cached = translator.getCached(rel.body, targetLang)
+                    if (cached != null) cachedHits[rel.body] = cached else markdownMissing.add(rel.body)
+                }
+            }
+        }
+
+        if (cachedHits.isNotEmpty()) {
+            translations = translations + cachedHits
+        }
+        if (shortMissing.isEmpty() && markdownMissing.isEmpty()) {
+            translating = false
+            return@LaunchedEffect
+        }
+
+        // 快速滑动期间轻防抖：避免每滚过一项就反复中断/重发翻译请求
+        if (detailListState.isScrollInProgress) {
+            kotlinx.coroutines.delay(180)
+        }
+
+        translating = true
+        try {
+            var anySucceeded = false
+            // 已展开的更新日志优先翻译：用户点开卡片正盯着正文等，先响应视线焦点
+            for (body in markdownMissing) {
+                val translated = translator.translateMarkdown(body, targetLang)
+                if (translated != null) {
+                    anySucceeded = true
+                    failedBodies = failedBodies - body
+                    translations = translations + (body to translated)
+                } else {
+                    failedBodies = failedBodies + body
+                }
+            }
+            if (shortMissing.isNotEmpty()) {
+                val batch = translator.translateBatch(shortMissing.toList(), targetLang)
+                if (batch.isNotEmpty()) {
+                    anySucceeded = true
+                    translations = translations + batch
+                }
+            }
+            if (!anySucceeded && cachedHits.isEmpty()) {
+                io.candy.tick.ui.common.Feedback.show(
+                    translateFailedMsg,
+                    isError = true,
+                    errorCode = translator.lastErrorCode ?: "E-TR",
+                )
+                if (translations.isEmpty()) translateEnabled = false
+            }
+        } finally {
+            translating = false
+        }
     }
     Scaffold(
         modifier = Modifier
@@ -365,7 +503,7 @@ fun DetailScreen(
                     color = androidx.compose.ui.graphics.Color.Transparent,
                     title = "",
                     actions = {
-                        TopBarActionRow(minimum = 48.dp * 5 + 12.dp) {
+                        TopBarActionRow(minimum = 48.dp * 4 + 12.dp) {
                             PressIconButton(
                                 onClick = { if (showAppPicker) showAppPicker = false else onBack() },
                                 contentDescription = stringResource(R.string.back),
@@ -398,43 +536,66 @@ fun DetailScreen(
                                     },
                                 )
                             }
-                            if (webUrl != null) RepositoryWebButton(webUrl)
-                            // 切换浏览分支（仅提交视图有分支语义；Release tab 隐藏，避免点了无效果的控件）
-                            // 宽度+透明度过渡：tab 切换时图标个数不再突跳
-                            androidx.compose.animation.AnimatedVisibility(
-                                visible = commitsTab,
-                                enter = androidx.compose.animation.fadeIn(
-                                    androidx.compose.animation.core.tween(Motion.PHASE),
-                                ) + androidx.compose.animation.expandHorizontally(
-                                    animationSpec = androidx.compose.animation.core.tween(Motion.PHASE),
+                            // 一键翻译总开关：开启带主题浅绿圆底，翻译中图标与底圈柔和呼吸
+                            val translateTint by androidx.compose.animation.animateColorAsState(
+                                targetValue = if (translateEnabled) scheme.primaryVariant else scheme.onBackground,
+                                animationSpec = if (motion) tween(Motion.PHASE) else snap(),
+                                label = "translateTint",
+                            )
+                            val translateBg by androidx.compose.animation.animateColorAsState(
+                                targetValue = if (translateEnabled) {
+                                    scheme.primaryVariant.copy(alpha = 0.14f)
+                                } else {
+                                    androidx.compose.ui.graphics.Color.Transparent
+                                },
+                                animationSpec = if (motion) tween(Motion.PHASE) else snap(),
+                                label = "translateBg",
+                            )
+                            val pulseAlpha = if (translating && motion) {
+                                val infinite = androidx.compose.animation.core.rememberInfiniteTransition(label = "translatePulse")
+                                infinite.animateFloat(
+                                    initialValue = 1f,
+                                    targetValue = 0.28f,
+                                    animationSpec = androidx.compose.animation.core.infiniteRepeatable(
+                                        animation = tween(
+                                            durationMillis = 1000,
+                                            easing = androidx.compose.animation.core.EaseInOutSine,
+                                        ),
+                                        repeatMode = androidx.compose.animation.core.RepeatMode.Reverse,
+                                    ),
+                                    label = "translatePulseAlpha",
+                                ).value
+                            } else if (translating) {
+                                0.55f
+                            } else 1f
+                            PressIconButton(
+                                onClick = {
+                                    haptic.performHapticFeedback(HapticFeedbackType.TextHandleMove)
+                                    failedBodies = emptySet()
+                                    translateEnabled = !translateEnabled
+                                },
+                                contentDescription = stringResource(
+                                    if (translateEnabled) R.string.detail_show_original else R.string.detail_translate,
                                 ),
-                                exit = androidx.compose.animation.fadeOut(
-                                    androidx.compose.animation.core.tween(Motion.PHASE),
-                                ) + androidx.compose.animation.shrinkHorizontally(
-                                    animationSpec = androidx.compose.animation.core.tween(Motion.PHASE),
-                                ),
-                            ) {
-                                io.candy.tick.ui.common.PressIconButton(
-                                    onClick = {
-                                        showBranchSheet = true
-                                        vm.loadBranches()
-                                    },
-                                    contentDescription = stringResource(R.string.branch_picker_title),
-                                ) {
-                                    Icon(
-                                        imageVector = ImageVector.vectorResource(R.drawable.ic_git_branch),
-                                        contentDescription = null,
-                                        tint = scheme.onBackground,
-                                    )
-                                }
-                            }
-                            // 移除订阅（destructive → 确认对话框；底部文字按钮已移除）
-                            io.candy.tick.ui.common.PressIconButton(
-                                onClick = { showRemoveDialog = true },
-                                contentDescription = stringResource(R.string.detail_remove_repo),
+                                containerColor = if (translateEnabled) {
+                                    translateBg.copy(alpha = translateBg.alpha * pulseAlpha)
+                                } else {
+                                    scheme.surfaceContainer
+                                },
                             ) {
                                 Icon(
-                                    imageVector = ImageVector.vectorResource(R.drawable.ic_delete),
+                                    imageVector = ImageVector.vectorResource(R.drawable.ic_translate),
+                                    contentDescription = null,
+                                    tint = translateTint.copy(alpha = translateTint.alpha * pulseAlpha),
+                                )
+                            }
+                            // 低频动作（切分支 / 打开网页 / 复制链接 / 移除订阅）统一收进「更多」，释放顶栏标题空间
+                            PressIconButton(
+                                onClick = { showMoreSheet = true },
+                                contentDescription = stringResource(R.string.detail_more_actions),
+                            ) {
+                                Icon(
+                                    imageVector = ImageVector.vectorResource(R.drawable.ic_more),
                                     contentDescription = null,
                                     tint = scheme.onBackground,
                                 )
@@ -484,6 +645,9 @@ fun DetailScreen(
                             onDownloadUpdate = vm::downloadUpdate,
                             onInstallUpdate = { repo?.downloadedApk?.let(vm::installDownloaded) },
                             onCancelDownload = vm::cancelDownload,
+                            translatedDescription = if (translateEnabled) {
+                                state.snapshot?.description?.trim()?.let { translations[it] }
+                            } else null,
                         )
                         // 错误横幅出现/消失过渡（220 表层档，与首页同款统一）：刷新失败/恢复不再硬跳
                         AnimatedContent(
@@ -561,6 +725,7 @@ fun DetailScreen(
                 val htmlBase = webUrl ?: return@LazyColumn
                 val animateChanges = entrySettled && animateRefreshChanges && !tabMoving && !historyFading &&
                     !detailListState.isScrollInProgress && releaseRequestId == null
+                val activeTranslations = if (translateEnabled) translations else emptyMap()
                 if (commitsTab) {
                     commitList(
                         state = state,
@@ -569,6 +734,7 @@ fun DetailScreen(
                         showPagingIndicator = pullIdle,
                         animateRefreshChanges = animateChanges,
                         onLoadMore = vm::loadCommits,
+                        translatedTexts = activeTranslations,
                     )
                 } else {
                     releaseList(
@@ -603,6 +769,9 @@ fun DetailScreen(
                         onInstallDownloaded = vm::installDownloaded,
                         onDeleteDownloaded = vm::deleteDownloaded,
                         onCancelDownload = vm::cancelDownload,
+                        translatedTexts = activeTranslations,
+                        translateEnabled = translateEnabled,
+                        failedBodies = failedBodies,
                     )
                 }
             }
@@ -630,6 +799,23 @@ fun DetailScreen(
         onLoadBranches = vm::loadNextBranchPage,
     )
 
+    // 更多操作浮层（收拢低频操作：切分支 / 打开网页 / 复制链接 / 移除仓库）
+    DetailMoreActionsSheet(
+        show = showMoreSheet,
+        showBranch = commitsTab,
+        webUrl = webUrl,
+        onSelectBranch = {
+            showMoreSheet = false
+            showBranchSheet = true
+            vm.loadBranches()
+        },
+        onRemove = {
+            showMoreSheet = false
+            showRemoveDialog = true
+        },
+        onDismiss = { showMoreSheet = false },
+    )
+
     // 移除确认（破坏性操作）：show 直通，退场有动效
     RemoveRepoDialog(
         show = showRemoveDialog && repo != null,
@@ -649,30 +835,99 @@ private const val HISTORY_TABS_KEY = "history-tabs"
 private const val RELEASE_LOOKUP_KEY = "notification-release-lookup"
 
 @Composable
-private fun RepositoryWebButton(url: String) {
+private fun DetailMoreActionsSheet(
+    show: Boolean,
+    showBranch: Boolean,
+    webUrl: String?,
+    onSelectBranch: () -> Unit,
+    onRemove: () -> Unit,
+    onDismiss: () -> Unit,
+) {
     val context = LocalContext.current
     val resources = androidx.compose.ui.platform.LocalResources.current
-    val copyLabel = stringResource(R.string.copy_repo_link)
+    val scheme = MiuixTheme.colorScheme
     val links = rememberExternalUriHandler()
-    PressIconButton(
-        contentDescription = stringResource(R.string.open_in_browser),
-        onClick = { links.openUri(url) },
-        onLongClickLabel = copyLabel,
-        onLongClick = {
-            runCatching {
-                val clipboard = checkNotNull(context.getSystemService(ClipboardManager::class.java))
-                clipboard.setPrimaryClip(ClipData.newPlainText(copyLabel, url))
-            }.onSuccess {
-                Feedback.show(resources.getString(R.string.toast_copied))
-            }.onFailure { Feedback.show(resources.getString(R.string.copy_repo_link_failed), isError = true) }
-        },
+    val copyLabel = stringResource(R.string.copy_repo_link)
+
+    io.candy.tick.ui.common.CandySheet(
+        show = show,
+        title = stringResource(R.string.detail_more_actions),
+        onDismissRequest = onDismiss,
     ) {
-        Icon(
-            imageVector = ImageVector.vectorResource(R.drawable.ic_globe),
-            contentDescription = null,
-            tint = MiuixTheme.colorScheme.onBackground,
-        )
+        androidx.compose.foundation.layout.Column(
+            modifier = Modifier
+                .padding(horizontal = 8.dp)
+                .padding(bottom = 12.dp),
+        ) {
+            if (showBranch) {
+                DetailSheetActionRow(
+                    icon = R.drawable.ic_git_branch,
+                    title = stringResource(R.string.branch_picker_title),
+                    tint = scheme.onSurfaceContainer,
+                    onClick = onSelectBranch,
+                )
+            }
+            if (webUrl != null) {
+                DetailSheetActionRow(
+                    icon = R.drawable.ic_external_link,
+                    title = stringResource(R.string.open_in_browser),
+                    tint = scheme.onSurfaceContainer,
+                    onClick = {
+                        onDismiss()
+                        links.openUri(webUrl)
+                    },
+                )
+                DetailSheetActionRow(
+                    icon = R.drawable.ic_link,
+                    title = copyLabel,
+                    tint = scheme.onSurfaceContainer,
+                    onClick = {
+                        onDismiss()
+                        runCatching {
+                            val clipboard = checkNotNull(context.getSystemService(ClipboardManager::class.java))
+                            clipboard.setPrimaryClip(ClipData.newPlainText(copyLabel, webUrl))
+                        }.onSuccess {
+                            Feedback.show(resources.getString(R.string.toast_copied))
+                        }.onFailure {
+                            Feedback.show(resources.getString(R.string.copy_repo_link_failed), isError = true, errorCode = "E-CLIP")
+                        }
+                    },
+                )
+            }
+            DetailSheetActionRow(
+                icon = R.drawable.ic_delete,
+                title = stringResource(R.string.detail_remove_repo),
+                tint = scheme.onErrorContainer,
+                onClick = onRemove,
+            )
+        }
     }
+}
+
+@Composable
+private fun DetailSheetActionRow(
+    icon: Int,
+    title: String,
+    tint: androidx.compose.ui.graphics.Color,
+    onClick: () -> Unit,
+) {
+    top.yukonga.miuix.kmp.basic.BasicComponent(
+        modifier = Modifier
+            .fillMaxWidth()
+            .clip(io.candy.tick.ui.common.SheetChoiceRowShape),
+        title = title,
+        titleColor = top.yukonga.miuix.kmp.basic.BasicComponentDefaults.titleColor(color = tint),
+        startAction = {
+            Icon(
+                imageVector = ImageVector.vectorResource(icon),
+                contentDescription = null,
+                tint = tint,
+                modifier = Modifier.padding(end = 12.dp).size(20.dp),
+            )
+        },
+        onClick = onClick,
+        insideMargin = PaddingValues(horizontal = 12.dp, vertical = 14.dp),
+    )
 }
 
 private fun LazyListLayoutInfo.isReleaseInFocus(key: String): Boolean {
