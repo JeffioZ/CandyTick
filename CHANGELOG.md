@@ -10,7 +10,8 @@
 在相应版本的中文条目后附英文摘要。发版工作流会提取整个版本章节作为 GitHub Release 正文。
 -->
 
-[未发布]: https://github.com/JeffioZ/CandyTick/compare/v0.6.0...main
+[未发布]: https://github.com/JeffioZ/CandyTick/compare/v0.7.0...main
+[0.7.0]: https://github.com/JeffioZ/CandyTick/releases/tag/v0.7.0
 [0.6.0]: https://github.com/JeffioZ/CandyTick/releases/tag/v0.6.0
 [0.5.1]: https://github.com/JeffioZ/CandyTick/releases/tag/v0.5.1
 [0.5.0]: https://github.com/JeffioZ/CandyTick/releases/tag/v0.5.0
@@ -23,6 +24,33 @@
 [0.2.1]: https://github.com/JeffioZ/CandyTick/releases/tag/v0.2.1
 [0.2.0]: https://github.com/JeffioZ/CandyTick/releases/tag/v0.2.0
 [0.1.0]: https://github.com/JeffioZ/CandyTick/releases/tag/v0.1.0
+
+## [0.7.0]
+
+### 优化
+
+- 桌面图标与开屏标志精修：调整中心糖珠光晕、渐变层次与 1.10× 比例，浅色与深色模式观感更居中柔和。
+- 全面升级并统一应用内底部浮层设计语言：
+  - 外观与偏好类（「桌面图标」「深浅模式」「应用语言」）升级为 3 列可视化缩略图选择器，附 2dp 聚焦环与大字号防裁切保护；
+  - 「同步频率」升级为 2×2 柔和实色卡片，「导入订阅」升级为并排双动作卡片，「清理缓存」与详情页「更多操作」采用去线框柔和实色层与立体图标徽章；
+  - 首页「排序方式」回归通透原生列表，选中项以圆角薄荷胶囊高亮并补齐 180° 平滑翻转箭头动效，反向排序提示移至底部。
+- 顶部提示胶囊（Toast）样式与排版优化：提升悬浮阴影与错误态柔和红描边，错误码改以弱化等宽字样呈现，并启用均衡断行消除多行孤儿尾词与右侧大块留白；同步精简导入失败与导入来源文案。
+- 细节与无障碍打磨：深色模式按压染色强度调柔至 9%（浅色保持 16%）；GitHub 令牌额度卡片新增语义状态点并将刷新按钮触控区扩至 48dp；全部浮层补齐横屏与大字号滚动兜底；全应用动效 100% 遵循系统「减弱动效」开关。
+- 正式安装包体积减半（约 4.0 MB 降至约 2.0 MB）：开启 Release dex 压缩并剔除构建/调试期冗余元数据，保留全部开源许可声明。
+
+### 修复
+
+- 修复在前台直接切换「桌面图标」时可能触发系统杀进程闪退的问题，改为退回后台且无活跃下载时再平滑切换。
+- 修复后台同步期间 GitHub 令牌额度显示偶发回退或重置时间抖动的问题，以及「打开应用时同步」残留旧任务导致不触发刷新的问题。
+
+### English summary
+
+- Refined the launcher and splash icon with balanced mint glow, gradients, and 1.10× proportions across light and dark themes.
+- Unified bottom sheet design across the app: 3-column visual thumbnail pickers for App icon, Theme, and Language; borderless soft-surface cards for Sync frequency, Import subscriptions, Cache cleanup, and Detail More actions; and a clean frameless Sort sheet with a rounded mint selection pill and smooth 180° arrow flip.
+- Polished feedback toasts with softer elevation, subtle error borders, muted monospace error codes, and balanced line breaking (`LineBreak.Heading`) to eliminate awkward orphan wraps.
+- Reduced dark-mode press tint to 9% for softer tap feedback, expanded the token quota refresh button to a 48dp touch target, added scroll fallbacks to all sheets for landscape/large-font layouts, and ensured all animations respect reduced-motion settings.
+- Cut release APK download size in half (~4.0 MB to ~2.0 MB) by enabling dex compression and stripping non-runtime build metadata while preserving all open-source licenses.
+- Fixed a foreground crash when switching launcher icons by deferring component updates until the app enters the background with no active downloads, and stabilized GitHub token quota display and on-open sync scheduling.
 
 ## [0.6.0]
 
