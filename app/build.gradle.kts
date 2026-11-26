@@ -47,6 +47,9 @@ android {
             versionNameSuffix = providers.gradleProperty("candyTickBuildLabel").orNull?.let { "+$it" }
             isMinifyEnabled = true
             isShrinkResources = true
+            vcsInfo {
+                include = false
+            }
             // 真机双架构；x86/x86_64 仅供模拟器，release 不带（debug 不受限）
             ndk {
                 abiFilters += listOf("arm64-v8a", "armeabi-v7a")
@@ -74,6 +77,22 @@ android {
         // OkHttp 公共域名后缀库（132KB）：不用 Cookie 纯冗余；OkHttp 惰性加载缺失时静默降级。
         // jar 内 assets 不走 packaging.resources，须在 aapt 资产合并层忽略（保留 aapt 默认排除串）
         ignoreAssetsPattern = "!.svn:!.git:!.ds_store:!*.scc:.*:<dir>_*:!CVS:!thumbs.db:!picasa.ini:!*~:!PublicSuffixDatabase.list"
+    }
+
+    packaging {
+        dex {
+            // GitHub Release 直接分发 APK，开启 dex 压缩可减半下载体积（~4MB → ~2MB）
+            useLegacyPackaging = true
+        }
+        resources {
+            // 仅剔除构建与调试期元数据，保留所有开源 LICENSE / NOTICE 合规声明
+            excludes += setOf(
+                "DebugProbesKt.bin",
+                "META-INF/*.version",
+                "META-INF/*.kotlin_module",
+                "kotlin/**",
+            )
+        }
     }
 }
 
