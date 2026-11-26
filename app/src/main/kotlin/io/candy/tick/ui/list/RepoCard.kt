@@ -31,6 +31,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.alpha
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.layout.onVisibilityChanged
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.semantics.semantics
@@ -250,24 +251,23 @@ internal fun RepoCard(
                             Spacer(Modifier.width(6.dp))
                         }
                     }
-                    // 普通 ⌄/⌃ 箭头，交叉淡入淡出（不旋转，无「转圈」感）
-                    androidx.compose.animation.Crossfade(
-                        targetState = expanded,
-                        animationSpec = androidx.compose.animation.core.tween(Motion.MICRO),
-                        label = "expandArrow",
-                    ) { exp ->
-                        // 显式 18dp 钉死：Lucide chevron viewport 稳定，Crossfade 切换无尺寸跳
-                        Icon(
-                            imageVector = if (exp) {
-                                ImageVector.vectorResource(R.drawable.ic_chevron_up)
-                            } else {
-                                ImageVector.vectorResource(R.drawable.ic_chevron_down)
-                            },
-                            contentDescription = null,
-                            tint = scheme.onBackgroundVariant,
-                            modifier = Modifier.size(18.dp),
-                        )
-                    }
+                    // 与详情页 Release 卡片统一的 180° 平滑旋转展开箭头（遵循系统减弱动效）
+                    val chevronRotation by androidx.compose.animation.core.animateFloatAsState(
+                        targetValue = if (expanded) 180f else 0f,
+                        animationSpec = androidx.compose.animation.core.tween(
+                            durationMillis = if (io.candy.tick.ui.common.rememberMotionEnabled()) Motion.PANEL else 0,
+                            easing = Motion.Decelerate,
+                        ),
+                        label = "expandChevronRotation",
+                    )
+                    Icon(
+                        imageVector = ImageVector.vectorResource(R.drawable.ic_chevron_down),
+                        contentDescription = null,
+                        tint = scheme.onBackgroundVariant,
+                        modifier = Modifier
+                            .size(18.dp)
+                            .graphicsLayer { rotationZ = chevronRotation },
+                    )
                 }
 
                 // 展开收起钉 220 表层档：高度与透明度同拍（默认 spring 时长不可控且在体系外）

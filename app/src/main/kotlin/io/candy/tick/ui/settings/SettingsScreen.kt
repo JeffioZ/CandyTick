@@ -447,7 +447,7 @@ fun SettingsScreen(onBack: () -> Unit, autoOpenImport: Boolean = false) {
                 )
                 RowDivider()
                 SettingRow(
-                    icon = ImageVector.vectorResource(R.drawable.ic_file),
+                    icon = ImageVector.vectorResource(R.drawable.ic_scale),
                     iconTint = ChipSlate,
                     title = stringResource(R.string.settings_license),
                     value = "GPL-3.0",

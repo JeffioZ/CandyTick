@@ -6,6 +6,7 @@ import androidx.compose.animation.EnterTransition
 import androidx.compose.animation.ExitTransition
 import androidx.compose.animation.SizeTransform
 import androidx.compose.animation.core.MutableTransitionState
+import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.animation.core.snap
 import androidx.compose.animation.core.tween
 import androidx.compose.animation.expandHorizontally
@@ -52,6 +53,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clipToBounds
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.layout.LayoutBoundsHolder
 import androidx.compose.ui.layout.layout
 import androidx.compose.ui.layout.layoutBounds
@@ -449,11 +451,21 @@ fun ListScreen(
                                         onClick = { sortSheet = SortSheetSession(vm.storedSortOrder) },
                                         contentDescription = stringResource(R.string.sort_title),
                                     ) {
+                                        val sortFlip by animateFloatAsState(
+                                            targetValue = if (state.sortOrder.ascending) 180f else 0f,
+                                            animationSpec = tween(
+                                                durationMillis = if (io.candy.tick.ui.common.rememberMotionEnabled()) Motion.PANEL else 0,
+                                                easing = Motion.Decelerate,
+                                            ),
+                                            label = "sortIconFlip",
+                                        )
                                         Icon(
                                             imageVector = ImageVector.vectorResource(R.drawable.ic_sort),
                                             contentDescription = null,
                                             tint = scheme.onBackground,
-                                            modifier = Modifier.size(24.dp), // 顶栏动作图标统一 24dp
+                                            modifier = Modifier
+                                                .size(24.dp) // 顶栏动作图标统一 24dp
+                                                .graphicsLayer { rotationX = sortFlip },
                                         )
                                     }
                                 }

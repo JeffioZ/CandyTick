@@ -1,6 +1,8 @@
 package io.candy.tick.ui.common
 
+import androidx.compose.foundation.background
 import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.BoxWithConstraints
@@ -21,13 +23,18 @@ import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clip
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import io.candy.tick.R
 import io.candy.tick.data.SelfUpdater
+import io.candy.tick.ui.theme.LocalDarkTheme
 import io.candy.tick.ui.theme.MonoTokenStyle
+import io.candy.tick.util.CountFormat
+import io.candy.tick.util.VersionCompare
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import kotlinx.coroutines.launch
 import top.yukonga.miuix.kmp.basic.Text
@@ -64,6 +71,7 @@ private fun contentTagOf(state: SelfUpdater.State): String? = when (state) {
 @Composable
 fun UpdateSheet(selfUpdater: SelfUpdater) {
     val state by selfUpdater.state.collectAsStateWithLifecycle()
+    val localVersion = remember(selfUpdater) { selfUpdater.localVersionName() }
     var show by rememberSaveable { mutableStateOf(false) }
     var dismissedTag by rememberSaveable { mutableStateOf<String?>(null) }
     val scope = rememberCoroutineScope()
@@ -73,6 +81,7 @@ fun UpdateSheet(selfUpdater: SelfUpdater) {
         if (state is SelfUpdater.State.Idle) show = false
     }
     val release = state as? SelfUpdater.State.NewVersion
+    val downloaded = state as? SelfUpdater.State.Downloaded
     val contentTag = contentTagOf(state)
     // state::class 入键：Checking 直转 UpToDate 时 contentTag 仍为 null，不加会漏掉 manualRequest 的消费
     LaunchedEffect(UpdateSheetController.manualRequest, contentTag, state::class) {
@@ -91,6 +100,14 @@ fun UpdateSheet(selfUpdater: SelfUpdater) {
         } else if (release != null && release.tag != dismissedTag && !release.incomparable) {
             // 自动检查发现新版：每版本自动弹一次；无法比较版本不弹（不宣称「有更新」，
             // design.md:183）——入口在设置页版本行，用户主动点开再看
+            show = true
+        } else if (
+            downloaded != null &&
+            downloaded.tag != dismissedTag &&
+            localVersion != null &&
+            (VersionCompare.compare(downloaded.tag, localVersion) ?: 0) > 0
+        ) {
+            // 后台自动下载完成后首次打开 App 也提醒一次安装；校验 > 0 防刚升完级冷启动竞态闪窗
             show = true
         }
     }
@@ -144,11 +161,12 @@ fun UpdateSheet(selfUpdater: SelfUpdater) {
                     when (phase) {
                         is SelfUpdater.State.NewVersion -> {
                             val s = phase
-                            // 醒目版本 tag：一眼看到升到什么
-                            Text(
-                                text = s.tag,
-                                style = MonoTokenStyle.copy(fontWeight = FontWeight.Bold),
-                                color = MiuixTheme.colorScheme.primaryVariant,
+                            // 醒目版本信息条：展示当前 → 目标版本与安装包体积（无框柔和实色层）
+                            UpdateVersionBanner(
+                                localVersion = localVersion,
+                                targetTag = s.tag,
+                                sizeBytes = s.asset?.size,
+                                showArrow = !s.incomparable,
                             )
                             // 无法比较版本：如实说明，不宣称「有更新」（design.md:183/294）
                             if (s.incomparable) {
@@ -202,13 +220,22 @@ fun UpdateSheet(selfUpdater: SelfUpdater) {
                             }
                             if (shortBody) releaseNotes()
                         }
-                        is SelfUpdater.State.Downloading -> DownloadProgress(phase.progress)
+                        is SelfUpdater.State.Downloading -> {
+                            UpdateVersionBanner(
+                                localVersion = localVersion,
+                                targetTag = phase.tag,
+                                showArrow = localVersion != null && (VersionCompare.compare(phase.tag, localVersion) ?: 0) > 0,
+                            )
+                            DownloadProgress(phase.progress)
+                        }
                         is SelfUpdater.State.Downloaded -> {
                             val checked = lastCheck?.takeIf { it.first == phase }?.second
-                            Text(
-                                text = if (checked == phase) stringResource(R.string.version_latest_only, phase.tag) else phase.tag,
-                                style = MonoTokenStyle.copy(fontWeight = FontWeight.Bold),
-                                color = MiuixTheme.colorScheme.primaryVariant,
+                            UpdateVersionBanner(
+                                localVersion = localVersion,
+                                targetTag = if (checked == phase) stringResource(R.string.version_latest_only, phase.tag) else phase.tag,
+                                sizeBytes = phase.file.length().takeIf { it > 0L },
+                                showArrow = checked != phase && localVersion != null &&
+                                    (VersionCompare.compare(phase.tag, localVersion) ?: 0) > 0,
                             )
                             if (checked is SelfUpdater.State.Failed) {
                                 InlineErrorRow(
@@ -298,6 +325,66 @@ fun UpdateSheet(selfUpdater: SelfUpdater) {
                     }
                 }
             }
+        }
+    }
+}
+
+/** 更新浮层顶部版本信息条（去线框柔和实色层）：左侧当前 → 目标版本，右侧安装包体积 */
+@Composable
+private fun UpdateVersionBanner(
+    localVersion: String?,
+    targetTag: String,
+    sizeBytes: Long? = null,
+    showArrow: Boolean = true,
+) {
+    val scheme = MiuixTheme.colorScheme
+    val dark = LocalDarkTheme.current
+    val bannerBg = if (dark) scheme.surfaceContainerHigh else scheme.background
+    val localLabel = localVersion?.takeIf { it.isNotBlank() }?.let { v ->
+        if (v.startsWith("v", ignoreCase = true)) v else "v$v"
+    }
+    Row(
+        modifier = Modifier
+            .fillMaxWidth()
+            .clip(RoundedCornerShape(14.dp))
+            .background(bannerBg)
+            .padding(horizontal = 14.dp, vertical = 10.dp),
+        verticalAlignment = Alignment.CenterVertically,
+        horizontalArrangement = Arrangement.SpaceBetween,
+    ) {
+        Row(
+            modifier = Modifier.weight(1f),
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.spacedBy(6.dp),
+        ) {
+            if (showArrow && localLabel != null) {
+                Text(
+                    text = localLabel,
+                    style = MonoTokenStyle,
+                    color = scheme.onBackgroundVariant,
+                    maxLines = 1,
+                )
+                Text(
+                    text = "→",
+                    style = MiuixTheme.textStyles.footnote1,
+                    color = scheme.onBackgroundVariant,
+                )
+            }
+            Text(
+                text = targetTag,
+                style = MonoTokenStyle.copy(fontWeight = FontWeight.Bold),
+                color = scheme.primaryVariant,
+                maxLines = 1,
+                overflow = TextOverflow.Ellipsis,
+            )
+        }
+        if (sizeBytes != null && sizeBytes > 0L) {
+            Text(
+                text = CountFormat.formatBytes(sizeBytes),
+                style = MiuixTheme.textStyles.footnote2.copy(fontFeatureSettings = "tnum"),
+                color = scheme.onBackgroundVariant,
+                modifier = Modifier.padding(start = 8.dp),
+            )
         }
     }
 }
