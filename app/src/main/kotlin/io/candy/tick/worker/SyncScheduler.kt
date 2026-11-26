@@ -8,6 +8,7 @@ import androidx.work.NetworkType
 import androidx.work.OneTimeWorkRequestBuilder
 import androidx.work.OutOfQuotaPolicy
 import androidx.work.PeriodicWorkRequestBuilder
+import androidx.work.WorkInfo
 import androidx.work.WorkManager
 import androidx.work.await
 import io.candy.tick.data.model.Settings
@@ -66,13 +67,15 @@ class SyncScheduler(private val context: Context) {
         val existing = manager.getWorkInfosForUniqueWorkFlow(WORK_SYNC_ON_OPEN).first()
             .firstOrNull { !it.state.isFinished }
         if (existing == null && !enqueueIfMissing) return
-        if (existing?.constraints?.requiredNetworkType == constraints.requiredNetworkType) return
+        // 仅在旧任务确实正在运行、或仅调整网络约束且约束未变时跳过；
+        // 若旧任务卡在 ENQUEUED（例如上次退避重试等待），回到前台时直接 REPLACE 立即触发
+        val sameConstraint = existing?.constraints?.requiredNetworkType == constraints.requiredNetworkType
+        if (sameConstraint && (!enqueueIfMissing || existing.state == WorkInfo.State.RUNNING)) return
 
         val request = OneTimeWorkRequestBuilder<SyncWorker>()
             .setConstraints(constraints)
             .setExpedited(OutOfQuotaPolicy.RUN_AS_NON_EXPEDITED_WORK_REQUEST)
             .build()
-        // 仅在网络约束实际变化时替换，确保收紧限制后正在执行的任务也停止使用计费网络。
         val policy = if (existing == null) ExistingWorkPolicy.KEEP else ExistingWorkPolicy.REPLACE
         manager.enqueueUniqueWork(WORK_SYNC_ON_OPEN, policy, request).await()
     }

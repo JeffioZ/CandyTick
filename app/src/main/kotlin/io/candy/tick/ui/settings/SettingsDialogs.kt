@@ -17,7 +17,9 @@ import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
 import androidx.compose.animation.togetherWith
 import androidx.compose.foundation.background
+import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
+import androidx.compose.ui.graphics.drawscope.clipPath
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
@@ -412,12 +414,34 @@ private fun TokenRateLimitCard(
             verticalAlignment = Alignment.CenterVertically,
             horizontalArrangement = Arrangement.SpaceBetween,
         ) {
-            Text(
-                text = identityLabel,
-                style = MiuixTheme.textStyles.footnote1.copy(fontWeight = FontWeight.Medium),
-                color = identityColor,
-                modifier = Modifier.weight(1f),
+            val dotColor by androidx.compose.animation.animateColorAsState(
+                targetValue = when {
+                    tokenRejected -> scheme.onErrorContainer
+                    hasToken -> scheme.primaryVariant
+                    else -> scheme.onBackgroundVariant.copy(alpha = 0.45f)
+                },
+                animationSpec = tween(if (motionEnabled) Motion.PHASE else 0),
+                label = "tokenStatusDot",
             )
+            Row(
+                modifier = Modifier.weight(1f),
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.spacedBy(7.dp),
+            ) {
+                androidx.compose.foundation.layout.Box(
+                    modifier = Modifier
+                        .size(6.dp)
+                        .clip(androidx.compose.foundation.shape.CircleShape)
+                        .background(dotColor),
+                )
+                Text(
+                    text = identityLabel,
+                    style = MiuixTheme.textStyles.footnote1.copy(fontWeight = FontWeight.Medium),
+                    color = identityColor,
+                    maxLines = 1,
+                    overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis,
+                )
+            }
             Row(
                 verticalAlignment = Alignment.CenterVertically,
                 horizontalArrangement = Arrangement.spacedBy(2.dp),
@@ -538,6 +562,167 @@ private fun TokenRateLimitCard(
                     style = MiuixTheme.textStyles.footnote2,
                     color = scheme.onBackgroundVariant,
                 )
+            }
+        }
+    }
+}
+
+/** 桌面图标三档可视化选择弹层：3 枚通透大图标 + 外呼吸选中环（跟随系统垂直正中对称双拼） */
+@Composable
+internal fun AppIconPickerSheet(
+    show: Boolean,
+    selected: io.candy.tick.data.model.AppIconMode,
+    onSelect: (io.candy.tick.data.model.AppIconMode) -> Unit,
+    onDismiss: () -> Unit,
+) {
+    io.candy.tick.ui.common.CandySheet(
+        show = show,
+        title = stringResource(R.string.settings_app_icon),
+        onDismissRequest = onDismiss,
+    ) {
+        Row(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(horizontal = 20.dp)
+                .padding(top = 8.dp, bottom = 20.dp),
+            horizontalArrangement = Arrangement.spacedBy(12.dp),
+        ) {
+            AppIconPreviewCard(
+                mode = io.candy.tick.data.model.AppIconMode.SYSTEM,
+                label = stringResource(R.string.app_icon_system),
+                selected = selected == io.candy.tick.data.model.AppIconMode.SYSTEM,
+                onClick = { onSelect(io.candy.tick.data.model.AppIconMode.SYSTEM) },
+                modifier = Modifier.weight(1f),
+            )
+            AppIconPreviewCard(
+                mode = io.candy.tick.data.model.AppIconMode.LIGHT,
+                label = stringResource(R.string.app_icon_light),
+                selected = selected == io.candy.tick.data.model.AppIconMode.LIGHT,
+                onClick = { onSelect(io.candy.tick.data.model.AppIconMode.LIGHT) },
+                modifier = Modifier.weight(1f),
+            )
+            AppIconPreviewCard(
+                mode = io.candy.tick.data.model.AppIconMode.DARK,
+                label = stringResource(R.string.app_icon_dark),
+                selected = selected == io.candy.tick.data.model.AppIconMode.DARK,
+                onClick = { onSelect(io.candy.tick.data.model.AppIconMode.DARK) },
+                modifier = Modifier.weight(1f),
+            )
+        }
+    }
+}
+
+@Composable
+private fun AppIconPreviewCard(
+    mode: io.candy.tick.data.model.AppIconMode,
+    label: String,
+    selected: Boolean,
+    onClick: () -> Unit,
+    modifier: Modifier = Modifier,
+) {
+    val scheme = MiuixTheme.colorScheme
+    val motionEnabled = rememberMotionEnabled()
+    val hitShape = RoundedCornerShape(16.dp)
+    val ringShape = RoundedCornerShape(19.dp)
+    val ringColor by androidx.compose.animation.animateColorAsState(
+        targetValue = if (selected) scheme.primaryVariant else androidx.compose.ui.graphics.Color.Transparent,
+        animationSpec = tween(if (motionEnabled) Motion.PHASE else 0),
+        label = "iconRingColor",
+    )
+    val labelColor by androidx.compose.animation.animateColorAsState(
+        targetValue = if (selected) scheme.primaryVariant else scheme.onSurfaceContainer,
+        animationSpec = tween(if (motionEnabled) Motion.PHASE else 0),
+        label = "iconLabelColor",
+    )
+    val (press, pressColor) = io.candy.tick.ui.common.rememberRowPressTint(surface = scheme.surfaceContainer)
+    Column(
+        modifier = modifier
+            .clip(hitShape)
+            .background(pressColor)
+            .clickable(
+                interactionSource = press,
+                indication = null,
+                role = Role.RadioButton,
+                onClick = onClick,
+            )
+            .padding(vertical = 8.dp, horizontal = 4.dp),
+        horizontalAlignment = Alignment.CenterHorizontally,
+        verticalArrangement = Arrangement.spacedBy(10.dp),
+    ) {
+        // 外圈 2dp 主题绿选中环 + 3dp 呼吸缝（iOS / HyperOS 外观选择器风格）
+        androidx.compose.foundation.layout.Box(
+            modifier = Modifier
+                .border(2.dp, ringColor, ringShape)
+                .padding(5.dp),
+            contentAlignment = Alignment.Center,
+        ) {
+            AppIconThumbnail(mode = mode)
+        }
+        Text(
+            text = label,
+            style = MiuixTheme.textStyles.footnote1.copy(
+                fontWeight = if (selected) FontWeight.Medium else FontWeight.Normal,
+            ),
+            color = labelColor,
+            maxLines = 1,
+            overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis,
+        )
+    }
+}
+
+/** 按桌面自适应图标真实几何比例绘制 56dp 缩略图（跟随系统采用沿圆心垂直正中对称双拼） */
+@Composable
+private fun AppIconThumbnail(mode: io.candy.tick.data.model.AppIconMode) {
+    val scheme = MiuixTheme.colorScheme
+    val iconShape = RoundedCornerShape(14.dp)
+    val lightBg = androidx.compose.ui.graphics.Color(0xFFF5F1E4)
+    val lightOuter = androidx.compose.ui.graphics.Color(0x8C12825C)
+    val lightInner = androidx.compose.ui.graphics.Color(0xFF12825C)
+    val darkBg = androidx.compose.ui.graphics.Color(0xFF163527)
+    val darkOuter = androidx.compose.ui.graphics.Color(0x668BDEBB)
+    val darkInner = androidx.compose.ui.graphics.Color(0xFF55CFA0)
+
+    androidx.compose.foundation.Canvas(
+        modifier = Modifier
+            .size(56.dp)
+            .clip(iconShape)
+            .border(0.5.dp, scheme.outline.copy(alpha = 0.45f), iconShape),
+    ) {
+        fun drawEcho(bg: androidx.compose.ui.graphics.Color, outer: androidx.compose.ui.graphics.Color, inner: androidx.compose.ui.graphics.Color) {
+            drawRect(color = bg)
+            // 自适应图标 108dp 中安全区约 72dp：将 r=22/16/8.5 映射到预览尺寸
+            val unit = size.minDimension / 72f
+            drawCircle(
+                color = outer,
+                radius = 22f * unit,
+                style = androidx.compose.ui.graphics.drawscope.Stroke(width = 4.5f * unit),
+            )
+            drawCircle(
+                color = inner,
+                radius = 16f * unit,
+                style = androidx.compose.ui.graphics.drawscope.Stroke(width = 6.5f * unit),
+            )
+            drawCircle(color = inner, radius = 8.5f * unit)
+        }
+
+        when (mode) {
+            io.candy.tick.data.model.AppIconMode.LIGHT -> drawEcho(lightBg, lightOuter, lightInner)
+            io.candy.tick.data.model.AppIconMode.DARK -> drawEcho(darkBg, darkOuter, darkInner)
+            io.candy.tick.data.model.AppIconMode.SYSTEM -> {
+                drawEcho(lightBg, lightOuter, lightInner)
+                val darkHalf = androidx.compose.ui.graphics.Path().apply {
+                    addRect(
+                        androidx.compose.ui.geometry.Rect(
+                            left = size.width / 2f,
+                            top = 0f,
+                            right = size.width,
+                            bottom = size.height,
+                        ),
+                    )
+                }
+                clipPath(darkHalf) {
+                    drawEcho(darkBg, darkOuter, darkInner)
+                }
             }
         }
     }

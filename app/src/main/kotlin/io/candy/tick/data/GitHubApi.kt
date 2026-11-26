@@ -427,10 +427,14 @@ class GitHubApi(private val tokenProvider: () -> String?) {
         if (incoming.authenticated != hasToken) return
         while (true) {
             val prev = _rateLimit.value
+            val sameReset = prev?.resetAt == incoming.resetAt || (
+                prev?.resetAt != null && incoming.resetAt != null &&
+                    kotlin.math.abs(prev.resetAt.epochSecond - incoming.resetAt.epochSecond) <= 60L
+                )
             val sameWindow = prev != null &&
                 prev.authenticated == incoming.authenticated &&
                 prev.limit == incoming.limit &&
-                prev.resetAt == incoming.resetAt
+                sameReset
             if (sameWindow && incoming.used < prev.used) return
             if (_rateLimit.compareAndSet(prev, incoming)) return
         }

@@ -516,33 +516,18 @@ fun SettingsScreen(onBack: () -> Unit, autoOpenImport: Boolean = false) {
         }
     }
 
-    CandySheet(
+    AppIconPickerSheet(
         show = showIconSheet,
-        title = stringResource(R.string.settings_app_icon),
-        onDismissRequest = { showIconSheet = false },
-    ) {
-        fun selectIcon(mode: io.candy.tick.data.model.AppIconMode) {
+        selected = state.settings.appIconMode,
+        onSelect = { mode ->
             showIconSheet = false
-            if (mode == state.settings.appIconMode) return
+            if (mode == state.settings.appIconMode) return@AppIconPickerSheet
             // 仅落盘偏好并提示，实际组件切换延迟到退回后台时执行（避免前台禁用 alias 触发系统杀进程）
             vm.setAppIconMode(mode)
             Feedback.show(resources.getString(R.string.app_icon_switched))
-        }
-        Column(Modifier.verticalScroll(rememberScrollState())) {
-            OptionRow(
-                stringResource(R.string.app_icon_system),
-                state.settings.appIconMode == io.candy.tick.data.model.AppIconMode.SYSTEM,
-            ) { selectIcon(io.candy.tick.data.model.AppIconMode.SYSTEM) }
-            OptionRow(
-                stringResource(R.string.app_icon_light),
-                state.settings.appIconMode == io.candy.tick.data.model.AppIconMode.LIGHT,
-            ) { selectIcon(io.candy.tick.data.model.AppIconMode.LIGHT) }
-            OptionRow(
-                stringResource(R.string.app_icon_dark),
-                state.settings.appIconMode == io.candy.tick.data.model.AppIconMode.DARK,
-            ) { selectIcon(io.candy.tick.data.model.AppIconMode.DARK) }
-        }
-    }
+        },
+        onDismiss = { showIconSheet = false },
+    )
 
     CandySheet(
         show = showLanguageSheet,

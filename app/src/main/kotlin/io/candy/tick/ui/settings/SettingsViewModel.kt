@@ -54,6 +54,9 @@ class SettingsViewModel(
     private val tokenInput = MutableStateFlow(repository.state.value.settings.githubToken ?: "")
     private val tokenTest = MutableStateFlow<TokenTest?>(null)
     private val rateLimitLoading = MutableStateFlow(false)
+    // 设置页展示的额度快照：只在进入设置/打开弹窗/手动刷新/保存清空 Token 时更新，
+    // 避免后台 SyncWorker 并发同步期间数字逐条跳动
+    private val displayedRateLimit = MutableStateFlow(githubApi.rateLimit.value)
     private var tokenValidation: Job? = null
     private var rateLimitJob: Job? = null
     private val localVersion = selfUpdater.localVersionName()
@@ -65,7 +68,7 @@ class SettingsViewModel(
         selfUpdater.state,
         tokenTransient,
         githubApi.tokenRejected,
-        githubApi.rateLimit,
+        displayedRateLimit,
     ) { s, update, transient, rejected, rateLimit ->
         UiState(
             settings = s.settings,
@@ -82,7 +85,7 @@ class SettingsViewModel(
         selfUpdate = selfUpdater.state.value,
         tokenInput = tokenInput.value,
         tokenRejected = githubApi.tokenRejected.value,
-        rateLimit = githubApi.rateLimit.value,
+        rateLimit = displayedRateLimit.value,
         localVersion = localVersion,
     ))
 
@@ -171,7 +174,10 @@ class SettingsViewModel(
                             return@launch
                         }
                         githubApi.clearTokenRejected()
-                        validation.rateLimit?.let(githubApi::applyRateLimit) ?: refreshRateLimit()
+                        validation.rateLimit?.let {
+                            githubApi.applyRateLimit(it)
+                            displayedRateLimit.value = it
+                        } ?: refreshRateLimit()
                         TokenTest.VALID
                     }
                     GitHubApi.TokenValidation.Invalid -> TokenTest.INVALID
@@ -192,7 +198,7 @@ class SettingsViewModel(
         rateLimitJob = viewModelScope.launch {
             rateLimitLoading.value = true
             try {
-                githubApi.fetchRateLimit()
+                githubApi.fetchRateLimit()?.let { displayedRateLimit.value = it }
                 val settings = repository.state.value.settings
                 if (!settings.githubToken.isNullOrBlank() &&
                     settings.githubUsername.isNullOrBlank() &&

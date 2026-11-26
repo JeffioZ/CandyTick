@@ -79,6 +79,8 @@ import androidx.compose.ui.res.vectorResource
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.animation.core.animateFloat
 import androidx.compose.ui.draw.clip
+import androidx.compose.foundation.background
+import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.size
 import io.candy.tick.ui.common.Motion
 import io.candy.tick.ui.common.rememberMotionEnabled
@@ -892,6 +894,15 @@ private fun DetailMoreActionsSheet(
                             Feedback.show(resources.getString(R.string.copy_repo_link_failed), isError = true, errorCode = "E-CLIP")
                         }
                     },
+                )
+            }
+            if (showBranch || webUrl != null) {
+                Box(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(horizontal = 12.dp, vertical = 4.dp)
+                        .height(1.dp)
+                        .background(scheme.dividerLine),
                 )
             }
             DetailSheetActionRow(
