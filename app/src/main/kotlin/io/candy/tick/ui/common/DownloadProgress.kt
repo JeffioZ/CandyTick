@@ -71,9 +71,10 @@ internal fun DownloadProgress(
                 "$maxPercent · $widestDownloaded / $totalFormatted"
             } else maxPercent
             val labelStyle = MiuixTheme.textStyles.footnote2.copy(fontFeatureSettings = "tnum")
+            val motionEnabled = rememberMotionEnabled()
             val bar by animateFloatAsState(
                 targetValue = progress,
-                animationSpec = tween(Motion.PROGRESS, easing = LinearEasing),
+                animationSpec = tween(if (motionEnabled) Motion.PROGRESS else 0, easing = LinearEasing),
                 label = "downloadProgress",
             )
             Row(

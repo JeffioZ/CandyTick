@@ -1,5 +1,7 @@
 package io.candy.tick.ui.settings
 
+import androidx.compose.animation.animateContentSize
+import androidx.compose.animation.core.tween
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -31,6 +33,7 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import io.candy.tick.R
 import io.candy.tick.data.model.SyncFrequency
+import io.candy.tick.ui.common.Motion
 import io.candy.tick.ui.common.OptionRow
 import io.candy.tick.ui.theme.MonoTokenStyle
 import top.yukonga.miuix.kmp.basic.BasicComponent
@@ -56,8 +59,14 @@ internal fun SettingsGroup(
             color = MiuixTheme.colorScheme.onBackgroundVariant,
             modifier = Modifier.padding(start = RowSideInset, top = 20.dp, bottom = 8.dp),
         )
+        val motionEnabled = io.candy.tick.ui.common.rememberMotionEnabled()
         Card(modifier = Modifier.fillMaxWidth()) {
-            Column(content = content)
+            Column(
+                modifier = if (motionEnabled) {
+                    Modifier.animateContentSize(tween(Motion.PHASE, easing = Motion.Decelerate))
+                } else Modifier,
+                content = content,
+            )
         }
     }
 }

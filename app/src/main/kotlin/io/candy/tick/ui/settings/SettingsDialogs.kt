@@ -19,6 +19,8 @@ import androidx.compose.animation.togetherWith
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.selection.selectable
+import androidx.compose.foundation.selection.selectableGroup
 import androidx.compose.ui.graphics.drawscope.clipPath
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
@@ -583,42 +585,83 @@ internal fun AppIconPickerSheet(
         Row(
             modifier = Modifier
                 .fillMaxWidth()
+                .selectableGroup()
                 .padding(horizontal = 20.dp)
                 .padding(top = 8.dp, bottom = 20.dp),
             horizontalArrangement = Arrangement.spacedBy(12.dp),
         ) {
-            AppIconPreviewCard(
-                mode = io.candy.tick.data.model.AppIconMode.SYSTEM,
+            VisualPickerOption(
                 label = stringResource(R.string.app_icon_system),
                 selected = selected == io.candy.tick.data.model.AppIconMode.SYSTEM,
                 onClick = { onSelect(io.candy.tick.data.model.AppIconMode.SYSTEM) },
                 modifier = Modifier.weight(1f),
-            )
-            AppIconPreviewCard(
-                mode = io.candy.tick.data.model.AppIconMode.LIGHT,
+            ) { AppIconThumbnail(io.candy.tick.data.model.AppIconMode.SYSTEM) }
+            VisualPickerOption(
                 label = stringResource(R.string.app_icon_light),
                 selected = selected == io.candy.tick.data.model.AppIconMode.LIGHT,
                 onClick = { onSelect(io.candy.tick.data.model.AppIconMode.LIGHT) },
                 modifier = Modifier.weight(1f),
-            )
-            AppIconPreviewCard(
-                mode = io.candy.tick.data.model.AppIconMode.DARK,
+            ) { AppIconThumbnail(io.candy.tick.data.model.AppIconMode.LIGHT) }
+            VisualPickerOption(
                 label = stringResource(R.string.app_icon_dark),
                 selected = selected == io.candy.tick.data.model.AppIconMode.DARK,
                 onClick = { onSelect(io.candy.tick.data.model.AppIconMode.DARK) },
                 modifier = Modifier.weight(1f),
-            )
+            ) { AppIconThumbnail(io.candy.tick.data.model.AppIconMode.DARK) }
+        }
+    }
+}
+
+/** 深浅模式三档可视化选择弹层：与「桌面图标」同款三枚通透预览 + 外呼吸选中环 */
+@Composable
+internal fun ThemeModePickerSheet(
+    show: Boolean,
+    selected: io.candy.tick.data.model.ThemeMode,
+    onSelect: (io.candy.tick.data.model.ThemeMode) -> Unit,
+    onDismiss: () -> Unit,
+) {
+    io.candy.tick.ui.common.CandySheet(
+        show = show,
+        title = stringResource(R.string.settings_theme_mode),
+        onDismissRequest = onDismiss,
+    ) {
+        Row(
+            modifier = Modifier
+                .fillMaxWidth()
+                .selectableGroup()
+                .padding(horizontal = 20.dp)
+                .padding(top = 8.dp, bottom = 20.dp),
+            horizontalArrangement = Arrangement.spacedBy(12.dp),
+        ) {
+            VisualPickerOption(
+                label = stringResource(R.string.theme_mode_system),
+                selected = selected == io.candy.tick.data.model.ThemeMode.SYSTEM,
+                onClick = { onSelect(io.candy.tick.data.model.ThemeMode.SYSTEM) },
+                modifier = Modifier.weight(1f),
+            ) { ThemeModeThumbnail(io.candy.tick.data.model.ThemeMode.SYSTEM) }
+            VisualPickerOption(
+                label = stringResource(R.string.theme_mode_light),
+                selected = selected == io.candy.tick.data.model.ThemeMode.LIGHT,
+                onClick = { onSelect(io.candy.tick.data.model.ThemeMode.LIGHT) },
+                modifier = Modifier.weight(1f),
+            ) { ThemeModeThumbnail(io.candy.tick.data.model.ThemeMode.LIGHT) }
+            VisualPickerOption(
+                label = stringResource(R.string.theme_mode_dark),
+                selected = selected == io.candy.tick.data.model.ThemeMode.DARK,
+                onClick = { onSelect(io.candy.tick.data.model.ThemeMode.DARK) },
+                modifier = Modifier.weight(1f),
+            ) { ThemeModeThumbnail(io.candy.tick.data.model.ThemeMode.DARK) }
         }
     }
 }
 
 @Composable
-private fun AppIconPreviewCard(
-    mode: io.candy.tick.data.model.AppIconMode,
+private fun VisualPickerOption(
     label: String,
     selected: Boolean,
     onClick: () -> Unit,
     modifier: Modifier = Modifier,
+    thumbnail: @Composable () -> Unit,
 ) {
     val scheme = MiuixTheme.colorScheme
     val motionEnabled = rememberMotionEnabled()
@@ -627,19 +670,20 @@ private fun AppIconPreviewCard(
     val ringColor by androidx.compose.animation.animateColorAsState(
         targetValue = if (selected) scheme.primaryVariant else androidx.compose.ui.graphics.Color.Transparent,
         animationSpec = tween(if (motionEnabled) Motion.PHASE else 0),
-        label = "iconRingColor",
+        label = "visualPickerRing",
     )
     val labelColor by androidx.compose.animation.animateColorAsState(
         targetValue = if (selected) scheme.primaryVariant else scheme.onSurfaceContainer,
         animationSpec = tween(if (motionEnabled) Motion.PHASE else 0),
-        label = "iconLabelColor",
+        label = "visualPickerLabel",
     )
     val (press, pressColor) = io.candy.tick.ui.common.rememberRowPressTint(surface = scheme.surfaceContainer)
     Column(
         modifier = modifier
             .clip(hitShape)
             .background(pressColor)
-            .clickable(
+            .selectable(
+                selected = selected,
                 interactionSource = press,
                 indication = null,
                 role = Role.RadioButton,
@@ -649,14 +693,14 @@ private fun AppIconPreviewCard(
         horizontalAlignment = Alignment.CenterHorizontally,
         verticalArrangement = Arrangement.spacedBy(10.dp),
     ) {
-        // 外圈 2dp 主题绿选中环 + 3dp 呼吸缝（iOS / HyperOS 外观选择器风格）
+        // 外圈 2dp 主题绿选中环 + 3dp 呼吸缝（与桌面图标选择器共用）
         androidx.compose.foundation.layout.Box(
             modifier = Modifier
                 .border(2.dp, ringColor, ringShape)
                 .padding(5.dp),
             contentAlignment = Alignment.Center,
         ) {
-            AppIconThumbnail(mode = mode)
+            thumbnail()
         }
         Text(
             text = label,
@@ -667,6 +711,99 @@ private fun AppIconPreviewCard(
             maxLines = 1,
             overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis,
         )
+    }
+}
+
+/** 迷你深浅界面 56dp 缩略预览（取自 CandyTick 真实双色板，跟随系统垂直正中对称双拼） */
+@Composable
+private fun ThemeModeThumbnail(mode: io.candy.tick.data.model.ThemeMode) {
+    val scheme = MiuixTheme.colorScheme
+    val thumbShape = RoundedCornerShape(14.dp)
+
+    androidx.compose.foundation.Canvas(
+        modifier = Modifier
+            .size(56.dp)
+            .clip(thumbShape)
+            .border(0.5.dp, scheme.outline.copy(alpha = 0.7f), thumbShape),
+    ) {
+        fun drawMiniUi(dark: Boolean) {
+            val bg = if (dark) io.candy.tick.ui.theme.DarkBackground else io.candy.tick.ui.theme.LightBackground
+            val card = if (dark) io.candy.tick.ui.theme.DarkSurface else io.candy.tick.ui.theme.LightSurface
+            val accent = if (dark) io.candy.tick.ui.theme.DarkPrimary else io.candy.tick.ui.theme.LightPrimary
+            val line = if (dark) io.candy.tick.ui.theme.DarkTextSecondary.copy(alpha = 0.45f)
+            else io.candy.tick.ui.theme.LightTextSecondary.copy(alpha = 0.35f)
+
+            drawRect(color = bg)
+            val w = size.width
+            val h = size.height
+            val pad = w * 0.14f
+            val cardW = w - pad * 2
+            val r = androidx.compose.ui.geometry.CornerRadius(w * 0.10f, w * 0.10f)
+
+            // 顶部主卡片（模拟首页仓库卡：小绿圆点 + 两行骨架）
+            val c1Top = h * 0.16f
+            val c1H = h * 0.33f
+            drawRoundRect(
+                color = card,
+                topLeft = androidx.compose.ui.geometry.Offset(pad, c1Top),
+                size = androidx.compose.ui.geometry.Size(cardW, c1H),
+                cornerRadius = r,
+            )
+            drawCircle(
+                color = accent,
+                radius = w * 0.065f,
+                center = androidx.compose.ui.geometry.Offset(pad + w * 0.12f, c1Top + c1H * 0.5f),
+            )
+            drawRoundRect(
+                color = line,
+                topLeft = androidx.compose.ui.geometry.Offset(pad + w * 0.24f, c1Top + c1H * 0.32f),
+                size = androidx.compose.ui.geometry.Size(cardW * 0.48f, h * 0.055f),
+                cornerRadius = androidx.compose.ui.geometry.CornerRadius(4f, 4f),
+            )
+            drawRoundRect(
+                color = line.copy(alpha = line.alpha * 0.65f),
+                topLeft = androidx.compose.ui.geometry.Offset(pad + w * 0.24f, c1Top + c1H * 0.58f),
+                size = androidx.compose.ui.geometry.Size(cardW * 0.32f, h * 0.048f),
+                cornerRadius = androidx.compose.ui.geometry.CornerRadius(4f, 4f),
+            )
+
+            // 下方次卡片 + 主题色胶囊条
+            val c2Top = c1Top + c1H + h * 0.08f
+            val c2H = h * 0.27f
+            drawRoundRect(
+                color = card,
+                topLeft = androidx.compose.ui.geometry.Offset(pad, c2Top),
+                size = androidx.compose.ui.geometry.Size(cardW, c2H),
+                cornerRadius = r,
+            )
+            drawRoundRect(
+                color = accent.copy(alpha = 0.85f),
+                topLeft = androidx.compose.ui.geometry.Offset(pad + w * 0.08f, c2Top + c2H * 0.34f),
+                size = androidx.compose.ui.geometry.Size(cardW - w * 0.16f, h * 0.08f),
+                cornerRadius = androidx.compose.ui.geometry.CornerRadius(6f, 6f),
+            )
+        }
+
+        when (mode) {
+            io.candy.tick.data.model.ThemeMode.LIGHT -> drawMiniUi(dark = false)
+            io.candy.tick.data.model.ThemeMode.DARK -> drawMiniUi(dark = true)
+            io.candy.tick.data.model.ThemeMode.SYSTEM -> {
+                drawMiniUi(dark = false)
+                val darkHalf = androidx.compose.ui.graphics.Path().apply {
+                    addRect(
+                        androidx.compose.ui.geometry.Rect(
+                            left = size.width / 2f,
+                            top = 0f,
+                            right = size.width,
+                            bottom = size.height,
+                        ),
+                    )
+                }
+                clipPath(darkHalf) {
+                    drawMiniUi(dark = true)
+                }
+            }
+        }
     }
 }
 

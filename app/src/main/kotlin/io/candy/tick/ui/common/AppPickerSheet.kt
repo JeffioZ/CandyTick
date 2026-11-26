@@ -1,5 +1,7 @@
 package io.candy.tick.ui.common
 
+import androidx.compose.animation.togetherWith
+
 import android.content.Context
 import androidx.activity.compose.BackHandler
 import androidx.compose.foundation.layout.Box
@@ -138,17 +140,36 @@ fun AppPickerSheet(
                 // The sheet applies IME insets. The requested height is clamped to its available space.
                 .then(if (page.fullHeight) Modifier.height(maxSheetHeight) else Modifier.heightIn(max = maxSheetHeight)),
         ) {
-            if (result == null) {
-                Box(
+        val phase = when {
+            result == null -> "loading"
+            result.isFailure -> "error"
+            apps.isEmpty() -> "empty"
+            else -> "list"
+        }
+        val motion = rememberMotionEnabled()
+        androidx.compose.animation.AnimatedContent(
+            targetState = phase,
+            modifier = Modifier
+                .fillMaxWidth()
+                .then(if (page.fullHeight) Modifier.fillMaxSize() else Modifier),
+            transitionSpec = {
+                val enterDur = if (motion) Motion.PHASE else 0
+                val exitDur = if (motion) Motion.MICRO else 0
+                (
+                    androidx.compose.animation.fadeIn(androidx.compose.animation.core.tween(enterDur)) togetherWith
+                        androidx.compose.animation.fadeOut(androidx.compose.animation.core.tween(exitDur))
+                ).using(null)
+            },
+            label = "appPickerPhase",
+        ) { currentPhase ->
+            when (currentPhase) {
+                "loading" -> Box(
                     modifier = Modifier.fillMaxSize(),
                     contentAlignment = Alignment.Center,
                 ) {
                     LoadingDots(dotSize = 5.dp)
                 }
-                return@Column
-            }
-            if (result.isFailure) {
-                StatusPage(
+                "error" -> StatusPage(
                     isError = true,
                     compact = true,
                     title = stringResource(R.string.apps_load_failed),
@@ -156,10 +177,7 @@ fun AppPickerSheet(
                     onAction = { page.retry++ },
                     modifier = Modifier.fillMaxSize().verticalScroll(rememberScrollState()).wrapContentHeight(),
                 )
-                return@Column
-            }
-            if (apps.isEmpty()) {
-                StatusPage(
+                "empty" -> StatusPage(
                     icon = ImageVector.vectorResource(R.drawable.ic_package),
                     title = stringResource(R.string.picker_empty_apps),
                     compact = true,
@@ -168,11 +186,9 @@ fun AppPickerSheet(
                         .then(if (page.fullHeight) Modifier.fillMaxSize() else Modifier)
                         .verticalScroll(rememberScrollState()).wrapContentHeight().padding(vertical = 24.dp),
                 )
-                return@Column
-            }
-            PickerList(listState, searchable, query, stringResource(R.string.picker_search_app), { query = it }) {
-                if (searchable && filtered.isEmpty()) {
-                    item(key = "empty") {
+                else -> PickerList(listState, searchable, query, stringResource(R.string.picker_search_app), { query = it }) {
+                    if (searchable && filtered.isEmpty()) {
+                        item(key = "empty") {
                         Box(
                             modifier = Modifier.fillParentMaxHeight().fillMaxWidth(),
                             contentAlignment = Alignment.Center,
@@ -203,6 +219,8 @@ fun AppPickerSheet(
                     )
                 }
             }
+            }
+        }
         }
     }
 }

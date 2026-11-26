@@ -196,17 +196,19 @@ private fun ReleaseCard(
 
             // 更新日志展开区（220 展开档与首页卡一致）：纯文本限高可滚 + GitHub 链接
             if (hasNotes) {
+                val expandMotion = io.candy.tick.ui.common.rememberMotionEnabled()
+                val panelDur = if (expandMotion) Motion.PANEL else 0
                 androidx.compose.animation.AnimatedVisibility(
                     visible = notesExpanded,
                     enter = androidx.compose.animation.expandVertically(
-                        animationSpec = androidx.compose.animation.core.tween(Motion.PANEL),
+                        animationSpec = androidx.compose.animation.core.tween(panelDur, easing = Motion.Decelerate),
                     ) + androidx.compose.animation.fadeIn(
-                        animationSpec = androidx.compose.animation.core.tween(Motion.PANEL),
+                        animationSpec = androidx.compose.animation.core.tween(panelDur),
                     ),
                     exit = androidx.compose.animation.shrinkVertically(
-                        animationSpec = androidx.compose.animation.core.tween(Motion.PANEL),
+                        animationSpec = androidx.compose.animation.core.tween(panelDur, easing = Motion.Decelerate),
                     ) + androidx.compose.animation.fadeOut(
-                        animationSpec = androidx.compose.animation.core.tween(Motion.PANEL),
+                        animationSpec = androidx.compose.animation.core.tween(panelDur),
                     ),
                 ) {
                     // 图层隔离（graphicsLayer 空参 = 强制独立层）：展开动画逐帧改的是
@@ -498,13 +500,22 @@ private fun ReleaseHeader(
                     }
                 }
                 if (hasNotes) {
-                    Icon(
-                        imageVector = ImageVector.vectorResource(
-                            if (expanded) R.drawable.ic_chevron_up else R.drawable.ic_chevron_down,
+                    val chevronMotion = io.candy.tick.ui.common.rememberMotionEnabled()
+                    val chevronRotation by androidx.compose.animation.core.animateFloatAsState(
+                        targetValue = if (expanded) 180f else 0f,
+                        animationSpec = androidx.compose.animation.core.tween(
+                            if (chevronMotion) Motion.PANEL else 0,
+                            easing = Motion.Decelerate,
                         ),
+                        label = "releaseChevron",
+                    )
+                    Icon(
+                        imageVector = ImageVector.vectorResource(R.drawable.ic_chevron_down),
                         contentDescription = null,
                         tint = scheme.onBackgroundVariant,
-                        modifier = Modifier.size(18.dp),
+                        modifier = Modifier
+                            .size(18.dp)
+                            .graphicsLayer { rotationZ = chevronRotation },
                     )
                 }
             }

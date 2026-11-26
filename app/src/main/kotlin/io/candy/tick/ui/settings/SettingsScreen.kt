@@ -498,23 +498,15 @@ fun SettingsScreen(onBack: () -> Unit, autoOpenImport: Boolean = false) {
         }
     }
 
-    CandySheet(
+    ThemeModePickerSheet(
         show = showThemeSheet,
-        title = stringResource(R.string.settings_theme_mode),
-        onDismissRequest = { showThemeSheet = false },
-    ) {
-        Column(Modifier.verticalScroll(rememberScrollState())) {
-            OptionRow(stringResource(R.string.theme_mode_system), state.settings.themeMode == ThemeMode.SYSTEM) {
-                vm.setThemeMode(ThemeMode.SYSTEM); showThemeSheet = false
-            }
-            OptionRow(stringResource(R.string.theme_mode_light), state.settings.themeMode == ThemeMode.LIGHT) {
-                vm.setThemeMode(ThemeMode.LIGHT); showThemeSheet = false
-            }
-            OptionRow(stringResource(R.string.theme_mode_dark), state.settings.themeMode == ThemeMode.DARK) {
-                vm.setThemeMode(ThemeMode.DARK); showThemeSheet = false
-            }
-        }
-    }
+        selected = state.settings.themeMode,
+        onSelect = { mode ->
+            vm.setThemeMode(mode)
+            showThemeSheet = false
+        },
+        onDismiss = { showThemeSheet = false },
+    )
 
     AppIconPickerSheet(
         show = showIconSheet,

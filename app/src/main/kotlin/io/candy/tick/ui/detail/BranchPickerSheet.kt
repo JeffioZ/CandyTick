@@ -89,7 +89,7 @@ internal fun BranchPickerSheet(
                 // 有搜索框时 top=0：搜索框自身高度已是分隔，叠 4dp 会使上方大于下方（同应用选择器）；
                 // 无搜索框（少量分支）保留 4dp 与设置/更新弹窗统一
                 .padding(top = if (searchable) 0.dp else 4.dp)
-                .animateContentSize(tween(Motion.PANEL))
+                .then(if (io.candy.tick.ui.common.rememberMotionEnabled()) Modifier.animateContentSize(tween(Motion.PANEL)) else Modifier)
                 .then(if (searchable) Modifier.height(maxSheetHeight) else Modifier.heightIn(max = maxSheetHeight)),
         ) {
             PickerList(listState, searchable, query, stringResource(R.string.branch_search_hint), { query = it }) {
