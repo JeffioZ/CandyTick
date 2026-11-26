@@ -19,7 +19,6 @@ updates:
       kotlin-and-kotlinx:
         patterns:
           - "org.jetbrains.kotlin*"
-          - "org.jetbrains.kotlinx*"
       third-party:
         patterns:
           - "com.squareup.okhttp3:*"

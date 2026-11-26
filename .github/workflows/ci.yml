@@ -37,5 +37,5 @@ jobs:
         run: |
           { yes || true; } | "$ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager" --licenses > /dev/null
 
-      - name: Compile, test, and lint
-        run: bash gradlew :app:compileDebugKotlin :app:testDebugUnitTest :app:lintVitalRelease --no-daemon --no-configuration-cache
+      - name: Test and build release APK
+        run: bash gradlew :app:testDebugUnitTest :app:assembleRelease --no-daemon --no-configuration-cache
