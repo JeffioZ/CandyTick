@@ -20,6 +20,7 @@ import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.sizeIn
 import androidx.compose.foundation.layout.statusBarsPadding
 import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.DisposableEffect
@@ -41,8 +42,14 @@ import androidx.compose.ui.semantics.LiveRegionMode
 import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.semantics.liveRegion
 import androidx.compose.ui.semantics.semantics
+import androidx.compose.ui.text.SpanStyle
+import androidx.compose.ui.text.buildAnnotatedString
+import androidx.compose.ui.text.font.FontFamily
+import androidx.compose.ui.text.style.LineBreak
+import androidx.compose.ui.text.withStyle
 
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.sp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -61,6 +68,7 @@ object Feedback {
     class Message(
         val text: String,
         val isError: Boolean = false,
+        val errorCode: String? = null,
         val actionLabel: String? = null,
         val onAction: (() -> Unit)? = null,
         val durationMs: Long,
@@ -83,7 +91,7 @@ object Feedback {
         durationMs: Long? = null,
         errorCode: String? = null,
     ) {
-        val displayText = withErrorCode(text, errorCode)
+        val normalizedCode = errorCode?.trim()?.takeIf { it.isNotEmpty() && !text.contains("($it)") }
         // 被逐出的可操作消息（目前仅滑删撤销）若仍在有效期内，暂存待槽空出后重新上屏：
         // 单槽只显示最新，但「可撤销」承诺不因后续消息静默作废（自然到期才作废）
         val evicted = _current.value
@@ -93,8 +101,9 @@ object Feedback {
             held = evicted
         }
         _current.value = Message(
-            text = displayText,
+            text = text,
             isError = isError,
+            errorCode = normalizedCode,
             actionLabel = actionLabel,
             onAction = onAction,
             durationMs = durationMs ?: if (actionLabel != null) 4_500L else 2_200L,
@@ -206,6 +215,8 @@ fun FeedbackHost() {
                 val shadowTint = Color.Black.copy(alpha = if (dark) 0.4f else 0.24f)
                 Row(
                     modifier = Modifier
+                        // 仅限平板/横屏最大宽度，竖屏手机保留自然左右 16dp 留白避免人为折行
+                        .widthIn(max = 420.dp)
                         // 连续触发新 Toast 时宽度平滑过渡；置于 shadow 前确保阴影与容器同步缩放
                         .then(
                             if (motionEnabled) {
@@ -233,10 +244,31 @@ fun FeedbackHost() {
                         modifier = Modifier.size(18.dp),
                     )
                     Spacer(Modifier.width(8.dp))
+                    val displayContent = remember(m.text, m.errorCode, scheme.onSurfaceContainerVariant) {
+                        buildAnnotatedString {
+                            append(m.text)
+                            m.errorCode?.let { code ->
+                                append("  ")
+                                withStyle(
+                                    SpanStyle(
+                                        fontSize = 11.sp,
+                                        fontFamily = FontFamily.Monospace,
+                                        color = scheme.onSurfaceContainerVariant,
+                                    ),
+                                ) {
+                                    append(code)
+                                }
+                            }
+                        }
+                    }
                     Text(
-                        text = m.text,
+                        text = displayContent,
                         modifier = Modifier.weight(1f, fill = false).padding(vertical = 10.dp),
-                        style = MiuixTheme.textStyles.footnote1,
+                        // LineBreak.Heading：短文案保持单行；必须换行时均分两行宽度，消除孤儿尾词与右侧大空白
+                        style = MiuixTheme.textStyles.footnote1.copy(
+                            lineHeight = 19.sp,
+                            lineBreak = LineBreak.Heading,
+                        ),
                         color = textTint,
                     )
                     m.actionLabel?.let { label ->

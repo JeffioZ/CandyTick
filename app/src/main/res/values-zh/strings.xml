@@ -300,7 +300,7 @@
         <item quantity="other">已导入 %1$d 个仓库</item>
     </plurals>
     <string name="import_no_new">没有可导入的新订阅</string>
-    <string name="import_failed">导入失败，请使用 CandyTick 导出的备份。</string>
+    <string name="import_failed">导入失败，请使用 CandyTick 备份</string>
     <string name="import_from_file">本地文件</string>
     <string name="import_from_file_hint">选择 JSON 备份</string>
     <string name="import_from_clipboard">剪贴板</string>

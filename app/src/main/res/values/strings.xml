@@ -322,7 +322,7 @@
         <item quantity="other">Imported %1$d repositories</item>
     </plurals>
     <string name="import_no_new">No new subscriptions to import</string>
-    <string name="import_failed">Import failed. Use a CandyTick JSON backup.</string>
+    <string name="import_failed">Import failed · Use a CandyTick backup</string>
     <string name="import_from_file">Local file</string>
     <string name="import_from_file_hint">Pick a JSON backup</string>
     <string name="import_from_clipboard">Clipboard</string>
