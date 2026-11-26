@@ -13,8 +13,6 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.rememberLazyListState
-import androidx.compose.foundation.rememberScrollState
-import androidx.compose.foundation.verticalScroll
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
@@ -42,13 +40,10 @@ import io.candy.tick.R
 import io.candy.tick.data.model.ThemeMode
 import io.candy.tick.data.Notifications
 import io.candy.tick.data.SelfUpdater
-import io.candy.tick.data.model.SyncFrequency
-import io.candy.tick.ui.common.CandySheet
 import io.candy.tick.ui.common.CenteredScrollToTopBar
 import io.candy.tick.ui.common.rememberExternalUriHandler
 import io.candy.tick.ui.common.Feedback
 import io.candy.tick.ui.common.rememberMotionEnabled
-import io.candy.tick.ui.common.OptionRow
 import io.candy.tick.ui.common.scrollToTop
 import io.candy.tick.ui.theme.ChipAmber
 import io.candy.tick.ui.theme.ChipBlue
@@ -485,18 +480,15 @@ fun SettingsScreen(onBack: () -> Unit, autoOpenImport: Boolean = false) {
         }
     }
 
-    CandySheet(
+    SyncFrequencyPickerSheet(
         show = showFrequencySheet,
-        title = stringResource(R.string.settings_sync_frequency),
-        onDismissRequest = { showFrequencySheet = false },
-    ) {
-        Column(Modifier.verticalScroll(rememberScrollState())) {
-            FrequencyRow(SyncFrequency.ON_OPEN, state.settings.syncFrequency, vm::setSyncFrequency) { showFrequencySheet = false }
-            FrequencyRow(SyncFrequency.EVERY_6_HOURS, state.settings.syncFrequency, vm::setSyncFrequency) { showFrequencySheet = false }
-            FrequencyRow(SyncFrequency.EVERY_12_HOURS, state.settings.syncFrequency, vm::setSyncFrequency) { showFrequencySheet = false }
-            FrequencyRow(SyncFrequency.DAILY, state.settings.syncFrequency, vm::setSyncFrequency) { showFrequencySheet = false }
-        }
-    }
+        selected = state.settings.syncFrequency,
+        onSelect = { freq ->
+            vm.setSyncFrequency(freq)
+            showFrequencySheet = false
+        },
+        onDismiss = { showFrequencySheet = false },
+    )
 
     ThemeModePickerSheet(
         show = showThemeSheet,
@@ -521,23 +513,15 @@ fun SettingsScreen(onBack: () -> Unit, autoOpenImport: Boolean = false) {
         onDismiss = { showIconSheet = false },
     )
 
-    CandySheet(
+    LanguagePickerSheet(
         show = showLanguageSheet,
-        title = stringResource(R.string.settings_language),
-        onDismissRequest = { showLanguageSheet = false },
-    ) {
-        Column(Modifier.verticalScroll(rememberScrollState())) {
-            OptionRow(stringResource(R.string.lang_system), state.settings.language.isEmpty()) {
-                vm.setLanguage(""); showLanguageSheet = false
-            }
-            OptionRow(stringResource(R.string.lang_chinese), state.settings.language == "zh") {
-                vm.setLanguage("zh"); showLanguageSheet = false
-            }
-            OptionRow(stringResource(R.string.lang_english), state.settings.language == "en") {
-                vm.setLanguage("en"); showLanguageSheet = false
-            }
-        }
-    }
+        selected = state.settings.language,
+        onSelect = { lang ->
+            vm.setLanguage(lang)
+            showLanguageSheet = false
+        },
+        onDismiss = { showLanguageSheet = false },
+    )
 
     // 导入来源选择弹窗（文件 / 剪贴板）：show 直通，退场有动效
     ImportSourceDialog(

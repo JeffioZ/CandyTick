@@ -7,6 +7,7 @@ import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberUpdatedState
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.getValue
 import androidx.compose.animation.AnimatedContent
 import androidx.compose.animation.SizeTransform
@@ -23,9 +24,12 @@ import androidx.compose.foundation.selection.selectable
 import androidx.compose.foundation.selection.selectableGroup
 import androidx.compose.ui.graphics.drawscope.clipPath
 import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.IntrinsicSize
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxHeight
+import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
@@ -37,21 +41,26 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.focus.focusRequester
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.graphics.compositeOver
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.graphics.vector.ImageVector
+import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.res.vectorResource
 import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.semantics.clearAndSetSemantics
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.style.TextAlign
+import androidx.compose.ui.text.style.TextOverflow
+import androidx.compose.ui.unit.Density
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.sp
 import io.candy.tick.R
 import io.candy.tick.ui.common.CandyTextField
 import io.candy.tick.ui.common.InlineErrorRow
 import io.candy.tick.ui.common.Motion
 import io.candy.tick.ui.common.PrimaryButton
 import io.candy.tick.ui.common.SecondaryButton
-import io.candy.tick.ui.common.SheetChoiceRowShape
 import io.candy.tick.ui.common.TextFieldActionButton
 import io.candy.tick.ui.common.relTimeUntilString
 import io.candy.tick.ui.common.rememberMotionEnabled
@@ -100,10 +109,11 @@ internal fun CacheCleanupSheet(
             verticalArrangement = Arrangement.spacedBy(10.dp),
         ) {
             Column(
-                modifier = Modifier.padding(bottom = 8.dp),
+                modifier = Modifier.padding(bottom = 6.dp),
                 verticalArrangement = Arrangement.spacedBy(10.dp),
             ) {
                 CacheCleanupRow(
+                    iconRes = R.drawable.ic_package,
                     label = stringResource(R.string.settings_cache_apk),
                     sizeBytes = state.apkBytes.takeUnless { state.scanning },
                     checked = includeApks,
@@ -111,6 +121,7 @@ internal fun CacheCleanupSheet(
                     onChecked = { cleanApk = it },
                 )
                 CacheCleanupRow(
+                    iconRes = R.drawable.ic_report,
                     label = stringResource(R.string.settings_cache_crash_log),
                     sizeBytes = state.crashLogBytes.takeUnless { state.scanning },
                     checked = includeCrashLog,
@@ -153,22 +164,59 @@ internal fun CacheCleanupSheet(
 
 @Composable
 private fun CacheCleanupRow(
+    iconRes: Int,
     label: String,
     sizeBytes: Long?,
     checked: Boolean,
     cleaning: Boolean,
     onChecked: (Boolean) -> Unit,
 ) {
+    val scheme = MiuixTheme.colorScheme
+    val motionEnabled = rememberMotionEnabled()
     val hasFiles = sizeBytes != null && sizeBytes > 0
     val enabled = hasFiles && !cleaning
-    // 色块比文字左右各宽 8dp（与选项弹层的行同款）：按下染色不贴文字和开关
+    val cardShape = RoundedCornerShape(16.dp)
+    val badgeShape = RoundedCornerShape(11.dp)
+    val badgeBg by androidx.compose.animation.animateColorAsState(
+        targetValue = if (checked) scheme.primaryVariant.copy(alpha = 0.12f) else scheme.surfaceVariant.copy(alpha = 0.65f),
+        animationSpec = tween(if (motionEnabled) Motion.PHASE else 0),
+        label = "cacheBadgeBg",
+    )
+    val badgeTint by androidx.compose.animation.animateColorAsState(
+        targetValue = if (checked) scheme.primaryVariant else scheme.onSurfaceContainerVariant,
+        animationSpec = tween(if (motionEnabled) Motion.PHASE else 0),
+        label = "cacheBadgeTint",
+    )
+    // 与导入订阅同款 16dp 卡片材质，左右与底部主按钮严格齐平
     top.yukonga.miuix.kmp.basic.BasicComponent(
-        modifier = Modifier.fillMaxWidth().padding(horizontal = 8.dp).clip(SheetChoiceRowShape).switchSemantics(checked, enabled),
+        modifier = Modifier
+            .fillMaxWidth()
+            .clip(cardShape)
+            .background(scheme.background)
+            .border(0.5.dp, scheme.outline.copy(alpha = 0.6f), cardShape)
+            .switchSemantics(checked, enabled),
         title = label,
         summary = when (sizeBytes) {
             null -> "—"
             0L -> stringResource(R.string.settings_cache_none)
             else -> formatBytes(sizeBytes)
+        },
+        startAction = {
+            Box(
+                modifier = Modifier
+                    .padding(end = 12.dp)
+                    .size(38.dp)
+                    .clip(badgeShape)
+                    .background(badgeBg),
+                contentAlignment = Alignment.Center,
+            ) {
+                Icon(
+                    imageVector = ImageVector.vectorResource(iconRes),
+                    contentDescription = null,
+                    tint = badgeTint,
+                    modifier = Modifier.size(19.dp),
+                )
+            }
         },
         onClick = if (enabled) { { onChecked(!checked) } } else null,
         endActions = {
@@ -181,7 +229,7 @@ private fun CacheCleanupRow(
             )
         },
         insideMargin = androidx.compose.foundation.layout.PaddingValues(
-            start = 8.dp, end = 8.dp, top = 10.dp, bottom = 10.dp,
+            start = 14.dp, end = 14.dp, top = 12.dp, bottom = 12.dp,
         ),
     )
 }
@@ -189,7 +237,7 @@ private fun CacheCleanupRow(
 /** 字节数格式化（util 单源，与下载进度/资产行共用） */
 private fun formatBytes(bytes: Long): String = io.candy.tick.util.CountFormat.formatBytes(bytes)
 
-/** 导入来源选择弹窗（文件 / 剪贴板）：主按钮 = 文件，次按钮 = 剪贴板 */
+/** 导入来源选择浮层（文件 / 剪贴板）：并排两张动作卡片，无单选环 */
 @Composable
 internal fun ImportSourceDialog(
     show: Boolean,
@@ -197,34 +245,94 @@ internal fun ImportSourceDialog(
     onFromClipboard: () -> Unit,
     onDismiss: () -> Unit,
 ) {
-    // 底部浮层容器：与选项浮层同款滑入滑出动效
     io.candy.tick.ui.common.CandySheet(
         show = show,
         title = stringResource(R.string.settings_import),
         onDismissRequest = onDismiss,
     ) {
-        Column(
+        Row(
             modifier = Modifier
-                .verticalScroll(rememberScrollState())
-                .padding(horizontal = 16.dp)
-                .padding(top = 4.dp, bottom = 16.dp),
-            verticalArrangement = Arrangement.spacedBy(10.dp),
+                .fillMaxWidth()
+                .height(IntrinsicSize.Max)
+                .padding(horizontal = 20.dp)
+                .padding(top = 8.dp, bottom = 20.dp),
+            horizontalArrangement = Arrangement.spacedBy(12.dp),
         ) {
-            PrimaryButton(
-                text = stringResource(R.string.import_from_file),
-                onClick = {
-                    onFromFile()
-                },
-                modifier = Modifier.fillMaxWidth(),
+            ImportSourceCard(
+                iconRes = R.drawable.ic_file,
+                title = stringResource(R.string.import_from_file),
+                subtitle = stringResource(R.string.import_from_file_hint),
+                onClick = onFromFile,
+                modifier = Modifier.weight(1f).fillMaxHeight(),
             )
-            SecondaryButton(
-                text = stringResource(R.string.import_from_clipboard),
-                onClick = {
-                    onFromClipboard()
-                },
-                modifier = Modifier.fillMaxWidth(),
+            ImportSourceCard(
+                iconRes = R.drawable.ic_clipboard,
+                title = stringResource(R.string.import_from_clipboard),
+                subtitle = stringResource(R.string.import_from_clipboard_hint),
+                onClick = onFromClipboard,
+                modifier = Modifier.weight(1f).fillMaxHeight(),
             )
         }
+    }
+}
+
+@Composable
+private fun ImportSourceCard(
+    iconRes: Int,
+    title: String,
+    subtitle: String,
+    onClick: () -> Unit,
+    modifier: Modifier = Modifier,
+) {
+    val scheme = MiuixTheme.colorScheme
+    val cardShape = RoundedCornerShape(16.dp)
+    val badgeShape = RoundedCornerShape(13.dp)
+    val (press, pressColor) = io.candy.tick.ui.common.rememberRowPressTint(surface = scheme.background)
+    Column(
+        modifier = modifier
+            .clip(cardShape)
+            .background(pressColor)
+            .border(0.5.dp, scheme.outline.copy(alpha = 0.6f), cardShape)
+            .clickable(
+                interactionSource = press,
+                indication = null,
+                role = Role.Button,
+                onClick = onClick,
+            )
+            .padding(horizontal = 12.dp, vertical = 18.dp),
+        horizontalAlignment = Alignment.CenterHorizontally,
+        verticalArrangement = Arrangement.spacedBy(8.dp),
+    ) {
+        Box(
+            modifier = Modifier
+                .size(44.dp)
+                .clip(badgeShape)
+                .background(scheme.primaryVariant.copy(alpha = 0.12f)),
+            contentAlignment = Alignment.Center,
+        ) {
+            Icon(
+                imageVector = ImageVector.vectorResource(iconRes),
+                contentDescription = null,
+                tint = scheme.primaryVariant,
+                modifier = Modifier.size(22.dp),
+            )
+        }
+        Text(
+            text = title,
+            style = MiuixTheme.textStyles.body1.copy(fontWeight = FontWeight.Medium),
+            color = scheme.onSurface,
+            textAlign = TextAlign.Center,
+            maxLines = 1,
+            overflow = TextOverflow.Ellipsis,
+        )
+        Text(
+            text = subtitle,
+            style = MiuixTheme.textStyles.footnote1,
+            color = scheme.onSurfaceContainerVariant,
+            textAlign = TextAlign.Center,
+            maxLines = 2,
+            overflow = TextOverflow.Ellipsis,
+        )
     }
 }
 
@@ -655,6 +763,293 @@ internal fun ThemeModePickerSheet(
     }
 }
 
+/** 同步频率四档可视化选择弹层：2×2 紧凑横卡（左徽章 + 右标题，兼顾英文长文案不截断） */
+@Composable
+internal fun SyncFrequencyPickerSheet(
+    show: Boolean,
+    selected: io.candy.tick.data.model.SyncFrequency,
+    onSelect: (io.candy.tick.data.model.SyncFrequency) -> Unit,
+    onDismiss: () -> Unit,
+) {
+    io.candy.tick.ui.common.CandySheet(
+        show = show,
+        title = stringResource(R.string.settings_sync_frequency),
+        onDismissRequest = onDismiss,
+    ) {
+        Column(
+            modifier = Modifier
+                .fillMaxWidth()
+                .selectableGroup()
+                .padding(horizontal = 20.dp)
+                .padding(top = 8.dp, bottom = 20.dp),
+            verticalArrangement = Arrangement.spacedBy(10.dp),
+        ) {
+            Row(
+                modifier = Modifier.fillMaxWidth().height(IntrinsicSize.Max),
+                horizontalArrangement = Arrangement.spacedBy(10.dp),
+            ) {
+                SyncFrequencyCard(
+                    frequency = io.candy.tick.data.model.SyncFrequency.ON_OPEN,
+                    selected = selected == io.candy.tick.data.model.SyncFrequency.ON_OPEN,
+                    onClick = { onSelect(io.candy.tick.data.model.SyncFrequency.ON_OPEN) },
+                    modifier = Modifier.weight(1f).fillMaxHeight(),
+                )
+                SyncFrequencyCard(
+                    frequency = io.candy.tick.data.model.SyncFrequency.EVERY_6_HOURS,
+                    selected = selected == io.candy.tick.data.model.SyncFrequency.EVERY_6_HOURS,
+                    onClick = { onSelect(io.candy.tick.data.model.SyncFrequency.EVERY_6_HOURS) },
+                    modifier = Modifier.weight(1f).fillMaxHeight(),
+                )
+            }
+            Row(
+                modifier = Modifier.fillMaxWidth().height(IntrinsicSize.Max),
+                horizontalArrangement = Arrangement.spacedBy(10.dp),
+            ) {
+                SyncFrequencyCard(
+                    frequency = io.candy.tick.data.model.SyncFrequency.EVERY_12_HOURS,
+                    selected = selected == io.candy.tick.data.model.SyncFrequency.EVERY_12_HOURS,
+                    onClick = { onSelect(io.candy.tick.data.model.SyncFrequency.EVERY_12_HOURS) },
+                    modifier = Modifier.weight(1f).fillMaxHeight(),
+                )
+                SyncFrequencyCard(
+                    frequency = io.candy.tick.data.model.SyncFrequency.DAILY,
+                    selected = selected == io.candy.tick.data.model.SyncFrequency.DAILY,
+                    onClick = { onSelect(io.candy.tick.data.model.SyncFrequency.DAILY) },
+                    modifier = Modifier.weight(1f).fillMaxHeight(),
+                )
+            }
+        }
+    }
+}
+
+@Composable
+private fun SyncFrequencyCard(
+    frequency: io.candy.tick.data.model.SyncFrequency,
+    selected: Boolean,
+    onClick: () -> Unit,
+    modifier: Modifier = Modifier,
+) {
+    val scheme = MiuixTheme.colorScheme
+    val motionEnabled = rememberMotionEnabled()
+    val cardShape = RoundedCornerShape(16.dp)
+    val badgeShape = RoundedCornerShape(10.dp)
+    val baseBg = if (selected) {
+        scheme.primaryVariant.copy(alpha = 0.08f).compositeOver(scheme.background)
+    } else {
+        scheme.background
+    }
+    val (press, pressColor) = io.candy.tick.ui.common.rememberRowPressTint(surface = baseBg)
+    val borderColor by androidx.compose.animation.animateColorAsState(
+        targetValue = if (selected) scheme.primaryVariant else scheme.outline.copy(alpha = 0.6f),
+        animationSpec = tween(if (motionEnabled) Motion.PHASE else 0),
+        label = "freqBorder",
+    )
+    val badgeBg by androidx.compose.animation.animateColorAsState(
+        targetValue = if (selected) scheme.primaryVariant.copy(alpha = 0.14f) else scheme.surfaceVariant.copy(alpha = 0.65f),
+        animationSpec = tween(if (motionEnabled) Motion.PHASE else 0),
+        label = "freqBadgeBg",
+    )
+    val accentColor by androidx.compose.animation.animateColorAsState(
+        targetValue = if (selected) scheme.primaryVariant else scheme.onSurface,
+        animationSpec = tween(if (motionEnabled) Motion.PHASE else 0),
+        label = "freqAccent",
+    )
+    val baseDensity = LocalDensity.current
+    Row(
+        modifier = modifier
+            .clip(cardShape)
+            .background(pressColor)
+            .border(if (selected) 1.5.dp else 0.5.dp, borderColor, cardShape)
+            .selectable(
+                selected = selected,
+                interactionSource = press,
+                indication = null,
+                role = Role.RadioButton,
+                onClick = onClick,
+            )
+            .padding(horizontal = 12.dp, vertical = 14.dp),
+        verticalAlignment = Alignment.CenterVertically,
+        horizontalArrangement = Arrangement.spacedBy(10.dp),
+    ) {
+        CompositionLocalProvider(LocalDensity provides Density(baseDensity.density, fontScale = 1f)) {
+            Box(
+                modifier = Modifier
+                    .size(36.dp)
+                    .clip(badgeShape)
+                    .background(badgeBg)
+                    .clearAndSetSemantics {},
+                contentAlignment = Alignment.Center,
+            ) {
+                if (frequency == io.candy.tick.data.model.SyncFrequency.ON_OPEN) {
+                    Icon(
+                        imageVector = ImageVector.vectorResource(R.drawable.ic_refresh),
+                        contentDescription = null,
+                        tint = accentColor,
+                        modifier = Modifier.size(18.dp),
+                    )
+                } else {
+                    val code = when (frequency) {
+                        io.candy.tick.data.model.SyncFrequency.EVERY_6_HOURS -> "6h"
+                        io.candy.tick.data.model.SyncFrequency.EVERY_12_HOURS -> "12h"
+                        else -> "24h"
+                    }
+                    Text(
+                        text = code,
+                        fontSize = 13.sp,
+                        lineHeight = 14.sp,
+                        fontWeight = FontWeight.SemiBold,
+                        color = accentColor,
+                    )
+                }
+            }
+        }
+        Text(
+            text = frequencyLabel(frequency),
+            style = MiuixTheme.textStyles.body2.copy(
+                fontWeight = if (selected) FontWeight.Medium else FontWeight.Normal,
+            ),
+            color = accentColor,
+            maxLines = 2,
+            overflow = TextOverflow.Ellipsis,
+            modifier = Modifier.weight(1f),
+        )
+    }
+}
+
+/** 语言三档可视化选择弹层：与「桌面图标 / 深浅模式」同款三枚字标缩略图 + 外呼吸选中环 */
+@Composable
+internal fun LanguagePickerSheet(
+    show: Boolean,
+    selected: String,
+    onSelect: (String) -> Unit,
+    onDismiss: () -> Unit,
+) {
+    io.candy.tick.ui.common.CandySheet(
+        show = show,
+        title = stringResource(R.string.settings_language),
+        onDismissRequest = onDismiss,
+    ) {
+        Row(
+            modifier = Modifier
+                .fillMaxWidth()
+                .selectableGroup()
+                .padding(horizontal = 20.dp)
+                .padding(top = 8.dp, bottom = 20.dp),
+            horizontalArrangement = Arrangement.spacedBy(12.dp),
+        ) {
+            VisualPickerOption(
+                label = stringResource(R.string.lang_system),
+                selected = selected.isEmpty(),
+                onClick = { onSelect("") },
+                modifier = Modifier.weight(1f),
+            ) { LanguageThumbnail(language = "", selected = selected.isEmpty()) }
+            VisualPickerOption(
+                label = stringResource(R.string.lang_chinese),
+                selected = selected == "zh",
+                onClick = { onSelect("zh") },
+                modifier = Modifier.weight(1f),
+            ) { LanguageThumbnail(language = "zh", selected = selected == "zh") }
+            VisualPickerOption(
+                label = stringResource(R.string.lang_english),
+                selected = selected == "en",
+                onClick = { onSelect("en") },
+                modifier = Modifier.weight(1f),
+            ) { LanguageThumbnail(language = "en", selected = selected == "en") }
+        }
+    }
+}
+
+/** 语言字标 56dp 缩略预览：跟随系统用对角斜线分隔「文 / A」，中文/英文用居中字标 + 语种码 */
+@Composable
+private fun LanguageThumbnail(language: String, selected: Boolean) {
+    val scheme = MiuixTheme.colorScheme
+    val thumbShape = RoundedCornerShape(14.dp)
+    val primaryColor = if (selected) scheme.primaryVariant else scheme.onSurface
+    val tagColor = if (selected) scheme.primaryVariant.copy(alpha = 0.85f) else scheme.onSurfaceContainerVariant.copy(alpha = 0.75f)
+    val baseDensity = LocalDensity.current
+    // 缩略图内为图形化字标（下方已有随系统缩放的可读标题），锁定 fontScale=1f 防大字号下挤碰裁切
+    CompositionLocalProvider(LocalDensity provides Density(baseDensity.density, fontScale = 1f)) {
+        Box(
+            modifier = Modifier
+                .size(56.dp)
+                .clip(thumbShape)
+                .background(scheme.background)
+                .border(0.5.dp, scheme.outline.copy(alpha = 0.7f), thumbShape)
+                .clearAndSetSemantics {},
+            contentAlignment = Alignment.Center,
+        ) {
+            when (language) {
+                "zh" -> Column(
+                    horizontalAlignment = Alignment.CenterHorizontally,
+                    verticalArrangement = Arrangement.Center,
+                ) {
+                    Text(
+                        text = "文",
+                        fontSize = 20.sp,
+                        lineHeight = 22.sp,
+                        fontWeight = FontWeight.SemiBold,
+                        color = primaryColor,
+                    )
+                    Text(
+                        text = "ZH",
+                        fontSize = 9.sp,
+                        lineHeight = 11.sp,
+                        fontWeight = FontWeight.Medium,
+                        letterSpacing = 0.8.sp,
+                        color = tagColor,
+                    )
+                }
+                "en" -> Column(
+                    horizontalAlignment = Alignment.CenterHorizontally,
+                    verticalArrangement = Arrangement.Center,
+                ) {
+                    Text(
+                        text = "Aa",
+                        fontSize = 20.sp,
+                        lineHeight = 22.sp,
+                        fontWeight = FontWeight.SemiBold,
+                        color = primaryColor,
+                    )
+                    Text(
+                        text = "EN",
+                        fontSize = 9.sp,
+                        lineHeight = 11.sp,
+                        fontWeight = FontWeight.Medium,
+                        letterSpacing = 0.8.sp,
+                        color = tagColor,
+                    )
+                }
+                else -> {
+                    androidx.compose.foundation.Canvas(modifier = Modifier.fillMaxSize()) {
+                        drawLine(
+                            color = scheme.outline.copy(alpha = 0.45f),
+                            start = androidx.compose.ui.geometry.Offset(size.width * 0.24f, size.height * 0.76f),
+                            end = androidx.compose.ui.geometry.Offset(size.width * 0.76f, size.height * 0.24f),
+                            strokeWidth = 1.dp.toPx(),
+                        )
+                    }
+                    Text(
+                        text = "文",
+                        fontSize = 15.sp,
+                        lineHeight = 16.sp,
+                        fontWeight = FontWeight.SemiBold,
+                        color = scheme.onSurface,
+                        modifier = Modifier.align(Alignment.TopStart).padding(start = 10.dp, top = 8.dp),
+                    )
+                    Text(
+                        text = "A",
+                        fontSize = 15.sp,
+                        lineHeight = 16.sp,
+                        fontWeight = FontWeight.SemiBold,
+                        color = scheme.primaryVariant,
+                        modifier = Modifier.align(Alignment.BottomEnd).padding(end = 11.dp, bottom = 8.dp),
+                    )
+                }
+            }
+        }
+    }
+}
+
 @Composable
 private fun VisualPickerOption(
     label: String,
@@ -708,8 +1103,9 @@ private fun VisualPickerOption(
                 fontWeight = if (selected) FontWeight.Medium else FontWeight.Normal,
             ),
             color = labelColor,
-            maxLines = 1,
-            overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis,
+            textAlign = TextAlign.Center,
+            maxLines = 2,
+            overflow = TextOverflow.Ellipsis,
         )
     }
 }

@@ -323,8 +323,10 @@
     </plurals>
     <string name="import_no_new">No new subscriptions to import</string>
     <string name="import_failed">Import failed. Use a CandyTick JSON backup.</string>
-    <string name="import_from_file">From file</string>
-    <string name="import_from_clipboard">From clipboard</string>
+    <string name="import_from_file">Local file</string>
+    <string name="import_from_file_hint">Pick a JSON backup</string>
+    <string name="import_from_clipboard">Clipboard</string>
+    <string name="import_from_clipboard_hint">Read copied backup</string>
     <string name="settings_theme_mode">Theme</string>
     <string name="settings_sync_and_notify">Sync &amp; notifications</string>
     <string name="settings_sync_frequency">Sync frequency</string>

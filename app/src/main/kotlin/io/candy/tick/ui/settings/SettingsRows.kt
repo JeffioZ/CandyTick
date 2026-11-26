@@ -34,7 +34,6 @@ import androidx.compose.ui.unit.dp
 import io.candy.tick.R
 import io.candy.tick.data.model.SyncFrequency
 import io.candy.tick.ui.common.Motion
-import io.candy.tick.ui.common.OptionRow
 import io.candy.tick.ui.theme.MonoTokenStyle
 import top.yukonga.miuix.kmp.basic.BasicComponent
 import top.yukonga.miuix.kmp.basic.Card
@@ -184,15 +183,3 @@ internal fun frequencyLabel(frequency: SyncFrequency): String = stringResource(
         SyncFrequency.DAILY -> R.string.frequency_daily
     },
 )
-
-@Composable
-internal fun FrequencyRow(
-    option: SyncFrequency,
-    current: SyncFrequency,
-    onSelect: (SyncFrequency) -> Unit,
-    onDone: () -> Unit,
-) {
-    OptionRow(frequencyLabel(option), option == current) {
-        onSelect(option); onDone()
-    }
-}

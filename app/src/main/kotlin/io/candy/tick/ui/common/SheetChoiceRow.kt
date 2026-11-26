@@ -32,6 +32,7 @@ internal fun SheetChoiceRow(
     startAction: @Composable (() -> Unit)? = null,
     endActions: @Composable (RowScope.() -> Unit)? = null,
 ) {
+    val motionEnabled = rememberMotionEnabled()
     BasicComponent(
         modifier = Modifier
             .fillMaxWidth()
@@ -39,7 +40,7 @@ internal fun SheetChoiceRow(
             .clip(SheetChoiceRowShape)
             // 副标题到达时行高变化走 150 微档动画：标题位移从瞬跳变为平滑过渡
             // （分支选择器逐条到达的日期副标题曾「主标题跳一下」，真机反馈）
-            .animateContentSize(tween(Motion.MICRO))
+            .then(if (motionEnabled) Modifier.animateContentSize(tween(Motion.MICRO)) else Modifier)
             .then(modifier),
         title = title,
         summary = summary,

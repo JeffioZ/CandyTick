@@ -80,8 +80,11 @@ import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.animation.core.animateFloat
 import androidx.compose.ui.draw.clip
 import androidx.compose.foundation.background
+import androidx.compose.foundation.border
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.ui.Alignment
 import io.candy.tick.ui.common.Motion
 import io.candy.tick.ui.common.rememberMotionEnabled
 import kotlin.math.roundToInt
@@ -856,63 +859,95 @@ private fun DetailMoreActionsSheet(
         title = stringResource(R.string.detail_more_actions),
         onDismissRequest = onDismiss,
     ) {
+        val cardShape = RoundedCornerShape(16.dp)
+        val hasPrimaryActions = showBranch || webUrl != null
         androidx.compose.foundation.layout.Column(
             modifier = Modifier
-                .padding(horizontal = 8.dp)
-                .padding(bottom = 12.dp),
+                .fillMaxWidth()
+                .padding(horizontal = 16.dp)
+                .padding(top = 4.dp, bottom = 16.dp),
+            verticalArrangement = Arrangement.spacedBy(10.dp),
         ) {
-            if (showBranch) {
-                DetailSheetActionRow(
-                    icon = R.drawable.ic_git_branch,
-                    title = stringResource(R.string.branch_picker_title),
-                    tint = scheme.onSurfaceContainer,
-                    onClick = onSelectBranch,
-                )
-            }
-            if (webUrl != null) {
-                DetailSheetActionRow(
-                    icon = R.drawable.ic_external_link,
-                    title = stringResource(R.string.open_in_browser),
-                    tint = scheme.onSurfaceContainer,
-                    onClick = {
-                        onDismiss()
-                        links.openUri(webUrl)
-                    },
-                )
-                DetailSheetActionRow(
-                    icon = R.drawable.ic_link,
-                    title = copyLabel,
-                    tint = scheme.onSurfaceContainer,
-                    onClick = {
-                        onDismiss()
-                        runCatching {
-                            val clipboard = checkNotNull(context.getSystemService(ClipboardManager::class.java))
-                            clipboard.setPrimaryClip(ClipData.newPlainText(copyLabel, webUrl))
-                        }.onSuccess {
-                            Feedback.show(resources.getString(R.string.toast_copied))
-                        }.onFailure {
-                            Feedback.show(resources.getString(R.string.copy_repo_link_failed), isError = true, errorCode = "E-CLIP")
-                        }
-                    },
-                )
-            }
-            if (showBranch || webUrl != null) {
-                Box(
+            if (hasPrimaryActions) {
+                androidx.compose.foundation.layout.Column(
                     modifier = Modifier
                         .fillMaxWidth()
-                        .padding(horizontal = 12.dp, vertical = 4.dp)
-                        .height(1.dp)
-                        .background(scheme.dividerLine),
+                        .clip(cardShape)
+                        .background(scheme.background)
+                        .border(0.5.dp, scheme.outline.copy(alpha = 0.6f), cardShape),
+                ) {
+                    if (showBranch) {
+                        DetailSheetActionRow(
+                            icon = R.drawable.ic_git_branch,
+                            title = stringResource(R.string.branch_picker_title),
+                            tint = scheme.onSurface,
+                            badgeBg = scheme.surfaceVariant.copy(alpha = 0.65f),
+                            onClick = onSelectBranch,
+                        )
+                        if (webUrl != null) {
+                            DetailSheetDivider(scheme.dividerLine)
+                        }
+                    }
+                    if (webUrl != null) {
+                        DetailSheetActionRow(
+                            icon = R.drawable.ic_external_link,
+                            title = stringResource(R.string.open_in_browser),
+                            tint = scheme.onSurface,
+                            badgeBg = scheme.surfaceVariant.copy(alpha = 0.65f),
+                            onClick = {
+                                onDismiss()
+                                links.openUri(webUrl)
+                            },
+                        )
+                        DetailSheetDivider(scheme.dividerLine)
+                        DetailSheetActionRow(
+                            icon = R.drawable.ic_link,
+                            title = copyLabel,
+                            tint = scheme.onSurface,
+                            badgeBg = scheme.surfaceVariant.copy(alpha = 0.65f),
+                            onClick = {
+                                onDismiss()
+                                runCatching {
+                                    val clipboard = checkNotNull(context.getSystemService(ClipboardManager::class.java))
+                                    clipboard.setPrimaryClip(ClipData.newPlainText(copyLabel, webUrl))
+                                }.onSuccess {
+                                    Feedback.show(resources.getString(R.string.toast_copied))
+                                }.onFailure {
+                                    Feedback.show(resources.getString(R.string.copy_repo_link_failed), isError = true, errorCode = "E-CLIP")
+                                }
+                            },
+                        )
+                    }
+                }
+            }
+            androidx.compose.foundation.layout.Column(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .clip(cardShape)
+                    .background(scheme.background)
+                    .border(0.5.dp, scheme.outline.copy(alpha = 0.6f), cardShape),
+            ) {
+                DetailSheetActionRow(
+                    icon = R.drawable.ic_delete,
+                    title = stringResource(R.string.detail_remove_repo),
+                    tint = scheme.onErrorContainer,
+                    badgeBg = scheme.errorContainer.copy(alpha = 0.55f),
+                    onClick = onRemove,
                 )
             }
-            DetailSheetActionRow(
-                icon = R.drawable.ic_delete,
-                title = stringResource(R.string.detail_remove_repo),
-                tint = scheme.onErrorContainer,
-                onClick = onRemove,
-            )
         }
     }
+}
+
+@Composable
+private fun DetailSheetDivider(color: androidx.compose.ui.graphics.Color) {
+    Box(
+        modifier = Modifier
+            .fillMaxWidth()
+            .padding(start = 60.dp, end = 16.dp)
+            .height(0.5.dp)
+            .background(color),
+    )
 }
 
 @Composable
@@ -920,24 +955,33 @@ private fun DetailSheetActionRow(
     icon: Int,
     title: String,
     tint: androidx.compose.ui.graphics.Color,
+    badgeBg: androidx.compose.ui.graphics.Color,
     onClick: () -> Unit,
 ) {
+    val badgeShape = RoundedCornerShape(10.dp)
     top.yukonga.miuix.kmp.basic.BasicComponent(
-        modifier = Modifier
-            .fillMaxWidth()
-            .clip(io.candy.tick.ui.common.SheetChoiceRowShape),
+        modifier = Modifier.fillMaxWidth(),
         title = title,
         titleColor = top.yukonga.miuix.kmp.basic.BasicComponentDefaults.titleColor(color = tint),
         startAction = {
-            Icon(
-                imageVector = ImageVector.vectorResource(icon),
-                contentDescription = null,
-                tint = tint,
-                modifier = Modifier.padding(end = 12.dp).size(20.dp),
-            )
+            Box(
+                modifier = Modifier
+                    .padding(end = 12.dp)
+                    .size(34.dp)
+                    .clip(badgeShape)
+                    .background(badgeBg),
+                contentAlignment = Alignment.Center,
+            ) {
+                Icon(
+                    imageVector = ImageVector.vectorResource(icon),
+                    contentDescription = null,
+                    tint = tint,
+                    modifier = Modifier.size(18.dp),
+                )
+            }
         },
         onClick = onClick,
-        insideMargin = PaddingValues(horizontal = 12.dp, vertical = 14.dp),
+        insideMargin = PaddingValues(horizontal = 14.dp, vertical = 12.dp),
     )
 }
 
