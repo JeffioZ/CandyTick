@@ -670,17 +670,11 @@ private fun AppIconPreviewCard(
     }
 }
 
-/** 按桌面自适应图标真实几何比例绘制 56dp 缩略图（跟随系统采用沿圆心垂直正中对称双拼） */
+/** 按桌面自适应图标真实几何比例绘制 56dp 缩略图（同步 B2 · 1.12x，跟随系统垂直正中对称双拼） */
 @Composable
 private fun AppIconThumbnail(mode: io.candy.tick.data.model.AppIconMode) {
     val scheme = MiuixTheme.colorScheme
     val iconShape = RoundedCornerShape(14.dp)
-    val lightBg = androidx.compose.ui.graphics.Color(0xFFF5F1E4)
-    val lightOuter = androidx.compose.ui.graphics.Color(0x8C12825C)
-    val lightInner = androidx.compose.ui.graphics.Color(0xFF12825C)
-    val darkBg = androidx.compose.ui.graphics.Color(0xFF163527)
-    val darkOuter = androidx.compose.ui.graphics.Color(0x668BDEBB)
-    val darkInner = androidx.compose.ui.graphics.Color(0xFF55CFA0)
 
     androidx.compose.foundation.Canvas(
         modifier = Modifier
@@ -688,28 +682,70 @@ private fun AppIconThumbnail(mode: io.candy.tick.data.model.AppIconMode) {
             .clip(iconShape)
             .border(0.5.dp, scheme.outline.copy(alpha = 0.45f), iconShape),
     ) {
-        fun drawEcho(bg: androidx.compose.ui.graphics.Color, outer: androidx.compose.ui.graphics.Color, inner: androidx.compose.ui.graphics.Color) {
-            drawRect(color = bg)
-            // 自适应图标 108dp 中安全区约 72dp：将 r=22/16/8.5 映射到预览尺寸
+        fun drawEcho(dark: Boolean) {
+            val bgBrush = androidx.compose.ui.graphics.Brush.radialGradient(
+                colors = if (dark) {
+                    listOf(androidx.compose.ui.graphics.Color(0xFF1F4B38), androidx.compose.ui.graphics.Color(0xFF0F251B))
+                } else {
+                    listOf(androidx.compose.ui.graphics.Color(0xFFFAF7EE), androidx.compose.ui.graphics.Color(0xFFECE6D5))
+                },
+                center = center,
+                radius = size.minDimension * 0.72f,
+            )
+            drawRect(brush = bgBrush)
             val unit = size.minDimension / 72f
+            val glowBrush = androidx.compose.ui.graphics.Brush.radialGradient(
+                colorStops = if (dark) {
+                    arrayOf(
+                        0f to androidx.compose.ui.graphics.Color(0x525BD6A4),
+                        0.56f to androidx.compose.ui.graphics.Color(0x175BD6A4),
+                        1f to androidx.compose.ui.graphics.Color.Transparent,
+                    )
+                } else {
+                    arrayOf(
+                        0f to androidx.compose.ui.graphics.Color(0x3318936C),
+                        0.56f to androidx.compose.ui.graphics.Color(0x0D18936C),
+                        1f to androidx.compose.ui.graphics.Color.Transparent,
+                    )
+                },
+                center = center,
+                radius = 36.3f * unit,
+            )
+            drawCircle(brush = glowBrush, radius = 36.3f * unit)
             drawCircle(
-                color = outer,
-                radius = 22f * unit,
-                style = androidx.compose.ui.graphics.drawscope.Stroke(width = 4.5f * unit),
+                color = if (dark) androidx.compose.ui.graphics.Color(0x668BDEBB) else androidx.compose.ui.graphics.Color(0x8512825C),
+                radius = 24.2f * unit,
+                style = androidx.compose.ui.graphics.drawscope.Stroke(width = 4.95f * unit),
+            )
+            val innerBrush = androidx.compose.ui.graphics.Brush.verticalGradient(
+                colors = if (dark) {
+                    listOf(androidx.compose.ui.graphics.Color(0xFF6EE0B4), androidx.compose.ui.graphics.Color(0xFF49C495))
+                } else {
+                    listOf(androidx.compose.ui.graphics.Color(0xFF179269), androidx.compose.ui.graphics.Color(0xFF0F7654))
+                },
             )
             drawCircle(
-                color = inner,
-                radius = 16f * unit,
-                style = androidx.compose.ui.graphics.drawscope.Stroke(width = 6.5f * unit),
+                brush = innerBrush,
+                radius = 17.6f * unit,
+                style = androidx.compose.ui.graphics.drawscope.Stroke(width = 7.15f * unit),
             )
-            drawCircle(color = inner, radius = 8.5f * unit)
+            val coreBrush = androidx.compose.ui.graphics.Brush.radialGradient(
+                colors = if (dark) {
+                    listOf(androidx.compose.ui.graphics.Color(0xFF64D8AC), androidx.compose.ui.graphics.Color(0xFF4CC798))
+                } else {
+                    listOf(androidx.compose.ui.graphics.Color(0xFF168E66), androidx.compose.ui.graphics.Color(0xFF0F7856))
+                },
+                center = center,
+                radius = 10.2f * unit,
+            )
+            drawCircle(brush = coreBrush, radius = 9.35f * unit)
         }
 
         when (mode) {
-            io.candy.tick.data.model.AppIconMode.LIGHT -> drawEcho(lightBg, lightOuter, lightInner)
-            io.candy.tick.data.model.AppIconMode.DARK -> drawEcho(darkBg, darkOuter, darkInner)
+            io.candy.tick.data.model.AppIconMode.LIGHT -> drawEcho(dark = false)
+            io.candy.tick.data.model.AppIconMode.DARK -> drawEcho(dark = true)
             io.candy.tick.data.model.AppIconMode.SYSTEM -> {
-                drawEcho(lightBg, lightOuter, lightInner)
+                drawEcho(dark = false)
                 val darkHalf = androidx.compose.ui.graphics.Path().apply {
                     addRect(
                         androidx.compose.ui.geometry.Rect(
@@ -721,7 +757,7 @@ private fun AppIconThumbnail(mode: io.candy.tick.data.model.AppIconMode) {
                     )
                 }
                 clipPath(darkHalf) {
-                    drawEcho(darkBg, darkOuter, darkInner)
+                    drawEcho(dark = true)
                 }
             }
         }

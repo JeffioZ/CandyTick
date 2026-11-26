@@ -1,15 +1,21 @@
 <?xml version="1.0" encoding="utf-8"?>
-<!-- 奶油砖底（icon-echo-light）：系统浅色时用浅色这版。
-     纯色（原渐变两端色差仅 3%，纯掉无感）。浅色图标在浅色界面的弱边界
-     （如 InstallerX 白卡）是所有浅色图标 app 的普遍现象（Chrome 同款），
-     非本 app 缺陷——曾按渲染 bug 排查并试过描边/legacy PNG/纯色化，均已定案：
-     描边四角必断（mask 几何）、PNG 无用（anydpi-v26 恒优先）、纯色为最终形态 -->
+<!-- 奶油砖底（B2 居中径向微渐变）：系统浅色时使用 -->
 <vector xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:aapt="http://schemas.android.com/aapt"
     android:width="108dp"
     android:height="108dp"
     android:viewportWidth="108"
     android:viewportHeight="108">
-    <path
-        android:pathData="M0,0 h108 v108 h-108 Z"
-        android:fillColor="#FFF5F1E4" />
+    <path android:pathData="M0,0 h108 v108 h-108 Z">
+        <aapt:attr name="android:fillColor">
+            <gradient
+                android:type="radial"
+                android:centerX="54"
+                android:centerY="54"
+                android:gradientRadius="66">
+                <item android:offset="0" android:color="#FFFAF7EE" />
+                <item android:offset="1" android:color="#FFECE6D5" />
+            </gradient>
+        </aapt:attr>
+    </path>
 </vector>

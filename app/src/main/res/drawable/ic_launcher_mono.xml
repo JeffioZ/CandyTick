@@ -1,16 +1,16 @@
 <?xml version="1.0" encoding="utf-8"?>
-<!-- mono：几何同步（呼吸感优化；糖珠 8.5 与彩版同步拉开环珠间隙） -->
+<!-- mono：几何同步（1.10x 与彩版对齐） -->
 <vector xmlns:android="http://schemas.android.com/apk/res/android"
     android:width="108dp"
     android:height="108dp"
     android:viewportWidth="108"
     android:viewportHeight="108">
     <path
-        android:pathData="M54,54 m-16,0 a16,16 0 1,1 32,0 a16,16 0 1,1 -32,0"
+        android:pathData="M54,54 m-17.6,0 a17.6,17.6 0 1,1 35.2,0 a17.6,17.6 0 1,1 -35.2,0"
         android:fillColor="#00000000"
         android:strokeColor="#FFFFFFFF"
-        android:strokeWidth="7" />
+        android:strokeWidth="7.7" />
     <path
-        android:pathData="M54,54 m-8.5,0 a8.5,8.5 0 1,1 17,0 a8.5,8.5 0 1,1 -17,0"
+        android:pathData="M54,54 m-9.35,0 a9.35,9.35 0 1,1 18.7,0 a9.35,9.35 0 1,1 -18.7,0"
         android:fillColor="#FFFFFFFF" />
 </vector>
