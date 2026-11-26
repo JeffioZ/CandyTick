@@ -50,9 +50,10 @@ fun CandyTextField(
     val source = remember { MutableInteractionSource() }
     val focused by source.collectIsFocusedAsState()
     val borderColor = MiuixTheme.colorScheme.outline
+    val motionEnabled = rememberMotionEnabled()
     val borderWidth by animateDpAsState(
         targetValue = if (focused) 0.dp else 1.dp,
-        animationSpec = tween(Motion.MICRO),
+        animationSpec = tween(if (motionEnabled) Motion.MICRO else 0),
         label = "fieldBorder",
     )
     TextField(

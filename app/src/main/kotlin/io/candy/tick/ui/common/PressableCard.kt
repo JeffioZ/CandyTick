@@ -37,6 +37,7 @@ import kotlinx.coroutines.flow.collectLatest
 import kotlinx.coroutines.flow.filterIsInstance
 import kotlinx.coroutines.flow.onEach
 import kotlinx.coroutines.launch
+import io.candy.tick.ui.theme.LocalDarkTheme
 import top.yukonga.miuix.kmp.basic.Card
 import top.yukonga.miuix.kmp.basic.CardDefaults
 import top.yukonga.miuix.kmp.theme.MiuixTheme
@@ -51,8 +52,9 @@ fun PressableCard(
     content: @Composable ColumnScope.() -> Unit,
 ) {
     val scheme = MiuixTheme.colorScheme
-    val indication = remember(scheme.surfaceContainer, scheme.onSurfaceContainer) {
-        CardPressIndication(scheme.surfaceContainer, scheme.onSurfaceContainer)
+    val maxAlpha = pressTint(LocalDarkTheme.current)
+    val indication = remember(scheme.surfaceContainer, scheme.onSurfaceContainer, maxAlpha) {
+        CardPressIndication(scheme.surfaceContainer, scheme.onSurfaceContainer, maxAlpha)
     }
     Card(
         modifier = modifier,
@@ -76,15 +78,20 @@ fun PressableCard(
     }
 }
 
-private data class CardPressIndication(val surface: Color, val foreground: Color) : IndicationNodeFactory {
+private data class CardPressIndication(
+    val surface: Color,
+    val foreground: Color,
+    val maxAlpha: Float,
+) : IndicationNodeFactory {
     override fun create(interactionSource: InteractionSource): DelegatableNode =
-        CardPressNode(interactionSource, surface, foreground)
+        CardPressNode(interactionSource, surface, foreground, maxAlpha)
 }
 
 private class CardPressNode(
     private val source: InteractionSource,
     private val surface: Color,
     private val foreground: Color,
+    private val maxAlpha: Float,
 ) : Modifier.Node(), DrawModifierNode {
     private var amount = Animatable(0f)
     private var focused by mutableStateOf(false)
@@ -102,7 +109,7 @@ private class CardPressNode(
 
     override fun ContentDrawScope.draw() {
         val strength = if (focused) 1f else amount.value
-        if (strength > 0f) drawRect(lerp(surface, foreground, PRESS_TINT * strength))
+        if (strength > 0f) drawRect(lerp(surface, foreground, maxAlpha * strength))
         drawContent()
     }
 }
@@ -121,12 +128,16 @@ fun rememberRowPressTint(
         collectPressTint(source, amount) { focused = it }
     }
     val scheme = MiuixTheme.colorScheme
-    val alpha = if (focused) PRESS_TINT else PRESS_TINT * amount.value
+    val maxAlpha = pressTint(LocalDarkTheme.current)
+    val alpha = if (focused) maxAlpha else maxAlpha * amount.value
     return source to lerp(surface, scheme.onSurfaceContainer, alpha)
 }
 
-/** 按压染色强度：CardPressIndication、rememberRowPressTint、CandyIndication 共用。 */
-internal const val PRESS_TINT = 0.16f
+/** 按压染色强度（区分深浅极性）：浅色 16% 柔和深灰，深色 9% 避免暗底叠加浅白发亮突兀。 */
+internal const val PRESS_TINT_LIGHT = 0.16f
+internal const val PRESS_TINT_DARK = 0.09f
+
+internal fun pressTint(dark: Boolean): Float = if (dark) PRESS_TINT_DARK else PRESS_TINT_LIGHT
 
 internal suspend fun collectPressTint(
     source: InteractionSource,

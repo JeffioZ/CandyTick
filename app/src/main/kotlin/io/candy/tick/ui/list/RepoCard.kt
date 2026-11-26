@@ -143,14 +143,15 @@ internal fun RepoCard(
                         // 淡入淡出，间距同步归零——内容被看到记为已读时，后面的文字平移回位，
                         // 而不是圆点瞬间消失、文字跳 11dp。（不用 AnimatedVisibility：它的宽度收展是矩形裁切，
                         // 圆点后半段会被竖着切掉一截，不如缩放自然）
+                        val motionEnabled = io.candy.tick.ui.common.rememberMotionEnabled()
                         val unreadDot by androidx.compose.animation.core.animateDpAsState(
                             if (isChanged) 6.dp else 0.dp,
-                            androidx.compose.animation.core.tween(Motion.MICRO),
+                            androidx.compose.animation.core.tween(if (motionEnabled) Motion.MICRO else 0),
                             label = "unreadDot",
                         )
                         val unreadDotAlpha by androidx.compose.animation.core.animateFloatAsState(
                             if (isChanged) 1f else 0f,
-                            androidx.compose.animation.core.tween(Motion.MICRO),
+                            androidx.compose.animation.core.tween(if (motionEnabled) Motion.MICRO else 0),
                             label = "unreadDotAlpha",
                         )
                         Box(
@@ -165,7 +166,7 @@ internal fun RepoCard(
                         val refreshingLabel = expanded && !pageRefreshing && extras?.load == ListViewModel.CardLoad.USER_REFRESH
                         androidx.compose.animation.AnimatedContent(
                             targetState = refreshingLabel,
-                            transitionSpec = { downloadActionTransition() },
+                            transitionSpec = { downloadActionTransition(duration = if (motionEnabled) Motion.PHASE else 0) },
                             label = "cardActivity",
                         ) { refreshing ->
                             if (refreshing) {

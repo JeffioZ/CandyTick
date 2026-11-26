@@ -9,6 +9,7 @@
 
     <!-- 通用 -->
     <string name="retry">重试</string>
+    <string name="action_refresh">刷新</string>
     <string name="save_failed">更改未能保存</string>
     <string name="save_failed_hint">最近的订阅或设置更改可能在退出应用后丢失。请检查设备的可用空间，然后重试。</string>
     <string name="save_retrying">正在保存更改…</string>

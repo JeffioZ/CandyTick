@@ -9,6 +9,7 @@
 
     <!-- 通用 -->
     <string name="retry">Retry</string>
+    <string name="action_refresh">Refresh</string>
     <string name="save_failed">Changes haven’t been saved</string>
     <string name="save_failed_hint">Recent changes to your subscriptions or settings could be lost if the app closes. Check the available storage on your device, then retry.</string>
     <string name="save_retrying">Saving changes…</string>

@@ -31,16 +31,21 @@ import top.yukonga.miuix.kmp.interfaces.HoldDownInteraction
  * （[PressIconButton] 等）都自绘染色。
  */
 @Immutable
-class CandyIndication(private val color: Color) : IndicationNodeFactory {
-    override fun create(interactionSource: InteractionSource): DelegatableNode = Node(interactionSource, color)
+class CandyIndication(
+    private val color: Color,
+    private val maxAlpha: Float = PRESS_TINT_LIGHT,
+) : IndicationNodeFactory {
+    override fun create(interactionSource: InteractionSource): DelegatableNode = Node(interactionSource, color, maxAlpha)
 
-    override fun hashCode(): Int = color.hashCode()
+    override fun hashCode(): Int = 31 * color.hashCode() + maxAlpha.hashCode()
 
-    override fun equals(other: Any?): Boolean = other is CandyIndication && other.color == color
+    override fun equals(other: Any?): Boolean =
+        other is CandyIndication && other.color == color && other.maxAlpha == maxAlpha
 
     private class Node(
         private val source: InteractionSource,
         private val color: Color,
+        private val maxAlpha: Float,
     ) : Modifier.Node(),
         DrawModifierNode {
         private var amount = Animatable(0f)
@@ -60,7 +65,7 @@ class CandyIndication(private val color: Color) : IndicationNodeFactory {
         override fun ContentDrawScope.draw() {
             // 键盘/方向键聚焦时常显：库组件自身没有焦点环，这是它们唯一的焦点指示
             val strength = if (focused) 1f else amount.value
-            if (strength > 0f) drawRect(color, alpha = PRESS_TINT * strength)
+            if (strength > 0f) drawRect(color, alpha = maxAlpha * strength)
             drawContent()
         }
     }

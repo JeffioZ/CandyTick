@@ -147,11 +147,14 @@ fun CandyTickTheme(
     }
     val colors = if (dark) CandyDarkColors else CandyLightColors
     MiuixTheme(colors = colors) {
-        // 按压反馈全 App 单一来源：CandyIndication（染色 16%、按下即显、松手保持 80ms）。
+        // 按压反馈全 App 单一来源：CandyIndication（浅色 16% / 深色 9%、按下即显、松手保持 80ms）。
         // miuix Button / BasicComponent 等走默认 indication 的组件在这里拿到与卡片、图标钮
         // 同一手感，覆盖掉 MiuixTheme 自己提供的 MiuixIndication（10% + spring）
-        val indication = androidx.compose.runtime.remember(colors.onBackground) {
-            io.candy.tick.ui.common.CandyIndication(colors.onBackground)
+        val indication = androidx.compose.runtime.remember(colors.onBackground, dark) {
+            io.candy.tick.ui.common.CandyIndication(
+                color = colors.onBackground,
+                maxAlpha = io.candy.tick.ui.common.pressTint(dark),
+            )
         }
         // 静态 MiuixTheme 不提供 LocalContentColor，这里按底色补上
         CompositionLocalProvider(

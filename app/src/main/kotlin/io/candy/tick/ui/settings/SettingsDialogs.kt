@@ -64,6 +64,7 @@ import io.candy.tick.ui.common.SecondaryButton
 import io.candy.tick.ui.common.TextFieldActionButton
 import io.candy.tick.ui.common.relTimeUntilString
 import io.candy.tick.ui.common.rememberMotionEnabled
+import io.candy.tick.ui.theme.LocalDarkTheme
 import top.yukonga.miuix.kmp.basic.Icon
 import top.yukonga.miuix.kmp.basic.Text
 import top.yukonga.miuix.kmp.theme.MiuixTheme
@@ -172,13 +173,17 @@ private fun CacheCleanupRow(
     onChecked: (Boolean) -> Unit,
 ) {
     val scheme = MiuixTheme.colorScheme
+    val dark = LocalDarkTheme.current
     val motionEnabled = rememberMotionEnabled()
     val hasFiles = sizeBytes != null && sizeBytes > 0
     val enabled = hasFiles && !cleaning
     val cardShape = RoundedCornerShape(16.dp)
     val badgeShape = RoundedCornerShape(11.dp)
+    // 去线框柔和实色层：浅色微绿灰卡 + 纯白徽章；深色亮一档 surfaceContainerHigh + secondary 徽章
+    val cardBg = if (dark) scheme.surfaceContainerHigh else scheme.background
+    val neutralBadgeBg = if (dark) scheme.secondary else scheme.surface
     val badgeBg by androidx.compose.animation.animateColorAsState(
-        targetValue = if (checked) scheme.primaryVariant.copy(alpha = 0.12f) else scheme.surfaceVariant.copy(alpha = 0.65f),
+        targetValue = if (checked) scheme.primaryVariant.copy(alpha = 0.14f) else neutralBadgeBg,
         animationSpec = tween(if (motionEnabled) Motion.PHASE else 0),
         label = "cacheBadgeBg",
     )
@@ -187,13 +192,11 @@ private fun CacheCleanupRow(
         animationSpec = tween(if (motionEnabled) Motion.PHASE else 0),
         label = "cacheBadgeTint",
     )
-    // 与导入订阅同款 16dp 卡片材质，左右与底部主按钮严格齐平
     top.yukonga.miuix.kmp.basic.BasicComponent(
         modifier = Modifier
             .fillMaxWidth()
             .clip(cardShape)
-            .background(scheme.background)
-            .border(0.5.dp, scheme.outline.copy(alpha = 0.6f), cardShape)
+            .background(cardBg)
             .switchSemantics(checked, enabled),
         title = label,
         summary = when (sizeBytes) {
@@ -250,28 +253,34 @@ internal fun ImportSourceDialog(
         title = stringResource(R.string.settings_import),
         onDismissRequest = onDismiss,
     ) {
-        Row(
+        Column(
             modifier = Modifier
                 .fillMaxWidth()
-                .height(IntrinsicSize.Max)
-                .padding(horizontal = 20.dp)
-                .padding(top = 8.dp, bottom = 20.dp),
-            horizontalArrangement = Arrangement.spacedBy(12.dp),
+                .verticalScroll(rememberScrollState())
+                .padding(horizontal = 16.dp)
+                .padding(top = 4.dp, bottom = 16.dp),
         ) {
-            ImportSourceCard(
-                iconRes = R.drawable.ic_file,
-                title = stringResource(R.string.import_from_file),
-                subtitle = stringResource(R.string.import_from_file_hint),
-                onClick = onFromFile,
-                modifier = Modifier.weight(1f).fillMaxHeight(),
-            )
-            ImportSourceCard(
-                iconRes = R.drawable.ic_clipboard,
-                title = stringResource(R.string.import_from_clipboard),
-                subtitle = stringResource(R.string.import_from_clipboard_hint),
-                onClick = onFromClipboard,
-                modifier = Modifier.weight(1f).fillMaxHeight(),
-            )
+            Row(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .height(IntrinsicSize.Max),
+                horizontalArrangement = Arrangement.spacedBy(10.dp),
+            ) {
+                ImportSourceCard(
+                    iconRes = R.drawable.ic_file,
+                    title = stringResource(R.string.import_from_file),
+                    subtitle = stringResource(R.string.import_from_file_hint),
+                    onClick = onFromFile,
+                    modifier = Modifier.weight(1f).fillMaxHeight(),
+                )
+                ImportSourceCard(
+                    iconRes = R.drawable.ic_clipboard,
+                    title = stringResource(R.string.import_from_clipboard),
+                    subtitle = stringResource(R.string.import_from_clipboard_hint),
+                    onClick = onFromClipboard,
+                    modifier = Modifier.weight(1f).fillMaxHeight(),
+                )
+            }
         }
     }
 }
@@ -285,14 +294,15 @@ private fun ImportSourceCard(
     modifier: Modifier = Modifier,
 ) {
     val scheme = MiuixTheme.colorScheme
+    val dark = LocalDarkTheme.current
     val cardShape = RoundedCornerShape(16.dp)
     val badgeShape = RoundedCornerShape(13.dp)
-    val (press, pressColor) = io.candy.tick.ui.common.rememberRowPressTint(surface = scheme.background)
+    val cardBg = if (dark) scheme.surfaceContainerHigh else scheme.background
+    val (press, pressColor) = io.candy.tick.ui.common.rememberRowPressTint(surface = cardBg)
     Column(
         modifier = modifier
             .clip(cardShape)
             .background(pressColor)
-            .border(0.5.dp, scheme.outline.copy(alpha = 0.6f), cardShape)
             .clickable(
                 interactionSource = press,
                 indication = null,
@@ -516,8 +526,8 @@ private fun TokenRateLimitCard(
             .fillMaxWidth()
             .clip(shape)
             .background(scheme.surfaceContainerHigh)
-            .padding(horizontal = 14.dp, vertical = 12.dp),
-        verticalArrangement = Arrangement.spacedBy(8.dp),
+            .padding(start = 14.dp, end = 6.dp, top = 4.dp, bottom = 12.dp),
+        verticalArrangement = Arrangement.spacedBy(4.dp),
     ) {
         Row(
             modifier = Modifier.fillMaxWidth(),
@@ -582,11 +592,10 @@ private fun TokenRateLimitCard(
                         label = "quotaRefreshAngle",
                     ).value
                 } else 0f
-                androidx.compose.foundation.layout.Box(
+                // 外层 48dp 触控热区包住 32dp 视觉圆钮，兼顾单手易点与卡片紧凑度
+                Box(
                     modifier = Modifier
-                        .size(32.dp)
-                        .clip(androidx.compose.foundation.shape.CircleShape)
-                        .background(refreshBg)
+                        .size(48.dp)
                         .clickable(
                             enabled = !loading,
                             interactionSource = refreshPress,
@@ -596,21 +605,30 @@ private fun TokenRateLimitCard(
                         ),
                     contentAlignment = Alignment.Center,
                 ) {
-                    Icon(
-                        imageVector = ImageVector.vectorResource(R.drawable.ic_refresh),
-                        contentDescription = stringResource(R.string.retry),
-                        tint = scheme.primaryVariant,
+                    Box(
                         modifier = Modifier
-                            .size(16.dp)
-                            .graphicsLayer { rotationZ = spinAngle },
-                    )
+                            .size(32.dp)
+                            .clip(androidx.compose.foundation.shape.CircleShape)
+                            .background(refreshBg),
+                        contentAlignment = Alignment.Center,
+                    ) {
+                        Icon(
+                            imageVector = ImageVector.vectorResource(R.drawable.ic_refresh),
+                            contentDescription = stringResource(R.string.action_refresh),
+                            tint = scheme.primaryVariant,
+                            modifier = Modifier
+                                .size(16.dp)
+                                .graphicsLayer { rotationZ = spinAngle },
+                        )
+                    }
                 }
             }
         }
 
-        // 仅在「无数据 ↔ 有数据」之间做相变，点刷新时不重建进度条，消除闪烁
+        // 仅在「无数据 ↔ 有数据」之间做相变，点刷新时不重建进度条，消除闪烁；右补 8dp 与外层 6dp 凑齐左右 14dp 对称
         AnimatedContent(
             targetState = rateLimit != null,
+            modifier = Modifier.padding(end = 8.dp),
             transitionSpec = {
                 val spec = tween<Float>(if (motionEnabled) Motion.PHASE else 0)
                 (fadeIn(spec) togetherWith fadeOut(spec)).using(SizeTransform(clip = false))
@@ -690,32 +708,34 @@ internal fun AppIconPickerSheet(
         title = stringResource(R.string.settings_app_icon),
         onDismissRequest = onDismiss,
     ) {
-        Row(
-            modifier = Modifier
-                .fillMaxWidth()
-                .selectableGroup()
-                .padding(horizontal = 20.dp)
-                .padding(top = 8.dp, bottom = 20.dp),
-            horizontalArrangement = Arrangement.spacedBy(12.dp),
-        ) {
-            VisualPickerOption(
-                label = stringResource(R.string.app_icon_system),
-                selected = selected == io.candy.tick.data.model.AppIconMode.SYSTEM,
-                onClick = { onSelect(io.candy.tick.data.model.AppIconMode.SYSTEM) },
-                modifier = Modifier.weight(1f),
-            ) { AppIconThumbnail(io.candy.tick.data.model.AppIconMode.SYSTEM) }
-            VisualPickerOption(
-                label = stringResource(R.string.app_icon_light),
-                selected = selected == io.candy.tick.data.model.AppIconMode.LIGHT,
-                onClick = { onSelect(io.candy.tick.data.model.AppIconMode.LIGHT) },
-                modifier = Modifier.weight(1f),
-            ) { AppIconThumbnail(io.candy.tick.data.model.AppIconMode.LIGHT) }
-            VisualPickerOption(
-                label = stringResource(R.string.app_icon_dark),
-                selected = selected == io.candy.tick.data.model.AppIconMode.DARK,
-                onClick = { onSelect(io.candy.tick.data.model.AppIconMode.DARK) },
-                modifier = Modifier.weight(1f),
-            ) { AppIconThumbnail(io.candy.tick.data.model.AppIconMode.DARK) }
+        Column(Modifier.fillMaxWidth().verticalScroll(rememberScrollState())) {
+            Row(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .selectableGroup()
+                    .padding(horizontal = 20.dp)
+                    .padding(top = 8.dp, bottom = 20.dp),
+                horizontalArrangement = Arrangement.spacedBy(12.dp),
+            ) {
+                VisualPickerOption(
+                    label = stringResource(R.string.app_icon_system),
+                    selected = selected == io.candy.tick.data.model.AppIconMode.SYSTEM,
+                    onClick = { onSelect(io.candy.tick.data.model.AppIconMode.SYSTEM) },
+                    modifier = Modifier.weight(1f),
+                ) { AppIconThumbnail(io.candy.tick.data.model.AppIconMode.SYSTEM) }
+                VisualPickerOption(
+                    label = stringResource(R.string.app_icon_light),
+                    selected = selected == io.candy.tick.data.model.AppIconMode.LIGHT,
+                    onClick = { onSelect(io.candy.tick.data.model.AppIconMode.LIGHT) },
+                    modifier = Modifier.weight(1f),
+                ) { AppIconThumbnail(io.candy.tick.data.model.AppIconMode.LIGHT) }
+                VisualPickerOption(
+                    label = stringResource(R.string.app_icon_dark),
+                    selected = selected == io.candy.tick.data.model.AppIconMode.DARK,
+                    onClick = { onSelect(io.candy.tick.data.model.AppIconMode.DARK) },
+                    modifier = Modifier.weight(1f),
+                ) { AppIconThumbnail(io.candy.tick.data.model.AppIconMode.DARK) }
+            }
         }
     }
 }
@@ -733,32 +753,34 @@ internal fun ThemeModePickerSheet(
         title = stringResource(R.string.settings_theme_mode),
         onDismissRequest = onDismiss,
     ) {
-        Row(
-            modifier = Modifier
-                .fillMaxWidth()
-                .selectableGroup()
-                .padding(horizontal = 20.dp)
-                .padding(top = 8.dp, bottom = 20.dp),
-            horizontalArrangement = Arrangement.spacedBy(12.dp),
-        ) {
-            VisualPickerOption(
-                label = stringResource(R.string.theme_mode_system),
-                selected = selected == io.candy.tick.data.model.ThemeMode.SYSTEM,
-                onClick = { onSelect(io.candy.tick.data.model.ThemeMode.SYSTEM) },
-                modifier = Modifier.weight(1f),
-            ) { ThemeModeThumbnail(io.candy.tick.data.model.ThemeMode.SYSTEM) }
-            VisualPickerOption(
-                label = stringResource(R.string.theme_mode_light),
-                selected = selected == io.candy.tick.data.model.ThemeMode.LIGHT,
-                onClick = { onSelect(io.candy.tick.data.model.ThemeMode.LIGHT) },
-                modifier = Modifier.weight(1f),
-            ) { ThemeModeThumbnail(io.candy.tick.data.model.ThemeMode.LIGHT) }
-            VisualPickerOption(
-                label = stringResource(R.string.theme_mode_dark),
-                selected = selected == io.candy.tick.data.model.ThemeMode.DARK,
-                onClick = { onSelect(io.candy.tick.data.model.ThemeMode.DARK) },
-                modifier = Modifier.weight(1f),
-            ) { ThemeModeThumbnail(io.candy.tick.data.model.ThemeMode.DARK) }
+        Column(Modifier.fillMaxWidth().verticalScroll(rememberScrollState())) {
+            Row(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .selectableGroup()
+                    .padding(horizontal = 20.dp)
+                    .padding(top = 8.dp, bottom = 20.dp),
+                horizontalArrangement = Arrangement.spacedBy(12.dp),
+            ) {
+                VisualPickerOption(
+                    label = stringResource(R.string.theme_mode_system),
+                    selected = selected == io.candy.tick.data.model.ThemeMode.SYSTEM,
+                    onClick = { onSelect(io.candy.tick.data.model.ThemeMode.SYSTEM) },
+                    modifier = Modifier.weight(1f),
+                ) { ThemeModeThumbnail(io.candy.tick.data.model.ThemeMode.SYSTEM) }
+                VisualPickerOption(
+                    label = stringResource(R.string.theme_mode_light),
+                    selected = selected == io.candy.tick.data.model.ThemeMode.LIGHT,
+                    onClick = { onSelect(io.candy.tick.data.model.ThemeMode.LIGHT) },
+                    modifier = Modifier.weight(1f),
+                ) { ThemeModeThumbnail(io.candy.tick.data.model.ThemeMode.LIGHT) }
+                VisualPickerOption(
+                    label = stringResource(R.string.theme_mode_dark),
+                    selected = selected == io.candy.tick.data.model.ThemeMode.DARK,
+                    onClick = { onSelect(io.candy.tick.data.model.ThemeMode.DARK) },
+                    modifier = Modifier.weight(1f),
+                ) { ThemeModeThumbnail(io.candy.tick.data.model.ThemeMode.DARK) }
+            }
         }
     }
 }
@@ -779,9 +801,10 @@ internal fun SyncFrequencyPickerSheet(
         Column(
             modifier = Modifier
                 .fillMaxWidth()
+                .verticalScroll(rememberScrollState())
                 .selectableGroup()
-                .padding(horizontal = 20.dp)
-                .padding(top = 8.dp, bottom = 20.dp),
+                .padding(horizontal = 16.dp)
+                .padding(top = 4.dp, bottom = 16.dp),
             verticalArrangement = Arrangement.spacedBy(10.dp),
         ) {
             Row(
@@ -830,22 +853,26 @@ private fun SyncFrequencyCard(
     modifier: Modifier = Modifier,
 ) {
     val scheme = MiuixTheme.colorScheme
+    val dark = LocalDarkTheme.current
     val motionEnabled = rememberMotionEnabled()
     val cardShape = RoundedCornerShape(16.dp)
     val badgeShape = RoundedCornerShape(10.dp)
+    // 去线框柔和实色层：未选中无描边，选中态保留 1.5dp 主题绿描边与柔和薄荷叠底
+    val neutralCardBg = if (dark) scheme.surfaceContainerHigh else scheme.background
+    val neutralBadgeBg = if (dark) scheme.secondary else scheme.surface
     val baseBg = if (selected) {
-        scheme.primaryVariant.copy(alpha = 0.08f).compositeOver(scheme.background)
+        scheme.primaryVariant.copy(alpha = 0.10f).compositeOver(neutralCardBg)
     } else {
-        scheme.background
+        neutralCardBg
     }
     val (press, pressColor) = io.candy.tick.ui.common.rememberRowPressTint(surface = baseBg)
     val borderColor by androidx.compose.animation.animateColorAsState(
-        targetValue = if (selected) scheme.primaryVariant else scheme.outline.copy(alpha = 0.6f),
+        targetValue = if (selected) scheme.primaryVariant else androidx.compose.ui.graphics.Color.Transparent,
         animationSpec = tween(if (motionEnabled) Motion.PHASE else 0),
         label = "freqBorder",
     )
     val badgeBg by androidx.compose.animation.animateColorAsState(
-        targetValue = if (selected) scheme.primaryVariant.copy(alpha = 0.14f) else scheme.surfaceVariant.copy(alpha = 0.65f),
+        targetValue = if (selected) scheme.primaryVariant.copy(alpha = 0.16f) else neutralBadgeBg,
         animationSpec = tween(if (motionEnabled) Motion.PHASE else 0),
         label = "freqBadgeBg",
     )
@@ -859,7 +886,7 @@ private fun SyncFrequencyCard(
         modifier = modifier
             .clip(cardShape)
             .background(pressColor)
-            .border(if (selected) 1.5.dp else 0.5.dp, borderColor, cardShape)
+            .border(1.5.dp, borderColor, cardShape)
             .selectable(
                 selected = selected,
                 interactionSource = press,
@@ -929,32 +956,34 @@ internal fun LanguagePickerSheet(
         title = stringResource(R.string.settings_language),
         onDismissRequest = onDismiss,
     ) {
-        Row(
-            modifier = Modifier
-                .fillMaxWidth()
-                .selectableGroup()
-                .padding(horizontal = 20.dp)
-                .padding(top = 8.dp, bottom = 20.dp),
-            horizontalArrangement = Arrangement.spacedBy(12.dp),
-        ) {
-            VisualPickerOption(
-                label = stringResource(R.string.lang_system),
-                selected = selected.isEmpty(),
-                onClick = { onSelect("") },
-                modifier = Modifier.weight(1f),
-            ) { LanguageThumbnail(language = "", selected = selected.isEmpty()) }
-            VisualPickerOption(
-                label = stringResource(R.string.lang_chinese),
-                selected = selected == "zh",
-                onClick = { onSelect("zh") },
-                modifier = Modifier.weight(1f),
-            ) { LanguageThumbnail(language = "zh", selected = selected == "zh") }
-            VisualPickerOption(
-                label = stringResource(R.string.lang_english),
-                selected = selected == "en",
-                onClick = { onSelect("en") },
-                modifier = Modifier.weight(1f),
-            ) { LanguageThumbnail(language = "en", selected = selected == "en") }
+        Column(Modifier.fillMaxWidth().verticalScroll(rememberScrollState())) {
+            Row(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .selectableGroup()
+                    .padding(horizontal = 20.dp)
+                    .padding(top = 8.dp, bottom = 20.dp),
+                horizontalArrangement = Arrangement.spacedBy(12.dp),
+            ) {
+                VisualPickerOption(
+                    label = stringResource(R.string.lang_system),
+                    selected = selected.isEmpty(),
+                    onClick = { onSelect("") },
+                    modifier = Modifier.weight(1f),
+                ) { LanguageThumbnail(language = "", selected = selected.isEmpty()) }
+                VisualPickerOption(
+                    label = stringResource(R.string.lang_chinese),
+                    selected = selected == "zh",
+                    onClick = { onSelect("zh") },
+                    modifier = Modifier.weight(1f),
+                ) { LanguageThumbnail(language = "zh", selected = selected == "zh") }
+                VisualPickerOption(
+                    label = stringResource(R.string.lang_english),
+                    selected = selected == "en",
+                    onClick = { onSelect("en") },
+                    modifier = Modifier.weight(1f),
+                ) { LanguageThumbnail(language = "en", selected = selected == "en") }
+            }
         }
     }
 }
@@ -963,9 +992,16 @@ internal fun LanguagePickerSheet(
 @Composable
 private fun LanguageThumbnail(language: String, selected: Boolean) {
     val scheme = MiuixTheme.colorScheme
+    val dark = LocalDarkTheme.current
     val thumbShape = RoundedCornerShape(14.dp)
     val primaryColor = if (selected) scheme.primaryVariant else scheme.onSurface
     val tagColor = if (selected) scheme.primaryVariant.copy(alpha = 0.85f) else scheme.onSurfaceContainerVariant.copy(alpha = 0.75f)
+    val baseSurface = if (dark) scheme.surfaceContainerHigh else scheme.background
+    val tileBg = if (selected) {
+        scheme.primaryVariant.copy(alpha = 0.08f).compositeOver(baseSurface)
+    } else {
+        baseSurface
+    }
     val baseDensity = LocalDensity.current
     // 缩略图内为图形化字标（下方已有随系统缩放的可读标题），锁定 fontScale=1f 防大字号下挤碰裁切
     CompositionLocalProvider(LocalDensity provides Density(baseDensity.density, fontScale = 1f)) {
@@ -973,8 +1009,8 @@ private fun LanguageThumbnail(language: String, selected: Boolean) {
             modifier = Modifier
                 .size(56.dp)
                 .clip(thumbShape)
-                .background(scheme.background)
-                .border(0.5.dp, scheme.outline.copy(alpha = 0.7f), thumbShape)
+                .background(tileBg)
+                .border(0.5.dp, scheme.outline.copy(alpha = 0.45f), thumbShape)
                 .clearAndSetSemantics {},
             contentAlignment = Alignment.Center,
         ) {
@@ -1203,7 +1239,7 @@ private fun ThemeModeThumbnail(mode: io.candy.tick.data.model.ThemeMode) {
     }
 }
 
-/** 按桌面自适应图标真实几何比例绘制 56dp 缩略图（同步 B2 · 1.12x，跟随系统垂直正中对称双拼） */
+/** 按桌面自适应图标真实几何比例绘制 56dp 缩略图（同步 B2 · 1.10x，跟随系统垂直正中对称双拼） */
 @Composable
 private fun AppIconThumbnail(mode: io.candy.tick.data.model.AppIconMode) {
     val scheme = MiuixTheme.colorScheme

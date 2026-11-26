@@ -1,14 +1,13 @@
 package io.candy.tick.ui.list
 
+import androidx.compose.animation.animateColorAsState
 import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.animation.core.tween
 import androidx.compose.foundation.background
-import androidx.compose.foundation.border
-import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.fillMaxWidth
-import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
@@ -76,81 +75,74 @@ internal fun SortSheet(
         },
     ) {
         val scheme = MiuixTheme.colorScheme
-        val cardShape = RoundedCornerShape(16.dp)
+        val rowShape = RoundedCornerShape(14.dp)
         Column(
-            Modifier
+            modifier = Modifier
                 .heightIn(max = LocalWindowInfo.current.containerDpSize.height * 0.7f)
                 .verticalScroll(scroll)
-                .padding(horizontal = 16.dp)
-                .padding(bottom = 16.dp),
+                .padding(horizontal = 12.dp)
+                .padding(top = 4.dp, bottom = 16.dp),
+            verticalArrangement = Arrangement.spacedBy(2.dp),
         ) {
+            sortOptions.forEach { (mode, title) ->
+                val isCurrent = current.mode == mode
+                val ascending = if (isCurrent) current.ascending else mode.defaultAscending
+                val direction = stringResource(if (ascending) R.string.sort_ascending else R.string.sort_descending)
+                val reverseAction = stringResource(if (ascending) R.string.sort_use_descending else R.string.sort_use_ascending)
+                val rowBg by animateColorAsState(
+                    targetValue = if (isCurrent) scheme.primaryVariant.copy(alpha = 0.11f) else Color.Transparent,
+                    animationSpec = tween(if (motionEnabled) Motion.MICRO else 0),
+                    label = "sortRowBg",
+                )
+                val titleColor by animateColorAsState(
+                    targetValue = if (isCurrent) scheme.primaryVariant else scheme.onSurface,
+                    animationSpec = tween(if (motionEnabled) Motion.MICRO else 0),
+                    label = "sortTitleColor",
+                )
+                BasicComponent(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .clip(rowShape)
+                        .background(rowBg)
+                        .semantics(mergeDescendants = true) {
+                            selected = isCurrent
+                            if (isCurrent) {
+                                stateDescription = direction
+                                onClick(label = reverseAction, action = null)
+                            }
+                        },
+                    title = stringResource(title),
+                    titleColor = BasicComponentDefaults.titleColor(color = titleColor),
+                    summary = sortSummary(mode, ascending, updatableCount),
+                    endActions = {
+                        if (isCurrent) {
+                            val arrowRotation by animateFloatAsState(
+                                targetValue = if (ascending) 90f else -90f,
+                                animationSpec = tween(
+                                    durationMillis = if (motionEnabled) Motion.PANEL else 0,
+                                    easing = Motion.Decelerate,
+                                ),
+                                label = "sortArrowRotation",
+                            )
+                            Icon(
+                                imageVector = ImageVector.vectorResource(R.drawable.ic_back),
+                                contentDescription = null,
+                                tint = scheme.primaryVariant,
+                                modifier = Modifier.size(20.dp).graphicsLayer { rotationZ = arrowRotation },
+                            )
+                        }
+                    },
+                    onClick = { onSelect(mode) },
+                    insideMargin = PaddingValues(horizontal = 12.dp, vertical = 10.dp),
+                )
+            }
             Text(
                 text = stringResource(R.string.sort_direction_hint),
                 style = MiuixTheme.textStyles.footnote1,
                 color = scheme.onBackgroundVariant,
-                modifier = Modifier.fillMaxWidth().padding(bottom = 10.dp),
+                modifier = Modifier.fillMaxWidth().padding(top = 10.dp, start = 8.dp, end = 8.dp),
                 textAlign = TextAlign.Center,
             )
-            Column(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .clip(cardShape)
-                    .background(scheme.background)
-                    .border(0.5.dp, scheme.outline.copy(alpha = 0.6f), cardShape),
-            ) {
-                sortOptions.forEachIndexed { index, (mode, title) ->
-                    val isCurrent = current.mode == mode
-                    val ascending = if (isCurrent) current.ascending else mode.defaultAscending
-                    val direction = stringResource(if (ascending) R.string.sort_ascending else R.string.sort_descending)
-                    val reverseAction = stringResource(if (ascending) R.string.sort_use_descending else R.string.sort_use_ascending)
-                    BasicComponent(
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .background(if (isCurrent) scheme.primaryVariant.copy(alpha = 0.08f) else Color.Transparent)
-                            .semantics(mergeDescendants = true) {
-                                selected = isCurrent
-                                if (isCurrent) {
-                                    stateDescription = direction
-                                    onClick(label = reverseAction, action = null)
-                                }
-                            },
-                        title = stringResource(title),
-                        titleColor = BasicComponentDefaults.titleColor(
-                            color = if (isCurrent) scheme.primaryVariant else scheme.onSurface,
-                        ),
-                        summary = sortSummary(mode, ascending, updatableCount),
-                        endActions = {
-                            if (isCurrent) {
-                                val arrowRotation by animateFloatAsState(
-                                    targetValue = if (ascending) 90f else -90f,
-                                    animationSpec = tween(
-                                        durationMillis = if (motionEnabled) Motion.PANEL else 0,
-                                        easing = Motion.Decelerate,
-                                    ),
-                                    label = "sortArrowRotation",
-                                )
-                                Icon(
-                                    imageVector = ImageVector.vectorResource(R.drawable.ic_back),
-                                    contentDescription = null,
-                                    tint = scheme.primaryVariant,
-                                    modifier = Modifier.size(20.dp).graphicsLayer { rotationZ = arrowRotation },
-                                )
-                            }
-                        },
-                        onClick = { onSelect(mode) },
-                        insideMargin = PaddingValues(horizontal = 14.dp, vertical = 11.dp),
-                    )
-                    if (index < sortOptions.lastIndex) {
-                        Box(
-                            modifier = Modifier
-                                .fillMaxWidth()
-                                .padding(horizontal = 14.dp)
-                                .height(0.5.dp)
-                                .background(scheme.dividerLine),
-                        )
-                    }
-                }
-            }
         }
     }
 }

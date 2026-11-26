@@ -39,9 +39,10 @@ internal fun AppLinkRow(
     label: @Composable () -> Unit,
 ) {
     val scheme = MiuixTheme.colorScheme
+    val motionEnabled = rememberMotionEnabled()
     val surface by animateColorAsState(
         if (suggested) scheme.tertiaryContainer else scheme.surfaceContainer,
-        tween(Motion.MICRO),
+        tween(if (motionEnabled) Motion.MICRO else 0),
         label = "linkedAppSurface",
     )
     val (source, tint) = rememberRowPressTint(surface)

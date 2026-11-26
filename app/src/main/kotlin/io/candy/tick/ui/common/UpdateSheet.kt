@@ -122,13 +122,14 @@ fun UpdateSheet(selfUpdater: SelfUpdater) {
             // Keep the action ahead of the notes when a full notes pane would crowd it out.
             val notesHeight = 280.dp
             val shortBody = maxHeight < notesHeight + 160.dp * LocalDensity.current.fontScale
+            val motionEnabled = rememberMotionEnabled()
             // 四相柔切换（与仓库下载四相同款 180 档）：新版 → 进度 → 安装 / 失败不硬跳。
             // Failed 此前映射 idle 只渲染空白——下载失败时弹窗只剩标题，看起来像界面坏了
             androidx.compose.animation.AnimatedContent(
                 targetState = state,
                 contentKey = { it::class },
                 modifier = Modifier.fillMaxWidth().then(if (shortBody) Modifier.verticalScroll(scroll) else Modifier),
-                transitionSpec = { downloadActionTransition() },
+                transitionSpec = { downloadActionTransition(duration = if (motionEnabled) Motion.PHASE else 0) },
                 label = "updatePhase",
             ) { phase ->
                 // An outgoing phase stays composed during the fade and may still receive a tap.

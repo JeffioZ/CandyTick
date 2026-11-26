@@ -80,11 +80,14 @@ internal fun StorageStatusHost(store: AppStateStore, content: @Composable () -> 
         }
     }
 
+    val motionEnabled = rememberMotionEnabled()
     Column(Modifier.fillMaxSize().background(MiuixTheme.colorScheme.background)) {
         AnimatedVisibility(
             visible = showBanner,
-            enter = expandVertically(tween(Motion.PANEL), expandFrom = Alignment.Top) + fadeIn(tween(Motion.MICRO)),
-            exit = shrinkVertically(tween(Motion.PANEL), shrinkTowards = Alignment.Top) + fadeOut(tween(Motion.MICRO)),
+            enter = expandVertically(tween(if (motionEnabled) Motion.PANEL else 0), expandFrom = Alignment.Top) +
+                fadeIn(tween(if (motionEnabled) Motion.MICRO else 0)),
+            exit = shrinkVertically(tween(if (motionEnabled) Motion.PANEL else 0), shrinkTowards = Alignment.Top) +
+                fadeOut(tween(if (motionEnabled) Motion.MICRO else 0)),
         ) {
             Box(
                 Modifier.fillMaxWidth()

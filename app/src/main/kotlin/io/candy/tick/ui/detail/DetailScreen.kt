@@ -80,11 +80,14 @@ import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.animation.core.animateFloat
 import androidx.compose.ui.draw.clip
 import androidx.compose.foundation.background
-import androidx.compose.foundation.border
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.ui.Alignment
+import androidx.compose.ui.graphics.compositeOver
+import io.candy.tick.ui.theme.LocalDarkTheme
 import io.candy.tick.ui.common.Motion
 import io.candy.tick.ui.common.rememberMotionEnabled
 import kotlin.math.roundToInt
@@ -859,11 +862,24 @@ private fun DetailMoreActionsSheet(
         title = stringResource(R.string.detail_more_actions),
         onDismissRequest = onDismiss,
     ) {
+        val dark = LocalDarkTheme.current
         val cardShape = RoundedCornerShape(16.dp)
+        // 去线框柔和实色层：浅色用微绿灰底 + 纯白徽章；深色用比浮层亮一档的 surfaceContainerHigh + secondary 徽章
+        val groupBg = if (dark) scheme.surfaceContainerHigh else scheme.background
+        val badgeBg = if (dark) scheme.secondary else scheme.surface
+        val dangerCardBg = scheme.errorContainer
+            .copy(alpha = if (dark) 0.65f else 0.38f)
+            .compositeOver(scheme.surfaceContainer)
+        val dangerBadgeBg = if (dark) {
+            scheme.onErrorContainer.copy(alpha = 0.16f)
+        } else {
+            scheme.errorContainer.copy(alpha = 0.85f)
+        }
         val hasPrimaryActions = showBranch || webUrl != null
         androidx.compose.foundation.layout.Column(
             modifier = Modifier
                 .fillMaxWidth()
+                .verticalScroll(rememberScrollState())
                 .padding(horizontal = 16.dp)
                 .padding(top = 4.dp, bottom = 16.dp),
             verticalArrangement = Arrangement.spacedBy(10.dp),
@@ -873,15 +889,14 @@ private fun DetailMoreActionsSheet(
                     modifier = Modifier
                         .fillMaxWidth()
                         .clip(cardShape)
-                        .background(scheme.background)
-                        .border(0.5.dp, scheme.outline.copy(alpha = 0.6f), cardShape),
+                        .background(groupBg),
                 ) {
                     if (showBranch) {
                         DetailSheetActionRow(
                             icon = R.drawable.ic_git_branch,
                             title = stringResource(R.string.branch_picker_title),
                             tint = scheme.onSurface,
-                            badgeBg = scheme.surfaceVariant.copy(alpha = 0.65f),
+                            badgeBg = badgeBg,
                             onClick = onSelectBranch,
                         )
                         if (webUrl != null) {
@@ -893,7 +908,7 @@ private fun DetailMoreActionsSheet(
                             icon = R.drawable.ic_external_link,
                             title = stringResource(R.string.open_in_browser),
                             tint = scheme.onSurface,
-                            badgeBg = scheme.surfaceVariant.copy(alpha = 0.65f),
+                            badgeBg = badgeBg,
                             onClick = {
                                 onDismiss()
                                 links.openUri(webUrl)
@@ -904,7 +919,7 @@ private fun DetailMoreActionsSheet(
                             icon = R.drawable.ic_link,
                             title = copyLabel,
                             tint = scheme.onSurface,
-                            badgeBg = scheme.surfaceVariant.copy(alpha = 0.65f),
+                            badgeBg = badgeBg,
                             onClick = {
                                 onDismiss()
                                 runCatching {
@@ -924,14 +939,13 @@ private fun DetailMoreActionsSheet(
                 modifier = Modifier
                     .fillMaxWidth()
                     .clip(cardShape)
-                    .background(scheme.background)
-                    .border(0.5.dp, scheme.outline.copy(alpha = 0.6f), cardShape),
+                    .background(dangerCardBg),
             ) {
                 DetailSheetActionRow(
                     icon = R.drawable.ic_delete,
                     title = stringResource(R.string.detail_remove_repo),
                     tint = scheme.onErrorContainer,
-                    badgeBg = scheme.errorContainer.copy(alpha = 0.55f),
+                    badgeBg = dangerBadgeBg,
                     onClick = onRemove,
                 )
             }
