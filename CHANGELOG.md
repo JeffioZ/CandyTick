@@ -10,7 +10,8 @@
 在相应版本的中文条目后附英文摘要。发版工作流会提取整个版本章节作为 GitHub Release 正文。
 -->
 
-[未发布]: https://github.com/JeffioZ/CandyTick/compare/v0.5.1...main
+[未发布]: https://github.com/JeffioZ/CandyTick/compare/v0.6.0...main
+[0.6.0]: https://github.com/JeffioZ/CandyTick/releases/tag/v0.6.0
 [0.5.1]: https://github.com/JeffioZ/CandyTick/releases/tag/v0.5.1
 [0.5.0]: https://github.com/JeffioZ/CandyTick/releases/tag/v0.5.0
 [0.4.2]: https://github.com/JeffioZ/CandyTick/releases/tag/v0.4.2
@@ -23,16 +24,27 @@
 [0.2.0]: https://github.com/JeffioZ/CandyTick/releases/tag/v0.2.0
 [0.1.0]: https://github.com/JeffioZ/CandyTick/releases/tag/v0.1.0
 
-## [未发布]
+## [0.6.0]
+
+### 新增
+
+- 详情页顶栏新增一键翻译按钮，点击后自动按应用当前语言翻译展示中的仓库简介、提交标题和已展开的版本更新日志，再点切回原文；内置多条免费通道自动切换。
+- 设置页「GitHub 令牌」支持查看当前接口配额（已用、剩余、上限与重置倒计时），未填写时显示匿名额度，验证通过后显示对应用户名与认证额度，并支持手动刷新。
+- 设置页「外观」新增「桌面图标」选项，支持在跟随系统、浅色、深色之间固定桌面图标颜色。
+- 失败提示（顶部胶囊与行内错误条）末尾统一附带简短错误码，方便排查网络、限流、翻译或安装问题。
 
 ### 优化
 
+- 详情页顶栏精简为「翻译」和「更多」两个按钮，将切换分支、在浏览器打开、复制仓库链接和移除仓库收进底部菜单，为仓库标题留出更多显示空间。
+- 未关联本机已安装应用的订阅仓库不再推送新版本系统通知，仅保留应用内未读红点提醒。
+- 令牌验证时的按钮变色与结果提示改为平滑过渡，避免弹窗高度突跳；外观设置项中文统一为「应用语言」「深浅模式」「桌面图标」。
 - 按下按钮和设置项时的反馈更明显：一按就变色，松手后稍作停留再淡出，与卡片、图标按钮的手感一致。
 - 对齐了几处界面细节：版本卡片里展开的更新内容与标题齐平，首页卡片展开后的内容、清除缓存弹层里的行和帮助链接的图标也落在同一条线上。
 - 首页卡片展开、收起时的几处硬切改成过渡：未读圆点、「发现新版」标签、面板高度和「正在刷新」文字。同步结果提示改为列表更新完成后再出现。
 
 ### 修复
 
+- 修复下载进度条走动时因数字宽度变化导致进度条左右伸缩的问题，并统一了头卡、版本卡片与自身更新弹层的进度条高度与间距。
 - 输入框没有焦点时几乎看不出边界，现在带一圈淡淡的描边。
 - 底部弹层的内容现在会避开系统导航栏，不再被它挡住。
 - 粘贴以 `.git` 结尾的仓库克隆地址时，不再被误报为「内容不存在或无权访问」。
@@ -40,13 +52,15 @@
 
 ### English summary
 
-- Pressing a button or a settings row now gives clearer feedback: it changes color at once and fades out shortly after release, matching cards and icon buttons.
-- Text fields had no visible edge when not focused; they now show a faint outline.
-- Bottom sheets now keep their content clear of the system navigation bar instead of letting it be covered.
-- A few alignment details are tidied up: expanded release notes now line up with the title, and so do the expanded panel on home cards, the rows in the clear-cache sheet and the icons of help links.
-- Several hard cuts on the home card now animate when it expands or collapses: the unread dot, the "update available" pill, the panel height and the "refreshing" label. The sync result toast appears after the list has updated instead of before it.
-- Pasting a repository clone URL that ends in ".git" no longer reports it as missing or inaccessible.
-- Running out of storage while downloading a package now says so instead of blaming the network; an incomplete download or a file that could not be saved gets a clear message instead of raw English text.
+- Added an on-demand translate toggle in the repository detail top bar to translate visible repository descriptions, commit titles, and expanded release notes into the app's language, with automatic fallback across free translation endpoints.
+- GitHub token settings now show live core API quota (used, remaining, limit, and reset time) for both anonymous and authenticated requests, along with the signed-in `@username` and a manual refresh button.
+- Added an App icon setting under Appearance to keep the launcher icon on Follow system, Light, or Dark.
+- Failure toasts and inline errors now include short diagnostic error codes (such as `E-NET`, `HTTP 403`, or `E-TR-429`) to make troubleshooting easier.
+- Moved low-frequency detail actions (branch picker, open in browser, copy repository link, and remove repository) into a More sheet so repository titles have more room.
+- Repositories without a linked local app no longer post new-release system notifications and only show in-app unread indicators.
+- Smoothed button color and result-banner transitions in the token sheet, and fixed download progress bars changing width as numbers update while unifying height and spacing across all download views.
+- Pressing a button or a settings row now gives clearer feedback, unfocused text fields show a faint outline, bottom sheets clear the system navigation bar, and several card/sheet alignments and home card expand transitions were tightened up.
+- Pasting a `.git` clone URL no longer fails as inaccessible, and low-storage, incomplete-download, or save failures now show clear localized messages.
 
 ## [0.5.1]
 
