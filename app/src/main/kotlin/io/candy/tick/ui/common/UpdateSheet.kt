@@ -230,10 +230,11 @@ fun UpdateSheet(selfUpdater: SelfUpdater) {
                         }
                         is SelfUpdater.State.Downloaded -> {
                             val checked = lastCheck?.takeIf { it.first == phase }?.second
+                            val fileSize = remember(phase.file) { phase.file.length().takeIf { it > 0L } }
                             UpdateVersionBanner(
                                 localVersion = localVersion,
                                 targetTag = if (checked == phase) stringResource(R.string.version_latest_only, phase.tag) else phase.tag,
-                                sizeBytes = phase.file.length().takeIf { it > 0L },
+                                sizeBytes = fileSize,
                                 showArrow = checked != phase && localVersion != null &&
                                     (VersionCompare.compare(phase.tag, localVersion) ?: 0) > 0,
                             )
