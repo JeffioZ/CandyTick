@@ -4,6 +4,7 @@ import android.os.SystemClock
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.EnterTransition
 import androidx.compose.animation.ExitTransition
+import androidx.compose.animation.animateContentSize
 import androidx.compose.animation.core.tween
 import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
@@ -31,6 +32,8 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.shadow
+import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.compositeOver
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.platform.LocalAccessibilityManager
 import androidx.compose.ui.res.vectorResource
@@ -171,6 +174,8 @@ fun FeedbackHost() {
         Feedback.dismiss(m)
     }
 
+    val motionEnabled = rememberMotionEnabled()
+
     // 顶部居中、顶栏之下：状态栏 + 标准顶栏高（64dp）+ 间距，避开标题/动作区；
     // 不与拇指区/手势条/键盘争地盘。动效为原位淡入淡出——可交互目标不移动（见 AnimatedVisibility 注释）
     Box(
@@ -184,34 +189,50 @@ fun FeedbackHost() {
             visible = visible,
             // 原位淡入淡出（不再自上滑入）：胶囊出现在最终位置——可交互目标不移动，
             // 快速反应点撤销不会点在「落点前」；关闭系统动画的用户直接显隐
-            enter = if (rememberMotionEnabled()) fadeIn(tween(Motion.PANEL)) else EnterTransition.None,
-            exit = if (rememberMotionEnabled()) fadeOut(tween(Motion.PANEL)) else ExitTransition.None,
+            enter = if (motionEnabled) fadeIn(tween(Motion.PANEL)) else EnterTransition.None,
+            exit = if (motionEnabled) fadeOut(tween(Motion.PANEL)) else ExitTransition.None,
         ) {
             shown?.let { m ->
-                val iconTint = if (m.isError) scheme.onErrorContainer else scheme.primaryVariant
+                val accentTint = if (m.isError) scheme.onErrorContainer else scheme.primaryVariant
                 val textTint = scheme.onSurfaceContainer
+                val toastBg = if (dark) scheme.surfaceContainerHigh else scheme.surfaceContainer
+                val borderColor = if (m.isError) {
+                    scheme.onErrorContainer.copy(alpha = if (dark) 0.55f else 0.45f)
+                } else if (dark) {
+                    DarkFeedbackOutline
+                } else {
+                    LightFeedbackOutline
+                }
+                val shadowTint = Color.Black.copy(alpha = if (dark) 0.4f else 0.24f)
                 Row(
                     modifier = Modifier
-                        .shadow(2.dp, feedbackShape)
+                        // 连续触发新 Toast 时宽度平滑过渡；置于 shadow 前确保阴影与容器同步缩放
+                        .then(
+                            if (motionEnabled) {
+                                Modifier.animateContentSize(tween(Motion.MICRO, easing = Motion.Decelerate))
+                            } else {
+                                Modifier
+                            },
+                        )
+                        .shadow(6.dp, feedbackShape, ambientColor = shadowTint, spotColor = shadowTint)
                         .clip(feedbackShape)
-                        .background(if (dark) scheme.surfaceContainerHigh else scheme.surfaceContainer)
-                        .border(1.dp, if (dark) DarkFeedbackOutline else LightFeedbackOutline, feedbackShape)
+                        .background(toastBg)
+                        .border(0.75.dp, borderColor, feedbackShape)
                         // 读屏直播（Polite）：同步结果/安装结果此前 TalkBack 完全无感知
                         .semantics { liveRegion = LiveRegionMode.Polite }
                         .padding(start = 14.dp, end = if (m.actionLabel == null) 14.dp else feedbackActionInset),
                     verticalAlignment = Alignment.CenterVertically,
                 ) {
-                    // 状态符 Lucide 带圈版（circle-check/circle-x，与 SyncDots 结果符同库同口径）：
-                    // 语义色；16dp——圈占视觉重量，比裸符的 14dp 大一档保证内部字形可辨
+                    // 状态符 Lucide 带圈版（circle-check/circle-x，不套圆底徽章防圈套圈）
                     top.yukonga.miuix.kmp.basic.Icon(
                         imageVector = ImageVector.vectorResource(
                             if (m.isError) io.candy.tick.R.drawable.ic_close_circle else io.candy.tick.R.drawable.ic_check_circle,
                         ),
                         contentDescription = null,
-                        tint = iconTint,
-                        modifier = Modifier.size(16.dp),
+                        tint = accentTint,
+                        modifier = Modifier.size(18.dp),
                     )
-                    Spacer(Modifier.width(6.dp))
+                    Spacer(Modifier.width(8.dp))
                     Text(
                         text = m.text,
                         modifier = Modifier.weight(1f, fill = false).padding(vertical = 10.dp),
@@ -220,10 +241,8 @@ fun FeedbackHost() {
                     )
                     m.actionLabel?.let { label ->
                         Spacer(Modifier.width(4.dp))
-                        // 取消钮带常显浅底（比胶囊底深一档）：文字墨迹→色块的间隙在不同
-                        // 名称长度下观感漂移（长基线挤间隙的光学错觉），色块→色块则是
-                        // 硬等距——左 4dp（Spacer）= 右 4dp（胶囊内衬），与长度无关（真机两轮反馈）
-                        val chipColor = if (dark) scheme.surfaceContainerHighest else scheme.surfaceContainerHigh
+                        // 取消/操作钮带状态色 12% 实体叠底（普通薄荷绿 / 错误柔和红），按下时向深色插值
+                        val chipColor = accentTint.copy(alpha = 0.12f).compositeOver(toastBg)
                         val (press, pressColor) = rememberRowPressTint(surface = chipColor)
                         Box(
                             modifier = Modifier
@@ -233,7 +252,6 @@ fun FeedbackHost() {
                                 .sizeIn(minWidth = 48.dp, minHeight = 48.dp)
                                 .padding(vertical = feedbackActionInset)
                                 .clip(feedbackActionShape)
-                                // 单层：pressColor 静止时 == chipColor（常显浅底），按下时向深色插值
                                 .background(pressColor, feedbackActionShape)
                                 .padding(horizontal = 8.dp),
                             contentAlignment = Alignment.Center,
@@ -241,7 +259,7 @@ fun FeedbackHost() {
                             Text(
                                 text = label,
                                 style = MiuixTheme.textStyles.footnote1,
-                                color = scheme.primaryVariant,
+                                color = accentTint,
                                 fontWeight = androidx.compose.ui.text.font.FontWeight.Medium,
                             )
                         }
