@@ -3,8 +3,11 @@ package io.candy.tick
 import android.app.Activity
 import android.app.Application
 import io.candy.tick.data.Notifications
+import io.candy.tick.data.RepoDownloadState
+import io.candy.tick.data.SelfUpdater
 import io.candy.tick.di.AppContainer
 import io.candy.tick.ui.common.Feedback
+import io.candy.tick.util.AppIconManager
 import io.candy.tick.util.forAppLanguage
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.CoroutineStart
@@ -123,7 +126,25 @@ class CandyTickApp : Application() {
             }
 
             override fun onActivityStopped(activity: Activity) {
-                if (--startedActivities == 0) visible.value = false
+                if (--startedActivities == 0) {
+                    visible.value = false
+                    // 延迟到真正退后台（非旋转/改语言/深浅模式重建）且无进行中下载时再切换桌面图标，
+                    // 避免前台禁用 activity-alias 触发系统杀进程闪退，且不打断后台 APK 下载
+                    if (!activity.isChangingConfigurations) {
+                        container.appScope.launch(Dispatchers.IO) {
+                            runCatching {
+                                container.appStateStore.awaitLoaded()
+                                if (visible.value) return@launch
+                                val hasActiveDownload = container.repoDownloadHost.states.value.values
+                                    .any { it is RepoDownloadState.Active } ||
+                                    container.selfUpdater.state.value is SelfUpdater.State.Downloading
+                                if (hasActiveDownload) return@launch
+                                val desired = container.appStateStore.state.value.settings.appIconMode
+                                AppIconManager.applyIfNeeded(this@CandyTickApp, desired)
+                            }
+                        }
+                    }
+                }
             }
 
             override fun onActivityCreated(activity: Activity, savedInstanceState: android.os.Bundle?) {}

@@ -412,6 +412,5 @@
     <string name="app_icon_system">跟随系统</string>
     <string name="app_icon_light">浅色</string>
     <string name="app_icon_dark">深色</string>
-    <string name="app_icon_switched">桌面图标已更新</string>
-    <string name="app_icon_switch_failed">切换桌面图标失败</string>
+    <string name="app_icon_switched">桌面图标将在返回桌面后生效</string>
 </resources>

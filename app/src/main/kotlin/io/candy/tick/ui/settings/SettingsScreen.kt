@@ -524,16 +524,9 @@ fun SettingsScreen(onBack: () -> Unit, autoOpenImport: Boolean = false) {
         fun selectIcon(mode: io.candy.tick.data.model.AppIconMode) {
             showIconSheet = false
             if (mode == state.settings.appIconMode) return
-            if (io.candy.tick.util.AppIconManager.apply(context, mode)) {
-                vm.setAppIconMode(mode)
-                Feedback.show(resources.getString(R.string.app_icon_switched))
-            } else {
-                Feedback.show(
-                    resources.getString(R.string.app_icon_switch_failed),
-                    isError = true,
-                    errorCode = "E-ICON",
-                )
-            }
+            // 仅落盘偏好并提示，实际组件切换延迟到退回后台时执行（避免前台禁用 alias 触发系统杀进程）
+            vm.setAppIconMode(mode)
+            Feedback.show(resources.getString(R.string.app_icon_switched))
         }
         Column(Modifier.verticalScroll(rememberScrollState())) {
             OptionRow(

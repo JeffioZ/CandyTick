@@ -434,6 +434,5 @@
     <string name="app_icon_system">Follow system</string>
     <string name="app_icon_light">Light</string>
     <string name="app_icon_dark">Dark</string>
-    <string name="app_icon_switched">App icon updated</string>
-    <string name="app_icon_switch_failed">Couldn’t update app icon</string>
+    <string name="app_icon_switched">App icon will update when you return home</string>
 </resources>
