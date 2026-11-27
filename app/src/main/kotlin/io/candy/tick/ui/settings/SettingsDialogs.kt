@@ -1089,7 +1089,7 @@ private fun VisualPickerOption(
     }
 }
 
-/** 迷你深浅界面 56dp 缩略预览（取自 CandyTick 真实双色板，跟随系统垂直正中对称双拼） */
+/** 迷你深浅界面 56dp 缩略预览（100% 取自 Color.kt 真实双色板，柔和薄荷双卡 + 跟随系统垂直正中双拼） */
 @Composable
 private fun ThemeModeThumbnail(mode: io.candy.tick.data.model.ThemeMode) {
     val scheme = MiuixTheme.colorScheme
@@ -1099,63 +1099,91 @@ private fun ThemeModeThumbnail(mode: io.candy.tick.data.model.ThemeMode) {
         modifier = Modifier
             .size(56.dp)
             .clip(thumbShape)
-            .border(0.5.dp, scheme.outline.copy(alpha = 0.7f), thumbShape),
+            .border(0.5.dp, scheme.outline.copy(alpha = 0.45f), thumbShape),
     ) {
         fun drawMiniUi(dark: Boolean) {
             val bg = if (dark) io.candy.tick.ui.theme.DarkBackground else io.candy.tick.ui.theme.LightBackground
             val card = if (dark) io.candy.tick.ui.theme.DarkSurface else io.candy.tick.ui.theme.LightSurface
             val accent = if (dark) io.candy.tick.ui.theme.DarkPrimary else io.candy.tick.ui.theme.LightPrimary
-            val line = if (dark) io.candy.tick.ui.theme.DarkTextSecondary.copy(alpha = 0.45f)
-            else io.candy.tick.ui.theme.LightTextSecondary.copy(alpha = 0.35f)
+            val pillBg = if (dark) io.candy.tick.ui.theme.DarkPrimaryContainer else io.candy.tick.ui.theme.LightPrimaryContainer
+            val line1 = if (dark) io.candy.tick.ui.theme.DarkTextPrimary.copy(alpha = 0.58f)
+            else io.candy.tick.ui.theme.LightTextPrimary.copy(alpha = 0.48f)
+            val line2 = if (dark) io.candy.tick.ui.theme.DarkTextSecondary.copy(alpha = 0.36f)
+            else io.candy.tick.ui.theme.LightTextSecondary.copy(alpha = 0.30f)
 
             drawRect(color = bg)
             val w = size.width
             val h = size.height
-            val pad = w * 0.14f
+            val pad = w * 0.125f
             val cardW = w - pad * 2
             val r = androidx.compose.ui.geometry.CornerRadius(w * 0.10f, w * 0.10f)
 
-            // 顶部主卡片（模拟首页仓库卡：小绿圆点 + 两行骨架）
-            val c1Top = h * 0.16f
-            val c1H = h * 0.33f
+            // 上方仓库卡片：淡薄荷圆角方徽章 + 小绿点 + 两行骨架
+            val c1Top = h * 0.143f
+            val c1H = h * 0.34f
             drawRoundRect(
                 color = card,
                 topLeft = androidx.compose.ui.geometry.Offset(pad, c1Top),
                 size = androidx.compose.ui.geometry.Size(cardW, c1H),
                 cornerRadius = r,
             )
+            val badgeSize = w * 0.17f
+            val badgeX = pad + w * 0.072f
+            val badgeY = c1Top + (c1H - badgeSize) / 2f
+            drawRoundRect(
+                color = pillBg,
+                topLeft = androidx.compose.ui.geometry.Offset(badgeX, badgeY),
+                size = androidx.compose.ui.geometry.Size(badgeSize, badgeSize),
+                cornerRadius = androidx.compose.ui.geometry.CornerRadius(w * 0.054f, w * 0.054f),
+            )
             drawCircle(
                 color = accent,
-                radius = w * 0.065f,
-                center = androidx.compose.ui.geometry.Offset(pad + w * 0.12f, c1Top + c1H * 0.5f),
+                radius = w * 0.04f,
+                center = androidx.compose.ui.geometry.Offset(badgeX + badgeSize / 2f, badgeY + badgeSize / 2f),
             )
+            val textX = badgeX + badgeSize + w * 0.054f
             drawRoundRect(
-                color = line,
-                topLeft = androidx.compose.ui.geometry.Offset(pad + w * 0.24f, c1Top + c1H * 0.32f),
-                size = androidx.compose.ui.geometry.Size(cardW * 0.48f, h * 0.055f),
+                color = line1,
+                topLeft = androidx.compose.ui.geometry.Offset(textX, c1Top + c1H * 0.30f),
+                size = androidx.compose.ui.geometry.Size(w * 0.32f, h * 0.05f),
                 cornerRadius = androidx.compose.ui.geometry.CornerRadius(4f, 4f),
             )
             drawRoundRect(
-                color = line.copy(alpha = line.alpha * 0.65f),
-                topLeft = androidx.compose.ui.geometry.Offset(pad + w * 0.24f, c1Top + c1H * 0.58f),
-                size = androidx.compose.ui.geometry.Size(cardW * 0.32f, h * 0.048f),
+                color = line2,
+                topLeft = androidx.compose.ui.geometry.Offset(textX, c1Top + c1H * 0.56f),
+                size = androidx.compose.ui.geometry.Size(w * 0.215f, h * 0.043f),
                 cornerRadius = androidx.compose.ui.geometry.CornerRadius(4f, 4f),
             )
 
-            // 下方次卡片 + 主题色胶囊条
-            val c2Top = c1Top + c1H + h * 0.08f
-            val c2H = h * 0.27f
+            // 下方次卡片：PrimaryContainer 柔和薄荷胶囊 + 小绿点 + 细强调条
+            val c2Top = c1Top + c1H + h * 0.062f
+            val c2H = h * 0.312f
             drawRoundRect(
                 color = card,
                 topLeft = androidx.compose.ui.geometry.Offset(pad, c2Top),
                 size = androidx.compose.ui.geometry.Size(cardW, c2H),
                 cornerRadius = r,
             )
+            val pillH = h * 0.134f
+            val pillX = pad + w * 0.08f
+            val pillW = cardW - w * 0.16f
+            val pillY = c2Top + (c2H - pillH) / 2f
+            drawRoundRect(
+                color = pillBg,
+                topLeft = androidx.compose.ui.geometry.Offset(pillX, pillY),
+                size = androidx.compose.ui.geometry.Size(pillW, pillH),
+                cornerRadius = androidx.compose.ui.geometry.CornerRadius(pillH / 2f, pillH / 2f),
+            )
+            drawCircle(
+                color = accent,
+                radius = w * 0.036f,
+                center = androidx.compose.ui.geometry.Offset(pillX + w * 0.09f, pillY + pillH / 2f),
+            )
             drawRoundRect(
                 color = accent.copy(alpha = 0.85f),
-                topLeft = androidx.compose.ui.geometry.Offset(pad + w * 0.08f, c2Top + c2H * 0.34f),
-                size = androidx.compose.ui.geometry.Size(cardW - w * 0.16f, h * 0.08f),
-                cornerRadius = androidx.compose.ui.geometry.CornerRadius(6f, 6f),
+                topLeft = androidx.compose.ui.geometry.Offset(pillX + w * 0.17f, pillY + (pillH - h * 0.045f) / 2f),
+                size = androidx.compose.ui.geometry.Size(w * 0.30f, h * 0.045f),
+                cornerRadius = androidx.compose.ui.geometry.CornerRadius(4f, 4f),
             )
         }
 
