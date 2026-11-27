@@ -51,6 +51,9 @@ object Motion {
     /** 进度平滑档 */
     const val PROGRESS = 300
 
+    /** 首页列表排序与同步重排的无回弹弹簧刚度（自然落位约 400~440ms，短距轻快、长距舒展） */
+    const val REORDER_STIFFNESS = 260f
+
     /** 进出场 slide/expand 的减速曲线（miuix 官方 anim 包，HyperOS 落位手感） */
     val Decelerate = DecelerateEasing()
 
