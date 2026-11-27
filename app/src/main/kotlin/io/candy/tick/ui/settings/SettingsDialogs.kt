@@ -102,16 +102,21 @@ internal fun CacheCleanupSheet(
     ) {
         val includeApks = cleanApk && !state.scanning && state.apkBytes > 0
         val includeCrashLog = cleanCrash && !state.scanning && state.crashLogBytes > 0
+        val scheme = MiuixTheme.colorScheme
+        val dark = LocalDarkTheme.current
+        val groupBg = if (dark) scheme.surfaceContainerHigh else scheme.background
         Column(
             modifier = Modifier
                 .verticalScroll(rememberScrollState())
                 .padding(horizontal = 16.dp)
-                .padding(top = 4.dp, bottom = 16.dp),
-            verticalArrangement = Arrangement.spacedBy(10.dp),
+                .padding(top = 8.dp, bottom = 18.dp),
+            verticalArrangement = Arrangement.spacedBy(12.dp),
         ) {
             Column(
-                modifier = Modifier.padding(bottom = 6.dp),
-                verticalArrangement = Arrangement.spacedBy(10.dp),
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .clip(RoundedCornerShape(16.dp))
+                    .background(groupBg),
             ) {
                 CacheCleanupRow(
                     iconRes = R.drawable.ic_package,
@@ -120,6 +125,13 @@ internal fun CacheCleanupSheet(
                     checked = includeApks,
                     cleaning = state.cleaning,
                     onChecked = { cleanApk = it },
+                )
+                Box(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(start = 62.dp, end = 14.dp)
+                        .height(0.5.dp)
+                        .background(scheme.dividerLine),
                 )
                 CacheCleanupRow(
                     iconRes = R.drawable.ic_report,
@@ -177,13 +189,10 @@ private fun CacheCleanupRow(
     val motionEnabled = rememberMotionEnabled()
     val hasFiles = sizeBytes != null && sizeBytes > 0
     val enabled = hasFiles && !cleaning
-    val cardShape = RoundedCornerShape(16.dp)
-    val badgeShape = RoundedCornerShape(11.dp)
-    // 去线框柔和实色层：浅色微绿灰卡 + 纯白徽章；深色亮一档 surfaceContainerHigh + secondary 徽章
-    val cardBg = if (dark) scheme.surfaceContainerHigh else scheme.background
+    val badgeShape = RoundedCornerShape(10.dp)
     val neutralBadgeBg = if (dark) scheme.secondary else scheme.surface
     val badgeBg by androidx.compose.animation.animateColorAsState(
-        targetValue = if (checked) scheme.primaryVariant.copy(alpha = 0.14f) else neutralBadgeBg,
+        targetValue = if (checked) scheme.primaryVariant.copy(alpha = 0.12f) else neutralBadgeBg,
         animationSpec = tween(if (motionEnabled) Motion.PHASE else 0),
         label = "cacheBadgeBg",
     )
@@ -195,8 +204,6 @@ private fun CacheCleanupRow(
     top.yukonga.miuix.kmp.basic.BasicComponent(
         modifier = Modifier
             .fillMaxWidth()
-            .clip(cardShape)
-            .background(cardBg)
             .switchSemantics(checked, enabled),
         title = label,
         summary = when (sizeBytes) {
@@ -208,7 +215,7 @@ private fun CacheCleanupRow(
             Box(
                 modifier = Modifier
                     .padding(end = 12.dp)
-                    .size(38.dp)
+                    .size(36.dp)
                     .clip(badgeShape)
                     .background(badgeBg),
                 contentAlignment = Alignment.Center,
@@ -217,7 +224,7 @@ private fun CacheCleanupRow(
                     imageVector = ImageVector.vectorResource(iconRes),
                     contentDescription = null,
                     tint = badgeTint,
-                    modifier = Modifier.size(19.dp),
+                    modifier = Modifier.size(18.dp),
                 )
             }
         },
@@ -259,7 +266,7 @@ internal fun ExportDestinationDialog(
                 .fillMaxWidth()
                 .verticalScroll(rememberScrollState())
                 .padding(horizontal = 16.dp)
-                .padding(top = 4.dp, bottom = 18.dp),
+                .padding(top = 8.dp, bottom = 18.dp),
             verticalArrangement = Arrangement.spacedBy(12.dp),
         ) {
             Row(
@@ -316,7 +323,7 @@ internal fun ImportSourceDialog(
                 .fillMaxWidth()
                 .verticalScroll(rememberScrollState())
                 .padding(horizontal = 16.dp)
-                .padding(top = 4.dp, bottom = 18.dp),
+                .padding(top = 8.dp, bottom = 18.dp),
             verticalArrangement = Arrangement.spacedBy(12.dp),
         ) {
             Row(
@@ -359,7 +366,7 @@ private fun ActionSourceCard(
     val scheme = MiuixTheme.colorScheme
     val dark = LocalDarkTheme.current
     val cardShape = RoundedCornerShape(16.dp)
-    val badgeShape = RoundedCornerShape(13.dp)
+    val badgeShape = RoundedCornerShape(12.dp)
     val cardBg = if (dark) scheme.surfaceContainerHigh else scheme.background
     val (press, pressColor) = io.candy.tick.ui.common.rememberRowPressTint(surface = cardBg)
     Column(
@@ -437,7 +444,7 @@ internal fun TokenDialog(
             modifier = Modifier
                 .verticalScroll(rememberScrollState())
                 .padding(horizontal = 16.dp)
-                .padding(top = 4.dp),
+                .padding(top = 8.dp),
             verticalArrangement = Arrangement.spacedBy(10.dp),
         ) {
             // 账号与 API 额度卡：未填展示匿名额度，已填展示 @用户名 + 认证额度，免费接口实时刷新
@@ -566,8 +573,10 @@ private fun TokenRateLimitCard(
     onRefresh: () -> Unit,
 ) {
     val scheme = MiuixTheme.colorScheme
+    val dark = LocalDarkTheme.current
     val motionEnabled = rememberMotionEnabled()
-    val shape = RoundedCornerShape(12.dp)
+    val shape = RoundedCornerShape(14.dp)
+    val cardBg = if (dark) scheme.surfaceContainerHigh else scheme.background
     val identityLabel = when {
         tokenRejected -> stringResource(R.string.token_quota_rejected_mode)
         hasToken && !username.isNullOrBlank() -> "@$username"
@@ -580,7 +589,7 @@ private fun TokenRateLimitCard(
         modifier = Modifier
             .fillMaxWidth()
             .clip(shape)
-            .background(scheme.surfaceContainerHigh)
+            .background(cardBg)
             .padding(start = 14.dp, end = 6.dp, top = 4.dp, bottom = 12.dp),
         verticalArrangement = Arrangement.spacedBy(4.dp),
     ) {

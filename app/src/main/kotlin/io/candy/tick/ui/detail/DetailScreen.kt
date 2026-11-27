@@ -86,7 +86,6 @@ import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.ui.Alignment
-import androidx.compose.ui.graphics.compositeOver
 import io.candy.tick.ui.theme.LocalDarkTheme
 import io.candy.tick.ui.common.Motion
 import io.candy.tick.ui.common.rememberMotionEnabled
@@ -864,25 +863,18 @@ private fun DetailMoreActionsSheet(
     ) {
         val dark = LocalDarkTheme.current
         val cardShape = RoundedCornerShape(16.dp)
-        // 去线框柔和实色层：浅色用微绿灰底 + 纯白徽章；深色用比浮层亮一档的 surfaceContainerHigh + secondary 徽章
+        // 统一浮层软底分组卡 + 薄荷淡底徽章；危险项沿用同款中性软底卡 + 淡红徽章 + 红字
         val groupBg = if (dark) scheme.surfaceContainerHigh else scheme.background
-        val badgeBg = if (dark) scheme.secondary else scheme.surface
-        val dangerCardBg = scheme.errorContainer
-            .copy(alpha = if (dark) 0.65f else 0.38f)
-            .compositeOver(scheme.surfaceContainer)
-        val dangerBadgeBg = if (dark) {
-            scheme.onErrorContainer.copy(alpha = 0.16f)
-        } else {
-            scheme.errorContainer.copy(alpha = 0.85f)
-        }
+        val actionBadgeBg = scheme.primaryVariant.copy(alpha = 0.12f)
+        val dangerBadgeBg = scheme.error.copy(alpha = if (dark) 0.14f else 0.11f)
         val hasPrimaryActions = showBranch || webUrl != null
         androidx.compose.foundation.layout.Column(
             modifier = Modifier
                 .fillMaxWidth()
                 .verticalScroll(rememberScrollState())
                 .padding(horizontal = 16.dp)
-                .padding(top = 4.dp, bottom = 16.dp),
-            verticalArrangement = Arrangement.spacedBy(10.dp),
+                .padding(top = 8.dp, bottom = 18.dp),
+            verticalArrangement = Arrangement.spacedBy(12.dp),
         ) {
             if (hasPrimaryActions) {
                 androidx.compose.foundation.layout.Column(
@@ -895,8 +887,9 @@ private fun DetailMoreActionsSheet(
                         DetailSheetActionRow(
                             icon = R.drawable.ic_git_branch,
                             title = stringResource(R.string.branch_picker_title),
-                            tint = scheme.onSurface,
-                            badgeBg = badgeBg,
+                            titleColor = scheme.onSurface,
+                            iconTint = scheme.primaryVariant,
+                            badgeBg = actionBadgeBg,
                             onClick = onSelectBranch,
                         )
                         if (webUrl != null) {
@@ -907,8 +900,9 @@ private fun DetailMoreActionsSheet(
                         DetailSheetActionRow(
                             icon = R.drawable.ic_external_link,
                             title = stringResource(R.string.open_in_browser),
-                            tint = scheme.onSurface,
-                            badgeBg = badgeBg,
+                            titleColor = scheme.onSurface,
+                            iconTint = scheme.primaryVariant,
+                            badgeBg = actionBadgeBg,
                             onClick = {
                                 onDismiss()
                                 links.openUri(webUrl)
@@ -918,8 +912,9 @@ private fun DetailMoreActionsSheet(
                         DetailSheetActionRow(
                             icon = R.drawable.ic_link,
                             title = copyLabel,
-                            tint = scheme.onSurface,
-                            badgeBg = badgeBg,
+                            titleColor = scheme.onSurface,
+                            iconTint = scheme.primaryVariant,
+                            badgeBg = actionBadgeBg,
                             onClick = {
                                 onDismiss()
                                 runCatching {
@@ -939,12 +934,13 @@ private fun DetailMoreActionsSheet(
                 modifier = Modifier
                     .fillMaxWidth()
                     .clip(cardShape)
-                    .background(dangerCardBg),
+                    .background(groupBg),
             ) {
                 DetailSheetActionRow(
                     icon = R.drawable.ic_delete,
                     title = stringResource(R.string.detail_remove_repo),
-                    tint = scheme.onErrorContainer,
+                    titleColor = scheme.onErrorContainer,
+                    iconTint = scheme.onErrorContainer,
                     badgeBg = dangerBadgeBg,
                     onClick = onRemove,
                 )
@@ -968,7 +964,8 @@ private fun DetailSheetDivider(color: androidx.compose.ui.graphics.Color) {
 private fun DetailSheetActionRow(
     icon: Int,
     title: String,
-    tint: androidx.compose.ui.graphics.Color,
+    titleColor: androidx.compose.ui.graphics.Color,
+    iconTint: androidx.compose.ui.graphics.Color,
     badgeBg: androidx.compose.ui.graphics.Color,
     onClick: () -> Unit,
 ) {
@@ -976,7 +973,7 @@ private fun DetailSheetActionRow(
     top.yukonga.miuix.kmp.basic.BasicComponent(
         modifier = Modifier.fillMaxWidth(),
         title = title,
-        titleColor = top.yukonga.miuix.kmp.basic.BasicComponentDefaults.titleColor(color = tint),
+        titleColor = top.yukonga.miuix.kmp.basic.BasicComponentDefaults.titleColor(color = titleColor),
         startAction = {
             Box(
                 modifier = Modifier
@@ -989,7 +986,7 @@ private fun DetailSheetActionRow(
                 Icon(
                     imageVector = ImageVector.vectorResource(icon),
                     contentDescription = null,
-                    tint = tint,
+                    tint = iconTint,
                     modifier = Modifier.size(18.dp),
                 )
             }
