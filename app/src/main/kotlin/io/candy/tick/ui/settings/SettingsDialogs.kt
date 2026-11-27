@@ -240,7 +240,65 @@ private fun CacheCleanupRow(
 /** 字节数格式化（util 单源，与下载进度/资产行共用） */
 private fun formatBytes(bytes: Long): String = io.candy.tick.util.CountFormat.formatBytes(bytes)
 
-/** 导入来源选择浮层（文件 / 剪贴板）：并排两张动作卡片，无单选环 */
+/** 导出去向选择浮层（本地文件 / 剪贴板 / 分享）：三列极简卡片 + 底部格式说明 */
+@Composable
+internal fun ExportDestinationDialog(
+    show: Boolean,
+    onToFile: () -> Unit,
+    onToClipboard: () -> Unit,
+    onShare: () -> Unit,
+    onDismiss: () -> Unit,
+) {
+    io.candy.tick.ui.common.CandySheet(
+        show = show,
+        title = stringResource(R.string.settings_export),
+        onDismissRequest = onDismiss,
+    ) {
+        Column(
+            modifier = Modifier
+                .fillMaxWidth()
+                .verticalScroll(rememberScrollState())
+                .padding(horizontal = 16.dp)
+                .padding(top = 4.dp, bottom = 18.dp),
+            verticalArrangement = Arrangement.spacedBy(12.dp),
+        ) {
+            Row(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .height(IntrinsicSize.Max),
+                horizontalArrangement = Arrangement.spacedBy(8.dp),
+            ) {
+                ActionSourceCard(
+                    iconRes = R.drawable.ic_file,
+                    title = stringResource(R.string.export_to_file),
+                    onClick = onToFile,
+                    modifier = Modifier.weight(1f).fillMaxHeight(),
+                )
+                ActionSourceCard(
+                    iconRes = R.drawable.ic_clipboard,
+                    title = stringResource(R.string.export_to_clipboard),
+                    onClick = onToClipboard,
+                    modifier = Modifier.weight(1f).fillMaxHeight(),
+                )
+                ActionSourceCard(
+                    iconRes = R.drawable.ic_share,
+                    title = stringResource(R.string.export_to_share),
+                    onClick = onShare,
+                    modifier = Modifier.weight(1f).fillMaxHeight(),
+                )
+            }
+            Text(
+                text = stringResource(R.string.export_sheet_hint),
+                style = MiuixTheme.textStyles.footnote1,
+                color = MiuixTheme.colorScheme.onSurfaceContainerVariant,
+                textAlign = TextAlign.Center,
+                modifier = Modifier.fillMaxWidth().padding(horizontal = 4.dp),
+            )
+        }
+    }
+}
+
+/** 导入来源选择浮层（本地文件 / 剪贴板）：两列极简卡片 + 底部格式说明，与导出浮层同源 */
 @Composable
 internal fun ImportSourceDialog(
     show: Boolean,
@@ -258,7 +316,8 @@ internal fun ImportSourceDialog(
                 .fillMaxWidth()
                 .verticalScroll(rememberScrollState())
                 .padding(horizontal = 16.dp)
-                .padding(top = 4.dp, bottom = 16.dp),
+                .padding(top = 4.dp, bottom = 18.dp),
+            verticalArrangement = Arrangement.spacedBy(12.dp),
         ) {
             Row(
                 modifier = Modifier
@@ -266,30 +325,34 @@ internal fun ImportSourceDialog(
                     .height(IntrinsicSize.Max),
                 horizontalArrangement = Arrangement.spacedBy(10.dp),
             ) {
-                ImportSourceCard(
+                ActionSourceCard(
                     iconRes = R.drawable.ic_file,
                     title = stringResource(R.string.import_from_file),
-                    subtitle = stringResource(R.string.import_from_file_hint),
                     onClick = onFromFile,
                     modifier = Modifier.weight(1f).fillMaxHeight(),
                 )
-                ImportSourceCard(
+                ActionSourceCard(
                     iconRes = R.drawable.ic_clipboard,
                     title = stringResource(R.string.import_from_clipboard),
-                    subtitle = stringResource(R.string.import_from_clipboard_hint),
                     onClick = onFromClipboard,
                     modifier = Modifier.weight(1f).fillMaxHeight(),
                 )
             }
+            Text(
+                text = stringResource(R.string.import_sheet_hint),
+                style = MiuixTheme.textStyles.footnote1,
+                color = MiuixTheme.colorScheme.onSurfaceContainerVariant,
+                textAlign = TextAlign.Center,
+                modifier = Modifier.fillMaxWidth().padding(horizontal = 4.dp),
+            )
         }
     }
 }
 
 @Composable
-private fun ImportSourceCard(
+private fun ActionSourceCard(
     iconRes: Int,
     title: String,
-    subtitle: String,
     onClick: () -> Unit,
     modifier: Modifier = Modifier,
 ) {
@@ -309,9 +372,9 @@ private fun ImportSourceCard(
                 role = Role.Button,
                 onClick = onClick,
             )
-            .padding(horizontal = 12.dp, vertical = 18.dp),
+            .padding(horizontal = 6.dp, vertical = 16.dp),
         horizontalAlignment = Alignment.CenterHorizontally,
-        verticalArrangement = Arrangement.spacedBy(8.dp),
+        verticalArrangement = Arrangement.spacedBy(9.dp),
     ) {
         Box(
             modifier = Modifier
@@ -329,18 +392,10 @@ private fun ImportSourceCard(
         }
         Text(
             text = title,
-            style = MiuixTheme.textStyles.body1.copy(fontWeight = FontWeight.Medium),
+            style = MiuixTheme.textStyles.body2.copy(fontWeight = FontWeight.Medium),
             color = scheme.onSurface,
             textAlign = TextAlign.Center,
             maxLines = 1,
-            overflow = TextOverflow.Ellipsis,
-        )
-        Text(
-            text = subtitle,
-            style = MiuixTheme.textStyles.footnote1,
-            color = scheme.onSurfaceContainerVariant,
-            textAlign = TextAlign.Center,
-            maxLines = 2,
             overflow = TextOverflow.Ellipsis,
         )
     }

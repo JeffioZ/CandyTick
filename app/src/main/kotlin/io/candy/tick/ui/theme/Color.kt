@@ -9,15 +9,15 @@ import androidx.compose.ui.graphics.Color
 
 // —— Candy Mint 色阶（在用：200/600/700；其余档位无引用已裁剪）——
 val Mint200 = Color(0xFFB9EDD6)
-val Mint600 = Color(0xFF18936C)
-val Mint700 = Color(0xFF0E7A59)
+val Mint600 = Color(0xFF16A075)
+val Mint700 = Color(0xFF0E805E)
 
 // —— 语义 Token · 浅色主题（3.2）——
-// 主按钮容器：Mint700（白字实测 5.32:1 达 AA）。Mint600 白字仅 3.87:1——按钮字号
-// 15-16sp 属普通文本，够不到大文本豁免线（≥18.66px 加粗），2026-11-21 审计加深一档
-val LightPrimary = Mint700 // 按钮 / Switch 选中态 / 主 CTA
+// 主按钮 / Switch / 进度条采用更鲜活通透的 Mint600（#16A075）；文字、链接与小图标统一走
+// LightPrimaryVariant（Mint700 #0E805E，对白底 4.92:1、对页面底 4.53:1，守住 WCAG AA）
+val LightPrimary = Mint600 // 按钮 / Switch 选中态 / 主 CTA
 val LightOnPrimary = Color(0xFFFFFFFF)
-val LightPrimaryVariant = Mint700 // 链接 / 强调文字
+val LightPrimaryVariant = Mint700 // 链接 / 强调文字 / 小图标
 val LightOnPrimaryVariant = LightOnPrimary
 val LightPrimaryContainer = Color(0xFFD7F5E7) // 选中底 / 填充块
 val LightOnPrimaryContainer = Color(0xFF0B4A37)
@@ -54,8 +54,8 @@ val LightDisabledPrimary = Mint200
 val LightDisabledOnPrimary = LightTextTertiary
 val LightDisabledSecondary = LightSecondaryVariant
 val LightWindowDimming = Color(0x4D000000)
-val LightSliderKeyPoint = Color(0x4D18936C)
-val LightSliderKeyPointForeground = Mint600
+val LightSliderKeyPoint = Color(0x4D16A075)
+val LightSliderKeyPointForeground = LightPrimary
 val LightSliderBackground = Color(0x0F000000)
 
 // —— 语义 Token · 深色主题（3.3，整体提亮一档）——

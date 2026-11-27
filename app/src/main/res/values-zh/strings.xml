@@ -292,8 +292,15 @@
     <string name="empty_import">导入已有订阅</string>
     <string name="settings_backup_group">数据</string>
     <string name="settings_export">导出订阅</string>
-    <string name="settings_export_summary">分享 JSON 备份，较小的备份也会复制到剪贴板</string>
+    <string name="settings_export_summary">保存、复制或分享 JSON 备份</string>
     <string name="export_unavailable">订阅数据未就绪，已取消导出</string>
+    <string name="export_to_file">本地文件</string>
+    <string name="export_to_clipboard">剪贴板</string>
+    <string name="export_to_share">分享</string>
+    <string name="export_sheet_hint">导出当前订阅的 JSON 备份</string>
+    <string name="export_saved">已保存备份文件</string>
+    <string name="export_save_failed">无法保存备份文件</string>
+    <string name="export_too_large_for_clipboard">备份过大，请改用本地文件保存</string>
     <string name="state_corrupt_notice">本地数据异常，订阅已重置（原文件已备份）</string>
     <string name="settings_import">导入订阅</string>
     <string name="settings_import_summary">从文件或剪贴板导入备份</string>
@@ -303,9 +310,8 @@
     <string name="import_no_new">没有可导入的新订阅</string>
     <string name="import_failed">导入失败，请使用 CandyTick 备份</string>
     <string name="import_from_file">本地文件</string>
-    <string name="import_from_file_hint">选择 JSON 备份</string>
     <string name="import_from_clipboard">剪贴板</string>
-    <string name="import_from_clipboard_hint">读取已复制的备份</string>
+    <string name="import_sheet_hint">支持 CandyTick 导出的 JSON 备份</string>
     <string name="settings_theme_mode">深浅模式</string>
     <string name="settings_sync_and_notify">同步与通知</string>
     <string name="settings_sync_frequency">同步频率</string>

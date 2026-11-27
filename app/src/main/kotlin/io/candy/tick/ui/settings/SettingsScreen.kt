@@ -129,8 +129,11 @@ fun SettingsScreen(onBack: () -> Unit, autoOpenImport: Boolean = false) {
         vm.refreshRateLimit()
     }
     // rememberSaveable：空态「导入直达」拉起后旋转屏幕浮层不丢（此前 remember 旋转即关）
+    var showExportDialog by rememberSaveable { mutableStateOf(false) }
     var showImportDialog by rememberSaveable { mutableStateOf(false) }
     var showCacheCleanup by remember { mutableStateOf(false) }
+    // 仅用户手动点击「检查更新」时行尾显示「正在检查…」；后台静默检查不打扰版本号显示
+    var manualChecking by remember { mutableStateOf(false) }
     // 空态「导入已有订阅」直达：先定位到数据分组（弹窗关闭时导入/导出行已在屏上），
     // 再自动拉起导入浮层。一次性消费（rememberSaveable）：旋转/返回重进不重复拉起；
     // scrollToItem 挂起等待首次布局，无需 totalItemsCount 门禁
@@ -160,6 +163,26 @@ fun SettingsScreen(onBack: () -> Unit, autoOpenImport: Boolean = false) {
                 catch (_: SecurityException) { -1 }
             }
             showImportResult(added)
+        }
+    }
+    val exportLauncher = rememberLauncherForActivityResult(ActivityResultContracts.CreateDocument("application/json")) { uri ->
+        if (uri != null) scope.launch {
+            val text = vm.exportSubscriptions()
+            if (text == null) {
+                Feedback.show(resources.getString(R.string.export_unavailable), isError = true, errorCode = "E-EXPORT")
+                return@launch
+            }
+            val saved = withContext(Dispatchers.IO) {
+                try {
+                    // 覆盖已有文件时优先用 "wt" 截断，避免旧文件尾部字节残留导致 JSON 损坏
+                    val stream = runCatching { context.contentResolver.openOutputStream(uri, "wt") }.getOrNull()
+                        ?: context.contentResolver.openOutputStream(uri)
+                    stream?.bufferedWriter(Charsets.UTF_8)?.use { it.write(text) } != null
+                } catch (_: java.io.IOException) { false }
+                catch (_: SecurityException) { false }
+            }
+            if (saved) Feedback.show(resources.getString(R.string.export_saved))
+            else Feedback.show(resources.getString(R.string.export_save_failed), isError = true, errorCode = "E-EXPORT")
         }
     }
 
@@ -362,21 +385,7 @@ fun SettingsScreen(onBack: () -> Unit, autoOpenImport: Boolean = false) {
                     iconTint = ChipAmber,
                     title = stringResource(R.string.settings_export),
                     summary = stringResource(R.string.settings_export_summary),
-                    onClick = {
-                        scope.launch {
-                            val text = vm.exportSubscriptions()
-                            if (text == null) {
-                                // 数据未就绪时中止导出，避免空备份覆盖用户手头的旧备份
-                                Feedback.show(resources.getString(R.string.export_unavailable), isError = true, errorCode = "E-EXPORT")
-                                return@launch
-                            }
-                            if (text.length <= MAX_SHARED_TEXT_CHARS && runCatching {
-                                    clipboard.setPrimaryClip(ClipData.newPlainText(null, text))
-                                }.isSuccess
-                            ) Feedback.show(resources.getString(R.string.toast_copied))
-                            share(text, backup = true)
-                        }
-                    },
+                    onClick = { showExportDialog = true },
                 )
                 RowDivider()
                 SettingRow(
@@ -401,37 +410,49 @@ fun SettingsScreen(onBack: () -> Unit, autoOpenImport: Boolean = false) {
             item(key = "about") {
             SettingsGroup(title = stringResource(R.string.settings_about_group)) {
 
+                val (versionValue, versionMono) = versionRowDisplay(
+                    update = state.selfUpdate,
+                    installed = state.localVersion,
+                    manualChecking = manualChecking,
+                )
                 SettingRow(
                     // 版本行 = 检查更新入口（微信/Telegram/Shizuku 同款惯例）：
-                    // value 随检查状态变化，发现新版由全局 UpdateSheet 弹出
+                    // 常态只展示版本号，仅手动检查时短暂显示「正在检查…」，有新版本/下载失败等可操作状态才切换文案
                     title = stringResource(R.string.settings_current_version_title),
-                    value = versionRowValue(state.selfUpdate, state.localVersion),
+                    value = versionValue,
                     icon = ImageVector.vectorResource(R.drawable.ic_info),
                     iconTint = ChipSlate,
-                    valueMonospace = state.selfUpdate is SelfUpdater.State.NewVersion ||
-                        state.selfUpdate is SelfUpdater.State.Downloaded,
+                    valueMonospace = versionMono,
                     onClick = {
                         // 已下载/下载中：直接重开弹窗（重复检查会覆盖已下载文件）
                         when (state.selfUpdate) {
                             is SelfUpdater.State.Downloaded, is SelfUpdater.State.Downloading ->
                                 io.candy.tick.ui.common.UpdateSheetController.manualRequest = true
-                            // 检查中：无操作（防重复请求烧限额），「正在检查…」已是反馈
-                            is SelfUpdater.State.Checking -> return@SettingRow
-                            else -> scope.launch {
-                                when (val result = vm.checkUpdate()) {
-                                    SelfUpdater.State.UpToDate ->
-                                        io.candy.tick.ui.common.Feedback.show(upToDateMsg)
-                                    is SelfUpdater.State.Failed -> when (result.reason) {
-                                        SelfUpdater.Reason.NETWORK ->
-                                            io.candy.tick.ui.common.Feedback.show(checkFailedMsg, isError = true, errorCode = "E-NET")
-                                        // 限流：Failed 无 tag，弹窗打不开（contentTag=null 被静默消费）——胶囊直接给原因
-                                        SelfUpdater.Reason.RATE_LIMITED ->
-                                            io.candy.tick.ui.common.Feedback.show(rateLimitedMsg, isError = true, errorCode = "HTTP 403")
-                                        else -> io.candy.tick.ui.common.UpdateSheetController.manualRequest = true
+                            else -> {
+                                if (manualChecking) return@SettingRow
+                                manualChecking = true
+                                val alreadyChecking = state.selfUpdate is SelfUpdater.State.Checking
+                                scope.launch {
+                                    val result = try {
+                                        if (alreadyChecking) vm.awaitCheckResult() else vm.checkUpdate()
+                                    } finally {
+                                        manualChecking = false
                                     }
-                                    is SelfUpdater.State.NewVersion, is SelfUpdater.State.Downloaded ->
-                                        io.candy.tick.ui.common.UpdateSheetController.manualRequest = true
-                                    else -> Unit
+                                    when (result) {
+                                        SelfUpdater.State.UpToDate ->
+                                            io.candy.tick.ui.common.Feedback.show(upToDateMsg)
+                                        is SelfUpdater.State.Failed -> when (result.reason) {
+                                            SelfUpdater.Reason.NETWORK ->
+                                                io.candy.tick.ui.common.Feedback.show(checkFailedMsg, isError = true, errorCode = "E-NET")
+                                            // 限流：Failed 无 tag，弹窗打不开（contentTag=null 被静默消费）——胶囊直接给原因
+                                            SelfUpdater.Reason.RATE_LIMITED ->
+                                                io.candy.tick.ui.common.Feedback.show(rateLimitedMsg, isError = true, errorCode = "HTTP 403")
+                                            else -> io.candy.tick.ui.common.UpdateSheetController.manualRequest = true
+                                        }
+                                        is SelfUpdater.State.NewVersion, is SelfUpdater.State.Downloaded ->
+                                            io.candy.tick.ui.common.UpdateSheetController.manualRequest = true
+                                        else -> Unit
+                                    }
                                 }
                             }
                         }
@@ -523,6 +544,57 @@ fun SettingsScreen(onBack: () -> Unit, autoOpenImport: Boolean = false) {
         onDismiss = { showLanguageSheet = false },
     )
 
+    // 导出去向选择浮层（本地文件 / 剪贴板 / 分享给其他应用）：与导入浮层对称
+    ExportDestinationDialog(
+        show = showExportDialog,
+        onToFile = {
+            showExportDialog = false
+            scope.launch {
+                if (vm.exportSubscriptions() == null) {
+                    Feedback.show(resources.getString(R.string.export_unavailable), isError = true, errorCode = "E-EXPORT")
+                    return@launch
+                }
+                val stamp = java.text.SimpleDateFormat("yyyyMMdd", java.util.Locale.US).format(java.util.Date())
+                runCatching {
+                    exportLauncher.launch("candytick-backup-$stamp.json")
+                }.onFailure {
+                    Feedback.show(resources.getString(R.string.file_picker_unavailable), isError = true, errorCode = "E-PICK")
+                }
+            }
+        },
+        onToClipboard = {
+            showExportDialog = false
+            scope.launch {
+                val text = vm.exportSubscriptions()
+                if (text == null) {
+                    Feedback.show(resources.getString(R.string.export_unavailable), isError = true, errorCode = "E-EXPORT")
+                    return@launch
+                }
+                if (text.length > MAX_SHARED_TEXT_CHARS) {
+                    Feedback.show(resources.getString(R.string.export_too_large_for_clipboard), isError = true, errorCode = "E-EXPORT")
+                    return@launch
+                }
+                if (runCatching { clipboard.setPrimaryClip(ClipData.newPlainText(null, text)) }.isSuccess) {
+                    Feedback.show(resources.getString(R.string.toast_copied))
+                } else {
+                    Feedback.show(resources.getString(R.string.export_save_failed), isError = true, errorCode = "E-EXPORT")
+                }
+            }
+        },
+        onShare = {
+            showExportDialog = false
+            scope.launch {
+                val text = vm.exportSubscriptions()
+                if (text == null) {
+                    Feedback.show(resources.getString(R.string.export_unavailable), isError = true, errorCode = "E-EXPORT")
+                    return@launch
+                }
+                share(text, backup = true)
+            }
+        },
+        onDismiss = { showExportDialog = false },
+    )
+
     // 导入来源选择弹窗（文件 / 剪贴板）：show 直通，退场有动效
     ImportSourceDialog(
         show = showImportDialog,
@@ -603,32 +675,32 @@ private fun appIconModeLabel(mode: io.candy.tick.data.model.AppIconMode): String
     },
 )
 
-/** 版本行 value：版本号常驻（用户始终可见），检查状态作前/后缀 */
+/** 版本行 value 与等宽标记：常态与瞬时结果统一显示干净版本号，仅手动检查中或可操作状态切换文案 */
 @Composable
-private fun versionRowValue(update: SelfUpdater.State, installed: String?): String {
+private fun versionRowDisplay(
+    update: SelfUpdater.State,
+    installed: String?,
+    manualChecking: Boolean,
+): Pair<String, Boolean> {
+    if (manualChecking) return stringResource(R.string.settings_checking) to false
     val localVersion = installed?.let(VersionCompare::displayVersion) ?: stringResource(R.string.status_unknown)
-    val upToDate = stringResource(R.string.version_local_current)
+    val localMono = installed != null
     return when (update) {
-        is SelfUpdater.State.Checking -> stringResource(R.string.settings_checking)
-        is SelfUpdater.State.UpToDate -> "$upToDate · $localVersion"
         is SelfUpdater.State.NewVersion ->
             // 无法比较版本：明说「无法比较」，不宣称「有更新」（design.md:183）
             if (update.incomparable) {
-                stringResource(R.string.settings_new_release_incomparable, VersionCompare.displayVersion(update.tag))
+                stringResource(R.string.settings_new_release_incomparable, VersionCompare.displayVersion(update.tag)) to false
             } else {
-                VersionCompare.displayVersion(update.tag)
+                VersionCompare.displayVersion(update.tag) to true
             }
-        is SelfUpdater.State.Downloaded -> VersionCompare.displayVersion(update.tag)
-        is SelfUpdater.State.Failed ->
-            // 失败细分（此前下载失败被显示成「检查失败」）
-            stringResource(
-                when (update.reason) {
-                    SelfUpdater.Reason.DOWNLOAD -> R.string.settings_download_failed
-                    SelfUpdater.Reason.INSTALL -> R.string.settings_install_failed
-                    else -> R.string.settings_update_failed
-                },
-            ) + " · $localVersion"
-        else -> localVersion
+        is SelfUpdater.State.Downloaded -> VersionCompare.displayVersion(update.tag) to true
+        is SelfUpdater.State.Failed -> when (update.reason) {
+            SelfUpdater.Reason.DOWNLOAD -> stringResource(R.string.settings_download_failed) to false
+            SelfUpdater.Reason.INSTALL -> stringResource(R.string.settings_install_failed) to false
+            // 网络/限流失败已有手动点击 Toast，后台失败不污染版本号行
+            else -> localVersion to localMono
+        }
+        else -> localVersion to localMono
     }
 }
 

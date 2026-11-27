@@ -313,8 +313,15 @@
     <string name="empty_import">Import subscriptions</string>
     <string name="settings_backup_group">Data</string>
     <string name="settings_export">Export subscriptions</string>
-    <string name="settings_export_summary">Share a JSON backup; small ones copy too</string>
+    <string name="settings_export_summary">Save, copy, or share a JSON backup</string>
     <string name="export_unavailable">Subscriptions aren’t ready; export cancelled</string>
+    <string name="export_to_file">File</string>
+    <string name="export_to_clipboard">Clipboard</string>
+    <string name="export_to_share">Share</string>
+    <string name="export_sheet_hint">Export your subscriptions as JSON</string>
+    <string name="export_saved">Backup saved</string>
+    <string name="export_save_failed">Couldn’t save the backup</string>
+    <string name="export_too_large_for_clipboard">Backup is too large; save as a file instead</string>
     <string name="state_corrupt_notice">Local data was unreadable; subscriptions were reset (a backup copy was kept)</string>
     <string name="settings_import">Import subscriptions</string>
     <string name="settings_import_summary">Import from a file or the clipboard</string>
@@ -324,10 +331,9 @@
     </plurals>
     <string name="import_no_new">No new subscriptions to import</string>
     <string name="import_failed">Import failed · Use a CandyTick backup</string>
-    <string name="import_from_file">Local file</string>
-    <string name="import_from_file_hint">Pick a JSON backup</string>
+    <string name="import_from_file">File</string>
     <string name="import_from_clipboard">Clipboard</string>
-    <string name="import_from_clipboard_hint">Read copied backup</string>
+    <string name="import_sheet_hint">Supports CandyTick JSON backups</string>
     <string name="settings_theme_mode">Theme</string>
     <string name="settings_sync_and_notify">Sync &amp; notifications</string>
     <string name="settings_sync_frequency">Sync frequency</string>

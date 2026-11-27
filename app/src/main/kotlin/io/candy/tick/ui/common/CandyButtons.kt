@@ -68,7 +68,7 @@ fun PrimaryButton(
     // 忙碌态保持主题色柔化而非硬跳浅灰禁用色，状态切换平滑过渡不突兀
     val targetBg = when {
         interactive -> scheme.primary
-        busy -> scheme.primary.copy(alpha = 0.72f)
+        busy -> scheme.primary.copy(alpha = 0.80f)
         else -> scheme.disabledPrimaryButton
     }
     val targetTextColor = when {

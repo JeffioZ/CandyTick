@@ -21,6 +21,7 @@ import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.combine
+import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.launch
 
@@ -294,5 +295,9 @@ class SettingsViewModel(
         selfUpdater.check()
         return selfUpdater.state.value
     }
+
+    /** 后台检查已在进行时直接等待当前结果，避免重复请求烧限额 */
+    suspend fun awaitCheckResult(): SelfUpdater.State =
+        selfUpdater.state.first { it !is SelfUpdater.State.Checking }
 
 }
