@@ -7,27 +7,27 @@
 <p>无需登录即可订阅公开仓库，按分支浏览提交记录，<br>阅读发布说明，并在新版本发布时收到提醒。</p>
 
 <p>
-  <a href="https://github.com/JeffioZ/CandyTick/releases/latest"><img alt="最新版本" src="https://img.shields.io/github/v/release/JeffioZ/CandyTick?display_name=tag&sort=semver&style=flat&color=14755B"></a>
-  <a href="https://github.com/JeffioZ/CandyTick/releases"><img alt="下载总量" src="https://img.shields.io/github/downloads/JeffioZ/CandyTick/total?style=flat&label=downloads&color=0F9D7A"></a>
-  <img alt="Android 10 及以上" src="https://img.shields.io/badge/Android-10%2B%20%28API%2029%2B%29-32674F?style=flat&logo=android&logoColor=white">
+  <a href="https://github.com/JeffioZ/CandyTick/releases/latest"><img alt="最新版本" src="https://img.shields.io/github/v/release/JeffioZ/CandyTick?display_name=tag&sort=semver&style=flat&color=0E805E"></a>
+  <a href="https://github.com/JeffioZ/CandyTick/releases"><img alt="下载总量" src="https://img.shields.io/github/downloads/JeffioZ/CandyTick/total?style=flat&label=downloads&color=16A075"></a>
+  <img alt="Android 10 及以上" src="https://img.shields.io/badge/Android-10%2B%20%28API%2029%2B%29-0E805E?style=flat&logo=android&logoColor=white">
   <a href="LICENSE"><img alt="GPL-3.0 许可证" src="https://img.shields.io/github/license/JeffioZ/CandyTick?style=flat&color=3C6284&label=GPL--3.0"></a>
   <a href="https://github.com/JeffioZ/CandyTick/stargazers"><img alt="星标" src="https://img.shields.io/github/stars/JeffioZ/CandyTick?style=flat&color=806119"></a>
 </p>
 
 <p>
-  <a href="https://github.com/JeffioZ/CandyTick/releases/latest"><img alt="下载最新版 APK" src="https://img.shields.io/badge/下载-最新版%20APK-14755B?style=for-the-badge&logo=github&logoColor=white"></a>
+  <a href="https://github.com/JeffioZ/CandyTick/releases/latest"><img alt="下载最新版 APK" src="https://img.shields.io/badge/下载-最新版%20APK-16A075?style=for-the-badge&logo=github&logoColor=white"></a>
 </p>
 
 <p><a href="README.en.md">English</a></p>
 
 </div>
 
-> **系统要求：** Android 10（API 29）及以上。安装包为 32 位与 64 位 ARM 通用，覆盖绝大多数设备。
+> **系统要求：** Android 10（API 29）及以上。约 2 MB 通用 ARM 安装包，兼容绝大多数 Android 手机与平板。
 
 ## 🏠 首页
 
-<p align="center"><sub>订阅的仓库以卡片呈现，随刷新保持当前阅读位置。<br>
-按最近推送、可用更新、活跃程度等五种方式排序，支持反向排列。</sub></p>
+<p align="center"><sub>订阅的仓库以卡片呈现，刷新与阅读时保持当前位置不跳屏。<br>
+支持按最近推送、可用更新、活跃程度等五种方式排序，均可反向排列。</sub></p>
 
 <p align="center">
   <a href="docs/fastlane/metadata/android/zh-CN/images/phoneScreenshots/1.png"><img src="docs/fastlane/metadata/android/zh-CN/images/phoneScreenshots/1.png" alt="浅色模式下的首页，列出订阅的仓库及其活跃程度" width="42%"></a>
@@ -39,14 +39,15 @@
 
 | | 功能 | 说明 |
 | --- | --- | --- |
-| 📬 | **订阅仓库** | 粘贴链接、按名称或关键词搜索，无需登录 GitHub 账号。 |
+| 📬 | **订阅仓库** | 粘贴链接、输入仓库名或按关键词搜索，无需登录 GitHub 账号。 |
 | 📜 | **浏览动态** | 按分支查看提交记录，在版本历史中阅读 Markdown 发布说明，`#123` 编号可直达 Issue。 |
-| 📲 | **更新应用** | 自动识别仓库对应的本机应用并比较版本；多安装包时按设备架构推荐合适的安装包。 |
-| 🔔 | **更新提醒** | 后台定期同步，发现新版安装包时通知你，可限制仅在不计费网络下自动同步。 |
-| 📌 | **整理订阅** | 置顶常看的仓库、按名称搜索、按活跃度或可用更新排序，删除后可撤销。 |
-| 💾 | **备份迁移** | 将订阅导出为 JSON，换机后直接导入；已订阅的仓库会自动跳过。 |
+| 📲 | **更新应用** | 自动识别仓库对应的本机应用并对比版本；多安装包时按设备架构推荐合适版本，应用自身也支持一键检查并更新。 |
+| 🔔 | **更新提醒** | 后台定期同步，发现新版安装包时及时通知；可设为使用移动数据时暂停自动同步。 |
+| 📌 | **整理订阅** | 置顶常看仓库、按名称搜索、五种排序方式自由切换，滑删后支持撤销。 |
+| 💾 | **备份迁移** | 支持将订阅保存为本地 JSON 文件、复制到剪贴板或直接分享；导入时自动跳过已订阅仓库。 |
+| 🎨 | **外观与语言** | 支持浅色 / 深色 / 跟随系统、三套可切换桌面图标与中英文切换。 |
 
-**轻量为本：** CandyTick 不需要账号、不依赖云服务，所有数据留在本机。订阅公开仓库的匿名请求限额为每小时 60 次；在设置中添加 [GitHub 令牌](https://docs.github.com/zh/rest/using-the-rest-api/rate-limits-for-the-rest-api)可提高到 5,000 次。
+**轻量为本：** 安装包仅约 2 MB，无需账号、不依赖云服务，所有数据留在本地。公开仓库匿名请求限额为每小时 60 次；在设置中添加 [GitHub 令牌](https://docs.github.com/zh/rest/using-the-rest-api/rate-limits-for-the-rest-api)可提升至 5,000 次。
 
 ## 🚀 快速上手
 
@@ -65,7 +66,7 @@
 
 ## 🔨 从源码构建
 
-发布构建使用 JDK 21，所需 Android SDK 平台见[应用构建配置](app/build.gradle.kts)。要试用主分支上[尚未发布的改动](CHANGELOG.md#未发布)，可在项目根目录构建调试包。
+发布构建使用 JDK 21，所需 Android SDK 平台见[应用构建配置](app/build.gradle.kts)。想体验主分支最新改动，可在项目根目录直接构建调试包：
 
 ```sh
 bash gradlew assembleDebug

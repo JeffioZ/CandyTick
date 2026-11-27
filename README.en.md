@@ -7,26 +7,26 @@
 <p>Subscribe to public repositories without an account, browse commits by branch,<br>read release notes, and get notified when a new version is published.</p>
 
 <p>
-  <a href="https://github.com/JeffioZ/CandyTick/releases/latest"><img alt="Latest release" src="https://img.shields.io/github/v/release/JeffioZ/CandyTick?display_name=tag&sort=semver&style=flat&color=14755B"></a>
-  <a href="https://github.com/JeffioZ/CandyTick/releases"><img alt="Total downloads" src="https://img.shields.io/github/downloads/JeffioZ/CandyTick/total?style=flat&label=downloads&color=0F9D7A"></a>
-  <img alt="Android 10 or later" src="https://img.shields.io/badge/Android-10%2B%20%28API%2029%2B%29-32674F?style=flat&logo=android&logoColor=white">
+  <a href="https://github.com/JeffioZ/CandyTick/releases/latest"><img alt="Latest release" src="https://img.shields.io/github/v/release/JeffioZ/CandyTick?display_name=tag&sort=semver&style=flat&color=0E805E"></a>
+  <a href="https://github.com/JeffioZ/CandyTick/releases"><img alt="Total downloads" src="https://img.shields.io/github/downloads/JeffioZ/CandyTick/total?style=flat&label=downloads&color=16A075"></a>
+  <img alt="Android 10 or later" src="https://img.shields.io/badge/Android-10%2B%20%28API%2029%2B%29-0E805E?style=flat&logo=android&logoColor=white">
   <a href="LICENSE"><img alt="GPL-3.0 license" src="https://img.shields.io/github/license/JeffioZ/CandyTick?style=flat&color=3C6284&label=GPL--3.0"></a>
   <a href="https://github.com/JeffioZ/CandyTick/stargazers"><img alt="Stars" src="https://img.shields.io/github/stars/JeffioZ/CandyTick?style=flat&color=806119"></a>
 </p>
 
 <p>
-  <a href="https://github.com/JeffioZ/CandyTick/releases/latest"><img alt="Download the latest APK" src="https://img.shields.io/badge/Download-Latest%20APK-14755B?style=for-the-badge&logo=github&logoColor=white"></a>
+  <a href="https://github.com/JeffioZ/CandyTick/releases/latest"><img alt="Download the latest APK" src="https://img.shields.io/badge/Download-Latest%20APK-16A075?style=for-the-badge&logo=github&logoColor=white"></a>
 </p>
 
 <p><a href="README.md">简体中文</a></p>
 
 </div>
 
-> **System requirements:** Android 10 (API 29) or later. The APK covers both 32- and 64-bit ARM, which suits most devices.
+> **System requirements:** Android 10 (API 29) or later. Universal ~2 MB ARM APK compatible with most Android phones and tablets.
 
 ## 🏠 Home
 
-<p align="center"><sub>Subscribed repositories appear as cards that keep your reading position across refreshes.<br>
+<p align="center"><sub>Subscribed repositories appear as cards that keep your reading position steady across refreshes.<br>
 Sort five ways — recent pushes, available updates, activity, and more — each reversible.</sub></p>
 
 <p align="center">
@@ -41,12 +41,13 @@ Sort five ways — recent pushes, available updates, activity, and more — each
 | --- | --- | --- |
 | 📬 | **Subscribe** | Paste a link, type a repository name, or search by keyword — no GitHub account needed. |
 | 📜 | **Browse activity** | Read commits by branch and Markdown release notes; `#123` links straight to the issue. |
-| 📲 | **Update apps** | Matches each repository to its installed app and compares versions; when a release has several packages, recommends the right one for your device. |
-| 🔔 | **Notifications** | Background sync checks for new packages and notifies you; automatic checks can wait for unmetered networks. |
-| 📌 | **Organize** | Pin what you check often, search by name, sort by activity or available updates, and undo a deletion. |
-| 💾 | **Backup** | Export subscriptions as JSON and import them on another device; repositories you already subscribe to are skipped. |
+| 📲 | **Update apps** | Matches each repository to its installed app, compares versions, and recommends the right APK for your device; includes built-in self-updates too. |
+| 🔔 | **Notifications** | Background sync notifies you when new packages land, with an option to pause auto-sync on mobile data. |
+| 📌 | **Organize** | Pin favorites, search by name, sort five ways, and undo accidental deletions. |
+| 💾 | **Backup** | Save subscriptions to a local JSON file, copy to clipboard, or share; importing automatically skips duplicates. |
+| 🎨 | **Appearance** | Light, dark, or system theme, three switchable launcher icons, and English / Chinese support. |
 
-**Small by design:** CandyTick needs no account and no cloud service — all data stays on your device. Anonymous requests are limited to 60 per hour; adding a [GitHub token](https://docs.github.com/en/rest/using-the-rest-api/rate-limits-for-the-rest-api) in Settings raises it to 5,000.
+**Small by design:** ~2 MB APK, no account, no cloud service — all data stays on your device. Anonymous requests are limited to 60 per hour; adding a [GitHub token](https://docs.github.com/en/rest/using-the-rest-api/rate-limits-for-the-rest-api) in Settings raises it to 5,000.
 
 ## 🚀 Get Started
 
@@ -65,7 +66,7 @@ Want updates for a specific app? Add its GitHub repository — CandyTick links a
 
 ## 🔨 Build from source
 
-Release builds use JDK 21. See the [app build configuration](app/build.gradle.kts) for the required Android SDK platform. To try [unreleased changes](CHANGELOG.md#未发布) on the main branch, build a debug APK from the project root.
+Release builds use JDK 21. See the [app build configuration](app/build.gradle.kts) for the required Android SDK platform. To try the latest changes on `main`, build a debug APK from the project root:
 
 ```sh
 bash gradlew assembleDebug
