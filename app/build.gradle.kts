@@ -13,8 +13,8 @@ android {
         applicationId = "io.candy.tick"
         minSdk = 29
         targetSdk = 37
-        versionCode = 14
-        versionName = "0.7.1"
+        versionCode = 15
+        versionName = "0.7.2"
     }
 
     // 正式签名（keystore.properties 不入库，本地读取）

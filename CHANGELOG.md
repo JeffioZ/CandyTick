@@ -10,7 +10,8 @@
 在相应版本的中文条目后附英文摘要。发版工作流会提取整个版本章节作为 GitHub Release 正文。
 -->
 
-[未发布]: https://github.com/JeffioZ/CandyTick/compare/v0.7.1...main
+[未发布]: https://github.com/JeffioZ/CandyTick/compare/v0.7.2...main
+[0.7.2]: https://github.com/JeffioZ/CandyTick/releases/tag/v0.7.2
 [0.7.1]: https://github.com/JeffioZ/CandyTick/releases/tag/v0.7.1
 [0.7.0]: https://github.com/JeffioZ/CandyTick/releases/tag/v0.7.0
 [0.6.0]: https://github.com/JeffioZ/CandyTick/releases/tag/v0.6.0
@@ -25,6 +26,31 @@
 [0.2.1]: https://github.com/JeffioZ/CandyTick/releases/tag/v0.2.1
 [0.2.0]: https://github.com/JeffioZ/CandyTick/releases/tag/v0.2.0
 [0.1.0]: https://github.com/JeffioZ/CandyTick/releases/tag/v0.1.0
+
+## [0.7.2]
+
+### 新增
+
+- 「导出订阅」新增应用内三列导出去向浮层（本地文件 / 剪贴板 / 分享），支持直接通过系统文件选择器保存 JSON 备份文件，按需再唤起系统分享面板。
+
+### 优化
+
+- 首页列表排序与同步重排体验升级：在列表顶部切换排序维度、反转升降序或刷新发现新版本时，卡片以无回弹柔和物理弹簧平滑滑位，上移卡片临时浮于上层，屏外新进卡片原地轻淡入；滚动至半路/底部时后台自动同步继续锁定阅读顺序，杜绝跳屏。
+- 浅色主题主色提亮为更清透的薄荷翠（`#16A075`），下载主按钮、开关开启态与进度条更清爽，白底文字与图标统一采用 `#0E805E` 保持 WCAG AA 可读性。
+- 未关联本地应用的仓库头像升级为 8 组 WCAG AA 现代渐变底色，按 `owner/repo` 均匀着色，并支持英文双字母与中文单字智能缩写。
+- 应用自身更新浮层优化：顶部单行版本条新增相对发布时间展示，点击下载后版本条与更新日志全程常驻不隐藏、仅底部动作区原地切换为进度条与安装按钮，并均衡调整各区块纵向间距。
+- 全面统一应用内浮层设计语言：详情页「更多操作」改为淡薄荷图标徽章与克制中性危险卡片；「清理缓存」合并为单张软底分组卡与缩进分割线；「导入订阅」对齐为同款极简卡片浮层；「同步频率」升级为单行 4 列可视化缩略图，「深浅模式」「应用语言」同步精修缩略图与等高对齐；非搜索浮层留白与圆角阶梯全面统一。
+- 设置页「检查更新」行在后台静默检查与瞬时检查失败时保持干净版本号常驻，仅手动点击时短暂显示检查中并复用在途请求。
+
+### English summary
+
+- Added an in-app 3-column Export Subscriptions sheet (File / Clipboard / Share) with direct SAF JSON file saving so the system share sheet only opens when requested.
+- Upgraded home list sort and sync reorders at the top of the list with a smooth no-bounce spring placement animation (upward cards layered above, newcomers gently fading in) while keeping reading order locked when scrolled down.
+- Brightened the light-theme primary mint to `#16A075` for buttons, switches, and progress indicators while keeping `#0E805E` for WCAG AA text and icons.
+- Upgraded unlinked repository avatars with 8 WCAG-AA gradients, `owner/repo` hashing, and smart dual-letter English / single-character CJK monograms.
+- Refined the self-update sheet to show relative release time in the version banner, keep release notes visible throughout download and install states, and balance vertical spacing.
+- Unified sheet design language across the app (mint icon badges and calm danger row in More Actions, single grouped card with inset divider in Cache Cleanup, matching minimal Import sheet, single-row 4-column Sync Frequency picker, refined Theme/Language thumbnails, and consistent radii/spacing).
+- Kept the Settings Check for Updates row showing a clean monospace version during silent background checks, showing "Checking…" only on manual tap and reusing in-flight checks.
 
 ## [0.7.1]
 
