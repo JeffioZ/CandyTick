@@ -71,7 +71,9 @@ private fun contentTagOf(state: SelfUpdater.State): String? = when (state) {
 @Composable
 fun UpdateSheet(selfUpdater: SelfUpdater) {
     val state by selfUpdater.state.collectAsStateWithLifecycle()
+    val releaseMeta by selfUpdater.releaseMeta.collectAsStateWithLifecycle()
     val localVersion = remember(selfUpdater) { selfUpdater.localVersionName() }
+    val upToDateMsg = stringResource(R.string.version_local_current)
     var show by rememberSaveable { mutableStateOf(false) }
     var dismissedTag by rememberSaveable { mutableStateOf<String?>(null) }
     val scope = rememberCoroutineScope()
@@ -113,7 +115,7 @@ fun UpdateSheet(selfUpdater: SelfUpdater) {
     }
 
     // show 直通（勿用 if 包裹）：退场动画依赖组件持续组合（与全 App 弹层同一约定）
-    val scroll = key(release?.tag) { rememberScrollState() }
+    val scroll = key(contentTag) { rememberScrollState() }
     CandySheet(
         show = show,
         onDismissRequest = {
@@ -134,195 +136,222 @@ fun UpdateSheet(selfUpdater: SelfUpdater) {
         BoxWithConstraints(
             modifier = Modifier
                 .padding(horizontal = 16.dp)
-                .padding(top = 4.dp),
+                .padding(top = 8.dp),
         ) {
             // Keep the action ahead of the notes when a full notes pane would crowd it out.
-            val notesHeight = 280.dp
-            val shortBody = maxHeight < notesHeight + 160.dp * LocalDensity.current.fontScale
+            val notesHeight = 260.dp
+            val shortBody = maxHeight < notesHeight + 170.dp * LocalDensity.current.fontScale
             val motionEnabled = rememberMotionEnabled()
-            // 四相柔切换（与仓库下载四相同款 180 档）：新版 → 进度 → 安装 / 失败不硬跳。
-            // Failed 此前映射 idle 只渲染空白——下载失败时弹窗只剩标题，看起来像界面坏了
-            androidx.compose.animation.AnimatedContent(
-                targetState = state,
-                contentKey = { it::class },
-                modifier = Modifier.fillMaxWidth().then(if (shortBody) Modifier.verticalScroll(scroll) else Modifier),
-                transitionSpec = { downloadActionTransition(duration = if (motionEnabled) Motion.PHASE else 0) },
-                label = "updatePhase",
-            ) { phase ->
-                // An outgoing phase stays composed during the fade and may still receive a tap.
-                fun runAction(action: suspend () -> Unit) {
-                    scope.launch { if (show && selfUpdater.state.value == phase) action() }
+
+            // 与当前 tag 匹配的元数据：下载中/已下载/失败阶段均持续保留版本体积、发布时间与更新日志
+            val matchedMeta = releaseMeta?.takeIf { it.tag == contentTag }
+            val activeNotes = release?.notes ?: matchedMeta?.notes
+            val activePublishedAt = release?.publishedAt ?: matchedMeta?.publishedAt
+            val downloadedFileSize = remember(downloaded?.file) {
+                downloaded?.file?.length()?.takeIf { it > 0L }
+            }
+            val activeSizeBytes = release?.asset?.size?.takeIf { it > 0L }
+                ?: downloadedFileSize
+                ?: matchedMeta?.sizeBytes
+
+            val notesBlock: @Composable () -> Unit = {
+                if (contentTag != null && activeNotes != null) {
+                    val slug = "${SelfUpdater.APP_OWNER}/${SelfUpdater.APP_REPO}"
+                    ReleaseNotesBody(
+                        markdown = activeNotes,
+                        repoSlug = slug,
+                        repoUrl = "https://github.com/$slug",
+                        tag = contentTag,
+                        maxHeight = if (shortBody) null else notesHeight,
+                        spaceAfter = 0.dp,
+                        showSource = false,
+                        scrollState = scroll,
+                    )
                 }
-                val sectionGap = 10.dp
-                Column(
-                    modifier = Modifier.padding(bottom = 16.dp),
-                    verticalArrangement = Arrangement.spacedBy(sectionGap),
-                ) {
-                    when (phase) {
-                        is SelfUpdater.State.NewVersion -> {
-                            val s = phase
-                            // 醒目版本信息条：展示当前 → 目标版本与安装包体积（无框柔和实色层）
-                            UpdateVersionBanner(
-                                localVersion = localVersion,
-                                targetTag = s.tag,
-                                sizeBytes = s.asset?.size,
-                                showArrow = !s.incomparable,
-                            )
-                            // 无法比较版本：如实说明，不宣称「有更新」（design.md:183/294）
-                            if (s.incomparable) {
-                                Text(
-                                    text = stringResource(R.string.self_update_incomparable_note),
-                                    style = MiuixTheme.textStyles.footnote1,
-                                    color = MiuixTheme.colorScheme.onBackgroundVariant,
-                                )
-                            }
-                            val releaseNotes: @Composable () -> Unit = {
-                                s.notes?.let { notes ->
-                                    val slug = "${SelfUpdater.APP_OWNER}/${SelfUpdater.APP_REPO}"
-                                    ReleaseNotesBody(
-                                        markdown = notes,
-                                        repoSlug = slug,
-                                        repoUrl = "https://github.com/$slug",
-                                        tag = s.tag,
-                                        maxHeight = if (shortBody) null else notesHeight,
-                                        spaceAfter = sectionGap,
-                                        showSource = false,
-                                        scrollState = scroll,
-                                    )
-                                }
-                            }
-                            if (!shortBody) releaseNotes()
-                            if (s.asset == null) {
-                                Column {
-                                    Text(
-                                        text = stringResource(R.string.self_update_no_apk),
-                                        style = MiuixTheme.textStyles.footnote1,
-                                        color = MiuixTheme.colorScheme.onBackgroundVariant,
-                                    )
-                                    val uriHandler = rememberExternalUriHandler()
-                                    LinkText(
-                                        text = stringResource(R.string.self_update_view_releases),
-                                        onClick = {
-                                            val slug = "${SelfUpdater.APP_OWNER}/${SelfUpdater.APP_REPO}"
-                                            uriHandler.openUri("https://github.com/$slug/releases")
-                                        },
-                                        showIcon = true,
-                                        // 图标与上方提示文字左缘对齐
-                                        alignInk = true,
-                                    )
-                                }
-                            } else {
-                                PrimaryButton(
-                                    text = stringResource(R.string.download_update_action),
-                                    onClick = { runAction { selfUpdater.requestManualDownload(s) } },
-                                    modifier = Modifier.fillMaxWidth(),
-                                )
-                            }
-                            if (shortBody) releaseNotes()
-                        }
-                        is SelfUpdater.State.Downloading -> {
-                            UpdateVersionBanner(
-                                localVersion = localVersion,
-                                targetTag = phase.tag,
-                                showArrow = localVersion != null && (VersionCompare.compare(phase.tag, localVersion) ?: 0) > 0,
-                            )
-                            DownloadProgress(phase.progress)
-                        }
-                        is SelfUpdater.State.Downloaded -> {
-                            val checked = lastCheck?.takeIf { it.first == phase }?.second
-                            val fileSize = remember(phase.file) { phase.file.length().takeIf { it > 0L } }
-                            UpdateVersionBanner(
-                                localVersion = localVersion,
-                                targetTag = if (checked == phase) stringResource(R.string.version_latest_only, phase.tag) else phase.tag,
-                                sizeBytes = fileSize,
-                                showArrow = checked != phase && localVersion != null &&
-                                    (VersionCompare.compare(phase.tag, localVersion) ?: 0) > 0,
-                            )
-                            if (checked is SelfUpdater.State.Failed) {
-                                InlineErrorRow(
-                                    message = stringResource(
-                                        if (checked.reason == SelfUpdater.Reason.RATE_LIMITED) R.string.err_rate_limited_plain
-                                        else R.string.settings_update_failed,
-                                    ),
-                                    onRetry = null,
-                                )
-                            }
-                            PrimaryButton(
-                                text = stringResource(R.string.settings_install_update),
-                                onClick = { runAction { selfUpdater.installDownloaded(phase) } },
-                                modifier = Modifier.fillMaxWidth(),
-                            )
-                            SecondaryButton(
-                                text = stringResource(R.string.settings_current_version_title),
-                                onClick = { runAction {
-                                    lastCheck = null
-                                    val result = selfUpdater.recheckDownloaded(phase)
-                                    if (result != null && selfUpdater.state.value == phase) lastCheck = phase to result
-                                } },
-                                modifier = Modifier.fillMaxWidth(),
-                            )
-                        }
-                        is SelfUpdater.State.Failed -> {
-                            val f = phase
-                            // 失败相（此前是空白 + 弹窗只剩标题）：错误条 + 对应出路
-                            InlineErrorRow(
-                                message = when (f.reason) {
-                                    SelfUpdater.Reason.INSTALL ->
-                                        Feedback.withErrorCode(stringResource(R.string.self_update_install_failed_note), "E-APK")
-                                    SelfUpdater.Reason.DOWNLOAD ->
-                                        Feedback.withErrorCode(stringResource(R.string.settings_download_failed), "E-DL")
-                                    SelfUpdater.Reason.NETWORK ->
-                                        Feedback.withErrorCode(stringResource(R.string.settings_update_failed), "E-NET")
-                                    SelfUpdater.Reason.RATE_LIMITED ->
-                                        Feedback.withErrorCode(stringResource(R.string.err_rate_limited_plain), "HTTP 403")
-                                },
-                                onRetry = null,
-                            )
-                            when (f.reason) {
-                                SelfUpdater.Reason.DOWNLOAD -> {
-                                    PrimaryButton(
-                                        text = stringResource(R.string.retry),
-                                        onClick = { runAction { selfUpdater.requestManualDownload(f) } },
-                                        modifier = Modifier.fillMaxWidth(),
-                                    )
-                                    f.downloaded?.let { saved ->
-                                        SecondaryButton(
-                                            text = stringResource(R.string.self_update_install_saved_version, saved.tag),
-                                            onClick = { runAction { selfUpdater.installDownloaded(f) } },
-                                            modifier = Modifier.fillMaxWidth(),
+            }
+
+            // 仅底部动作区随阶段平滑切换；上方版本信息条与更新日志常驻不闪、不塌陷
+            val actionZone: @Composable () -> Unit = {
+                androidx.compose.animation.AnimatedContent(
+                    targetState = state,
+                    contentKey = { it::class },
+                    modifier = Modifier.fillMaxWidth(),
+                    transitionSpec = { downloadActionTransition(duration = if (motionEnabled) Motion.PHASE else 0) },
+                    label = "updatePhase",
+                ) { phase ->
+                    // An outgoing phase stays composed during the fade and may still receive a tap.
+                    fun runAction(action: suspend () -> Unit) {
+                        scope.launch { if (show && selfUpdater.state.value == phase) action() }
+                    }
+                    Column(
+                        modifier = Modifier.fillMaxWidth(),
+                        verticalArrangement = Arrangement.spacedBy(10.dp),
+                    ) {
+                        when (phase) {
+                            is SelfUpdater.State.NewVersion -> {
+                                if (phase.asset == null) {
+                                    Column {
+                                        Text(
+                                            text = stringResource(R.string.self_update_no_apk),
+                                            style = MiuixTheme.textStyles.footnote1,
+                                            color = MiuixTheme.colorScheme.onBackgroundVariant,
+                                        )
+                                        val uriHandler = rememberExternalUriHandler()
+                                        LinkText(
+                                            text = stringResource(R.string.self_update_view_releases),
+                                            onClick = {
+                                                val slug = "${SelfUpdater.APP_OWNER}/${SelfUpdater.APP_REPO}"
+                                                uriHandler.openUri("https://github.com/$slug/releases")
+                                            },
+                                            showIcon = true,
+                                            // 图标与上方提示文字左缘对齐
+                                            alignInk = true,
                                         )
                                     }
+                                } else {
+                                    PrimaryButton(
+                                        text = stringResource(R.string.download_update_action),
+                                        onClick = { runAction { selfUpdater.requestManualDownload(phase) } },
+                                        modifier = Modifier.fillMaxWidth(),
+                                    )
                                 }
-                                // 安装失败：安装包已保留，直接重装
-                                SelfUpdater.Reason.INSTALL -> PrimaryButton(
+                            }
+                            is SelfUpdater.State.Downloading -> DownloadProgress(phase.progress)
+                            is SelfUpdater.State.Downloaded -> {
+                                val checked = lastCheck?.takeIf { it.first == phase }?.second
+                                if (checked is SelfUpdater.State.Failed) {
+                                    InlineErrorRow(
+                                        message = stringResource(
+                                            if (checked.reason == SelfUpdater.Reason.RATE_LIMITED) R.string.err_rate_limited_plain
+                                            else R.string.settings_update_failed,
+                                        ),
+                                        onRetry = null,
+                                    )
+                                }
+                                PrimaryButton(
                                     text = stringResource(R.string.settings_install_update),
-                                    onClick = { runAction { selfUpdater.installDownloaded(f) } },
+                                    onClick = { runAction { selfUpdater.installDownloaded(phase) } },
                                     modifier = Modifier.fillMaxWidth(),
                                 )
-                                SelfUpdater.Reason.NETWORK -> PrimaryButton(
-                                    text = stringResource(R.string.retry),
-                                    onClick = { runAction { selfUpdater.check() } },
+                                SecondaryButton(
+                                    text = stringResource(R.string.settings_current_version_title),
+                                    onClick = { runAction {
+                                        lastCheck = null
+                                        val result = selfUpdater.recheckDownloaded(phase)
+                                        if (result != null && selfUpdater.state.value == phase) {
+                                            if (result == phase) {
+                                                Feedback.show(upToDateMsg)
+                                            } else {
+                                                lastCheck = phase to result
+                                            }
+                                        }
+                                    } },
                                     modifier = Modifier.fillMaxWidth(),
                                 )
-                                // 限流：立即重试只会再吃 403，文案已说明稍后再试
-                                SelfUpdater.Reason.RATE_LIMITED -> Unit
+                            }
+                            is SelfUpdater.State.Failed -> {
+                                val f = phase
+                                InlineErrorRow(
+                                    message = when (f.reason) {
+                                        SelfUpdater.Reason.INSTALL ->
+                                            Feedback.withErrorCode(stringResource(R.string.self_update_install_failed_note), "E-APK")
+                                        SelfUpdater.Reason.DOWNLOAD ->
+                                            Feedback.withErrorCode(stringResource(R.string.settings_download_failed), "E-DL")
+                                        SelfUpdater.Reason.NETWORK ->
+                                            Feedback.withErrorCode(stringResource(R.string.settings_update_failed), "E-NET")
+                                        SelfUpdater.Reason.RATE_LIMITED ->
+                                            Feedback.withErrorCode(stringResource(R.string.err_rate_limited_plain), "HTTP 403")
+                                    },
+                                    onRetry = null,
+                                )
+                                when (f.reason) {
+                                    SelfUpdater.Reason.DOWNLOAD -> {
+                                        PrimaryButton(
+                                            text = stringResource(R.string.retry),
+                                            onClick = { runAction { selfUpdater.requestManualDownload(f) } },
+                                            modifier = Modifier.fillMaxWidth(),
+                                        )
+                                        f.downloaded?.let { saved ->
+                                            SecondaryButton(
+                                                text = stringResource(R.string.self_update_install_saved_version, saved.tag),
+                                                onClick = { runAction { selfUpdater.installDownloaded(f) } },
+                                                modifier = Modifier.fillMaxWidth(),
+                                            )
+                                        }
+                                    }
+                                    // 安装失败：安装包已保留，直接重装
+                                    SelfUpdater.Reason.INSTALL -> PrimaryButton(
+                                        text = stringResource(R.string.settings_install_update),
+                                        onClick = { runAction { selfUpdater.installDownloaded(f) } },
+                                        modifier = Modifier.fillMaxWidth(),
+                                    )
+                                    SelfUpdater.Reason.NETWORK -> PrimaryButton(
+                                        text = stringResource(R.string.retry),
+                                        onClick = { runAction { selfUpdater.check() } },
+                                        modifier = Modifier.fillMaxWidth(),
+                                    )
+                                    // 限流：立即重试只会再吃 403，文案已说明稍后再试
+                                    SelfUpdater.Reason.RATE_LIMITED -> Unit
+                                }
+                            }
+                            SelfUpdater.State.Checking -> Row(
+                                horizontalArrangement = Arrangement.spacedBy(6.dp),
+                                verticalAlignment = Alignment.CenterVertically,
+                            ) {
+                                LoadingDots(contentDescription = null)
+                                Text(stringResource(R.string.settings_checking), style = MiuixTheme.textStyles.footnote1)
+                            }
+                            SelfUpdater.State.UpToDate -> Text(
+                                stringResource(R.string.version_local_current),
+                                style = MiuixTheme.textStyles.footnote1,
+                            )
+                            SelfUpdater.State.Idle -> {
+                                // 关闭竞态兜底（state 已流转到弹窗外相）
+                                Spacer(Modifier.height(8.dp))
                             }
                         }
-                        SelfUpdater.State.Checking -> Row(
-                            horizontalArrangement = Arrangement.spacedBy(6.dp),
-                            verticalAlignment = Alignment.CenterVertically,
-                        ) {
-                            LoadingDots(contentDescription = null)
-                            Text(stringResource(R.string.settings_checking), style = MiuixTheme.textStyles.footnote1)
-                        }
-                        SelfUpdater.State.UpToDate -> Text(
-                            stringResource(R.string.version_local_current),
+                    }
+                }
+            }
+
+            Column(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .then(if (shortBody) Modifier.verticalScroll(scroll) else Modifier)
+                    .padding(bottom = 16.dp),
+            ) {
+                if (contentTag != null) {
+                    val isIncomparable = release?.incomparable == true
+                    val showArrow = !isIncomparable && localVersion != null &&
+                        (VersionCompare.compare(contentTag, localVersion) ?: 0) > 0
+                    UpdateVersionBanner(
+                        localVersion = localVersion,
+                        targetTag = contentTag,
+                        sizeBytes = activeSizeBytes,
+                        publishedAt = activePublishedAt,
+                        showArrow = showArrow,
+                    )
+                    if (isIncomparable) {
+                        Spacer(Modifier.height(10.dp))
+                        Text(
+                            text = stringResource(R.string.self_update_incomparable_note),
                             style = MiuixTheme.textStyles.footnote1,
+                            color = MiuixTheme.colorScheme.onBackgroundVariant,
                         )
-                        SelfUpdater.State.Idle -> {
-                            // 关闭竞态兜底（state 已流转到弹窗外相）
-                            Spacer(Modifier.height(8.dp))
-                        }
+                    }
+                    Spacer(Modifier.height(14.dp))
+                }
+                if (!shortBody) {
+                    if (contentTag != null && activeNotes != null) {
+                        notesBlock()
+                        Spacer(Modifier.height(16.dp))
+                    }
+                    actionZone()
+                } else {
+                    actionZone()
+                    if (contentTag != null && activeNotes != null) {
+                        Spacer(Modifier.height(14.dp))
+                        notesBlock()
                     }
                 }
             }
@@ -330,12 +359,13 @@ fun UpdateSheet(selfUpdater: SelfUpdater) {
     }
 }
 
-/** 更新浮层顶部版本信息条（去线框柔和实色层）：左侧当前 → 目标版本，右侧安装包体积 */
+/** 更新浮层顶部单行版本信息条（去线框柔和实色层）：左侧当前 → 目标版本，右侧体积 · 发布时间 */
 @Composable
 private fun UpdateVersionBanner(
     localVersion: String?,
     targetTag: String,
     sizeBytes: Long? = null,
+    publishedAt: java.time.Instant? = null,
     showArrow: Boolean = true,
 ) {
     val scheme = MiuixTheme.colorScheme
@@ -344,12 +374,15 @@ private fun UpdateVersionBanner(
     val localLabel = localVersion?.takeIf { it.isNotBlank() }?.let { v ->
         if (v.startsWith("v", ignoreCase = true)) v else "v$v"
     }
+    val sizeText = sizeBytes?.takeIf { it > 0L }?.let(CountFormat::formatBytes)
+    val timeText = publishedAt?.let { relTimeString(it) }
+    val metaText = listOfNotNull(sizeText, timeText).joinToString(" · ")
     Row(
         modifier = Modifier
             .fillMaxWidth()
             .clip(RoundedCornerShape(14.dp))
             .background(bannerBg)
-            .padding(horizontal = 14.dp, vertical = 10.dp),
+            .padding(horizontal = 14.dp, vertical = 11.dp),
         verticalAlignment = Alignment.CenterVertically,
         horizontalArrangement = Arrangement.SpaceBetween,
     ) {
@@ -379,11 +412,13 @@ private fun UpdateVersionBanner(
                 overflow = TextOverflow.Ellipsis,
             )
         }
-        if (sizeBytes != null && sizeBytes > 0L) {
+        if (metaText.isNotEmpty()) {
             Text(
-                text = CountFormat.formatBytes(sizeBytes),
+                text = metaText,
                 style = MiuixTheme.textStyles.footnote2.copy(fontFeatureSettings = "tnum"),
                 color = scheme.onBackgroundVariant,
+                maxLines = 1,
+                softWrap = false,
                 modifier = Modifier.padding(start = 8.dp),
             )
         }

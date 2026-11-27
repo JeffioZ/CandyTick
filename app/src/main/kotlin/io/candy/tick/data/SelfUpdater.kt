@@ -45,6 +45,7 @@ class SelfUpdater(
             val notes: String?,
             val asset: ApkAsset?,
             val incomparable: Boolean = false, // 无法比较版本：不宣称「有更新」
+            val publishedAt: java.time.Instant? = null,
         ) : State
 
         data class Downloading(val tag: String, val progress: Float?) : State
@@ -56,6 +57,14 @@ class SelfUpdater(
         ) : State
     }
 
+    /** 供更新浮层在下载中/已下载/失败阶段持续展示的 Release 元数据（不参与 State 等值比较） */
+    data class ReleaseMeta(
+        val tag: String,
+        val notes: String?,
+        val sizeBytes: Long?,
+        val publishedAt: java.time.Instant?,
+    )
+
     enum class Reason { NETWORK, RATE_LIMITED, DOWNLOAD, INSTALL }
 
     private val updateDir = File(context.filesDir, "updates")
@@ -64,6 +73,8 @@ class SelfUpdater(
     @Volatile private var installFailedTag: String? = null
     private val _state = MutableStateFlow<State>(savedDownload() ?: State.Idle)
     val state: StateFlow<State> = _state.asStateFlow()
+    private val _releaseMeta = MutableStateFlow<ReleaseMeta?>(null)
+    val releaseMeta: StateFlow<ReleaseMeta?> = _releaseMeta.asStateFlow()
     private var lastNewVersion: State.NewVersion? = null
 
     private fun savedDownload(): State.Downloaded? {
@@ -82,6 +93,7 @@ class SelfUpdater(
         saved.file.delete()
         store.update { it.copy(downloadedSelfUpdate = null) }
         Notifications.cancelSelfUpdateReady(context)
+        _releaseMeta.value = null
         _state.value = State.Idle
     }
 
@@ -109,23 +121,33 @@ class SelfUpdater(
             val comparison = if (latest != null && installed != null) VersionCompare.compare(latest.tagName, installed) else null
             if (latest == null || (comparison != null && comparison <= 0)) {
                 lastNewVersion = null
+                _releaseMeta.value = null
                 _state.value = State.UpToDate
                 return@withLock State.UpToDate
-            }
-            val downloaded = savedDownload()
-            if (downloaded?.tag == latest.tagName) {
-                _state.value = downloaded
-                return@withLock downloaded
             }
             val body = latest.body.takeIf { it.isNotBlank() }?.let { markdown ->
                 val lines = markdown.lineSequence()
                 if (lines.first().trimStart('#', ' ') == latest.tagName) lines.drop(1).joinToString("\n") else markdown
             }
+            val notes = body?.takeIf { it.isNotBlank() } ?: latest.name
+            val asset = pickSelfAsset(latest)
+            _releaseMeta.value = ReleaseMeta(
+                tag = latest.tagName,
+                notes = notes,
+                sizeBytes = asset?.size?.takeIf { it > 0L },
+                publishedAt = latest.publishedAt,
+            )
+            val downloaded = savedDownload()
+            if (downloaded?.tag == latest.tagName) {
+                _state.value = downloaded
+                return@withLock downloaded
+            }
             val available = State.NewVersion(
                 tag = latest.tagName,
-                notes = body?.takeIf { it.isNotBlank() } ?: latest.name,
-                asset = pickSelfAsset(latest),
+                notes = notes,
+                asset = asset,
                 incomparable = comparison == null,
+                publishedAt = latest.publishedAt,
             )
             lastNewVersion = available
             _state.value = available
