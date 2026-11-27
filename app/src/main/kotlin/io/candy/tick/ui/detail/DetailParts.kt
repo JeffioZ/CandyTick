@@ -192,7 +192,12 @@ internal fun HeaderCard(
                     }
                 },
             ) {
-                LinkedRepoAvatar(repo.owner, headerApp.icon)
+                LinkedRepoAvatar(
+                    owner = repo.owner,
+                    repo = repo.repo,
+                    icon = headerApp.icon,
+                    label = repo.noteName?.takeIf { it.isNotBlank() } ?: repo.repo,
+                )
             }
 
             // ── 信息组（描述；无描述时跨组 8dp 不叠加）——统计行与推送时间已分别

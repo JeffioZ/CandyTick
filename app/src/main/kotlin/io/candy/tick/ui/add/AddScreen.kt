@@ -389,7 +389,7 @@ private fun SearchContent(
                         ) {
                             Column(modifier = Modifier.padding(horizontal = 16.dp, vertical = 8.dp)) {
                                 RepoIdentityHeader(owner = info.owner, repo = info.repo, stars = info.stars) {
-                                    RepoAvatar(info.owner, repoAvatarIcon(pkg, icon), 48.dp, 12.dp)
+                                    RepoAvatar(info.owner, info.repo, repoAvatarIcon(pkg, icon), 48.dp, 12.dp)
                                 }
                                 if (!info.description.isNullOrBlank()) {
                                     Spacer(Modifier.height(6.dp))
@@ -536,7 +536,7 @@ private fun PreviewCard(
                 stars = info.stars,
                 badge = { io.candy.tick.ui.common.StatusBadge(info.toSnapshot().statusAt()) },
             ) {
-                LinkedRepoAvatar(info.owner, repoAvatarIcon(preview.linkedPackage, icon, preview.matchingApp))
+                LinkedRepoAvatar(info.owner, info.repo, repoAvatarIcon(preview.linkedPackage, icon, preview.matchingApp))
             }
 
             // 描述与详情头卡同款：body2 灰字 + 3 行截断（长描述不撑爆卡）

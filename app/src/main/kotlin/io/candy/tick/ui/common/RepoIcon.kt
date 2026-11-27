@@ -1,6 +1,7 @@
 package io.candy.tick.ui.common
 
 import androidx.compose.foundation.background
+import androidx.compose.foundation.border
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
@@ -10,6 +11,7 @@ import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.animation.Crossfade
 import androidx.compose.animation.core.tween
 import androidx.compose.runtime.key
@@ -31,8 +33,10 @@ import androidx.compose.ui.text.AnnotatedString
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.LineBreak
 import androidx.compose.ui.text.style.TextOverflow
+import androidx.compose.ui.unit.Density
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.sp
 import io.candy.tick.R
 import io.candy.tick.data.model.TrackedRepo
 import io.candy.tick.ui.theme.AvatarPalette
@@ -46,7 +50,7 @@ import top.yukonga.miuix.kmp.theme.MiuixTheme
 
 /**
  * 仓库头像唯一来源（首页卡/搜索卡/预览卡/详情头卡共用）：
- * 已关联本机应用 → 真 APP 图标；未关联 → 首字母块（owner hash 8 色环，135° 渐变）。
+ * 已关联本机应用 → 真 APP 图标；未关联 → 智能双字母块（owner/repo 哈希 8 色环，135° 清新渐变）。
  */
 
 /** 图标解码上限 = 全应用最大展示槽（LinkedRepoAvatar 的 56dp）：所有槽共用一份缓存，
@@ -57,28 +61,47 @@ private val IconDecodeCeiling = 56.dp
 @Composable
 fun RepoIconBlock(repo: TrackedRepo, installedVersion: String?) {
     val pkg = repo.linkedPackage
-    RepoAvatar(repo.owner, repoAvatarIcon(pkg, rememberAppIconResult(pkg, refreshKey = installedVersion)), 48.dp, 12.dp)
+    RepoAvatar(
+        owner = repo.owner,
+        repo = repo.repo,
+        label = repo.noteName?.takeIf { it.isNotBlank() } ?: repo.repo,
+        icon = repoAvatarIcon(pkg, rememberAppIconResult(pkg, refreshKey = installedVersion)),
+        size = 48.dp,
+        corner = 12.dp,
+    )
 }
 
 @Composable
-internal fun RepoAvatar(owner: String, icon: AppIconResult?, size: Dp, corner: Dp) {
+internal fun RepoAvatar(
+    owner: String,
+    repo: String,
+    icon: AppIconResult?,
+    size: Dp,
+    corner: Dp,
+    label: String = repo,
+) {
     when {
         icon == null -> Box(
             Modifier.size(size).background(MiuixTheme.colorScheme.secondaryVariant, RoundedCornerShape(corner)),
         )
         icon.bitmap != null -> AppIconImage(bitmap = icon.bitmap, size = size, corner = corner)
-        else -> AvatarBlock(owner = owner, size = size, corner = corner)
+        else -> AvatarBlock(colorSeed = "$owner/$repo", label = label, size = size, corner = corner)
     }
 }
 
 @Composable
-internal fun LinkedRepoAvatar(owner: String, icon: AppIconResult?) {
+internal fun LinkedRepoAvatar(
+    owner: String,
+    repo: String,
+    icon: AppIconResult?,
+    label: String = repo,
+) {
     if (rememberMotionEnabled()) {
         Crossfade(targetState = icon, animationSpec = tween(Motion.PHASE), label = "linkedAvatar") {
-            RepoAvatar(owner, it, IconDecodeCeiling, 14.dp)
+            RepoAvatar(owner = owner, repo = repo, icon = it, size = IconDecodeCeiling, corner = 14.dp, label = label)
         }
     } else {
-        RepoAvatar(owner, icon, IconDecodeCeiling, 14.dp)
+        RepoAvatar(owner = owner, repo = repo, icon = icon, size = IconDecodeCeiling, corner = 14.dp, label = label)
     }
 }
 
@@ -220,30 +243,66 @@ internal fun RepoIdentityHeader(
 }
 
 @Composable
-private fun AvatarBlock(owner: String, size: Dp, corner: Dp) {
-    val (start, end) = remember(owner) { avatarGradient(owner) }
-    Box(
-        modifier = Modifier
-            .size(size)
-            .clip(RoundedCornerShape(corner)) // 圆角随调用统一（此前 size/3.2 与外部固定值微差）
-            .background(
-                Brush.linearGradient(
-                    listOf(start, end),
-                    start = androidx.compose.ui.geometry.Offset(0f, 0f),
-                    end = androidx.compose.ui.geometry.Offset(Float.POSITIVE_INFINITY, Float.POSITIVE_INFINITY),
-                ),
-            ),
-        contentAlignment = Alignment.Center,
-    ) {
-        Text(
-            text = owner.firstOrNull()?.uppercase() ?: "?",
-            style = MiuixTheme.textStyles.title4.copy(fontWeight = FontWeight.Bold),
-            color = Color.White,
-        )
+private fun AvatarBlock(colorSeed: String, label: String, size: Dp, corner: Dp) {
+    val (start, end) = remember(colorSeed) { avatarGradient(colorSeed) }
+    val monogram = remember(label) { smartRepoMonogram(label) }
+    val shape = RoundedCornerShape(corner)
+    val baseDensity = LocalDensity.current
+    val fontSize = if (monogram.length > 1) (size.value * 0.34f).sp else (size.value * 0.40f).sp
+    // 头像内字母属图形徽章（右侧已有随系统缩放的完整标题），锁定 fontScale=1f 防大字号挤爆并净化读屏
+    CompositionLocalProvider(LocalDensity provides Density(baseDensity.density, fontScale = 1f)) {
+        Box(
+            modifier = Modifier
+                .size(size)
+                .clip(shape)
+                .background(
+                    Brush.linearGradient(
+                        listOf(start, end),
+                        start = androidx.compose.ui.geometry.Offset(0f, 0f),
+                        end = androidx.compose.ui.geometry.Offset(Float.POSITIVE_INFINITY, Float.POSITIVE_INFINITY),
+                    ),
+                )
+                .border(0.5.dp, Color.White.copy(alpha = 0.16f), shape)
+                .clearAndSetSemantics {},
+            contentAlignment = Alignment.Center,
+        ) {
+            Text(
+                text = monogram,
+                fontSize = fontSize,
+                lineHeight = fontSize,
+                letterSpacing = (-0.3).sp,
+                fontWeight = FontWeight.Bold,
+                color = Color.White,
+                maxLines = 1,
+                softWrap = false,
+            )
+        }
     }
 }
 
-private fun avatarGradient(owner: String): Pair<Color, Color> {
-    val index = kotlin.math.abs(owner.hashCode() % AvatarPalette.size)
+private fun smartRepoMonogram(label: String): String {
+    val clean = label.dropWhile { !it.isLetterOrDigit() }
+    if (clean.isEmpty()) return "?"
+    val first = clean[0]
+    // 中日韩等表意文字单字信息密度高且字宽大，仅取首字
+    if (first.code > 0x2E7F) return first.toString()
+    val parts = clean.split('-', '_', '.', ' ').filter { it.isNotEmpty() }
+    if (parts.size >= 2) {
+        return "${parts[0][0].uppercaseChar()}${parts[1][0].uppercaseChar()}"
+    }
+    for (i in 0 until clean.lastIndex) {
+        if (clean[i].isLowerCase() && clean[i + 1].isUpperCase()) {
+            return "${first.uppercaseChar()}${clean[i + 1].uppercaseChar()}"
+        }
+    }
+    return if (clean.length >= 2) {
+        "${first.uppercaseChar()}${clean[1].lowercaseChar()}"
+    } else {
+        first.uppercaseChar().toString()
+    }
+}
+
+private fun avatarGradient(seed: String): Pair<Color, Color> {
+    val index = Math.floorMod(seed.hashCode(), AvatarPalette.size)
     return AvatarPalette[index]
 }

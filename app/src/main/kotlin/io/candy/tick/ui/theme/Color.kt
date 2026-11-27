@@ -126,14 +126,14 @@ val ChipOrange = Color(0xFFCB7642)
 val ChipSand = Color(0xFFA7884C)
 val ChipPeriwinkle = Color(0xFF708AD6)
 
-// 首字母头像：按 owner 选八种色相，渐变两端都能承托白色字母。
+// 仓库字母头像：按 owner/repo 选 8 组现代清透色相，渐变两端对白字均 ≥ 4.5:1（WCAG AA）。
 val AvatarPalette = listOf(
-    Color(0xFFAB6305) to Color(0xFF89500C),
-    Color(0xFFDC3232) to Color(0xFFAF1A1A),
-    Color(0xFF8354EB) to Color(0xFF6526CC),
-    Color(0xFF047CB3) to Color(0xFF075A88),
-    Color(0xFF068359) to Color(0xFF056045),
-    Color(0xFFBE510E) to Color(0xFF92370C),
-    Color(0xFFCF2D78) to Color(0xFFAA1652),
-    Color(0xFF64748B) to Color(0xFF334155),
+    Color(0xFF0E7A59) to Color(0xFF095D43), // 薄荷翠
+    Color(0xFF1D6FD1) to Color(0xFF1553A6), // 晴海蓝
+    Color(0xFF4F5AD6) to Color(0xFF3A42B0), // 靛蓝
+    Color(0xFF7A4ED9) to Color(0xFF5D34B8), // 柔紫
+    Color(0xFFC2366B) to Color(0xFF9B2452), // 莓红
+    Color(0xFF0F7685) to Color(0xFF0A5966), // 青瓷
+    Color(0xFF2E7D4F) to Color(0xFF1F5E3A), // 松绿
+    Color(0xFF54687D) to Color(0xFF3B4C5E), // 蓝灰
 )
