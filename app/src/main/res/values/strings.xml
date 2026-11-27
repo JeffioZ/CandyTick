@@ -3,7 +3,7 @@
     <string name="app_name">CandyTick</string>
 
     <!-- 主题三档 -->
-    <string name="theme_mode_system">System default</string>
+    <string name="theme_mode_system">System</string>
     <string name="theme_mode_light">Light</string>
     <string name="theme_mode_dark">Dark</string>
 
@@ -339,7 +339,7 @@
     <string name="token_set">Set</string>
     <string name="token_unset">Not set</string>
     <string name="settings_language">Language</string>
-    <string name="lang_system">System default</string>
+    <string name="lang_system">System</string>
     <string name="lang_chinese">简体中文</string>
     <string name="lang_english">English</string>
     <string name="settings_token_hint">Optional. Raises the API rate limit from 60 to 5,000 requests per hour.</string>
@@ -406,7 +406,7 @@
     <string name="crash_log_empty">No crash recorded</string>
 
     <!-- 同步频率 -->
-    <string name="frequency_on_open">When the app opens</string>
+    <string name="frequency_on_open">On app open</string>
     <string name="frequency_6h">Every 6 hours</string>
     <string name="frequency_12h">Every 12 hours</string>
     <string name="frequency_daily">Daily</string>
@@ -434,7 +434,7 @@
 
     <!-- 桌面图标颜色 -->
     <string name="settings_app_icon">App icon</string>
-    <string name="app_icon_system">Follow system</string>
+    <string name="app_icon_system">System</string>
     <string name="app_icon_light">Light</string>
     <string name="app_icon_dark">Dark</string>
     <string name="app_icon_switched">App icon will update when you return home</string>

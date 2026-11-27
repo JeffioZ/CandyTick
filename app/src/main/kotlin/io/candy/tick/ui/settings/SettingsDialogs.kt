@@ -32,6 +32,7 @@ import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.rememberScrollState
@@ -712,6 +713,7 @@ internal fun AppIconPickerSheet(
             Row(
                 modifier = Modifier
                     .fillMaxWidth()
+                    .height(IntrinsicSize.Max)
                     .selectableGroup()
                     .padding(horizontal = 20.dp)
                     .padding(top = 8.dp, bottom = 20.dp),
@@ -721,19 +723,19 @@ internal fun AppIconPickerSheet(
                     label = stringResource(R.string.app_icon_system),
                     selected = selected == io.candy.tick.data.model.AppIconMode.SYSTEM,
                     onClick = { onSelect(io.candy.tick.data.model.AppIconMode.SYSTEM) },
-                    modifier = Modifier.weight(1f),
+                    modifier = Modifier.weight(1f).fillMaxHeight(),
                 ) { AppIconThumbnail(io.candy.tick.data.model.AppIconMode.SYSTEM) }
                 VisualPickerOption(
                     label = stringResource(R.string.app_icon_light),
                     selected = selected == io.candy.tick.data.model.AppIconMode.LIGHT,
                     onClick = { onSelect(io.candy.tick.data.model.AppIconMode.LIGHT) },
-                    modifier = Modifier.weight(1f),
+                    modifier = Modifier.weight(1f).fillMaxHeight(),
                 ) { AppIconThumbnail(io.candy.tick.data.model.AppIconMode.LIGHT) }
                 VisualPickerOption(
                     label = stringResource(R.string.app_icon_dark),
                     selected = selected == io.candy.tick.data.model.AppIconMode.DARK,
                     onClick = { onSelect(io.candy.tick.data.model.AppIconMode.DARK) },
-                    modifier = Modifier.weight(1f),
+                    modifier = Modifier.weight(1f).fillMaxHeight(),
                 ) { AppIconThumbnail(io.candy.tick.data.model.AppIconMode.DARK) }
             }
         }
@@ -757,6 +759,7 @@ internal fun ThemeModePickerSheet(
             Row(
                 modifier = Modifier
                     .fillMaxWidth()
+                    .height(IntrinsicSize.Max)
                     .selectableGroup()
                     .padding(horizontal = 20.dp)
                     .padding(top = 8.dp, bottom = 20.dp),
@@ -766,19 +769,19 @@ internal fun ThemeModePickerSheet(
                     label = stringResource(R.string.theme_mode_system),
                     selected = selected == io.candy.tick.data.model.ThemeMode.SYSTEM,
                     onClick = { onSelect(io.candy.tick.data.model.ThemeMode.SYSTEM) },
-                    modifier = Modifier.weight(1f),
+                    modifier = Modifier.weight(1f).fillMaxHeight(),
                 ) { ThemeModeThumbnail(io.candy.tick.data.model.ThemeMode.SYSTEM) }
                 VisualPickerOption(
                     label = stringResource(R.string.theme_mode_light),
                     selected = selected == io.candy.tick.data.model.ThemeMode.LIGHT,
                     onClick = { onSelect(io.candy.tick.data.model.ThemeMode.LIGHT) },
-                    modifier = Modifier.weight(1f),
+                    modifier = Modifier.weight(1f).fillMaxHeight(),
                 ) { ThemeModeThumbnail(io.candy.tick.data.model.ThemeMode.LIGHT) }
                 VisualPickerOption(
                     label = stringResource(R.string.theme_mode_dark),
                     selected = selected == io.candy.tick.data.model.ThemeMode.DARK,
                     onClick = { onSelect(io.candy.tick.data.model.ThemeMode.DARK) },
-                    modifier = Modifier.weight(1f),
+                    modifier = Modifier.weight(1f).fillMaxHeight(),
                 ) { ThemeModeThumbnail(io.candy.tick.data.model.ThemeMode.DARK) }
             }
         }
@@ -884,6 +887,7 @@ private fun SyncFrequencyCard(
     val baseDensity = LocalDensity.current
     Row(
         modifier = modifier
+            .heightIn(min = 64.dp)
             .clip(cardShape)
             .background(pressColor)
             .border(1.5.dp, borderColor, cardShape)
@@ -960,6 +964,7 @@ internal fun LanguagePickerSheet(
             Row(
                 modifier = Modifier
                     .fillMaxWidth()
+                    .height(IntrinsicSize.Max)
                     .selectableGroup()
                     .padding(horizontal = 20.dp)
                     .padding(top = 8.dp, bottom = 20.dp),
@@ -969,19 +974,19 @@ internal fun LanguagePickerSheet(
                     label = stringResource(R.string.lang_system),
                     selected = selected.isEmpty(),
                     onClick = { onSelect("") },
-                    modifier = Modifier.weight(1f),
+                    modifier = Modifier.weight(1f).fillMaxHeight(),
                 ) { LanguageThumbnail(language = "", selected = selected.isEmpty()) }
                 VisualPickerOption(
                     label = stringResource(R.string.lang_chinese),
                     selected = selected == "zh",
                     onClick = { onSelect("zh") },
-                    modifier = Modifier.weight(1f),
+                    modifier = Modifier.weight(1f).fillMaxHeight(),
                 ) { LanguageThumbnail(language = "zh", selected = selected == "zh") }
                 VisualPickerOption(
                     label = stringResource(R.string.lang_english),
                     selected = selected == "en",
                     onClick = { onSelect("en") },
-                    modifier = Modifier.weight(1f),
+                    modifier = Modifier.weight(1f).fillMaxHeight(),
                 ) { LanguageThumbnail(language = "en", selected = selected == "en") }
             }
         }
