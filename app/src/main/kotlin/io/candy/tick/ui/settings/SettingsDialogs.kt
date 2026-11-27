@@ -32,7 +32,6 @@ import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
-import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.rememberScrollState
@@ -51,6 +50,7 @@ import androidx.compose.ui.res.vectorResource
 import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.semantics.clearAndSetSemantics
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.style.LineBreak
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.Density
@@ -788,7 +788,7 @@ internal fun ThemeModePickerSheet(
     }
 }
 
-/** 同步频率四档可视化选择弹层：2×2 紧凑横卡（左徽章 + 右标题，兼顾英文长文案不截断） */
+/** 同步频率四档可视化选择弹层：单行 4 列横排（与深浅模式 / 桌面图标 / 应用语言同款外呼吸选中环） */
 @Composable
 internal fun SyncFrequencyPickerSheet(
     show: Boolean,
@@ -801,149 +801,86 @@ internal fun SyncFrequencyPickerSheet(
         title = stringResource(R.string.settings_sync_frequency),
         onDismissRequest = onDismiss,
     ) {
-        Column(
-            modifier = Modifier
-                .fillMaxWidth()
-                .verticalScroll(rememberScrollState())
-                .selectableGroup()
-                .padding(horizontal = 16.dp)
-                .padding(top = 4.dp, bottom = 16.dp),
-            verticalArrangement = Arrangement.spacedBy(10.dp),
-        ) {
+        Column(Modifier.fillMaxWidth().verticalScroll(rememberScrollState())) {
             Row(
-                modifier = Modifier.fillMaxWidth().height(IntrinsicSize.Max),
-                horizontalArrangement = Arrangement.spacedBy(10.dp),
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .height(IntrinsicSize.Max)
+                    .selectableGroup()
+                    .padding(horizontal = 16.dp)
+                    .padding(top = 8.dp, bottom = 20.dp),
+                horizontalArrangement = Arrangement.spacedBy(8.dp),
             ) {
-                SyncFrequencyCard(
-                    frequency = io.candy.tick.data.model.SyncFrequency.ON_OPEN,
-                    selected = selected == io.candy.tick.data.model.SyncFrequency.ON_OPEN,
-                    onClick = { onSelect(io.candy.tick.data.model.SyncFrequency.ON_OPEN) },
-                    modifier = Modifier.weight(1f).fillMaxHeight(),
-                )
-                SyncFrequencyCard(
-                    frequency = io.candy.tick.data.model.SyncFrequency.EVERY_6_HOURS,
-                    selected = selected == io.candy.tick.data.model.SyncFrequency.EVERY_6_HOURS,
-                    onClick = { onSelect(io.candy.tick.data.model.SyncFrequency.EVERY_6_HOURS) },
-                    modifier = Modifier.weight(1f).fillMaxHeight(),
-                )
-            }
-            Row(
-                modifier = Modifier.fillMaxWidth().height(IntrinsicSize.Max),
-                horizontalArrangement = Arrangement.spacedBy(10.dp),
-            ) {
-                SyncFrequencyCard(
-                    frequency = io.candy.tick.data.model.SyncFrequency.EVERY_12_HOURS,
-                    selected = selected == io.candy.tick.data.model.SyncFrequency.EVERY_12_HOURS,
-                    onClick = { onSelect(io.candy.tick.data.model.SyncFrequency.EVERY_12_HOURS) },
-                    modifier = Modifier.weight(1f).fillMaxHeight(),
-                )
-                SyncFrequencyCard(
-                    frequency = io.candy.tick.data.model.SyncFrequency.DAILY,
-                    selected = selected == io.candy.tick.data.model.SyncFrequency.DAILY,
-                    onClick = { onSelect(io.candy.tick.data.model.SyncFrequency.DAILY) },
-                    modifier = Modifier.weight(1f).fillMaxHeight(),
-                )
+                listOf(
+                    io.candy.tick.data.model.SyncFrequency.ON_OPEN,
+                    io.candy.tick.data.model.SyncFrequency.EVERY_6_HOURS,
+                    io.candy.tick.data.model.SyncFrequency.EVERY_12_HOURS,
+                    io.candy.tick.data.model.SyncFrequency.DAILY,
+                ).forEach { freq ->
+                    val isSelected = selected == freq
+                    VisualPickerOption(
+                        label = frequencyLabel(freq),
+                        selected = isSelected,
+                        onClick = { onSelect(freq) },
+                        modifier = Modifier.weight(1f).fillMaxHeight(),
+                    ) {
+                        SyncFrequencyThumbnail(frequency = freq, selected = isSelected)
+                    }
+                }
             }
         }
     }
 }
 
+/** 同步频率 52dp 缩略徽章：刷新图标 / 6h / 12h / 24h，与语言缩略图同材质并锁定 fontScale=1f */
 @Composable
-private fun SyncFrequencyCard(
+private fun SyncFrequencyThumbnail(
     frequency: io.candy.tick.data.model.SyncFrequency,
     selected: Boolean,
-    onClick: () -> Unit,
-    modifier: Modifier = Modifier,
 ) {
     val scheme = MiuixTheme.colorScheme
     val dark = LocalDarkTheme.current
-    val motionEnabled = rememberMotionEnabled()
-    val cardShape = RoundedCornerShape(16.dp)
-    val badgeShape = RoundedCornerShape(10.dp)
-    // 去线框柔和实色层：未选中无描边，选中态保留 1.5dp 主题绿描边与柔和薄荷叠底
-    val neutralCardBg = if (dark) scheme.surfaceContainerHigh else scheme.background
-    val neutralBadgeBg = if (dark) scheme.secondary else scheme.surface
-    val baseBg = if (selected) {
-        scheme.primaryVariant.copy(alpha = 0.10f).compositeOver(neutralCardBg)
+    val thumbShape = RoundedCornerShape(14.dp)
+    val baseSurface = if (dark) scheme.surfaceContainerHigh else scheme.background
+    val tileBg = if (selected) {
+        scheme.primaryVariant.copy(alpha = 0.08f).compositeOver(baseSurface)
     } else {
-        neutralCardBg
+        baseSurface
     }
-    val (press, pressColor) = io.candy.tick.ui.common.rememberRowPressTint(surface = baseBg)
-    val borderColor by androidx.compose.animation.animateColorAsState(
-        targetValue = if (selected) scheme.primaryVariant else androidx.compose.ui.graphics.Color.Transparent,
-        animationSpec = tween(if (motionEnabled) Motion.PHASE else 0),
-        label = "freqBorder",
-    )
-    val badgeBg by androidx.compose.animation.animateColorAsState(
-        targetValue = if (selected) scheme.primaryVariant.copy(alpha = 0.16f) else neutralBadgeBg,
-        animationSpec = tween(if (motionEnabled) Motion.PHASE else 0),
-        label = "freqBadgeBg",
-    )
-    val accentColor by androidx.compose.animation.animateColorAsState(
-        targetValue = if (selected) scheme.primaryVariant else scheme.onSurface,
-        animationSpec = tween(if (motionEnabled) Motion.PHASE else 0),
-        label = "freqAccent",
-    )
+    val fgColor = if (selected) scheme.primaryVariant else scheme.onSurface
     val baseDensity = LocalDensity.current
-    Row(
-        modifier = modifier
-            .heightIn(min = 64.dp)
-            .clip(cardShape)
-            .background(pressColor)
-            .border(1.5.dp, borderColor, cardShape)
-            .selectable(
-                selected = selected,
-                interactionSource = press,
-                indication = null,
-                role = Role.RadioButton,
-                onClick = onClick,
-            )
-            .padding(horizontal = 12.dp, vertical = 14.dp),
-        verticalAlignment = Alignment.CenterVertically,
-        horizontalArrangement = Arrangement.spacedBy(10.dp),
-    ) {
-        CompositionLocalProvider(LocalDensity provides Density(baseDensity.density, fontScale = 1f)) {
-            Box(
-                modifier = Modifier
-                    .size(36.dp)
-                    .clip(badgeShape)
-                    .background(badgeBg)
-                    .clearAndSetSemantics {},
-                contentAlignment = Alignment.Center,
-            ) {
-                if (frequency == io.candy.tick.data.model.SyncFrequency.ON_OPEN) {
-                    Icon(
-                        imageVector = ImageVector.vectorResource(R.drawable.ic_refresh),
-                        contentDescription = null,
-                        tint = accentColor,
-                        modifier = Modifier.size(18.dp),
-                    )
-                } else {
-                    val code = when (frequency) {
-                        io.candy.tick.data.model.SyncFrequency.EVERY_6_HOURS -> "6h"
-                        io.candy.tick.data.model.SyncFrequency.EVERY_12_HOURS -> "12h"
-                        else -> "24h"
-                    }
-                    Text(
-                        text = code,
-                        fontSize = 13.sp,
-                        lineHeight = 14.sp,
-                        fontWeight = FontWeight.SemiBold,
-                        color = accentColor,
-                    )
+    CompositionLocalProvider(LocalDensity provides Density(baseDensity.density, fontScale = 1f)) {
+        Box(
+            modifier = Modifier
+                .size(52.dp)
+                .clip(thumbShape)
+                .background(tileBg)
+                .border(0.5.dp, scheme.outline.copy(alpha = 0.45f), thumbShape)
+                .clearAndSetSemantics {},
+            contentAlignment = Alignment.Center,
+        ) {
+            if (frequency == io.candy.tick.data.model.SyncFrequency.ON_OPEN) {
+                Icon(
+                    imageVector = ImageVector.vectorResource(R.drawable.ic_refresh),
+                    contentDescription = null,
+                    tint = fgColor,
+                    modifier = Modifier.size(22.dp),
+                )
+            } else {
+                val code = when (frequency) {
+                    io.candy.tick.data.model.SyncFrequency.EVERY_6_HOURS -> "6h"
+                    io.candy.tick.data.model.SyncFrequency.EVERY_12_HOURS -> "12h"
+                    else -> "24h"
                 }
+                Text(
+                    text = code,
+                    fontSize = 16.sp,
+                    lineHeight = 18.sp,
+                    fontWeight = FontWeight.SemiBold,
+                    color = fgColor,
+                )
             }
         }
-        Text(
-            text = frequencyLabel(frequency),
-            style = MiuixTheme.textStyles.body2.copy(
-                fontWeight = if (selected) FontWeight.Medium else FontWeight.Normal,
-            ),
-            color = accentColor,
-            maxLines = 2,
-            overflow = TextOverflow.Ellipsis,
-            modifier = Modifier.weight(1f),
-        )
     }
 }
 
@@ -1142,6 +1079,7 @@ private fun VisualPickerOption(
             text = label,
             style = MiuixTheme.textStyles.footnote1.copy(
                 fontWeight = if (selected) FontWeight.Medium else FontWeight.Normal,
+                lineBreak = LineBreak.Heading,
             ),
             color = labelColor,
             textAlign = TextAlign.Center,
