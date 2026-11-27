@@ -29,7 +29,6 @@ import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.IntrinsicSize
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxHeight
-import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
@@ -930,14 +929,13 @@ internal fun LanguagePickerSheet(
     }
 }
 
-/** 语言字标 56dp 缩略预览：跟随系统用对角斜线分隔「文 / A」，中文/英文用居中字标 + 语种码 */
+/** 语言 56dp 缩略预览（BCP 47 标准代码）：跟随系统用地球图标，语种统一 14.5sp 居中（zh-CN / en） */
 @Composable
 private fun LanguageThumbnail(language: String, selected: Boolean) {
     val scheme = MiuixTheme.colorScheme
     val dark = LocalDarkTheme.current
     val thumbShape = RoundedCornerShape(14.dp)
-    val primaryColor = if (selected) scheme.primaryVariant else scheme.onSurface
-    val tagColor = if (selected) scheme.primaryVariant.copy(alpha = 0.85f) else scheme.onSurfaceContainerVariant.copy(alpha = 0.75f)
+    val fgColor = if (selected) scheme.primaryVariant else scheme.onSurface
     val baseSurface = if (dark) scheme.surfaceContainerHigh else scheme.background
     val tileBg = if (selected) {
         scheme.primaryVariant.copy(alpha = 0.08f).compositeOver(baseSurface)
@@ -945,7 +943,7 @@ private fun LanguageThumbnail(language: String, selected: Boolean) {
         baseSurface
     }
     val baseDensity = LocalDensity.current
-    // 缩略图内为图形化字标（下方已有随系统缩放的可读标题），锁定 fontScale=1f 防大字号下挤碰裁切
+    // 缩略图内为图形化徽章（下方已有随系统缩放的可读标题），锁定 fontScale=1f 防大字号下挤碰裁切
     CompositionLocalProvider(LocalDensity provides Density(baseDensity.density, fontScale = 1f)) {
         Box(
             modifier = Modifier
@@ -956,73 +954,28 @@ private fun LanguageThumbnail(language: String, selected: Boolean) {
                 .clearAndSetSemantics {},
             contentAlignment = Alignment.Center,
         ) {
-            when (language) {
-                "zh" -> Column(
-                    horizontalAlignment = Alignment.CenterHorizontally,
-                    verticalArrangement = Arrangement.Center,
-                ) {
-                    Text(
-                        text = "文",
-                        fontSize = 20.sp,
-                        lineHeight = 22.sp,
-                        fontWeight = FontWeight.SemiBold,
-                        color = primaryColor,
-                    )
-                    Text(
-                        text = "ZH",
-                        fontSize = 9.sp,
-                        lineHeight = 11.sp,
-                        fontWeight = FontWeight.Medium,
-                        letterSpacing = 0.8.sp,
-                        color = tagColor,
-                    )
+            if (language.isEmpty()) {
+                Icon(
+                    imageVector = ImageVector.vectorResource(R.drawable.ic_globe),
+                    contentDescription = null,
+                    tint = fgColor,
+                    modifier = Modifier.size(22.dp),
+                )
+            } else {
+                val code = when (language) {
+                    "zh" -> "zh-CN"
+                    "en" -> "en"
+                    else -> language
                 }
-                "en" -> Column(
-                    horizontalAlignment = Alignment.CenterHorizontally,
-                    verticalArrangement = Arrangement.Center,
-                ) {
-                    Text(
-                        text = "Aa",
-                        fontSize = 20.sp,
-                        lineHeight = 22.sp,
-                        fontWeight = FontWeight.SemiBold,
-                        color = primaryColor,
-                    )
-                    Text(
-                        text = "EN",
-                        fontSize = 9.sp,
-                        lineHeight = 11.sp,
-                        fontWeight = FontWeight.Medium,
-                        letterSpacing = 0.8.sp,
-                        color = tagColor,
-                    )
-                }
-                else -> {
-                    androidx.compose.foundation.Canvas(modifier = Modifier.fillMaxSize()) {
-                        drawLine(
-                            color = scheme.outline.copy(alpha = 0.45f),
-                            start = androidx.compose.ui.geometry.Offset(size.width * 0.24f, size.height * 0.76f),
-                            end = androidx.compose.ui.geometry.Offset(size.width * 0.76f, size.height * 0.24f),
-                            strokeWidth = 1.dp.toPx(),
-                        )
-                    }
-                    Text(
-                        text = "文",
-                        fontSize = 15.sp,
-                        lineHeight = 16.sp,
-                        fontWeight = FontWeight.SemiBold,
-                        color = scheme.onSurface,
-                        modifier = Modifier.align(Alignment.TopStart).padding(start = 10.dp, top = 8.dp),
-                    )
-                    Text(
-                        text = "A",
-                        fontSize = 15.sp,
-                        lineHeight = 16.sp,
-                        fontWeight = FontWeight.SemiBold,
-                        color = scheme.primaryVariant,
-                        modifier = Modifier.align(Alignment.BottomEnd).padding(end = 11.dp, bottom = 8.dp),
-                    )
-                }
+                Text(
+                    text = code,
+                    fontSize = 14.5.sp,
+                    lineHeight = 16.sp,
+                    letterSpacing = (-0.2).sp,
+                    fontWeight = FontWeight.SemiBold,
+                    color = fgColor,
+                    maxLines = 1,
+                )
             }
         }
     }
