@@ -396,20 +396,25 @@
     <string name="settings_about_group">About</string>
     <string name="settings_github_repo">GitHub repository</string>
     <string name="settings_license">License</string>
-    <string name="settings_cache_summary">Downloaded packages and crash logs</string>
+    <string name="settings_cache_summary">Downloaded packages</string>
     <string name="settings_cache_cleanup">Clear cache</string>
     <string name="settings_cache_apk">Downloaded packages</string>
-    <string name="settings_cache_crash_log">Crash log</string>
+    <string name="settings_cache_apk_note">Subscriptions and settings stay intact</string>
     <string name="settings_cache_scanning">Scanning cache</string>
     <string name="settings_cache_cleaning">Clearing cache</string>
-    <string name="settings_cache_clean_action">Clear selected</string>
+    <string name="settings_cache_clean_action">Clear</string>
     <string name="settings_cache_empty">Nothing to clear</string>
-    <string name="settings_cache_select_hint">Select what to clear</string>
     <string name="settings_cache_none">None</string>
     <string name="settings_cache_freed">Freed %1$s</string>
     <string name="settings_crash_log">Crash log</string>
-    <string name="settings_crash_log_summary">Share the most recent crash log</string>
+    <string name="settings_crash_log_summary">Export, share, or clear crash log</string>
     <string name="crash_log_empty">No crash recorded</string>
+    <string name="crash_log_saved">Crash log saved</string>
+    <string name="crash_log_save_failed">Couldn’t save crash log</string>
+    <string name="crash_log_too_large_for_clipboard">Log is too large; save as a file or share instead</string>
+    <string name="crash_log_clear">Clear log</string>
+    <string name="crash_log_cleared">Crash log cleared</string>
+    <string name="crash_log_clear_failed">Couldn’t clear crash log</string>
 
     <!-- 同步频率 -->
     <string name="frequency_on_open">On open</string>

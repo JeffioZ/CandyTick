@@ -369,8 +369,7 @@ private fun UpdateVersionBanner(
     showArrow: Boolean = true,
 ) {
     val scheme = MiuixTheme.colorScheme
-    val dark = LocalDarkTheme.current
-    val bannerBg = if (dark) scheme.surfaceContainerHigh else scheme.background
+    val bannerBg = sheetCardColor()
     val localLabel = localVersion?.takeIf { it.isNotBlank() }?.let { v ->
         if (v.startsWith("v", ignoreCase = true)) v else "v$v"
     }

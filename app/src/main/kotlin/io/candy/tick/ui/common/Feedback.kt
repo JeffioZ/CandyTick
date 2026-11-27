@@ -1,5 +1,8 @@
 package io.candy.tick.ui.common
 
+import top.yukonga.miuix.kmp.blur.blur
+import top.yukonga.miuix.kmp.blur.drawBackdrop
+
 import android.os.SystemClock
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.EnterTransition
@@ -32,9 +35,11 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
-import androidx.compose.ui.draw.shadow
+import androidx.compose.ui.draw.dropShadow
+import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.compositeOver
+import androidx.compose.ui.graphics.shadow.Shadow
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.platform.LocalAccessibilityManager
 import androidx.compose.ui.res.vectorResource
@@ -48,6 +53,7 @@ import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.style.LineBreak
 import androidx.compose.ui.text.withStyle
 
+import androidx.compose.ui.unit.DpOffset
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
@@ -138,7 +144,7 @@ object Feedback {
     }
 }
 
-private val feedbackRadius = 16.dp
+private val feedbackRadius = 24.dp
 private val feedbackActionInset = 4.dp
 private val feedbackShape = RoundedCornerShape(feedbackRadius)
 private val feedbackActionShape = RoundedCornerShape(feedbackRadius - feedbackActionInset)
@@ -202,22 +208,65 @@ fun FeedbackHost() {
             exit = if (motionEnabled) fadeOut(tween(Motion.PANEL)) else ExitTransition.None,
         ) {
             shown?.let { m ->
+                val backdrop = LocalAppBackdrop.current
                 val accentTint = if (m.isError) scheme.onErrorContainer else scheme.primaryVariant
                 val textTint = scheme.onSurfaceContainer
                 val toastBg = if (dark) scheme.surfaceContainerHigh else scheme.surfaceContainer
-                val borderColor = if (m.isError) {
-                    scheme.onErrorContainer.copy(alpha = if (dark) 0.55f else 0.45f)
-                } else if (dark) {
-                    DarkFeedbackOutline
-                } else {
-                    LightFeedbackOutline
+                val shadowTint = Color.Black.copy(alpha = if (dark) 0.28f else 0.10f)
+                val borderModifier = when {
+                    m.isError -> Modifier.border(
+                        width = 0.75.dp,
+                        color = scheme.onErrorContainer.copy(alpha = if (dark) 0.50f else 0.38f),
+                        shape = feedbackShape,
+                    )
+                    backdrop != null -> Modifier.border(
+                        width = 0.75.dp,
+                        brush = Brush.verticalGradient(
+                            if (dark) {
+                                listOf(Color.White.copy(alpha = 0.22f), Color.White.copy(alpha = 0.06f))
+                            } else {
+                                listOf(Color.White.copy(alpha = 0.90f), Color.Black.copy(alpha = 0.08f))
+                            },
+                        ),
+                        shape = feedbackShape,
+                    )
+                    else -> Modifier.border(
+                        width = 0.75.dp,
+                        color = if (dark) DarkFeedbackOutline else LightFeedbackOutline,
+                        shape = feedbackShape,
+                    )
                 }
-                val shadowTint = Color.Black.copy(alpha = if (dark) 0.4f else 0.24f)
+                val surfaceModifier = if (backdrop != null) {
+                    // 使用 miuix-blur 的 drawBackdrop + blur（与 GlassBottomSheet 同引擎，规避 0.9.5-rc02
+                    // glassPanel/kVogel[25] 着色器在 Android 13/14 AGSL 上的编译崩溃）
+                    Modifier
+                        .clip(feedbackShape)
+                        .drawBackdrop(
+                            backdrop = backdrop,
+                            shape = { feedbackShape },
+                            effects = { blur(20.dp.toPx()) },
+                        )
+                        .background(toastBg.copy(alpha = if (dark) 0.76f else 0.82f))
+                        .then(borderModifier)
+                } else {
+                    Modifier
+                        .clip(feedbackShape)
+                        .background(toastBg)
+                        .then(borderModifier)
+                }
                 Row(
                     modifier = Modifier
                         // 仅限平板/横屏最大宽度，竖屏手机保留自然左右 16dp 留白避免人为折行
                         .widthIn(max = 420.dp)
-                        // 连续触发新 Toast 时宽度平滑过渡；置于 shadow 前确保阴影与容器同步缩放
+                        // dropShadow 置于 animateContentSize 之前：外阴影不被裁剪，且跟随动画尺寸同步缩放
+                        .dropShadow(
+                            shape = feedbackShape,
+                            shadow = Shadow(
+                                radius = 14.dp,
+                                color = shadowTint,
+                                offset = DpOffset(0.dp, 4.dp),
+                            ),
+                        )
                         .then(
                             if (motionEnabled) {
                                 Modifier.animateContentSize(tween(Motion.MICRO, easing = Motion.Decelerate))
@@ -225,13 +274,10 @@ fun FeedbackHost() {
                                 Modifier
                             },
                         )
-                        .shadow(6.dp, feedbackShape, ambientColor = shadowTint, spotColor = shadowTint)
-                        .clip(feedbackShape)
-                        .background(toastBg)
-                        .border(0.75.dp, borderColor, feedbackShape)
+                        .then(surfaceModifier)
                         // 读屏直播（Polite）：同步结果/安装结果此前 TalkBack 完全无感知
                         .semantics { liveRegion = LiveRegionMode.Polite }
-                        .padding(start = 14.dp, end = if (m.actionLabel == null) 14.dp else feedbackActionInset),
+                        .padding(start = 16.dp, end = if (m.actionLabel == null) 16.dp else feedbackActionInset),
                     verticalAlignment = Alignment.CenterVertically,
                 ) {
                     // 状态符 Lucide 带圈版（circle-check/circle-x，不套圆底徽章防圈套圈）
@@ -273,8 +319,12 @@ fun FeedbackHost() {
                     )
                     m.actionLabel?.let { label ->
                         Spacer(Modifier.width(4.dp))
-                        // 取消/操作钮带状态色 12% 实体叠底（普通薄荷绿 / 错误柔和红），按下时向深色插值
-                        val chipColor = accentTint.copy(alpha = 0.12f).compositeOver(toastBg)
+                        // 取消/操作钮带状态色 12% 叠底（玻璃态直接半透融入，降级态叠在 toastBg 上）
+                        val chipColor = if (backdrop != null) {
+                            accentTint.copy(alpha = 0.12f)
+                        } else {
+                            accentTint.copy(alpha = 0.12f).compositeOver(toastBg)
+                        }
                         val (press, pressColor) = rememberRowPressTint(surface = chipColor)
                         Box(
                             modifier = Modifier

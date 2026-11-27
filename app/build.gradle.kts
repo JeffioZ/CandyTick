@@ -110,6 +110,7 @@ dependencies {
     debugImplementation(libs.compose.ui.tooling)
 
     implementation(libs.miuix.ui)
+    implementation(libs.miuix.glass)
     // 更新日志 Markdown 解析（GFM 表格/删除线/自动链接）——ReleaseNotes 渲染内核
     implementation(libs.commonmark)
     implementation(libs.commonmark.gfm.tables)

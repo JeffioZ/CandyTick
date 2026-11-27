@@ -56,7 +56,8 @@ private fun PickerSearchField(
     val focus = remember { FocusRequester() }
     CandyTextField(
         value = query,
-        onValueChange = { if (it != query && it.length <= InputLimits.SEARCH) onQueryChange(it) },
+        onValueChange = { if (it != query) onQueryChange(it) },
+        maxLength = InputLimits.SEARCH,
         label = label,
         singleLine = true,
         keyboardOptions = KeyboardOptions(imeAction = ImeAction.Done),

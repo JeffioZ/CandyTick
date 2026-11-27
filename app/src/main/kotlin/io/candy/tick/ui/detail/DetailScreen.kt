@@ -1,5 +1,10 @@
 package io.candy.tick.ui.detail
 
+import io.candy.tick.ui.common.topBarProgressiveBlur
+import top.yukonga.miuix.kmp.blur.layerBackdrop
+import top.yukonga.miuix.kmp.blur.rememberLayerBackdrop
+import top.yukonga.miuix.kmp.material.isRuntimeShaderSupported
+
 import android.content.ClipData
 import android.content.ClipboardManager
 import android.net.Uri
@@ -490,6 +495,9 @@ fun DetailScreen(
             translating = false
         }
     }
+    val pageBackdrop = if (top.yukonga.miuix.kmp.material.isRuntimeShaderSupported()) {
+        top.yukonga.miuix.kmp.blur.rememberLayerBackdrop(backgroundColor = scheme.background)
+    } else null
     Scaffold(
         modifier = Modifier
             .onPreviewKeyEvent {
@@ -506,6 +514,12 @@ fun DetailScreen(
             },
         containerColor = androidx.compose.ui.graphics.Color.Transparent,
         topBar = {
+            val detailScrolled by remember { derivedStateOf { detailListState.canScrollBackward } }
+            Box(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .topBarProgressiveBlur(pageBackdrop, active = detailScrolled),
+            ) {
                 SmallTopAppBar(
                     color = androidx.compose.ui.graphics.Color.Transparent,
                     title = "",
@@ -514,6 +528,8 @@ fun DetailScreen(
                             PressIconButton(
                                 onClick = { if (showAppPicker) showAppPicker = false else onBack() },
                                 contentDescription = stringResource(R.string.back),
+                                containerColor = androidx.compose.ui.graphics.Color.Unspecified,
+                                glass = true,
                             ) {
                                 Icon(
                                     imageVector = ImageVector.vectorResource(R.drawable.ic_back),
@@ -587,8 +603,9 @@ fun DetailScreen(
                                 containerColor = if (translateEnabled) {
                                     translateBg.copy(alpha = translateBg.alpha * pulseAlpha)
                                 } else {
-                                    scheme.surfaceContainer
+                                    androidx.compose.ui.graphics.Color.Unspecified
                                 },
+                                glass = true,
                             ) {
                                 Icon(
                                     imageVector = ImageVector.vectorResource(R.drawable.ic_translate),
@@ -600,6 +617,8 @@ fun DetailScreen(
                             PressIconButton(
                                 onClick = { showMoreSheet = true },
                                 contentDescription = stringResource(R.string.detail_more_actions),
+                                containerColor = androidx.compose.ui.graphics.Color.Unspecified,
+                                glass = true,
                             ) {
                                 Icon(
                                     imageVector = ImageVector.vectorResource(R.drawable.ic_more),
@@ -611,8 +630,10 @@ fun DetailScreen(
                     },
                     scrollBehavior = scrollBehavior,
                 )
+            }
         },
     ) { padding ->
+        val topPad = padding.calculateTopPadding()
         io.candy.tick.ui.common.CandyPullToRefresh(
             requestState = vm.state,
             refreshing = { it.refreshing },
@@ -623,13 +644,17 @@ fun DetailScreen(
             },
             pullToRefreshState = pullState,
             topAppBarScrollBehavior = scrollBehavior,
-            modifier = Modifier.padding(padding),
+            topOffset = topPad,
+            modifier = Modifier
+                .fillMaxSize()
+                .padding(bottom = padding.calculateBottomPadding())
+                .then(if (pageBackdrop != null) Modifier.layerBackdrop(pageBackdrop) else Modifier),
         ) {
             LazyColumn(
                 state = detailListState,
                 modifier = Modifier.fillMaxSize(),
                 // 底部 32：全 App 滚动终止留白统一档（footer 元素上下间距见 FooterText v8 + 此 32）
-                contentPadding = PaddingValues(start = 16.dp, end = 16.dp, bottom = 32.dp),
+                contentPadding = PaddingValues(start = 16.dp, end = 16.dp, top = topPad, bottom = 32.dp),
                 verticalArrangement = Arrangement.spacedBy(HistoryItemSpacing),
             ) {
                 item {
@@ -863,8 +888,8 @@ private fun DetailMoreActionsSheet(
     ) {
         val dark = LocalDarkTheme.current
         val cardShape = RoundedCornerShape(16.dp)
-        // 统一浮层软底分组卡 + 薄荷淡底徽章；危险项沿用同款中性软底卡 + 淡红徽章 + 红字
-        val groupBg = if (dark) scheme.surfaceContainerHigh else scheme.background
+        // 统一浮层软底分组卡（玻璃态微半透 / 低版本柔和实色）+ 薄荷淡底徽章；危险项沿用同款中性卡 + 淡红徽章 + 红字
+        val groupBg = io.candy.tick.ui.common.sheetCardColor()
         val actionBadgeBg = scheme.primaryVariant.copy(alpha = 0.12f)
         val dangerBadgeBg = scheme.error.copy(alpha = if (dark) 0.14f else 0.11f)
         val hasPrimaryActions = showBranch || webUrl != null

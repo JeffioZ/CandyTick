@@ -12,7 +12,7 @@ work = "2.12.0"
 okhttp = "5.5.1"
 kotlinxCoroutines = "1.11.0"
 kotlinxSerialization = "1.13.0"
-miuix = "0.9.4"
+miuix = "0.9.5-rc02"
 commonmark = "0.33.0"
 junit = "4.13.2"
 
@@ -34,6 +34,7 @@ compose-ui-tooling = { group = "androidx.compose.ui", name = "ui-tooling" }
 compose-foundation = { group = "androidx.compose.foundation", name = "foundation" }
 
 miuix-ui = { group = "top.yukonga.miuix.kmp", name = "miuix-ui", version.ref = "miuix" }
+miuix-glass = { group = "top.yukonga.miuix.kmp", name = "miuix-glass", version.ref = "miuix" }
 
 okhttp = { group = "com.squareup.okhttp3", name = "okhttp", version.ref = "okhttp" }
 kotlinx-coroutines-android = { module = "org.jetbrains.kotlinx:kotlinx-coroutines-android", version.ref = "kotlinxCoroutines" }

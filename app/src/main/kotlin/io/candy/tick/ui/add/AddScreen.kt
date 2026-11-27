@@ -205,7 +205,8 @@ fun AddScreen(
             Spacer(Modifier.height(4.dp))
             CandyTextField(
                 value = state.input,
-                onValueChange = { if (it.length <= io.candy.tick.ui.common.InputLimits.SEARCH) vm.onInput(it) },
+                onValueChange = { vm.onInput(it) },
+                maxLength = io.candy.tick.ui.common.InputLimits.SEARCH,
                 label = stringResource(R.string.add_input_hint),
                 // 单行：IME 确定显示「搜索」而非换行；长链接也不会被折行截断
                 singleLine = true,

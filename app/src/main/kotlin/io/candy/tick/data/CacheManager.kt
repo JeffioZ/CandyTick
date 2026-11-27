@@ -6,8 +6,8 @@ import java.io.File
 import java.util.concurrent.TimeUnit
 
 /**
- * 磁盘缓存管理：仓库 APK（apks/{repoId}/）、自身更新 APK（updates/）、崩溃日志。
- * 「清理缓存」设置页的数据层；App 启动时回收孤儿目录（仓库已删除但 APK 残留）。
+ * 磁盘缓存与崩溃日志管理：仓库 APK（apks/{repoId}/）、自身更新 APK（updates/）、分享临时文件（cache/shares/）与崩溃日志。
+ * 「清理缓存」只清安装包与临时文件（不动订阅数据）；崩溃日志由专属浮层独立管理；App 启动时回收孤儿目录。
  */
 class CacheManager(private val context: Context) {
 
@@ -19,28 +19,31 @@ class CacheManager(private val context: Context) {
             if (file.lastModified() == modifiedAt && file.length() == bytes && file.delete()) bytes else 0L
     }
 
-    internal class CacheInfo(private val packages: List<ScannedFile>, private val log: ScannedFile?) {
-        val apkBytes = packages.sumOf { it.bytes }
-        val crashLogBytes = log?.bytes ?: 0L
+    internal class CacheInfo(private val files: List<ScannedFile>) {
+        val totalBytes = files.sumOf { it.bytes }
 
-        fun clean(apks: Boolean, crashLog: Boolean): Long {
-            val packageBytes = if (apks) packages.sumOf { it.delete() } else 0L
-            val logBytes = if (crashLog) log?.delete() ?: 0L else 0L
-            return packageBytes + logBytes
-        }
+        fun clean(): Long = files.sumOf { it.delete() }
     }
 
     private val apksRoot: File get() = File(context.filesDir, "apks")
     private val updatesDir: File get() = File(context.filesDir, "updates")
+    private val sharesDir: File get() = File(context.cacheDir, "shares")
     private val crashLogFile: File
         get() = File(context.getExternalFilesDir(null) ?: context.filesDir, "crash.log")
 
     /** Use the files counted in this scan. Downloads published later belong to the next scan. */
     internal fun scan() = CacheInfo(
-        packages = sequenceOf(apksRoot, updatesDir).flatMap { it.walkTopDown() }
+        files = sequenceOf(apksRoot, updatesDir, sharesDir).flatMap { it.walkTopDown() }
             .filter { it.isFile && !it.isDownloadPart() }.map(::ScannedFile).toList(),
-        log = crashLogFile.takeIf { it.isFile }?.let(::ScannedFile),
     )
+
+    internal fun crashLogBytes(): Long = crashLogFile.takeIf { it.isFile }?.length() ?: 0L
+
+    internal fun readCrashLog(): String? =
+        runCatching { crashLogFile.takeIf { it.isFile && it.length() > 0 }?.readText() }.getOrNull()
+
+    internal fun clearCrashLog(): Boolean =
+        runCatching { !crashLogFile.exists() || crashLogFile.delete() }.getOrDefault(false)
 
     /**
      * Use the restored snapshot to reclaim files left by earlier processes.

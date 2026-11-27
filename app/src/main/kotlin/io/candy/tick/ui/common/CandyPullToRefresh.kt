@@ -33,6 +33,7 @@ internal fun <T> CandyPullToRefresh(
     pullToRefreshState: PullToRefreshState,
     topAppBarScrollBehavior: ScrollBehavior?,
     modifier: Modifier = Modifier,
+    topOffset: androidx.compose.ui.unit.Dp = 0.dp,
     content: @Composable () -> Unit,
 ) {
     val scheme = MiuixTheme.colorScheme
@@ -64,7 +65,7 @@ internal fun <T> CandyPullToRefresh(
         },
         pullToRefreshState = pullToRefreshState,
         topAppBarScrollBehavior = topAppBarScrollBehavior,
-        contentPadding = PaddingValues(top = 9.dp),
+        contentPadding = PaddingValues(top = topOffset + 9.dp),
         color = scheme.primaryVariant, // 薄荷主色：与全应用活动色统一
         refreshTexts = listOf(
             stringResource(R.string.refresh_pull),

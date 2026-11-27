@@ -226,59 +226,70 @@ class SettingsViewModel(
         tokenTest.value = null
     }
 
-    // ---- 缓存清理 ----
+    // ---- 缓存清理 & 崩溃日志 ----
 
     internal data class CacheState(
         val scan: CacheManager.CacheInfo? = null,
         val cleaning: Boolean = false,
     ) {
         val scanning: Boolean get() = scan == null
-        val apkBytes: Long get() = scan?.apkBytes ?: 0L
-        val crashLogBytes: Long get() = scan?.crashLogBytes ?: 0L
+        val totalBytes: Long get() = scan?.totalBytes ?: 0L
     }
 
     private val _cacheState = MutableStateFlow(CacheState())
     internal val cacheState: StateFlow<CacheState> = _cacheState.asStateFlow()
     private var cacheScan: Job? = null
 
-    /** 打开清理浮层：实时扫描各类大小 */
-    fun scanCache() {
+    /** 设置页恢复时后台静默刷新缓存体积（供行尾展示；清理进行中不覆盖状态） */
+    fun refreshCacheScan() {
+        if (_cacheState.value.cleaning) return
         cacheScan?.cancel()
         cacheScan = viewModelScope.launch {
-            _cacheState.value = CacheState()
             val scan = withContext(Dispatchers.IO) { cacheManager.scan() }
+            if (!_cacheState.value.cleaning) {
+                _cacheState.value = CacheState(scan)
+            }
+        }
+    }
+
+    /** 点击「清理缓存」行时现扫一次并返回最新快照（1~3ms，防后台刚下完 APK 误判空） */
+    internal suspend fun scanCacheNow(): CacheManager.CacheInfo {
+        cacheScan?.cancel()
+        val scan = withContext(Dispatchers.IO) { cacheManager.scan() }
+        if (!_cacheState.value.cleaning) {
             _cacheState.value = CacheState(scan)
         }
+        return scan
     }
 
     /**
      * 执行清理。返回释放的字节数（挂起直到完成——调用方用 loading 阻断动画包裹）。
-     * 同步清空 downloadedApk 记录（UI 状态自动变更）+ SelfUpdater 状态复位。
+     * 同步清空 downloadedApk 记录（UI 状态自动变更）+ SelfUpdater 状态复位 + 重扫更新行尾体积。
      */
-    suspend fun cleanCache(apks: Boolean, crashLog: Boolean): Long {
+    suspend fun cleanCache(): Long {
         val shown = _cacheState.value
         val scan = shown.scan ?: return 0L
         if (shown.cleaning || !_cacheState.compareAndSet(shown, shown.copy(cleaning = true))) return 0L
+        var refreshed: CacheManager.CacheInfo? = null
         return try {
             // 文件已删后，即使 UI 离场也要核对相应记录。
             withContext(NonCancellable + Dispatchers.IO) {
-                val freed = scan.clean(apks, crashLog)
-                if (apks) {
-                    repository.clearMissingDownloads()
-                    selfUpdater.clearMissingDownload()
-                }
+                val freed = scan.clean()
+                repository.clearMissingDownloads()
+                selfUpdater.clearMissingDownload()
+                refreshed = cacheManager.scan()
                 freed
             }
         } finally {
-            _cacheState.value = _cacheState.value.copy(cleaning = false)
+            _cacheState.value = CacheState(scan = refreshed ?: _cacheState.value.scan, cleaning = false)
         }
     }
 
-    /** 浮层关闭后清空扫描数据：下次打开不闪旧值 */
-    fun resetCacheState() {
-        cacheScan?.cancel()
-        _cacheState.value = CacheState()
-    }
+    suspend fun crashLogBytes(): Long = withContext(Dispatchers.IO) { cacheManager.crashLogBytes() }
+
+    suspend fun readCrashLog(): String? = withContext(Dispatchers.IO) { cacheManager.readCrashLog() }
+
+    suspend fun clearCrashLog(): Boolean = withContext(Dispatchers.IO) { cacheManager.clearCrashLog() }
 
     // ---- 备份 ----
 

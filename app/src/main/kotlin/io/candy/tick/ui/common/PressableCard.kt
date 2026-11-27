@@ -25,6 +25,7 @@ import androidx.compose.runtime.setValue
 import androidx.compose.runtime.withFrameNanos
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.compositeOver
 import androidx.compose.ui.graphics.drawscope.ContentDrawScope
 import androidx.compose.ui.graphics.lerp
 import androidx.compose.ui.node.DelegatableNode
@@ -130,7 +131,7 @@ fun rememberRowPressTint(
     val scheme = MiuixTheme.colorScheme
     val maxAlpha = pressTint(LocalDarkTheme.current)
     val alpha = if (focused) maxAlpha else maxAlpha * amount.value
-    return source to lerp(surface, scheme.onSurfaceContainer, alpha)
+    return source to scheme.onSurfaceContainer.copy(alpha = alpha).compositeOver(surface)
 }
 
 /** 按压染色强度（区分深浅极性）：浅色 16% 柔和深灰，深色 9% 避免暗底叠加浅白发亮突兀。 */

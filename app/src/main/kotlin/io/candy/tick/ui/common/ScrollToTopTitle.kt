@@ -156,6 +156,8 @@ internal fun CenteredScrollToTopBar(title: String, onBack: () -> Unit, onTitleCl
                 PressIconButton(
                     onClick = onBack,
                     contentDescription = stringResource(R.string.back),
+                    containerColor = Color.Unspecified,
+                    glass = true,
                     modifier = Modifier.align(Alignment.CenterStart).padding(start = backInset),
                 ) {
                     Icon(

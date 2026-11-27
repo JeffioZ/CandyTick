@@ -1,5 +1,11 @@
 package io.candy.tick.ui.settings
 
+import androidx.compose.foundation.layout.fillMaxWidth
+import io.candy.tick.ui.common.topBarProgressiveBlur
+import top.yukonga.miuix.kmp.blur.layerBackdrop
+import top.yukonga.miuix.kmp.blur.rememberLayerBackdrop
+import top.yukonga.miuix.kmp.material.isRuntimeShaderSupported
+
 import android.content.ClipData
 import android.content.ClipboardManager
 import android.content.Intent
@@ -101,24 +107,19 @@ fun SettingsScreen(onBack: () -> Unit, autoOpenImport: Boolean = false) {
     var showTokenDialog by rememberSaveable { mutableStateOf(false) }
     var tokenVisible by rememberSaveable { mutableStateOf(false) }
 
-    val crashLogFile = remember {
-        val dir = app.getExternalFilesDir(null) ?: app.filesDir
-        java.io.File(dir, "crash.log")
-    }
-    fun crashLogExists() = crashLogFile.exists() && crashLogFile.length() > 0
-
     // 权限状态：进入页面 / 从系统设置返回（ON_RESUME）时刷新
     var installPermGranted by remember { mutableStateOf(app.container.installManager.canRequestInstalls()) }
     var notifGranted by remember { mutableStateOf(Notifications.canNotify(app)) }
-    // 崩溃日志存在性走状态（ON_RESUME 刷新），避免每次重组都在主线程查磁盘
-    var crashLogPresent by remember { mutableStateOf(false) } // ON_RESUME 注册即刷新
+    // 崩溃日志存在性走状态（ON_RESUME 在 IO 线程刷新），避免主线程查磁盘
+    var crashLogPresent by remember { mutableStateOf(false) }
     val lifecycleOwner = LocalLifecycleOwner.current
     DisposableEffect(lifecycleOwner) {
         val observer = LifecycleEventObserver { _, event ->
             if (event == Lifecycle.Event.ON_RESUME) {
                 installPermGranted = app.container.installManager.canRequestInstalls()
                 notifGranted = Notifications.canNotify(app)
-                crashLogPresent = crashLogExists()
+                scope.launch { crashLogPresent = vm.crashLogBytes() > 0L }
+                vm.refreshCacheScan()
             }
         }
         lifecycleOwner.lifecycle.addObserver(observer)
@@ -131,6 +132,8 @@ fun SettingsScreen(onBack: () -> Unit, autoOpenImport: Boolean = false) {
     // rememberSaveable：空态「导入直达」拉起后旋转屏幕浮层不丢（此前 remember 旋转即关）
     var showExportDialog by rememberSaveable { mutableStateOf(false) }
     var showImportDialog by rememberSaveable { mutableStateOf(false) }
+    var showCrashLogDialog by rememberSaveable { mutableStateOf(false) }
+    var crashLogSizeBytes by rememberSaveable { mutableStateOf(0L) }
     var showCacheCleanup by remember { mutableStateOf(false) }
     // 仅用户手动点击「检查更新」时行尾显示「正在检查…」；后台静默检查不打扰版本号显示
     var manualChecking by remember { mutableStateOf(false) }
@@ -186,6 +189,27 @@ fun SettingsScreen(onBack: () -> Unit, autoOpenImport: Boolean = false) {
         }
     }
 
+    val crashLogExportLauncher = rememberLauncherForActivityResult(ActivityResultContracts.CreateDocument("text/plain")) { uri ->
+        if (uri != null) scope.launch {
+            val content = vm.readCrashLog()
+            if (content.isNullOrEmpty()) {
+                crashLogPresent = false
+                Feedback.show(resources.getString(R.string.crash_log_empty))
+                return@launch
+            }
+            val saved = withContext(Dispatchers.IO) {
+                try {
+                    val stream = runCatching { context.contentResolver.openOutputStream(uri, "wt") }.getOrNull()
+                        ?: context.contentResolver.openOutputStream(uri)
+                    stream?.bufferedWriter(Charsets.UTF_8)?.use { it.write(content) } != null
+                } catch (_: java.io.IOException) { false }
+                catch (_: SecurityException) { false }
+            }
+            if (saved) Feedback.show(resources.getString(R.string.crash_log_saved))
+            else Feedback.show(resources.getString(R.string.crash_log_save_failed), isError = true, errorCode = "E-CRASH")
+        }
+    }
+
     suspend fun share(text: String, backup: Boolean) {
         try {
             shareSettingsText(context, text, backup)
@@ -196,33 +220,73 @@ fun SettingsScreen(onBack: () -> Unit, autoOpenImport: Boolean = false) {
         }
     }
 
-    fun shareCrashLog() {
+    var checkingCache by remember { mutableStateOf(false) }
+
+    fun openCacheCleanupSheet() {
+        if (showCacheCleanup || checkingCache || cacheState.cleaning) return
+        checkingCache = true
         scope.launch {
-            val content = withContext(Dispatchers.IO) { runCatching { crashLogFile.readText() }.getOrNull() }
-            if (content.isNullOrEmpty()) Feedback.show(resources.getString(R.string.crash_log_empty))
-            else share(content, backup = false)
+            try {
+                val scan = vm.scanCacheNow()
+                if (scan.totalBytes <= 0L) {
+                    Feedback.show(resources.getString(R.string.settings_cache_empty))
+                } else {
+                    showCacheCleanup = true
+                }
+            } finally {
+                checkingCache = false
+            }
+        }
+    }
+
+    fun openCrashLogSheet() {
+        scope.launch {
+            val bytes = vm.crashLogBytes()
+            crashLogPresent = bytes > 0L
+            if (bytes <= 0L) {
+                Feedback.show(resources.getString(R.string.crash_log_empty))
+            } else {
+                crashLogSizeBytes = bytes
+                showCrashLogDialog = true
+            }
         }
     }
 
     val links = rememberExternalUriHandler()
+    val scheme = MiuixTheme.colorScheme
+    val pageBackdrop = if (isRuntimeShaderSupported()) {
+        rememberLayerBackdrop(backgroundColor = scheme.background)
+    } else null
+    val settingsScrolled by remember { androidx.compose.runtime.derivedStateOf { listState.canScrollBackward } }
 
     Scaffold(
         containerColor = androidx.compose.ui.graphics.Color.Transparent,
         topBar = {
-            CenteredScrollToTopBar(
-                title = stringResource(R.string.settings_title),
-                onBack = onBack,
-                onTitleClick = { scope.launch { listState.scrollToTop(motionEnabled) } },
-            )
+            androidx.compose.foundation.layout.Box(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .topBarProgressiveBlur(pageBackdrop, active = settingsScrolled),
+            ) {
+                CenteredScrollToTopBar(
+                    title = stringResource(R.string.settings_title),
+                    onBack = onBack,
+                    onTitleClick = { scope.launch { listState.scrollToTop(motionEnabled) } },
+                )
+            }
         },
     ) { padding ->
-        // LazyColumn：只组合可见分组，冷启动首进不再一次性构建整页
+        // LazyColumn：延伸至顶栏下方以支撑顶栏渐进模糊，由 contentPadding.top 让位
         LazyColumn(
             state = listState,
             modifier = Modifier
                 .fillMaxSize()
-                .padding(padding)
-                .padding(horizontal = 12.dp),
+                .then(if (pageBackdrop != null) Modifier.layerBackdrop(pageBackdrop) else Modifier),
+            contentPadding = androidx.compose.foundation.layout.PaddingValues(
+                start = 12.dp,
+                end = 12.dp,
+                top = padding.calculateTopPadding(),
+                bottom = padding.calculateBottomPadding(),
+            ),
         ) {
             // ── 外观 ──
             item(key = "appearance") {
@@ -401,7 +465,8 @@ fun SettingsScreen(onBack: () -> Unit, autoOpenImport: Boolean = false) {
                     iconTint = ChipOrange,
                     title = stringResource(R.string.settings_cache_cleanup),
                     summary = stringResource(R.string.settings_cache_summary),
-                    onClick = { showCacheCleanup = true },
+                    value = cacheState.totalBytes.takeIf { it > 0L }?.let(io.candy.tick.util.CountFormat::formatBytes),
+                    onClick = { openCacheCleanupSheet() },
                 )
             }
             }
@@ -492,7 +557,7 @@ fun SettingsScreen(onBack: () -> Unit, autoOpenImport: Boolean = false) {
                             )
                         }
                     } else null,
-                    onClick = { shareCrashLog() },
+                    onClick = { openCrashLogSheet() },
                 )
             }
             }
@@ -634,19 +699,77 @@ fun SettingsScreen(onBack: () -> Unit, autoOpenImport: Boolean = false) {
         },
     )
 
-    // 清理缓存浮层
+    // 崩溃日志浮层（本地文件 / 剪贴板 / 分享 + 底部清空）
+    CrashLogActionDialog(
+        show = showCrashLogDialog,
+        sizeBytes = crashLogSizeBytes,
+        onToFile = {
+            showCrashLogDialog = false
+            scope.launch {
+                val bytes = vm.crashLogBytes()
+                if (bytes <= 0L) {
+                    crashLogPresent = false
+                    Feedback.show(resources.getString(R.string.crash_log_empty))
+                    return@launch
+                }
+                val stamp = java.text.SimpleDateFormat("yyyyMMdd", java.util.Locale.US).format(java.util.Date())
+                runCatching {
+                    crashLogExportLauncher.launch("candytick-crash-$stamp.log")
+                }.onFailure {
+                    Feedback.show(resources.getString(R.string.file_picker_unavailable), isError = true, errorCode = "E-PICK")
+                }
+            }
+        },
+        onToClipboard = {
+            showCrashLogDialog = false
+            scope.launch {
+                val content = vm.readCrashLog()
+                if (content.isNullOrEmpty()) {
+                    crashLogPresent = false
+                    Feedback.show(resources.getString(R.string.crash_log_empty))
+                    return@launch
+                }
+                if (content.length > MAX_SHARED_TEXT_CHARS) {
+                    Feedback.show(resources.getString(R.string.crash_log_too_large_for_clipboard), isError = true, errorCode = "E-CRASH")
+                    return@launch
+                }
+                if (runCatching { clipboard.setPrimaryClip(ClipData.newPlainText(null, content)) }.isSuccess) {
+                    Feedback.show(resources.getString(R.string.toast_copied))
+                } else {
+                    Feedback.show(resources.getString(R.string.crash_log_save_failed), isError = true, errorCode = "E-CRASH")
+                }
+            }
+        },
+        onShare = {
+            showCrashLogDialog = false
+            scope.launch {
+                val content = vm.readCrashLog()
+                if (content.isNullOrEmpty()) {
+                    crashLogPresent = false
+                    Feedback.show(resources.getString(R.string.crash_log_empty))
+                    return@launch
+                }
+                share(content, backup = false)
+            }
+        },
+        onClear = {
+            showCrashLogDialog = false
+            scope.launch {
+                val cleared = vm.clearCrashLog()
+                crashLogPresent = vm.crashLogBytes() > 0L
+                if (cleared) Feedback.show(resources.getString(R.string.crash_log_cleared))
+                else Feedback.show(resources.getString(R.string.crash_log_clear_failed), isError = true, errorCode = "E-CRASH")
+            }
+        },
+        onDismiss = { showCrashLogDialog = false },
+    )
+
+    // 清理缓存浮层（安装包与临时文件确认；无缓存时直接 Toast，不弹空浮层）
     CacheCleanupSheet(
         show = showCacheCleanup,
         state = cacheState,
-        onScan = vm::scanCache,
-        onClean = { apks, crashLog ->
-            val freed = vm.cleanCache(apks, crashLog)
-            // 崩溃日志被清后立即刷新 ✓ 标记（不等 ON_RESUME）
-            crashLogPresent = crashLogExists()
-            freed
-        },
+        onClean = { vm.cleanCache() },
         onDismiss = { showCacheCleanup = false },
-        onDismissFinished = vm::resetCacheState,
     )
 }
 

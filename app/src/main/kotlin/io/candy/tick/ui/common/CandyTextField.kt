@@ -5,18 +5,29 @@ import androidx.compose.animation.core.tween
 import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.interaction.collectIsFocusedAsState
 import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.text.KeyboardActionScope
 import androidx.compose.foundation.text.KeyboardActions
 import androidx.compose.foundation.text.KeyboardOptions
+import androidx.compose.foundation.text.input.InputTransformation
+import androidx.compose.foundation.text.input.KeyboardActionHandler
+import androidx.compose.foundation.text.input.OutputTransformation
+import androidx.compose.foundation.text.input.TextFieldLineLimits
+import androidx.compose.foundation.text.input.maxLengthReject
+import androidx.compose.foundation.text.input.rememberTextFieldState
+import androidx.compose.foundation.text.input.setTextAndPlaceCursorAtEnd
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberUpdatedState
+import androidx.compose.runtime.snapshotFlow
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.drawWithCache
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.Path
 import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.graphics.drawscope.translate
-import androidx.compose.ui.text.input.VisualTransformation
+import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import top.yukonga.miuix.kmp.basic.TextField
@@ -26,14 +37,12 @@ import top.yukonga.miuix.kmp.squircle.isSquircleEnabled
 import top.yukonga.miuix.kmp.theme.MiuixTheme
 
 /**
- * 全 App 输入框唯一来源：miuix [TextField] 外加 1dp 未聚焦描边。
+ * 全 App 输入框唯一来源：miuix 0.9.5 状态式 [TextField] 外加 1dp 未聚焦描边。
  *
  * 库在未聚焦时描边宽度为 0dp，只靠填充色区分，而本项目的填充色对页面底只有 1.06:1，
  * 几乎看不出输入框的边界。库的描边画在边界内侧、填充不透明，调用处 modifier 里的库描边
  * 会被盖住，所以这里在内容之后自绘一圈；聚焦时本描边收至 0，让位给库自己的 2dp 主色描边。
  * 描边色取 outline 槽，库自带的组件不读这个槽；深浅两套的取值规则见 Color.kt。
- * 调用方的 modifier 仍直接挂在这个输入框节点上（focusRequester 等行为与直接使用
- * [TextField] 一致）。
  */
 @Composable
 fun CandyTextField(
@@ -44,9 +53,41 @@ fun CandyTextField(
     singleLine: Boolean = false,
     keyboardOptions: KeyboardOptions = KeyboardOptions.Default,
     keyboardActions: KeyboardActions = KeyboardActions.Default,
-    visualTransformation: VisualTransformation = VisualTransformation.None,
+    maskPassword: Boolean = false,
+    maxLength: Int? = null,
     trailingIcon: @Composable (() -> Unit)? = null,
 ) {
+    val state = rememberTextFieldState(initialText = value)
+    val latestValue by rememberUpdatedState(value)
+    val latestOnValueChange by rememberUpdatedState(onValueChange)
+    val inputTransformation = remember(maxLength) {
+        maxLength?.let { InputTransformation.maxLengthReject(it) }
+    }
+    LaunchedEffect(value) {
+        if (state.text.toString() != value) {
+            state.setTextAndPlaceCursorAtEnd(value)
+        }
+    }
+    LaunchedEffect(state) {
+        snapshotFlow { state.text.toString() }.collect { current ->
+            if (current != latestValue) latestOnValueChange(current)
+        }
+    }
+    val actionHandler = remember(keyboardActions) {
+        val action = keyboardActions.onSearch
+            ?: keyboardActions.onDone
+            ?: keyboardActions.onGo
+            ?: keyboardActions.onSend
+            ?: keyboardActions.onNext
+        action?.let { cb -> KeyboardActionHandler { cb.invoke(EmptyKeyboardActionScope) } }
+    }
+    val outputTransformation = remember(maskPassword) {
+        if (maskPassword) {
+            OutputTransformation {
+                for (i in 0 until length) replace(i, i + 1, "\u2022")
+            }
+        } else null
+    }
     val source = remember { MutableInteractionSource() }
     val focused by source.collectIsFocusedAsState()
     val borderColor = MiuixTheme.colorScheme.outline
@@ -57,19 +98,23 @@ fun CandyTextField(
         label = "fieldBorder",
     )
     TextField(
-        value = value,
-        onValueChange = onValueChange,
+        state = state,
         modifier = modifier
             .fillMaxWidth()
             .fieldBorder(borderWidth, borderColor, TextFieldDefaults.CornerRadius, isSquircleEnabled()),
         label = label,
-        singleLine = singleLine,
+        inputTransformation = inputTransformation,
+        lineLimits = if (singleLine) TextFieldLineLimits.SingleLine else TextFieldLineLimits.Default,
         keyboardOptions = keyboardOptions,
-        keyboardActions = keyboardActions,
-        visualTransformation = visualTransformation,
+        onKeyboardAction = actionHandler,
+        outputTransformation = outputTransformation,
         trailingIcon = trailingIcon,
         interactionSource = source,
     )
+}
+
+private object EmptyKeyboardActionScope : KeyboardActionScope {
+    override fun defaultKeyboardAction(imeAction: ImeAction) = Unit
 }
 
 /**

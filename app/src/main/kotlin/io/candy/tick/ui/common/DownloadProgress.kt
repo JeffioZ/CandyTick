@@ -82,7 +82,7 @@ internal fun DownloadProgress(
                 verticalAlignment = Alignment.CenterVertically,
             ) {
                 LinearProgressIndicator(
-                    progress = bar,
+                    progress = { bar },
                     modifier = Modifier.weight(1f).widthIn(min = 48.dp),
                 )
                 Spacer(Modifier.width(12.dp))

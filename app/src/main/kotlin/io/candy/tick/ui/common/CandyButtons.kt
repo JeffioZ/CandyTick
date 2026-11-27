@@ -23,8 +23,12 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clip
 import androidx.compose.ui.focus.FocusRequester
+import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.compositeOver
+import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.platform.LocalSoftwareKeyboardController
 import androidx.compose.ui.res.stringResource
@@ -167,12 +171,42 @@ fun PressIconButton(
     tintInset: Dp = 4.dp,
     containerColor: Color = MiuixTheme.colorScheme.surfaceContainer,
     border: BorderStroke? = null,
+    glass: Boolean = false,
     onLongClick: (() -> Unit)? = null,
     onLongClickLabel: String? = null,
     enabled: Boolean = true,
     content: @Composable () -> Unit,
 ) {
-    val (pressSrc, pressColor) = rememberRowPressTint(surface = containerColor)
+    val dark = LocalDarkTheme.current
+    val glassEnabled = glass && LocalAppBackdrop.current != null
+    val resolvedSurface = when {
+        !glass -> containerColor
+        glassEnabled -> {
+            val glassBase = if (dark) Color.White.copy(alpha = 0.11f) else Color.White.copy(alpha = 0.72f)
+            if (containerColor == Color.Unspecified) glassBase else containerColor.compositeOver(glassBase)
+        }
+        containerColor != Color.Unspecified -> containerColor
+        else -> MiuixTheme.colorScheme.surfaceContainer
+    }
+    val resolvedBorder = when {
+        border != null -> border
+        !glass -> null
+        glassEnabled -> BorderStroke(
+            width = 0.75.dp,
+            brush = Brush.verticalGradient(
+                if (dark) {
+                    listOf(Color.White.copy(alpha = 0.22f), Color.White.copy(alpha = 0.06f))
+                } else {
+                    listOf(Color.White.copy(alpha = 0.88f), Color.Black.copy(alpha = 0.08f))
+                },
+            ),
+        )
+        else -> BorderStroke(
+            width = 0.5.dp,
+            color = if (dark) Color.White.copy(alpha = 0.09f) else Color.Black.copy(alpha = 0.06f),
+        )
+    }
+    val (pressSrc, pressColor) = rememberRowPressTint(surface = resolvedSurface)
     val gestures = if (onLongClick == null) {
         Modifier.clickable(enabled = enabled, interactionSource = pressSrc, indication = null, role = Role.Button, onClick = onClick)
     } else {
@@ -191,10 +225,12 @@ fun PressIconButton(
             .size(48.dp)
             .then(gestures)
             .semantics { contentDescription?.let { this.contentDescription = it } }
+            .then(if (enabled) Modifier else Modifier.graphicsLayer { alpha = 0.38f })
             // padding 在 clickable 之后：染色圆缩进、热区不缩
             .padding(tintInset)
+            .clip(CircleShape)
             .background(pressColor, CircleShape)
-            .then(if (border == null) Modifier else Modifier.border(border, CircleShape)),
+            .then(if (resolvedBorder == null) Modifier else Modifier.border(resolvedBorder, CircleShape)),
         contentAlignment = Alignment.Center,
     ) {
         content()

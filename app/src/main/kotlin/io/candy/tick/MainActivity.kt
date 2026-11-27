@@ -8,15 +8,25 @@ import android.os.LocaleList
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
 import androidx.activity.enableEdgeToEdge
+import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.WindowInsets
+import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.setValue
+import androidx.compose.ui.Modifier
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalConfiguration
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalResources
 import androidx.core.splashscreen.SplashScreen.Companion.installSplashScreen
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import top.yukonga.miuix.kmp.basic.Scaffold
+import top.yukonga.miuix.kmp.blur.layerBackdrop
+import top.yukonga.miuix.kmp.blur.rememberLayerBackdrop
+import top.yukonga.miuix.kmp.material.isRuntimeShaderSupported
+import top.yukonga.miuix.kmp.theme.MiuixTheme
 import io.candy.tick.data.Notifications
 import io.candy.tick.ui.common.StorageStatusHost
 import io.candy.tick.ui.nav.AppNavHost
@@ -126,19 +136,43 @@ class MainActivity : ComponentActivity() {
                 LocalResources provides localizedContext.resources,
             ) {
                 CandyTickTheme(themeMode = settings.themeMode) {
-                    StorageStatusHost(container.appStateStore) {
-                        val requested = pendingNavTarget
-                        val target = if (requested is RouteDetail) {
-                            val loaded by container.appStateStore.state.collectAsStateWithLifecycle()
-                            if (loaded.repos.any { it.id == requested.repoId }) requested else RouteHome
-                        } else requested
-                        AppNavHost(
-                            pendingTarget = target,
-                            onNavConsumed = { if (pendingNavTarget == requested && it == target) pendingNavTarget = null },
-                        )
-                        io.candy.tick.ui.common.FeedbackHost()
-                        // 全局更新弹窗：设置页未打开时（后台自动检查）也能弹出
-                        io.candy.tick.ui.common.UpdateSheet(container.selfUpdater)
+                    val bgColor = MiuixTheme.colorScheme.background
+                    val backdrop = if (isRuntimeShaderSupported()) {
+                        rememberLayerBackdrop(backgroundColor = bgColor)
+                    } else null
+                    // 根 Scaffold + LayerBackdrop：全 App 12 处 CandySheet 通过 GlassBottomSheet(renderInRootScaffold = true)
+                    // 统一在 API 33+ 获得实时液态玻璃采样，API 29-32 自动降级为不透明表面
+                    androidx.compose.runtime.CompositionLocalProvider(
+                        io.candy.tick.ui.common.LocalAppBackdrop provides backdrop,
+                    ) {
+                        Box(modifier = Modifier.fillMaxSize()) {
+                            Scaffold(
+                                containerColor = Color.Transparent,
+                                contentWindowInsets = WindowInsets(0),
+                            ) {
+                                Box(
+                                    modifier = Modifier
+                                        .fillMaxSize()
+                                        .then(if (backdrop != null) Modifier.layerBackdrop(backdrop) else Modifier),
+                                ) {
+                                    StorageStatusHost(container.appStateStore) {
+                                        val requested = pendingNavTarget
+                                        val target = if (requested is RouteDetail) {
+                                            val loaded by container.appStateStore.state.collectAsStateWithLifecycle()
+                                            if (loaded.repos.any { it.id == requested.repoId }) requested else RouteHome
+                                        } else requested
+                                        AppNavHost(
+                                            pendingTarget = target,
+                                            onNavConsumed = { if (pendingNavTarget == requested && it == target) pendingNavTarget = null },
+                                        )
+                                    }
+                                }
+                                // 全局更新弹窗：挂在根 Scaffold 内，支持 GlassBottomSheet 液态玻璃采样
+                                io.candy.tick.ui.common.UpdateSheet(container.selfUpdater)
+                            }
+                            // 位于根 Scaffold 之上：浮层打开期间弹出的提示胶囊不被遮罩压住
+                            io.candy.tick.ui.common.FeedbackHost()
+                        }
                     }
                 }
             }

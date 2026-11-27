@@ -1,5 +1,10 @@
 package io.candy.tick.ui.list
 
+import io.candy.tick.ui.common.topBarProgressiveBlur
+import top.yukonga.miuix.kmp.blur.layerBackdrop
+import top.yukonga.miuix.kmp.blur.rememberLayerBackdrop
+import top.yukonga.miuix.kmp.material.isRuntimeShaderSupported
+
 import android.view.ViewTreeObserver
 import androidx.compose.animation.AnimatedContent
 import androidx.compose.animation.EnterTransition
@@ -303,13 +308,26 @@ fun ListScreen(
         }
     }
 
+    val pageBackdrop = if (top.yukonga.miuix.kmp.material.isRuntimeShaderSupported()) {
+        top.yukonga.miuix.kmp.blur.rememberLayerBackdrop(backgroundColor = scheme.background)
+    } else null
+    val homeScrolled by remember {
+        androidx.compose.runtime.derivedStateOf {
+            if (state.items.isEmpty()) emptyScroll.value > 0 else listState.canScrollBackward
+        }
+    }
     Box(modifier = Modifier.fillMaxSize()) {
         Scaffold(
             // 键盘弹出（搜索态）时整页收缩到 IME 上方：空态/结果在可见区居中不被遮挡
             modifier = Modifier.imePadding(),
             containerColor = androidx.compose.ui.graphics.Color.Transparent,
             topBar = {
-                SmallTopAppBar(
+                Box(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .topBarProgressiveBlur(pageBackdrop, active = homeScrolled),
+                ) {
+                    SmallTopAppBar(
                     title = "",
                     color = Color.Transparent,
                     scrollBehavior = scrollBehavior,
@@ -363,10 +381,18 @@ fun ListScreen(
                                 visible = canCollapse,
                                 enter = if (motionEnabled) {
                                     expandHorizontally(tween(Motion.PRESS), expandFrom = Alignment.End, clip = false) +
-                                        fadeIn(tween(Motion.MICRO, delayMillis = Motion.PRESS))
+                                        fadeIn(tween(Motion.MICRO, delayMillis = Motion.PRESS)) +
+                                        androidx.compose.animation.scaleIn(
+                                            tween(Motion.MICRO, delayMillis = Motion.PRESS),
+                                            initialScale = 0.88f,
+                                        )
                                 } else EnterTransition.None,
                                 exit = if (motionEnabled) {
                                     fadeOut(tween(Motion.MICRO)) +
+                                        androidx.compose.animation.scaleOut(
+                                            tween(Motion.MICRO),
+                                            targetScale = 0.88f,
+                                        ) +
                                         shrinkHorizontally(
                                             tween(Motion.PRESS, delayMillis = Motion.MICRO),
                                             shrinkTowards = Alignment.End,
@@ -375,8 +401,15 @@ fun ListScreen(
                                 } else ExitTransition.None,
                             ) {
                                 io.candy.tick.ui.common.PressIconButton(
-                                    onClick = { if (canCollapse) vm.collapseAll() },
+                                    onClick = {
+                                        if (canCollapse) {
+                                            haptic.performHapticFeedback(HapticFeedbackType.TextHandleMove)
+                                            vm.collapseAll()
+                                        }
+                                    },
                                     contentDescription = stringResource(R.string.collapse_all),
+                                    containerColor = scheme.primaryVariant.copy(alpha = 0.14f),
+                                    glass = true,
                                     modifier = if (canCollapse) Modifier else Modifier
                                         .clearAndSetSemantics { }
                                         .focusProperties { canFocus = false },
@@ -384,7 +417,7 @@ fun ListScreen(
                                     Icon(
                                         imageVector = ImageVector.vectorResource(R.drawable.ic_collapse_all),
                                         contentDescription = null,
-                                        tint = scheme.onBackground,
+                                        tint = scheme.primaryVariant,
                                         modifier = Modifier.size(24.dp), // 顶栏动作图标统一 24dp
                                     )
                                 }
@@ -417,6 +450,8 @@ fun ListScreen(
                                         contentDescription = stringResource(
                                             if (showSearch) R.string.close_search else R.string.action_search,
                                         ),
+                                        containerColor = Color.Unspecified,
+                                        glass = true,
                                     ) {
                                         // 激活态换返回箭头（= 退出搜索模式，与系统返回同语义）：
                                         // 此前用 X 与输入框「清空」钮同形（skill: X=modal close 语义撞车）。
@@ -450,6 +485,8 @@ fun ListScreen(
                                     io.candy.tick.ui.common.PressIconButton(
                                         onClick = { sortSheet = SortSheetSession(vm.storedSortOrder) },
                                         contentDescription = stringResource(R.string.sort_title),
+                                        containerColor = Color.Unspecified,
+                                        glass = true,
                                     ) {
                                         val sortFlip by animateFloatAsState(
                                             targetValue = if (state.sortOrder.ascending) 180f else 0f,
@@ -473,6 +510,8 @@ fun ListScreen(
                             io.candy.tick.ui.common.PressIconButton(
                                 onClick = { leaveHome(onOpenSettings) },
                                 contentDescription = stringResource(R.string.settings_title),
+                                containerColor = Color.Unspecified,
+                                glass = true,
                             ) {
                                 Icon(
                                     imageVector = ImageVector.vectorResource(R.drawable.ic_settings),
@@ -484,6 +523,8 @@ fun ListScreen(
                             io.candy.tick.ui.common.PressIconButton(
                                 onClick = { leaveHome(onAdd) },
                                 contentDescription = stringResource(R.string.add_repo),
+                                containerColor = Color.Unspecified,
+                                glass = true,
                             ) {
                                 Icon(
                                     imageVector = ImageVector.vectorResource(R.drawable.ic_add),
@@ -494,13 +535,25 @@ fun ListScreen(
                         }
                     },
                 )
+                }
             },
         ) { padding ->
-            Box(modifier = Modifier.padding(padding)) {
+            val topPad = padding.calculateTopPadding()
+            val hasTopInsetBlock = searchVisibility.currentState || searchVisibility.targetState || state.banner != null
+            Box(
+                modifier = Modifier
+                    .fillMaxSize()
+                    .padding(bottom = padding.calculateBottomPadding())
+                    .then(if (pageBackdrop != null) Modifier.layerBackdrop(pageBackdrop) else Modifier),
+            ) {
             // 松手触发刷新：轻触感确认（HyperOS 下拉刷新惯例）
             // 下拉刷新只包列表分支：空态没有任何订阅可刷，接下拉是死手势
             // （拉了只看到空刷新动画）——指示器原点随之下移到列表区，语义也更准
-                Column(modifier = Modifier.fillMaxSize()) {
+                Column(
+                    modifier = Modifier
+                        .fillMaxSize()
+                        .padding(top = if (hasTopInsetBlock) topPad else 0.dp),
+                ) {
                     androidx.compose.animation.AnimatedVisibility(
                         visibleState = searchVisibility,
                         enter = if (motionEnabled) androidx.compose.animation.expandVertically(
@@ -516,7 +569,8 @@ fun ListScreen(
                     ) {
                         io.candy.tick.ui.common.CandyTextField(
                             value = state.query,
-                            onValueChange = { if (it.length <= io.candy.tick.ui.common.InputLimits.SEARCH) vm.setQuery(it) },
+                            onValueChange = { vm.setQuery(it) },
+                            maxLength = io.candy.tick.ui.common.InputLimits.SEARCH,
                             // singleLine 与全 App 输入框统一（此前列表过滤框会折行）
                             singleLine = true,
                             label = stringResource(R.string.search_hint),
@@ -607,6 +661,7 @@ fun ListScreen(
                             },
                             pullToRefreshState = pullState,
                             topAppBarScrollBehavior = scrollBehavior,
+                            topOffset = if (hasTopInsetBlock) 0.dp else topPad,
                         ) {
                         LazyColumn(
                             state = listState,
@@ -621,7 +676,7 @@ fun ListScreen(
                                 // top 13 = 4 基线 + 9：补偿 PullToRefresh contentPadding——
                                 // 刷新指示器（环+文字）的上下隙对称（实测上 20/下 10.7 → 均衡）；
                                 // 横幅在场时 13→7（listTopGap 同拍动画）：横幅下衬 6 + 7 = 13，与横幅上方对称
-                                top = listTopGap,
+                                top = (if (hasTopInsetBlock) 0.dp else topPad) + listTopGap,
                                 bottom = 32.dp,
                             ),
                             verticalArrangement = Arrangement.spacedBy(8.dp),

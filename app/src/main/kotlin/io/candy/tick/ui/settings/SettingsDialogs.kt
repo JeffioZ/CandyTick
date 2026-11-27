@@ -5,7 +5,6 @@ import kotlinx.coroutines.launch
 import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
-import androidx.compose.runtime.rememberUpdatedState
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.getValue
@@ -23,9 +22,11 @@ import androidx.compose.foundation.clickable
 import androidx.compose.foundation.selection.selectable
 import androidx.compose.foundation.selection.selectableGroup
 import androidx.compose.ui.graphics.drawscope.clipPath
+import androidx.annotation.DrawableRes
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.ColumnScope
 import androidx.compose.foundation.layout.IntrinsicSize
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxHeight
@@ -71,40 +72,50 @@ import top.yukonga.miuix.kmp.theme.MiuixTheme
 
 // ── 设置页弹窗与自身更新操作块（自 SettingsScreen 拆出）──
 
-/** 缓存清理浮层：实时扫描 → 逐类勾选 → 清理（loading 阻断 + 释放量反馈） */
+/** 缓存清理浮层：打开前已拿到最新扫描快照 → 摘要卡展示体积 → 确认清理（loading 阻断 + 释放量反馈） */
 @Composable
 internal fun CacheCleanupSheet(
     show: Boolean,
     state: SettingsViewModel.CacheState,
-    onScan: () -> Unit,
-    onClean: suspend (Boolean, Boolean) -> Long,
+    onClean: suspend () -> Long,
     onDismiss: () -> Unit,
-    onDismissFinished: () -> Unit,
 ) {
     val scope = rememberCoroutineScope()
-    val visible by rememberUpdatedState(show)
-    var cleanApk by remember { mutableStateOf(true) }
-    var cleanCrash by remember { mutableStateOf(false) }
-
-    androidx.compose.runtime.LaunchedEffect(show) {
-        if (show) {
-            cleanApk = true
-            cleanCrash = false
-            onScan()
-        }
-    }
 
     io.candy.tick.ui.common.CandySheet(
         show = show,
         title = stringResource(R.string.settings_cache_cleanup),
         onDismissRequest = { if (!state.cleaning) onDismiss() },
-        onDismissFinished = { if (!visible) onDismissFinished() },
     ) {
-        val includeApks = cleanApk && !state.scanning && state.apkBytes > 0
-        val includeCrashLog = cleanCrash && !state.scanning && state.crashLogBytes > 0
         val scheme = MiuixTheme.colorScheme
         val dark = LocalDarkTheme.current
-        val groupBg = if (dark) scheme.surfaceContainerHigh else scheme.background
+        val motionEnabled = rememberMotionEnabled()
+        val hasCache = !state.scanning && state.totalBytes > 0L
+        val neutralBadgeBg = if (io.candy.tick.ui.common.LocalAppBackdrop.current != null) {
+            if (dark) {
+                androidx.compose.ui.graphics.Color.White.copy(alpha = 0.08f)
+            } else {
+                androidx.compose.ui.graphics.Color.Black.copy(alpha = 0.06f)
+            }
+        } else {
+            if (dark) scheme.secondary else scheme.surface
+        }
+        val badgeBg by androidx.compose.animation.animateColorAsState(
+            targetValue = if (hasCache) scheme.primaryVariant.copy(alpha = 0.12f) else neutralBadgeBg,
+            animationSpec = tween(if (motionEnabled) Motion.PHASE else 0),
+            label = "cacheSummaryBadgeBg",
+        )
+        val badgeTint by androidx.compose.animation.animateColorAsState(
+            targetValue = if (hasCache) scheme.primaryVariant else scheme.onSurfaceContainerVariant,
+            animationSpec = tween(if (motionEnabled) Motion.PHASE else 0),
+            label = "cacheSummaryBadgeTint",
+        )
+        val cardBg = io.candy.tick.ui.common.sheetCardColor()
+        val sizeText = when {
+            state.scanning -> "—"
+            state.totalBytes == 0L -> stringResource(R.string.settings_cache_none)
+            else -> formatBytes(state.totalBytes)
+        }
         Column(
             modifier = Modifier
                 .verticalScroll(rememberScrollState())
@@ -112,43 +123,62 @@ internal fun CacheCleanupSheet(
                 .padding(top = 8.dp, bottom = 18.dp),
             verticalArrangement = Arrangement.spacedBy(12.dp),
         ) {
-            Column(
+            Row(
                 modifier = Modifier
                     .fillMaxWidth()
                     .clip(RoundedCornerShape(16.dp))
-                    .background(groupBg),
+                    .background(cardBg)
+                    .padding(horizontal = 14.dp, vertical = 14.dp),
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.spacedBy(12.dp),
             ) {
-                CacheCleanupRow(
-                    iconRes = R.drawable.ic_package,
-                    label = stringResource(R.string.settings_cache_apk),
-                    sizeBytes = state.apkBytes.takeUnless { state.scanning },
-                    checked = includeApks,
-                    cleaning = state.cleaning,
-                    onChecked = { cleanApk = it },
-                )
                 Box(
                     modifier = Modifier
-                        .fillMaxWidth()
-                        .padding(start = 62.dp, end = 14.dp)
-                        .height(0.5.dp)
-                        .background(scheme.dividerLine),
-                )
-                CacheCleanupRow(
-                    iconRes = R.drawable.ic_report,
-                    label = stringResource(R.string.settings_cache_crash_log),
-                    sizeBytes = state.crashLogBytes.takeUnless { state.scanning },
-                    checked = includeCrashLog,
-                    cleaning = state.cleaning,
-                    onChecked = { cleanCrash = it },
+                        .size(40.dp)
+                        .clip(RoundedCornerShape(11.dp))
+                        .background(badgeBg),
+                    contentAlignment = Alignment.Center,
+                ) {
+                    Icon(
+                        imageVector = ImageVector.vectorResource(R.drawable.ic_package),
+                        contentDescription = null,
+                        tint = badgeTint,
+                        modifier = Modifier.size(20.dp),
+                    )
+                }
+                Column(
+                    modifier = Modifier.weight(1f),
+                    verticalArrangement = Arrangement.spacedBy(2.dp),
+                ) {
+                    Text(
+                        text = stringResource(R.string.settings_cache_apk),
+                        style = MiuixTheme.textStyles.body1.copy(fontWeight = FontWeight.Medium),
+                        color = scheme.onSurface,
+                        maxLines = 1,
+                        overflow = TextOverflow.Ellipsis,
+                    )
+                    Text(
+                        text = stringResource(R.string.settings_cache_apk_note),
+                        style = MiuixTheme.textStyles.footnote1,
+                        color = scheme.onSurfaceContainerVariant,
+                        maxLines = 1,
+                        overflow = TextOverflow.Ellipsis,
+                    )
+                }
+                Text(
+                    text = sizeText,
+                    style = MiuixTheme.textStyles.body2.copy(
+                        fontWeight = if (hasCache) FontWeight.SemiBold else FontWeight.Medium,
+                        fontFeatureSettings = "tnum",
+                    ),
+                    color = if (hasCache) scheme.onSurface else scheme.onSurfaceContainerVariant,
+                    maxLines = 1,
                 )
             }
-            val selectedBytes = (if (includeApks) state.apkBytes else 0L) +
-                (if (includeCrashLog) state.crashLogBytes else 0L)
             val action = stringResource(R.string.settings_cache_clean_action)
             val label = when {
                 state.scanning -> action
-                selectedBytes > 0 -> "$action · ${formatBytes(selectedBytes)}"
-                state.apkBytes > 0 || state.crashLogBytes > 0 -> stringResource(R.string.settings_cache_select_hint)
+                state.totalBytes > 0L -> "$action · ${formatBytes(state.totalBytes)}"
                 else -> stringResource(R.string.settings_cache_empty)
             }
             val freedTemplate = stringResource(R.string.settings_cache_freed)
@@ -159,10 +189,10 @@ internal fun CacheCleanupSheet(
                     state.cleaning -> stringResource(R.string.settings_cache_cleaning)
                     else -> null
                 },
-                enabled = selectedBytes > 0,
+                enabled = hasCache,
                 onClick = {
                     scope.launch {
-                        val freed = onClean(includeApks, includeCrashLog)
+                        val freed = onClean()
                         io.candy.tick.ui.common.Feedback.show(
                             text = String.format(java.util.Locale.US, freedTemplate, formatBytes(freed)),
                         )
@@ -175,77 +205,70 @@ internal fun CacheCleanupSheet(
     }
 }
 
-@Composable
-private fun CacheCleanupRow(
-    iconRes: Int,
-    label: String,
-    sizeBytes: Long?,
-    checked: Boolean,
-    cleaning: Boolean,
-    onChecked: (Boolean) -> Unit,
-) {
-    val scheme = MiuixTheme.colorScheme
-    val dark = LocalDarkTheme.current
-    val motionEnabled = rememberMotionEnabled()
-    val hasFiles = sizeBytes != null && sizeBytes > 0
-    val enabled = hasFiles && !cleaning
-    val badgeShape = RoundedCornerShape(10.dp)
-    val neutralBadgeBg = if (dark) scheme.secondary else scheme.surface
-    val badgeBg by androidx.compose.animation.animateColorAsState(
-        targetValue = if (checked) scheme.primaryVariant.copy(alpha = 0.12f) else neutralBadgeBg,
-        animationSpec = tween(if (motionEnabled) Motion.PHASE else 0),
-        label = "cacheBadgeBg",
-    )
-    val badgeTint by androidx.compose.animation.animateColorAsState(
-        targetValue = if (checked) scheme.primaryVariant else scheme.onSurfaceContainerVariant,
-        animationSpec = tween(if (motionEnabled) Motion.PHASE else 0),
-        label = "cacheBadgeTint",
-    )
-    top.yukonga.miuix.kmp.basic.BasicComponent(
-        modifier = Modifier
-            .fillMaxWidth()
-            .switchSemantics(checked, enabled),
-        title = label,
-        summary = when (sizeBytes) {
-            null -> "—"
-            0L -> stringResource(R.string.settings_cache_none)
-            else -> formatBytes(sizeBytes)
-        },
-        startAction = {
-            Box(
-                modifier = Modifier
-                    .padding(end = 12.dp)
-                    .size(36.dp)
-                    .clip(badgeShape)
-                    .background(badgeBg),
-                contentAlignment = Alignment.Center,
-            ) {
-                Icon(
-                    imageVector = ImageVector.vectorResource(iconRes),
-                    contentDescription = null,
-                    tint = badgeTint,
-                    modifier = Modifier.size(18.dp),
-                )
-            }
-        },
-        onClick = if (enabled) { { onChecked(!checked) } } else null,
-        endActions = {
-            // 大小为 0 也保留 Switch（灰显）：行结构稳定不闪隐
-            top.yukonga.miuix.kmp.basic.Switch(
-                modifier = Modifier.clearAndSetSemantics { },
-                checked = checked,
-                onCheckedChange = onChecked,
-                enabled = enabled,
-            )
-        },
-        insideMargin = androidx.compose.foundation.layout.PaddingValues(
-            start = 14.dp, end = 14.dp, top = 12.dp, bottom = 12.dp,
-        ),
-    )
-}
-
 /** 字节数格式化（util 单源，与下载进度/资产行共用） */
 private fun formatBytes(bytes: Long): String = io.candy.tick.util.CountFormat.formatBytes(bytes)
+
+/** 通用操作宫格浮层单项（导出 / 导入 / 崩溃日志共用） */
+internal data class SheetActionItem(
+    @DrawableRes val iconRes: Int,
+    val title: String,
+    val onClick: () -> Unit,
+)
+
+/**
+ * 通用操作宫格浮层：统一承载 2~3 列极简动作卡 + 底部说明，预留可选 footerContent 槽位给次级操作。
+ */
+@Composable
+internal fun ActionGridSheet(
+    show: Boolean,
+    title: String,
+    actions: List<SheetActionItem>,
+    onDismiss: () -> Unit,
+    footnote: String? = null,
+    footerContent: (@Composable ColumnScope.() -> Unit)? = null,
+) {
+    io.candy.tick.ui.common.CandySheet(
+        show = show,
+        title = title,
+        onDismissRequest = onDismiss,
+    ) {
+        val spacing = if (actions.size >= 3) 8.dp else 10.dp
+        Column(
+            modifier = Modifier
+                .fillMaxWidth()
+                .verticalScroll(rememberScrollState())
+                .padding(horizontal = 16.dp)
+                .padding(top = 8.dp, bottom = 18.dp),
+            verticalArrangement = Arrangement.spacedBy(12.dp),
+        ) {
+            Row(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .height(IntrinsicSize.Max),
+                horizontalArrangement = Arrangement.spacedBy(spacing),
+            ) {
+                actions.forEach { item ->
+                    ActionSourceCard(
+                        iconRes = item.iconRes,
+                        title = item.title,
+                        onClick = item.onClick,
+                        modifier = Modifier.weight(1f).fillMaxHeight(),
+                    )
+                }
+            }
+            if (!footnote.isNullOrBlank()) {
+                Text(
+                    text = footnote,
+                    style = MiuixTheme.textStyles.footnote1,
+                    color = MiuixTheme.colorScheme.onSurfaceContainerVariant,
+                    textAlign = TextAlign.Center,
+                    modifier = Modifier.fillMaxWidth().padding(horizontal = 4.dp),
+                )
+            }
+            footerContent?.invoke(this)
+        }
+    }
+}
 
 /** 导出去向选择浮层（本地文件 / 剪贴板 / 分享）：三列极简卡片 + 底部格式说明 */
 @Composable
@@ -256,53 +279,17 @@ internal fun ExportDestinationDialog(
     onShare: () -> Unit,
     onDismiss: () -> Unit,
 ) {
-    io.candy.tick.ui.common.CandySheet(
+    ActionGridSheet(
         show = show,
         title = stringResource(R.string.settings_export),
-        onDismissRequest = onDismiss,
-    ) {
-        Column(
-            modifier = Modifier
-                .fillMaxWidth()
-                .verticalScroll(rememberScrollState())
-                .padding(horizontal = 16.dp)
-                .padding(top = 8.dp, bottom = 18.dp),
-            verticalArrangement = Arrangement.spacedBy(12.dp),
-        ) {
-            Row(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .height(IntrinsicSize.Max),
-                horizontalArrangement = Arrangement.spacedBy(8.dp),
-            ) {
-                ActionSourceCard(
-                    iconRes = R.drawable.ic_file,
-                    title = stringResource(R.string.export_to_file),
-                    onClick = onToFile,
-                    modifier = Modifier.weight(1f).fillMaxHeight(),
-                )
-                ActionSourceCard(
-                    iconRes = R.drawable.ic_clipboard,
-                    title = stringResource(R.string.export_to_clipboard),
-                    onClick = onToClipboard,
-                    modifier = Modifier.weight(1f).fillMaxHeight(),
-                )
-                ActionSourceCard(
-                    iconRes = R.drawable.ic_share,
-                    title = stringResource(R.string.export_to_share),
-                    onClick = onShare,
-                    modifier = Modifier.weight(1f).fillMaxHeight(),
-                )
-            }
-            Text(
-                text = stringResource(R.string.export_sheet_hint),
-                style = MiuixTheme.textStyles.footnote1,
-                color = MiuixTheme.colorScheme.onSurfaceContainerVariant,
-                textAlign = TextAlign.Center,
-                modifier = Modifier.fillMaxWidth().padding(horizontal = 4.dp),
-            )
-        }
-    }
+        actions = listOf(
+            SheetActionItem(R.drawable.ic_file, stringResource(R.string.export_to_file), onToFile),
+            SheetActionItem(R.drawable.ic_clipboard, stringResource(R.string.export_to_clipboard), onToClipboard),
+            SheetActionItem(R.drawable.ic_share, stringResource(R.string.export_to_share), onShare),
+        ),
+        footnote = stringResource(R.string.export_sheet_hint),
+        onDismiss = onDismiss,
+    )
 }
 
 /** 导入来源选择浮层（本地文件 / 剪贴板）：两列极简卡片 + 底部格式说明，与导出浮层同源 */
@@ -313,46 +300,87 @@ internal fun ImportSourceDialog(
     onFromClipboard: () -> Unit,
     onDismiss: () -> Unit,
 ) {
-    io.candy.tick.ui.common.CandySheet(
+    ActionGridSheet(
         show = show,
         title = stringResource(R.string.settings_import),
-        onDismissRequest = onDismiss,
-    ) {
-        Column(
-            modifier = Modifier
-                .fillMaxWidth()
-                .verticalScroll(rememberScrollState())
-                .padding(horizontal = 16.dp)
-                .padding(top = 8.dp, bottom = 18.dp),
-            verticalArrangement = Arrangement.spacedBy(12.dp),
-        ) {
-            Row(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .height(IntrinsicSize.Max),
-                horizontalArrangement = Arrangement.spacedBy(10.dp),
-            ) {
-                ActionSourceCard(
-                    iconRes = R.drawable.ic_file,
-                    title = stringResource(R.string.import_from_file),
-                    onClick = onFromFile,
-                    modifier = Modifier.weight(1f).fillMaxHeight(),
-                )
-                ActionSourceCard(
-                    iconRes = R.drawable.ic_clipboard,
-                    title = stringResource(R.string.import_from_clipboard),
-                    onClick = onFromClipboard,
-                    modifier = Modifier.weight(1f).fillMaxHeight(),
-                )
-            }
-            Text(
-                text = stringResource(R.string.import_sheet_hint),
-                style = MiuixTheme.textStyles.footnote1,
-                color = MiuixTheme.colorScheme.onSurfaceContainerVariant,
-                textAlign = TextAlign.Center,
-                modifier = Modifier.fillMaxWidth().padding(horizontal = 4.dp),
-            )
+        actions = listOf(
+            SheetActionItem(R.drawable.ic_file, stringResource(R.string.import_from_file), onFromFile),
+            SheetActionItem(R.drawable.ic_clipboard, stringResource(R.string.import_from_clipboard), onFromClipboard),
+        ),
+        footnote = stringResource(R.string.import_sheet_hint),
+        onDismiss = onDismiss,
+    )
+}
+
+/** 崩溃日志浮层（本地文件 / 剪贴板 / 分享 + 底部体积与清空入口）：与导出浮层同源复用 ActionGridSheet */
+@Composable
+internal fun CrashLogActionDialog(
+    show: Boolean,
+    sizeBytes: Long,
+    onToFile: () -> Unit,
+    onToClipboard: () -> Unit,
+    onShare: () -> Unit,
+    onClear: () -> Unit,
+    onDismiss: () -> Unit,
+) {
+    ActionGridSheet(
+        show = show,
+        title = stringResource(R.string.settings_crash_log),
+        actions = listOf(
+            SheetActionItem(R.drawable.ic_file, stringResource(R.string.export_to_file), onToFile),
+            SheetActionItem(R.drawable.ic_clipboard, stringResource(R.string.export_to_clipboard), onToClipboard),
+            SheetActionItem(R.drawable.ic_share, stringResource(R.string.export_to_share), onShare),
+        ),
+        footnote = if (sizeBytes > 0L) "crash.log · ${formatBytes(sizeBytes)}" else null,
+        footerContent = {
+            CrashLogClearButton(onClick = onClear)
+        },
+        onDismiss = onDismiss,
+    )
+}
+
+/** 崩溃日志底部次级清空按钮：中性底 + 低调警示色，不抢三列主操作风头 */
+@Composable
+private fun CrashLogClearButton(onClick: () -> Unit) {
+    val scheme = MiuixTheme.colorScheme
+    val dark = LocalDarkTheme.current
+    val baseBg = if (io.candy.tick.ui.common.LocalAppBackdrop.current != null) {
+        if (dark) {
+            androidx.compose.ui.graphics.Color.White.copy(alpha = 0.06f)
+        } else {
+            androidx.compose.ui.graphics.Color.Black.copy(alpha = 0.045f)
         }
+    } else {
+        scheme.secondary
+    }
+    val (press, pressColor) = io.candy.tick.ui.common.rememberRowPressTint(surface = baseBg)
+    Row(
+        modifier = Modifier
+            .fillMaxWidth()
+            .clip(RoundedCornerShape(14.dp))
+            .background(pressColor)
+            .clickable(
+                interactionSource = press,
+                indication = null,
+                role = Role.Button,
+                onClick = onClick,
+            )
+            .padding(horizontal = 14.dp, vertical = 12.dp),
+        horizontalArrangement = Arrangement.spacedBy(7.dp, Alignment.CenterHorizontally),
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
+        Icon(
+            imageVector = ImageVector.vectorResource(R.drawable.ic_delete),
+            contentDescription = null,
+            tint = scheme.error,
+            modifier = Modifier.size(16.dp),
+        )
+        Text(
+            text = stringResource(R.string.crash_log_clear),
+            style = MiuixTheme.textStyles.body2.copy(fontWeight = FontWeight.SemiBold),
+            color = scheme.error,
+            maxLines = 1,
+        )
     }
 }
 
@@ -364,10 +392,9 @@ private fun ActionSourceCard(
     modifier: Modifier = Modifier,
 ) {
     val scheme = MiuixTheme.colorScheme
-    val dark = LocalDarkTheme.current
     val cardShape = RoundedCornerShape(16.dp)
     val badgeShape = RoundedCornerShape(12.dp)
-    val cardBg = if (dark) scheme.surfaceContainerHigh else scheme.background
+    val cardBg = io.candy.tick.ui.common.sheetCardColor()
     val (press, pressColor) = io.candy.tick.ui.common.rememberRowPressTint(surface = cardBg)
     Column(
         modifier = modifier
@@ -473,11 +500,7 @@ internal fun TokenDialog(
                     .fillMaxWidth()
                     .focusRequester(tokenFocus),
                 singleLine = true,
-                visualTransformation = if (tokenVisible) {
-                    androidx.compose.ui.text.input.VisualTransformation.None
-                } else {
-                    androidx.compose.ui.text.input.PasswordVisualTransformation()
-                },
+                maskPassword = !tokenVisible,
                 keyboardOptions = androidx.compose.foundation.text.KeyboardOptions(
                     keyboardType = androidx.compose.ui.text.input.KeyboardType.Password,
                 ),
@@ -573,10 +596,9 @@ private fun TokenRateLimitCard(
     onRefresh: () -> Unit,
 ) {
     val scheme = MiuixTheme.colorScheme
-    val dark = LocalDarkTheme.current
     val motionEnabled = rememberMotionEnabled()
     val shape = RoundedCornerShape(14.dp)
-    val cardBg = if (dark) scheme.surfaceContainerHigh else scheme.background
+    val cardBg = io.candy.tick.ui.common.sheetCardColor()
     val identityLabel = when {
         tokenRejected -> stringResource(R.string.token_quota_rejected_mode)
         hasToken && !username.isNullOrBlank() -> "@$username"
@@ -904,9 +926,9 @@ private fun SyncFrequencyThumbnail(
     val scheme = MiuixTheme.colorScheme
     val dark = LocalDarkTheme.current
     val thumbShape = RoundedCornerShape(14.dp)
-    val baseSurface = if (dark) scheme.surfaceContainerHigh else scheme.background
+    val baseSurface = io.candy.tick.ui.common.sheetCardColor()
     val tileBg = if (selected) {
-        scheme.primaryVariant.copy(alpha = 0.08f).compositeOver(baseSurface)
+        scheme.primaryVariant.copy(alpha = if (dark) 0.16f else 0.10f).compositeOver(baseSurface)
     } else {
         baseSurface
     }
@@ -1000,9 +1022,9 @@ private fun LanguageThumbnail(language: String, selected: Boolean) {
     val dark = LocalDarkTheme.current
     val thumbShape = RoundedCornerShape(14.dp)
     val fgColor = if (selected) scheme.primaryVariant else scheme.onSurface
-    val baseSurface = if (dark) scheme.surfaceContainerHigh else scheme.background
+    val baseSurface = io.candy.tick.ui.common.sheetCardColor()
     val tileBg = if (selected) {
-        scheme.primaryVariant.copy(alpha = 0.08f).compositeOver(baseSurface)
+        scheme.primaryVariant.copy(alpha = if (dark) 0.16f else 0.10f).compositeOver(baseSurface)
     } else {
         baseSurface
     }
@@ -1067,7 +1089,9 @@ private fun VisualPickerOption(
         animationSpec = tween(if (motionEnabled) Motion.PHASE else 0),
         label = "visualPickerLabel",
     )
-    val (press, pressColor) = io.candy.tick.ui.common.rememberRowPressTint(surface = scheme.surfaceContainer)
+    val (press, pressColor) = io.candy.tick.ui.common.rememberRowPressTint(
+        surface = io.candy.tick.ui.common.sheetInteractiveBaseColor(),
+    )
     Column(
         modifier = modifier
             .clip(hitShape)
