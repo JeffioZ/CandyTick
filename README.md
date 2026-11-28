@@ -76,7 +76,11 @@
   </tbody>
 </table>
 
-**轻量为本：** 安装包仅约 2 MB，无需账号、不依赖云服务，所有数据留在本地。公开仓库匿名请求限额为每小时 60 次；在设置中添加 [GitHub 令牌](https://docs.github.com/zh/rest/using-the-rest-api/rate-limits-for-the-rest-api) 可提升至 5,000 次。
+CandyTick 无需注册，安装包约 2 MB，订阅保存在手机上。匿名调用 GitHub API 时，每小时最多可发起 60 次请求。在设置中添加 [GitHub 令牌](https://docs.github.com/zh/rest/using-the-rest-api/rate-limits-for-the-rest-api) 后，限额通常可提高到每小时 5,000 次。
+
+检查本机应用更新时，CandyTick 会把待检查应用的包名发给你启用的在线商店。部分商店还会收到应用版本、手机型号等信息。使用 F-Droid 或 IzzyOnDroid 时，CandyTick 会下载应用目录，在手机上比对版本。
+
+在公开或私有仓库中使用在线翻译时，CandyTick 会把需要翻译的文字发给 Google 翻译。如果 Google 翻译不可用，可能会改用 MyMemory。
 
 ## 🚀 快速上手
 

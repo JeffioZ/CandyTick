@@ -76,7 +76,11 @@ Sort five ways — recent pushes, available updates, activity, and more — each
   </tbody>
 </table>
 
-**Small by design:** ~2 MB APK, no account, no cloud service — all data stays on your device. Anonymous requests are limited to 60 per hour; adding a [GitHub token](https://docs.github.com/en/rest/using-the-rest-api/rate-limits-for-the-rest-api) in Settings raises it to 5,000.
+The CandyTick APK is about 2 MB. You can use it without an account, and it stores your subscriptions on your phone. The GitHub API allows up to 60 anonymous requests per hour. Adding a [GitHub token](https://docs.github.com/en/rest/using-the-rest-api/rate-limits-for-the-rest-api) in Settings typically raises that limit to 5,000 per hour.
+
+When checking for app updates, CandyTick sends the package names of the apps it checks to the online stores you enable. Some stores also receive details such as the installed app version and your phone model. For F-Droid and IzzyOnDroid, CandyTick downloads the app catalog and compares versions on your phone.
+
+When you use online translation in a public or private repository, CandyTick sends the text to Google Translate. If Google Translate is unavailable, CandyTick may use MyMemory instead.
 
 ## 🚀 Get Started
 
