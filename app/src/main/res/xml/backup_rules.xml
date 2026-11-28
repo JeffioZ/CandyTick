@@ -1,4 +1,6 @@
 <?xml version="1.0" encoding="utf-8"?>
 <full-backup-content>
+    <!-- The agent writes portable_state.json and also accepts older app_state.json restores. -->
+    <include domain="file" path="portable_state.json" />
     <include domain="file" path="app_state.json" />
 </full-backup-content>

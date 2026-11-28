@@ -10,6 +10,8 @@ import android.os.Build
 import io.candy.tick.util.appDisplayName
 import java.security.MessageDigest
 
+data class InstalledAppScan(val apps: List<LocalInstalledApp>, val complete: Boolean)
+
 /**
  * 本机已装应用扫描器：
  * - 关闭「检查系统应用」时，仅扫描带桌面图标的非系统应用，列表干净、开销极低；
@@ -21,11 +23,18 @@ object InstalledAppScanner {
     fun scan(
         context: Context,
         includeSystemApps: Boolean,
-    ): List<LocalInstalledApp> {
+    ): InstalledAppScan {
         val pm = context.packageManager
         val selfPkg = context.packageName
+        var complete = !needsInstalledAppsPermission(context)
         val launcherIntent = Intent(Intent.ACTION_MAIN).addCategory(Intent.CATEGORY_LAUNCHER)
-        val activities = runCatching { pm.queryIntentActivities(launcherIntent, 0) }.getOrDefault(emptyList())
+        val activities = try {
+            pm.queryIntentActivities(launcherIntent, 0)
+        } catch (e: RuntimeException) {
+            android.util.Log.w("InstalledAppScanner", "Could not enumerate launcher activities", e)
+            if (!includeSystemApps) return InstalledAppScan(emptyList(), complete = false)
+            emptyList() // The package query below is authoritative for this scope.
+        }
         val launcherLabels = LinkedHashMap<String, String>(activities.size)
         for (ri in activities) {
             val pkg = ri.activityInfo?.packageName ?: continue
@@ -38,9 +47,15 @@ object InstalledAppScanner {
             val result = ArrayList<LocalInstalledApp>(launcherLabels.size)
             for ((pkg, activityLabel) in launcherLabels) {
                 @Suppress("DEPRECATION")
-                val pkgInfo = runCatching {
+                val pkgInfo = try {
                     pm.getPackageInfo(pkg, PackageManager.GET_SIGNING_CERTIFICATES)
-                }.getOrNull() ?: continue
+                } catch (_: PackageManager.NameNotFoundException) {
+                    complete = false
+                    continue
+                } catch (_: RuntimeException) {
+                    complete = false
+                    continue
+                }
                 val appInfo = pkgInfo.applicationInfo
                 val isSystem = isSystemPackage(appInfo)
                 if (isSystem) continue
@@ -65,21 +80,51 @@ object InstalledAppScanner {
                 )
             }
             result.sortBy { it.displayName.lowercase() }
-            return result
+            return InstalledAppScan(result, complete)
         }
 
-        val queryFlags = PackageManager.MATCH_UNINSTALLED_PACKAGES or
+        val visibilityFlags = PackageManager.MATCH_UNINSTALLED_PACKAGES or
             PackageManager.MATCH_DISABLED_COMPONENTS or
-            PackageManager.MATCH_DISABLED_UNTIL_USED_COMPONENTS or
-            PackageManager.GET_SIGNING_CERTIFICATES
+            PackageManager.MATCH_DISABLED_UNTIL_USED_COMPONENTS
+        val queryFlags = visibilityFlags or PackageManager.GET_SIGNING_CERTIFICATES
         @Suppress("DEPRECATION")
-        val installedPackages = runCatching {
+        val bulkPackages = try {
             if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
                 pm.getInstalledPackages(PackageManager.PackageInfoFlags.of(queryFlags.toLong()))
             } else {
                 pm.getInstalledPackages(queryFlags)
             }
-        }.getOrDefault(emptyList())
+        } catch (_: SecurityException) {
+            return InstalledAppScan(emptyList(), complete = false)
+        } catch (e: RuntimeException) {
+            android.util.Log.w("InstalledAppScanner", "Could not enumerate installed packages", e)
+            null
+        }
+        val installedPackages = if (!bulkPackages.isNullOrEmpty()) {
+            if (bulkPackages.none { it.packageName == selfPkg }) complete = false
+            bulkPackages
+        } else {
+            if (!complete) return InstalledAppScan(emptyList(), complete = false)
+            // Read a smaller list first if the bulk request for every package and certificate failed.
+            @Suppress("DEPRECATION")
+            val apps = try {
+                pm.getInstalledApplications(visibilityFlags)
+            } catch (_: RuntimeException) {
+                return InstalledAppScan(emptyList(), complete = false)
+            }
+            if (apps.none { it.packageName == selfPkg }) complete = false
+            apps.filter { it.flags and FLAG_INSTALLED_FOR_USER != 0 && it.packageName != selfPkg }.mapNotNull { app ->
+                try {
+                    pm.getPackageInfo(app.packageName, queryFlags)
+                } catch (_: PackageManager.NameNotFoundException) {
+                    complete = false
+                    null
+                } catch (_: RuntimeException) {
+                    complete = false
+                    null
+                }
+            }
+        }
         val launcherList = ArrayList<LocalInstalledApp>(launcherLabels.size)
         val headlessList = ArrayList<LocalInstalledApp>(installedPackages.size)
         val seen = HashSet<String>(installedPackages.size)
@@ -89,10 +134,10 @@ object InstalledAppScanner {
             if (pkgInfo.isApex) continue
             val appInfo = pkgInfo.applicationInfo ?: continue
             if ((appInfo.flags and FLAG_INSTALLED_FOR_USER) == 0) continue
-            if (isOverlayPackage(pkg, appInfo.sourceDir)) continue
+            val isSystem = isSystemPackage(appInfo)
+            if (isSystem && isOverlayPackage(pkg, appInfo.sourceDir)) continue
             val versionCode = pkgInfo.longVersionCode
             if (versionCode <= 0L) continue
-            val isSystem = isSystemPackage(appInfo)
             val activityLabel = launcherLabels[pkg]
             val hasLauncher = activityLabel != null
             val label = activityLabel?.takeIf { it.isNotBlank() }
@@ -116,7 +161,7 @@ object InstalledAppScanner {
         }
         launcherList.sortBy { it.displayName.lowercase() }
         headlessList.sortBy { it.displayName.lowercase() }
-        return launcherList + headlessList
+        return InstalledAppScan(launcherList + headlessList, complete)
     }
 
     private data class SignatureHashes(
@@ -133,13 +178,18 @@ object InstalledAppScanner {
             // signingCertificateHistory 按旧→新排列，取末项为当前生效签名证书
             signingInfo.signingCertificateHistory?.lastOrNull()?.toByteArray()
         } ?: return SignatureHashes()
-        val md5 = MessageDigest.getInstance("MD5").digest(bytes).joinToString("") { "%02x".format(it) }
-        val sha256 = MessageDigest.getInstance("SHA-256").digest(bytes).joinToString("") { "%02x".format(it) }
+        val md5 = MessageDigest.getInstance("MD5").digest(bytes).toHexString()
+        val digest = MessageDigest.getInstance("SHA-256")
+        val sha256 = if (signingInfo.hasMultipleSigners()) {
+            signingInfo.apkContentsSigners.orEmpty()
+                .map { digest.digest(it.toByteArray()).toHexString() }
+                .sorted().joinToString("+")
+        } else digest.digest(bytes).toHexString()
         // OPPO UpgradeReqV2 field 7：先把证书 DER 字节转为大写十六进制串，再对字符串做 MD5 并输出大写 HEX
-        val derUpperHex = bytes.joinToString("") { "%02X".format(it) }
+        val derUpperHex = bytes.toHexString().uppercase()
         val oppoLegacyMd5 = MessageDigest.getInstance("MD5")
             .digest(derUpperHex.toByteArray(Charsets.UTF_8))
-            .joinToString("") { "%02X".format(it) }
+            .toHexString().uppercase()
         return SignatureHashes(md5 = md5, sha256 = sha256, oppoLegacyMd5 = oppoLegacyMd5)
     }
 

@@ -9,9 +9,6 @@ import io.candy.tick.data.store.StoreDownloadSpec
 import io.candy.tick.data.store.StoreHttp
 import io.candy.tick.data.store.StoreQuerySpeed
 import io.candy.tick.data.store.StoreSource
-import kotlinx.coroutines.async
-import kotlinx.coroutines.awaitAll
-import kotlinx.coroutines.coroutineScope
 import okhttp3.MediaType.Companion.toMediaType
 import okhttp3.Request
 import okhttp3.RequestBody.Companion.toRequestBody
@@ -23,18 +20,11 @@ class TencentStore : StoreSource {
     override val id: String = StoreCatalog.ID_TENCENT
     override val speed: StoreQuerySpeed = StoreQuerySpeed.SLOW_PER_APP
 
-    override suspend fun checkUpdates(apps: List<LocalInstalledApp>): Map<String, StoreReleaseInfo> = coroutineScope {
-        val result = mutableMapOf<String, StoreReleaseInfo>()
-        for (batch in apps.chunked(CONCURRENCY)) {
-            val entries = batch.map { local ->
-                async {
-                    val info = StoreHttp.runCatchingCancellable { fetchDetail(local.packageName) }.getOrNull() ?: return@async null
-                    if (info.versionCode > local.versionCode) local.packageName to info else null
-                }
-            }.awaitAll().filterNotNull()
-            result.putAll(entries)
+    override suspend fun checkUpdates(apps: List<LocalInstalledApp>): Map<String, StoreReleaseInfo> = buildMap {
+        for (local in apps) {
+            val release = fetchDetail(local.packageName) ?: continue
+            if (release.versionCode > local.versionCode) put(local.packageName, release)
         }
-        result
     }
 
     override suspend fun resolveDownload(
@@ -42,10 +32,12 @@ class TencentStore : StoreSource {
         release: StoreReleaseInfo,
     ): StoreDownloadSpec {
         val fresh = fetchDetail(app.packageName) ?: throw SourceException(SourceError.NotFound)
+        if (fresh.versionCode != release.versionCode) throw SourceException(SourceError.NotFound)
         if (fresh.downloadUrl.isBlank()) throw SourceException(SourceError.NotFound)
         return StoreDownloadSpec(
             url = fresh.downloadUrl,
             sizeBytes = fresh.sizeBytes,
+            exactSizeBytes = fresh.exactSizeBytes,
             expectedHash = TencentProtocol.parseExpectedHash(fresh.checksum),
             headers = mapOf("User-Agent" to TencentProtocol.USER_AGENT),
         )
@@ -65,7 +57,6 @@ class TencentStore : StoreSource {
     }
 
     companion object {
-        private const val CONCURRENCY = 4
         private val JSON_MEDIA = "application/json; charset=utf-8".toMediaType()
     }
 }

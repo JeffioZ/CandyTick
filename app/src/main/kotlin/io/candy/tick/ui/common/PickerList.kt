@@ -47,7 +47,7 @@ internal fun PickerList(
 }
 
 @Composable
-private fun PickerSearchField(
+internal fun PickerSearchField(
     query: String,
     label: String,
     onQueryChange: (String) -> Unit,

@@ -1,17 +1,23 @@
 package io.candy.tick.data.store.samsung
 
+import android.os.Build
 import io.candy.tick.data.model.StoreReleaseInfo
 import io.candy.tick.data.store.LocalInstalledApp
 import io.candy.tick.data.store.StoreCatalog
 import io.candy.tick.data.store.StoreHttp
+import io.candy.tick.data.store.StoreResponseException
+import java.io.StringReader
 import java.security.MessageDigest
 import java.time.Instant
 import java.time.ZoneOffset
 import java.time.format.DateTimeFormatter
+import java.util.TreeMap
+import javax.xml.parsers.DocumentBuilderFactory
+import org.w3c.dom.Element
+import org.xml.sax.InputSource
 
 /**
  * 三星应用商店 XML 协议：批量检查更新（getUpdateList / 2389）与下载解析（downloadEx2 / 2311）。
- * 纯 Kotlin 实现，不依赖 Android XmlPullParser，便于 JVM 单元测试覆盖。
  */
 internal object SamsungProtocol {
 
@@ -69,22 +75,23 @@ internal object SamsungProtocol {
         productId: String,
         installId: String,
         epochMillis: Long = System.currentTimeMillis(),
+        includeInstalledVersion: Boolean = true,
     ): String {
         val stduk = computeStduk(installId)
         return buildEnvelope(
             reqId = REQ_DOWNLOAD,
             name = "downloadEx2",
             transactionId = computeTransactionId(stduk, epochMillis),
-            params = listOf(
+            params = listOfNotNull(
                 "GUID" to app.packageName,
                 "productID" to productId,
-                "versionCode" to app.versionCode.toString(),
+                if (includeInstalledVersion) "versionCode" to app.versionCode.toString() else null,
                 "dowloadType" to "new",
                 "autoUpdateYN" to "N",
                 "deepLinkSource" to "N",
-                "predeployed" to if (app.isSystemApp) "1" else "0",
+                "predeployed" to if (includeInstalledVersion && app.isSystemApp) "1" else "0",
                 "resumeYN" to "N",
-                "loadType" to if (app.isSystemApp) "0" else "1",
+                if (includeInstalledVersion) "loadType" to (if (app.isSystemApp) "0" else "1") else null,
                 "extuk" to installId,
                 "stduk" to stduk,
                 "imei" to installId,
@@ -100,10 +107,12 @@ internal object SamsungProtocol {
     ): String = buildString(512) {
         append("<?xml version=\"1.0\" encoding=\"UTF-8\"?>")
         append("<SamsungProtocol networkType=\"1\" version2=\"4.6.08.11\" lang=\"CHI\" ")
-        append("openApiVersion=\"35\" deviceModel=\"SM-S9280\" mcc=\"460\" mnc=\"00\" ")
+        val sdk = Build.VERSION.SDK_INT.takeIf { it > 0 } ?: 35
+        val abi = if (Build.SUPPORTED_64_BIT_ABIS?.isEmpty() == true) 32 else 64
+        append("openApiVersion=\"$sdk\" deviceModel=\"SM-S9280\" mcc=\"460\" mnc=\"00\" ")
         append("csc=\"CHC\" odcVersion=\"4.6.08.11\" version=\"7.8\" ")
         append("filter=\"1\" odcType=\"01\" systemId=\"1700000000000\" ")
-        append("abiType=\"64\" pd=\"0\" wear=\"0\">")
+        append("abiType=\"$abi\" pd=\"0\" wear=\"0\">")
         append("<request name=\"").append(escapeXml(name))
         append("\" id=\"").append(escapeXml(reqId))
         append("\" numParam=\"").append(params.size)
@@ -125,23 +134,22 @@ internal object SamsungProtocol {
         xml: String,
         installedByPkg: Map<String, LocalInstalledApp>,
     ): Map<String, UpdateEntry> {
-        val lists = parseListValues(xml)
         val out = LinkedHashMap<String, UpdateEntry>()
-        for (values in lists) {
+        for (values in responseRows(xml)) {
             val pkg = (values["GUID"] ?: values["packageName"]).orEmpty().trim()
             val installed = installedByPkg[pkg] ?: continue
             val versionCode = values["versionCode"]?.toLongOrNull() ?: continue
             if (versionCode <= installed.versionCode) continue
             val productId = values["productID"].orEmpty().trim()
             val versionName = values["version"].orEmpty().trim().ifBlank { versionCode.toString() }
-            val size = values["realContentSize"]?.toLongOrNull()
-                ?: values["contentSize"]?.toLongOrNull()
-                ?: 0L
+            val exactSize = (values["realContentSize"] ?: values["realContentsSize"])?.toLongOrNull()?.takeIf { it > 0L }
+            val size = exactSize ?: (values["contentSize"] ?: values["contentsSize"])?.toLongOrNull() ?: 0L
             val release = StoreReleaseInfo(
                 storeId = StoreCatalog.ID_SAMSUNG,
                 versionCode = versionCode,
                 versionName = versionName,
                 sizeBytes = size,
+                exactSizeBytes = exactSize,
                 appId = productId.toLongOrNull() ?: 0L,
             )
             out[pkg] = UpdateEntry(release = release, productId = productId)
@@ -152,49 +160,57 @@ internal object SamsungProtocol {
     data class DownloadResult(
         val url: String,
         val sizeBytes: Long,
+        val exactSizeBytes: Long?,
     )
 
-    fun parseDownloadResponse(xml: String): DownloadResult? {
-        val values = parseListValues(xml).firstOrNull() ?: parseFlatValues(xml)
-        val rawUrl = values["downLoadURI"] ?: values["downloadURI"] ?: return null
+    fun parseDownloadResponse(xml: String, expectedVersion: Long? = null): DownloadResult? {
+        val values = responseRows(xml).firstOrNull() ?: return null
+        val version = values["versionCode"]?.toLongOrNull()
+        if (version != null && version > 0L && expectedVersion != null && version != expectedVersion) return null
+        val rawUrl = values["downLoadURI"] ?: return null
         val url = StoreHttp.upgradeToHttps(rawUrl.trim())
         if (url.isBlank()) return null
-        val size = values["fileSize"]?.toLongOrNull()
-            ?: values["realContentSize"]?.toLongOrNull()
-            ?: 0L
-        return DownloadResult(url = url, sizeBytes = size)
+        val exactSize = (values["fileSize"] ?: values["realContentSize"] ?: values["realContentsSize"])
+            ?.toLongOrNull()?.takeIf { it > 0L }
+        val size = exactSize ?: (values["contentsSize"] ?: values["installSize"])?.toLongOrNull() ?: 0L
+        return DownloadResult(url = url, sizeBytes = size, exactSizeBytes = exactSize)
     }
 
-    /** 轻量 XML 解析：提取每个 `<list>` 节点下的 `<value name="...">...</value>` 键值对。 */
-    internal fun parseListValues(raw: String): List<Map<String, String>> {
-        val lists = mutableListOf<Map<String, String>>()
-        val listRegex = Regex("<list\\b[^>]*>(.*?)</list>", setOf(RegexOption.DOT_MATCHES_ALL, RegexOption.IGNORE_CASE))
-        for (match in listRegex.findAll(raw)) {
-            val map = parseFlatValues(match.groupValues[1])
-            if (map.isNotEmpty()) lists += map
+    private fun responseRows(xml: String): List<Map<String, String>> {
+        require(!xml.contains("<!DOCTYPE", ignoreCase = true)) { "Unexpected Galaxy Store document type" }
+        val root = DocumentBuilderFactory.newInstance().newDocumentBuilder()
+            .parse(InputSource(StringReader(xml))).documentElement
+        val response = if (root.tagName.substringAfter(':').equals("response", true)) root else root.elements("response").firstOrNull()
+        requireNotNull(response) { "Missing Galaxy Store response" }
+        val code = requireNotNull(response.attr("returnCode").toLongOrNull()) { "Invalid Galaxy Store result code" }
+        if (code != 0L) {
+            val error = response.elements("errorString").firstOrNull()
+            throw StoreResponseException(error?.attr("errorCode")?.toLongOrNull() ?: code)
         }
-        return lists
+        return response.elements("list").map(::namedValues).toList().ifEmpty { listOf(namedValues(response)) }
     }
 
-    private fun parseFlatValues(fragment: String): Map<String, String> {
-        val valueRegex = Regex(
-            "<value\\b[^>]*\\bname\\s*=\\s*[\"']([^\"']+)[\"'][^>]*>(.*?)</value>",
-            setOf(RegexOption.DOT_MATCHES_ALL, RegexOption.IGNORE_CASE),
-        )
-        val map = LinkedHashMap<String, String>()
-        for (m in valueRegex.findAll(fragment)) {
-            val key = decodeXml(m.groupValues[1])
-            if (key !in map) {
-                val rawText = m.groupValues[2].trim()
-                val unwrapped = if (rawText.startsWith("<![CDATA[") && rawText.endsWith("]]>")) {
-                    rawText.substring(9, rawText.length - 3)
-                } else {
-                    decodeXml(rawText)
-                }
-                map[key] = unwrapped.trim()
-            }
+    private fun Element.elements(tag: String): Sequence<Element> {
+        val nodes = getElementsByTagName("*")
+        return (0 until nodes.length).asSequence().map { nodes.item(it) as Element }
+            .filter { it.tagName.substringAfter(':').equals(tag, true) }
+    }
+
+    private fun Element.attr(name: String): String {
+        if (hasAttribute(name)) return getAttribute(name)
+        for (i in 0 until attributes.length) {
+            val attr = attributes.item(i)
+            if (attr.nodeName.equals(name, true)) return attr.nodeValue
         }
-        return map
+        return ""
+    }
+
+    private fun namedValues(record: Element): Map<String, String> {
+        val fields = TreeMap<String, String>(String.CASE_INSENSITIVE_ORDER)
+        for (value in record.elements("value")) {
+            fields.putIfAbsent(value.attr("name"), value.textContent.trim())
+        }
+        return fields
     }
 
     private fun escapeXml(value: String): String = buildString(value.length + 8) {
@@ -211,13 +227,6 @@ internal object SamsungProtocol {
             )
         }
     }
-
-    private fun decodeXml(raw: String): String = raw
-        .replace("&lt;", "<")
-        .replace("&gt;", ">")
-        .replace("&quot;", "\"")
-        .replace("&apos;", "'")
-        .replace("&amp;", "&")
 
     private fun sha256Hex(input: String): String =
         MessageDigest.getInstance("SHA-256")

@@ -23,6 +23,7 @@ import okhttp3.RequestBody.Companion.toRequestBody
 class HonorStore : StoreSource {
     override val id: String = StoreCatalog.ID_HONOR
     override val speed: StoreQuerySpeed = StoreQuerySpeed.FAST_BATCH
+    override val batchSize: Int = HonorProtocol.BATCH_SIZE
 
     private val instanceId: String = UUID.randomUUID().toString()
 
@@ -46,7 +47,7 @@ class HonorStore : StoreSource {
         val timestamp = System.currentTimeMillis()
         val body = HonorProtocol.buildDetailBody(app.packageName, instanceId, timestamp)
         val responseText = postSigned(HonorProtocol.DETAIL_PATH, body, timestamp)
-        val candidates = HonorProtocol.parseDetailCandidates(responseText, app.packageName)
+        val candidates = HonorProtocol.parseDetailCandidates(responseText, app.packageName, release.versionCode)
         if (candidates.isEmpty()) throw SourceException(SourceError.NotFound)
 
         val resolved = candidates.mapNotNull { cand ->
@@ -61,7 +62,8 @@ class HonorStore : StoreSource {
         if (resolved.isEmpty() || (candidates.size > 1 && resolved.size != candidates.size)) {
             throw SourceException(SourceError.NotFound)
         }
-        val base = resolved.firstOrNull { it.first.isBase } ?: resolved.first()
+        val base = resolved.singleOrNull { it.first.isBase }
+            ?: throw SourceException(SourceError.NotFound)
         val splits = resolved.filter { it !== base }.mapIndexed { idx, (cand, url) ->
             StoreDownloadPart(
                 name = "split_${idx + 1}.apk",
@@ -73,8 +75,10 @@ class HonorStore : StoreSource {
         return StoreDownloadSpec(
             url = base.second,
             sizeBytes = base.first.sizeBytes.takeIf { it > 0L } ?: release.sizeBytes,
-            expectedHash = base.first.sha256?.let { ExpectedHash(HashAlgorithm.SHA256, it) },
+            expectedHash = (base.first.sha256 ?: release.checksum.takeIf { it.isNotBlank() })
+                ?.let { ExpectedHash(HashAlgorithm.SHA256, it) },
             extraParts = splits,
+            exactSizeBytes = base.first.sizeBytes.takeIf { it > 0L },
         )
     }
 

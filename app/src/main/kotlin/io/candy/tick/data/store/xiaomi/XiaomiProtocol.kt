@@ -15,6 +15,7 @@ import java.util.Locale
 import javax.crypto.Mac
 import javax.crypto.spec.SecretKeySpec
 import kotlin.random.Random
+import kotlinx.serialization.SerializationException
 import kotlinx.serialization.json.Json
 import kotlinx.serialization.json.JsonArray
 import kotlinx.serialization.json.JsonObject
@@ -116,12 +117,13 @@ internal object XiaomiProtocol {
         instanceId: String,
         dctx: String = "",
         nowMillis: Long = System.currentTimeMillis(),
+        installedAnchor: LocalInstalledApp? = null,
     ): MutableMap<String, String> {
         // 小米 updateinfo/v2 需要列表包含 com.miui.core 锚点才会完整返回 miuiApp 系统组件更新
         val withAnchor = if (apps.any { it.packageName == MIUI_ANCHOR_PKG }) {
             apps
         } else {
-            apps + LocalInstalledApp(MIUI_ANCHOR_PKG, MIUI_ANCHOR_PKG, 0L, "0", isSystemApp = true)
+            apps + (installedAnchor ?: LocalInstalledApp(MIUI_ANCHOR_PKG, MIUI_ANCHOR_PKG, 0L, "0", isSystemApp = true))
         }
         val sorted = withAnchor.sortedBy { it.packageName }
         return commonParams(instanceId, dctx).apply {
@@ -237,74 +239,114 @@ internal object XiaomiProtocol {
     fun encodeForm(fields: Map<String, String>): String =
         fields.entries.joinToString("&") { (k, v) -> "${urlEnc(k)}=${urlEnc(v)}" }
 
-    fun parseUpdateResponse(rawJson: String, installed: Map<String, LocalInstalledApp>): Map<String, StoreReleaseInfo> {
-        val root = runCatching { Json.parseToJsonElement(rawJson) as? JsonObject }.getOrNull() ?: return emptyMap()
+    data class UpdateResult(
+        val updates: Map<String, StoreReleaseInfo>,
+        val recognizedPackages: Set<String>,
+        val hasSystemList: Boolean,
+    )
+
+    fun parseUpdateResponse(rawJson: String, installed: Map<String, LocalInstalledApp>): Map<String, StoreReleaseInfo> =
+        parseUpdateResult(rawJson, installed).updates
+
+    fun parseUpdateResult(rawJson: String, installed: Map<String, LocalInstalledApp>): UpdateResult {
+        val root = Json.parseToJsonElement(rawJson) as? JsonObject
+            ?: throw SerializationException("Expected a Xiaomi update response object")
+        val listKeys = listOf("listApp", "miuiApp")
+        if (listKeys.any { it in root && root[it] !is JsonArray } ||
+            (listKeys.none { it in root } && root["support64Pkgs"] !is JsonArray)
+        ) throw SerializationException("Missing or invalid Xiaomi update lists")
         val out = mutableMapOf<String, StoreReleaseInfo>()
-        for (arrayKey in listOf("listApp", "miuiApp")) {
+        val recognized = mutableSetOf<String>()
+        (root["support64Pkgs"] as? JsonArray)?.forEach {
+            (it as? JsonPrimitive)?.contentOrNull?.takeIf(installed::containsKey)?.let(recognized::add)
+        }
+        for (arrayKey in listKeys) {
             val arr = root[arrayKey] as? JsonArray ?: continue
             for (el in arr) {
                 val obj = el as? JsonObject ?: continue
                 val pkg = obj.str("packageName")
                 val local = installed[pkg] ?: continue
-                val code = obj.num("versionCode")
-                val appId = obj.num("appId")
+                recognized += pkg
+                if (obj.downloadBlocked()) continue
+                val variants = (obj["fitnessApks"] as? JsonObject)?.get("apks") as? JsonArray
+                val variant = variants?.filterIsInstance<JsonObject>()?.filter {
+                    val max = it.num("maxAppVersion")
+                    !it.downloadBlocked() && it.num("versionCode") > 0L &&
+                        local.versionCode >= it.num("minAppVersion") && (max <= 0L || local.versionCode <= max)
+                }?.maxByOrNull { it.num("versionCode") }
+                if (!variants.isNullOrEmpty() && variant == null) continue
+                val code = variant?.num("versionCode") ?: obj.num("versionCode")
+                val appId = obj.num("appId").takeIf { it > 0L } ?: obj.num("id")
                 if (pkg.isBlank() || code <= local.versionCode || appId <= 0L) continue
                 val existing = out[pkg]
                 if (existing != null && existing.versionCode >= code) continue
                 out[pkg] = StoreReleaseInfo(
                     storeId = StoreCatalog.ID_XIAOMI,
                     versionCode = code,
-                    versionName = obj.str("versionName").ifBlank { code.toString() },
-                    sizeBytes = obj.num("apkSize"),
+                    versionName = variant?.str("versionName").orEmpty().ifBlank { obj.str("versionName") }.ifBlank { code.toString() },
+                    sizeBytes = variant?.num("apkSize")?.takeIf { it > 0L }
+                        ?: obj.num("apkSizeV2").takeIf { it > 0L } ?: obj.num("apkSize"),
                     changelog = obj.str("changeLog").trim(),
                     appId = appId,
                 )
             }
         }
-        return out
+        return UpdateResult(out, recognized, root["miuiApp"] is JsonArray)
     }
 
     fun parseDownloadUrl(rawJson: String): Pair<String, Long>? =
         parseDownloadSpec(rawJson)?.let { it.url to it.sizeBytes }
 
     /** 解析小米单包或 Split APK 多分包下载描述（自动保证 base 在主位置、其余 split 进 extraParts）。 */
-    fun parseDownloadSpec(rawJson: String, headers: Map<String, String> = emptyMap()): StoreDownloadSpec? {
+    fun parseDownloadSpec(rawJson: String, headers: Map<String, String> = emptyMap(), expectedVersion: Long? = null): StoreDownloadSpec? {
         val root = runCatching { Json.parseToJsonElement(rawJson) as? JsonObject }.getOrNull() ?: return null
+        val version = root.num("versionCode")
+        if (expectedVersion != null && version > 0L && version != expectedVersion) return null
         val apks = root["apks"] as? JsonArray ?: return null
         val host = ((root["hosts"] as? JsonArray)?.firstOrNull() as? JsonPrimitive)?.contentOrNull
             ?.takeIf { it.isNotBlank() }
             ?: root.str("host").ifBlank { DEFAULT_DOWNLOAD_HOST }
 
-        data class RawPart(val isBase: Boolean, val name: String, val url: String, val size: Long, val md5: String?)
-        val parts = apks.mapNotNull { el ->
-            val obj = el as? JsonObject ?: return@mapNotNull null
-            val apkPath = obj.str("apk").ifBlank { obj.str("url") }
-            if (apkPath.isBlank()) return@mapNotNull null
+        data class RawPart(val type: String, val name: String, val url: String, val size: Long, val hash: ExpectedHash?)
+        val parts = apks.map { el ->
+            val obj = el as? JsonObject ?: return null
+            val apkPath = obj.str("url").ifBlank { obj.str("apk") }
+            if (apkPath.isBlank()) return null
             val full = if (apkPath.startsWith("http", ignoreCase = true)) apkPath else host.trimEnd('/') + "/" + apkPath.trimStart('/')
             val url = StoreHttp.upgradeToHttps(full)
-            if (url.isBlank()) return@mapNotNull null
+            if (url.isBlank()) return null
             val type = obj.str("type")
-            val isBase = type.equals("base", ignoreCase = true) || type.isBlank()
             val name = obj.str("name").ifBlank { apkPath.substringAfterLast('/') }
             val size = obj.num("size")
-            val md5 = obj.str("apkHash").ifBlank { obj.str("md5") }.lowercase().takeIf { it.length == 32 }
-            RawPart(isBase = isBase, name = name, url = url, size = size, md5 = md5)
+            val hash = obj.str("hash").ifBlank { obj.str("apkHash") }.ifBlank { obj.str("md5") }
+            val algorithm = when (hash.length) {
+                32 -> HashAlgorithm.MD5
+                64 -> HashAlgorithm.SHA256
+                else -> null
+            }
+            RawPart(type, name, url, size, algorithm?.let { ExpectedHash(it, hash.lowercase()) })
         }
-        if (parts.isEmpty()) return null
-        val base = parts.firstOrNull { it.isBase } ?: parts.first()
+        val typedBase = parts.filter { it.type.equals("base", ignoreCase = true) }
+        fun RawPart.hasBaseName() = name.equals("base", ignoreCase = true) || name.equals("base.apk", ignoreCase = true)
+        // Dynamic modules can use type=base too. Prefer the explicitly named base APK.
+        val base = typedBase.filter { it.hasBaseName() }
+            .ifEmpty { parts.filter { it.type.isBlank() && it.hasBaseName() } }
+            .ifEmpty { typedBase }
+            .ifEmpty { parts.filter { it.type.isBlank() } }
+            .singleOrNull() ?: return null
         val splits = parts.filter { it !== base }.mapIndexed { idx, p ->
             StoreDownloadPart(
                 name = p.name.ifBlank { "split_${idx + 1}.apk" },
                 url = p.url,
                 sizeBytes = p.size,
-                expectedHash = p.md5?.let { ExpectedHash(HashAlgorithm.MD5, it) },
+                expectedHash = p.hash,
             )
         }
         val baseSize = base.size.takeIf { it > 0L } ?: if (splits.isEmpty()) root.num("apkSize") else 0L
         return StoreDownloadSpec(
             url = base.url,
             sizeBytes = baseSize,
-            expectedHash = base.md5?.let { ExpectedHash(HashAlgorithm.MD5, it) },
+            expectedHash = base.hash,
             headers = headers,
             extraParts = splits,
         )
@@ -410,4 +452,7 @@ internal object XiaomiProtocol {
     private fun urlEnc(s: String): String = URLEncoder.encode(s, "UTF-8").replace("+", "%20")
     private fun JsonObject.str(key: String): String = (this[key] as? JsonPrimitive)?.contentOrNull.orEmpty()
     private fun JsonObject.num(key: String): Long = (this[key] as? JsonPrimitive)?.longOrNull ?: 0L
+
+    private fun JsonObject.downloadBlocked(): Boolean =
+        num("fitness") != 0L || num("unfitnessType") > 0L || str("downloadDisable").equals("true", ignoreCase = true)
 }

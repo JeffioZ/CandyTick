@@ -9,6 +9,8 @@ import io.candy.tick.data.store.StoreDownloadSpec
 import io.candy.tick.data.store.StoreHttp
 import io.candy.tick.data.store.StoreQuerySpeed
 import io.candy.tick.data.store.StoreSource
+import java.io.IOException
+import okhttp3.FormBody
 import okhttp3.MediaType.Companion.toMediaType
 import okhttp3.Request
 import okhttp3.RequestBody.Companion.toRequestBody
@@ -19,6 +21,7 @@ import okhttp3.RequestBody.Companion.toRequestBody
 class VivoStore : StoreSource {
     override val id: String = StoreCatalog.ID_VIVO
     override val speed: StoreQuerySpeed = StoreQuerySpeed.FAST_BATCH
+    override val batchSize: Int = VivoProtocol.MAX_BATCH
 
     private val noRedirectClient = StoreHttp.client.newBuilder().followRedirects(false).followSslRedirects(false).build()
 
@@ -46,12 +49,39 @@ class VivoStore : StoreSource {
         app: LocalInstalledApp,
         release: StoreReleaseInfo,
     ): StoreDownloadSpec {
-        val rawUrl = release.downloadUrl.takeIf { it.isNotBlank() } ?: throw SourceException(SourceError.NotFound)
+        val target = if (release.appId > 0L) {
+            val form = FormBody.Builder()
+                .add("idListStr", release.appId.toString())
+                .add("content_complete", "1")
+                .add("needUpCmt", "1")
+                .add("app_version", VivoProtocol.APP_VERSION)
+                .build()
+            val request = Request.Builder().url(VivoProtocol.DETAIL_URL)
+                .header("User-Agent", VivoProtocol.userAgent()).post(form).build()
+            try {
+                StoreHttp.execute(request) { response ->
+                    if (!response.isSuccessful) throw SourceException(SourceError.Http(response.code))
+                    VivoProtocol.downloadDetail(response.body.string(), app.packageName, release)
+                }
+            } catch (e: SourceException) {
+                val error = e.error
+                val temporary = error == SourceError.Timeout || error == SourceError.NetworkUnreachable ||
+                    (error is SourceError.Http && error.code in 500..599)
+                if (!temporary || release.downloadUrl.isBlank()) throw e
+                release
+            } catch (e: IOException) {
+                // A disconnect while reading the detail body arrives after OkHttp's onResponse.
+                if (release.downloadUrl.isBlank()) throw e
+                release
+            }
+        } else release
+        val rawUrl = target.downloadUrl.takeIf { it.isNotBlank() } ?: throw SourceException(SourceError.NotFound)
         val resolvedUrl = resolveHttpsRedirect(rawUrl)
         return StoreDownloadSpec(
             url = resolvedUrl,
             sizeBytes = release.sizeBytes,
-            expectedHash = VivoProtocol.expectedMd5(release.checksum),
+            exactSizeBytes = null,
+            expectedHash = VivoProtocol.expectedMd5(target.checksum),
             headers = mapOf("User-Agent" to VivoProtocol.userAgent()),
         )
     }

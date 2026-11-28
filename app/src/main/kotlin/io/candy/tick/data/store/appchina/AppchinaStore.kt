@@ -9,9 +9,6 @@ import io.candy.tick.data.store.StoreDownloadSpec
 import io.candy.tick.data.store.StoreHttp
 import io.candy.tick.data.store.StoreQuerySpeed
 import io.candy.tick.data.store.StoreSource
-import kotlinx.coroutines.async
-import kotlinx.coroutines.awaitAll
-import kotlinx.coroutines.coroutineScope
 import okhttp3.Request
 
 /**
@@ -21,18 +18,11 @@ class AppchinaStore : StoreSource {
     override val id: String = StoreCatalog.ID_APPCHINA
     override val speed: StoreQuerySpeed = StoreQuerySpeed.SLOW_PER_APP
 
-    override suspend fun checkUpdates(apps: List<LocalInstalledApp>): Map<String, StoreReleaseInfo> = coroutineScope {
-        val out = mutableMapOf<String, StoreReleaseInfo>()
-        for (batch in apps.chunked(CONCURRENCY)) {
-            val items = batch.map { local ->
-                async {
-                    val info = StoreHttp.runCatchingCancellable { queryPackage(local.packageName) }.getOrNull() ?: return@async null
-                    if (info.versionCode > local.versionCode) local.packageName to info else null
-                }
-            }.awaitAll().filterNotNull()
-            out.putAll(items)
+    override suspend fun checkUpdates(apps: List<LocalInstalledApp>): Map<String, StoreReleaseInfo> = buildMap {
+        for (local in apps) {
+            val release = queryPackage(local.packageName) ?: continue
+            if (release.versionCode > local.versionCode) put(local.packageName, release)
         }
-        out
     }
 
     override suspend fun resolveDownload(
@@ -55,6 +45,7 @@ class AppchinaStore : StoreSource {
         return StoreDownloadSpec(
             url = url,
             sizeBytes = fresh.sizeBytes,
+            exactSizeBytes = null,
             headers = mapOf(
                 "User-Agent" to AppchinaProtocol.USER_AGENT,
                 "Referer" to AppchinaProtocol.WEB_BASE + "/",
@@ -71,12 +62,9 @@ class AppchinaStore : StoreSource {
             .get()
             .build()
         return StoreHttp.execute(req) { resp ->
+            if (resp.code == 404) return@execute null
             if (!resp.isSuccessful) throw SourceException(SourceError.Http(resp.code))
             AppchinaProtocol.parseSearchMatch(resp.body.string(), packageName)
         }
-    }
-
-    companion object {
-        private const val CONCURRENCY = 4
     }
 }

@@ -30,6 +30,7 @@ class SettingsViewModel(
     private val githubApi: GitHubApi,
     private val selfUpdater: SelfUpdater,
     private val cacheManager: CacheManager,
+    private val reconcileStoreDownloads: suspend () -> Unit,
 ) : ViewModel() {
 
     enum class TokenTest { TESTING, VALID, REMOVED, INVALID, NETWORK, SAVE_FAILED }
@@ -139,7 +140,7 @@ class SettingsViewModel(
      * 让弹窗给出失败出口而不是停在「验证中」。
      */
     private suspend fun persistSettings(transform: (Settings) -> Settings): Boolean =
-        withTimeoutOrNull(3_000L) { repository.updateSettings(transform) } != null
+        withTimeoutOrNull(3_000L) { repository.updateSettingsAndConfirm(transform) } == true
 
     fun onTokenInput(text: String) {
         tokenValidation?.cancel()
@@ -277,6 +278,7 @@ class SettingsViewModel(
                 val freed = scan.clean()
                 repository.clearMissingDownloads()
                 selfUpdater.clearMissingDownload()
+                reconcileStoreDownloads()
                 refreshed = cacheManager.scan()
                 freed
             }

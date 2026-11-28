@@ -61,6 +61,7 @@ internal fun downloadFailureText(failure: RepoDownloadState.Failed?): String {
             io.candy.tick.ui.common.Feedback.withErrorCode(stringResource(R.string.download_incomplete), "E-DL")
         RepoDownloadState.LocalFailure.SAVE_FAILED ->
             io.candy.tick.ui.common.Feedback.withErrorCode(stringResource(R.string.download_save_failed), "E-IO")
+        RepoDownloadState.LocalFailure.TARGET_MISMATCH -> stringResource(R.string.repo_download_target_mismatch)
         else -> null
     }
     return if (reason.isNullOrBlank()) {
@@ -68,11 +69,13 @@ internal fun downloadFailureText(failure: RepoDownloadState.Failed?): String {
     } else stringResource(R.string.download_failed_reason, reason)
 }
 
-/** 移除订阅确认（破坏性操作：红色主按钮） */
 @Composable
-internal fun RemoveRepoDialog(
+internal fun DetailConfirmationSheet(
     show: Boolean,
-    repoName: String,
+    title: String,
+    message: String,
+    confirmText: String,
+    destructive: Boolean = false,
     onConfirm: () -> Unit,
     onDismiss: () -> Unit,
 ) {
@@ -80,7 +83,7 @@ internal fun RemoveRepoDialog(
     // 底部浮层容器：与选项浮层同款动效
     io.candy.tick.ui.common.CandySheet(
         show = show,
-        title = stringResource(R.string.remove_confirm_title),
+        title = title,
         onDismissRequest = onDismiss,
     ) {
         Column(
@@ -91,16 +94,16 @@ internal fun RemoveRepoDialog(
             verticalArrangement = Arrangement.spacedBy(12.dp),
         ) {
             Text(
-                text = stringResource(R.string.remove_confirm_body, repoName),
+                text = message,
                 style = MiuixTheme.textStyles.body2,
                 color = scheme.onBackgroundVariant,
             )
             // 与导入弹层同构：主上副下、全宽竖排（dialog 式右对齐小按钮不属于 sheet 体系）
-            io.candy.tick.ui.common.DangerButton(
-                text = stringResource(R.string.action_remove),
-                onClick = onConfirm,
-                modifier = Modifier.fillMaxWidth(),
-            )
+            if (destructive) {
+                io.candy.tick.ui.common.DangerButton(text = confirmText, onClick = onConfirm, modifier = Modifier.fillMaxWidth())
+            } else {
+                io.candy.tick.ui.common.PrimaryButton(text = confirmText, onClick = onConfirm, modifier = Modifier.fillMaxWidth())
+            }
             io.candy.tick.ui.common.SecondaryButton(
                 text = stringResource(R.string.action_cancel),
                 onClick = onDismiss,

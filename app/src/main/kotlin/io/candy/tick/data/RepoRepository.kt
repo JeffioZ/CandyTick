@@ -28,6 +28,7 @@ class RepoRepository(
     private val store: AppStateStore,
     private val providers: Map<String, SourceProvider>,
     private val filesDir: File,
+    private val hasUsableToken: () -> Boolean = { false },
 ) {
 
     val state: StateFlow<AppState> get() = store.state
@@ -42,6 +43,9 @@ class RepoRepository(
 
     suspend fun updateSettings(transform: (Settings) -> Settings) =
         store.update { it.copy(settings = transform(it.settings)) }
+
+    suspend fun updateSettingsAndConfirm(transform: (Settings) -> Settings): Boolean =
+        store.updateAndConfirm { it.copy(settings = transform(it.settings)) }
 
     // ---- 增删 / 关联 ----
 
@@ -167,16 +171,21 @@ class RepoRepository(
     }
 
     /** 「下载保留」记录（安装失败不删，可直接重装） */
-    suspend fun replaceDownloadedApk(subscription: TrackedRepo, apk: DownloadedApk, stillActive: () -> Boolean): DownloadedApk? {
+    suspend fun replaceDownloadedApk(
+        subscription: TrackedRepo, apk: DownloadedApk, requireLinkedPackage: Boolean = false,
+        stillActive: () -> Boolean,
+    ): DownloadedApk? {
         var replaced: DownloadedApk? = null
-        store.update { s ->
-            val repo = s.repos.firstOrNull { it.id == subscription.id } ?: return@update s
-            if (repo.addedAt != subscription.addedAt || !stillActive()) return@update s
+        val saved = store.updateAndConfirm { s ->
+            val repo = s.repos.firstOrNull { it.id == subscription.id } ?: return@updateAndConfirm s
+            if (repo.addedAt != subscription.addedAt || !stillActive() ||
+                requireLinkedPackage && (apk.packageName == null || repo.linkedPackage != apk.packageName)
+            ) return@updateAndConfirm s
             replaced = repo.downloadedApk
             s.copy(repos = s.repos.map { if (it.id == repo.id) it.copy(downloadedApk = apk) else it })
         }
         // A failed write leaves the previous file referenced by the on-disk state.
-        return replaced.takeIf { store.saveStatus.value == AppStateStore.SaveStatus.SAVED }
+        return replaced.takeIf { saved }
     }
 
     suspend fun clearDownloadedApkIfMatches(id: Long, expected: DownloadedApk) = store.update { s ->
@@ -229,6 +238,11 @@ class RepoRepository(
         val releases = page?.releases.orEmpty().filter { it.apkAssets.isNotEmpty() && it.tagName.isNotEmpty() }
         val latest = releases.firstOrNull()
         val tags = releases.map { it.tagName }
+        val knownTag = baseline.currentReleaseTag
+        // A first-page ETag says nothing about an APK release further down the history.
+        val checkOlder = if (page != null) latest == null && page.releases.size == RELEASES_PER_PAGE
+            else baseline.apkSearchNextPage != null
+        val withdrawn = knownTag != null && checkOlder && apkWithdrawn(tracked, knownTag, page?.releases.orEmpty())
         val id = tracked.id
         var outcome: SyncTagOutcome = SyncTagOutcome.Missing
         store.update { s ->
@@ -240,18 +254,21 @@ class RepoRepository(
             // A short first page covers the entire history, including releases without an APK.
             // On a full page the previously observed APK might still be on page two.
             val completePage = acceptPage && page.releases.size < RELEASES_PER_PAGE
+            val clearWithdrawn = withdrawn && !moved
             val publication = when {
                 acceptPage && latest != null -> ApkPublication(
                     latest.tagName, latest.publishedAt ?: old.latestApk?.takeIf { it.tag == latest.tagName }?.publishedAt,
                 )
-                completePage -> null
+                completePage || clearWithdrawn -> null
                 else -> old.latestApk
             }
-            val tag = publication?.tag ?: old.latestReleaseTag.takeUnless { completePage }
+            val tag = publication?.tag ?: old.latestReleaseTag.takeUnless { completePage || clearWithdrawn }
             val known = !old.importedReleaseBaseline && (old.releaseBaselineKnown || old.latestReleaseTag != null)
             val movedBack = SnapshotDiff.releaseMovedBack(old.latestApk, publication)
             val stillPublished = if (completePage && old.activity.unreadReleaseTags.any { it !in tags }) {
                 old.activity.copy(unreadReleaseTags = old.activity.unreadReleaseTags.intersect(tags.toSet()))
+            } else if (clearWithdrawn) {
+                old.activity.copy(unreadReleaseTags = old.activity.unreadReleaseTags - requireNotNull(knownTag))
             } else old.activity
             val activity = if (acceptPage && !movedBack && SnapshotDiff.releaseChanged(old, tag)) {
                 stillPublished.discoverReleases(tags.newerThan(old.currentReleaseTag))
@@ -264,13 +281,31 @@ class RepoRepository(
                 // 已发布较早的版本重新成为首项时同步通知游标，随后 304 也不会把它当成新发布。
                 latestReleaseTag = if (forNotification || !known || movedBack || tag == null) tag else old.latestReleaseTag,
                 releasePageEtag = if (acceptPage) page.etag else old.releasePageEtag,
+                apkSearchNextPage = when {
+                    clearWithdrawn -> 2
+                    !acceptPage -> old.apkSearchNextPage
+                    latest != null || completePage || page.etag == null -> null
+                    page.etag == old.releasePageEtag -> old.apkSearchNextPage ?: 2
+                    else -> 2
+                },
                 releaseBaselineKnown = true, importedReleaseBaseline = false,
                 activity = activity,
             )
-            outcome = if (!acceptPage && !notify) SyncTagOutcome.Unchanged else SyncTagOutcome.Tag(tag, notify)
+            outcome = if (!acceptPage && !notify && !clearWithdrawn) SyncTagOutcome.Unchanged else SyncTagOutcome.Tag(tag, notify)
             if (next == old) s else s.copy(snapshots = s.snapshots + (id to next))
         }
         return outcome
+    }
+
+    private suspend fun apkWithdrawn(tracked: TrackedRepo, tag: String, rows: List<ReleaseRecord>): Boolean {
+        rows.firstOrNull { it.tagName == tag }?.let { return it.apkAssets.isEmpty() }
+        // A release missing from this page may simply have moved. Only a definitive tag response can clear it.
+        return try {
+            val release = provider(tracked.provider).releaseByTag(tracked.owner, tracked.repo, tag)
+            release?.tagName == tag && release.apkAssets.isEmpty()
+        } catch (e: SourceException) {
+            e.error == SourceError.NotFound
+        }
     }
 
     /** 添加页搜索辅助 */
@@ -337,6 +372,7 @@ class RepoRepository(
                                 commitsEtag = cur?.commitsEtag,
                                 lastCommitDate = cur?.lastCommitDate,
                                 releasePageEtag = cur?.releasePageEtag,
+                                apkSearchNextPage = cur?.apkSearchNextPage,
                                 pendingTipSync = true,
                                 importedCommitBaseline = cur?.importedCommitBaseline ?: false,
                                 importedReleaseBaseline = cur?.importedReleaseBaseline ?: false,
@@ -378,7 +414,10 @@ class RepoRepository(
                         }
                         s.copy(snapshots = s.snapshots + (id to next))
                     }
-                } catch (_: SourceException) {
+                } catch (e: SourceException) {
+                    if (tipBranch != null && (e.error == SourceError.NotFound || e.error == SourceError.BranchUnavailable)) {
+                        return SourceError.BranchUnavailable
+                    }
                     // 仓库信息已同步，分支 tip 保留旧基线。
                 }
             }
@@ -397,11 +436,13 @@ class RepoRepository(
         val snapshot = store.state.value
         val unsynced = snapshot.repos.filter { it.id !in snapshot.snapshots }
         if (unsynced.isEmpty()) return
-        val hasToken = !snapshot.settings.githubToken.isNullOrBlank()
-        val targets = if (hasToken || unsynced.size <= 12) unsynced else unsynced.take(10)
+        val limited = unsynced.size > 12
+        val targets = if (hasUsableToken() || !limited) unsynced else unsynced.take(10)
+        val started = AtomicInteger()
         targets.forEachSyncRepo { tracked ->
+            if (started.incrementAndGet() > 10 && limited && !hasUsableToken()) return@forEachSyncRepo
             val err = refreshRepo(tracked.id)
-            if (err == null) {
+            if (err == null || err == SourceError.BranchUnavailable) {
                 syncLatestReleaseTag(tracked.id, forNotification = false)
             }
         }
@@ -413,7 +454,7 @@ class RepoRepository(
         store.state.value.repos.forEachSyncRepo { tracked ->
             val infoError = refreshRepo(tracked.id)
             // Expanded cards already refresh release metadata with their first history page.
-            val releaseError = if (infoError == null && tracked.id !in refreshingCardIds) {
+            val releaseError = if ((infoError == null || infoError == SourceError.BranchUnavailable) && tracked.id !in refreshingCardIds) {
                 (syncLatestReleaseTag(tracked.id, forNotification = false) as? SyncTagOutcome.Failed)?.error
             } else null
             (infoError ?: releaseError)?.let { errors[tracked.id] = it }
@@ -435,23 +476,17 @@ class RepoRepository(
     suspend fun branchDates(
         repoId: Long,
         names: List<String>,
-        firstPage: Boolean,
-        fullPage: Boolean = false,
+        startRequest: (String) -> Boolean = { true },
         onDate: (String, Instant?) -> Unit,
     ) {
         val tracked = trackedOrNull(repoId) ?: return
         val source = provider(tracked.provider)
-        val priority = setOfNotNull(tracked.branch, state.value.snapshots[repoId]?.defaultBranch)
-        // 优先分支（默认+当前浏览）最先请求——UI 置顶显示但 API 按字母序返回，
-        // 不提前的话 main 的副标题要等好几波才到（真机反馈）；首页前 20 + fullPage 同前
-        val wanted = (names.filter { it in priority } +
-            (if (firstPage) names.take(20) else emptyList()) +
-            (if (fullPage) names else emptyList())).distinct()
         coroutineScope {
             val gate = Semaphore(6)
-            wanted.map { name ->
+            names.distinct().map { name ->
                 async {
                     val date = gate.withPermit {
+                        if (!startRequest(name)) return@async
                         try {
                             source.branchTipDate(tracked.owner, tracked.repo, name)
                         } catch (_: SourceException) {
@@ -534,8 +569,51 @@ class RepoRepository(
     suspend fun releases(repoId: Long, page: Int): List<ReleaseRecord> {
         val t = trackedOrNull(repoId) ?: return emptyList()
         val source = provider(t.provider)
-        if (page != 1) return source.releases(t.owner, t.repo, page, perPage = RELEASES_PER_PAGE)
         val baseline = store.state.value.snapshots[repoId]
+        if (page != 1) {
+            val rows = source.releases(t.owner, t.repo, page, perPage = RELEASES_PER_PAGE)
+            val searchPage = baseline?.apkSearchNextPage ?: return rows
+            if (page <= searchPage && baseline.releasePageEtag != null) {
+                val known = baseline.currentReleaseTag
+                val onPage = rows.any { it.tagName == known }
+                val apk = rows.firstOrNull { it.apkAssets.isNotEmpty() && it.tagName.isNotEmpty() }
+                val newer = apk?.publishedAt != null && baseline.latestApk?.publishedAt != null &&
+                    apk.publishedAt > baseline.latestApk.publishedAt
+                // An author may add an APK to an earlier page after it was searched.
+                if (page < searchPage && (apk == null || (known != null && !onPage && !newer))) return rows
+                val withdrawn = known != null && (page == searchPage || onPage) && apkWithdrawn(t, known, rows)
+                store.update { state ->
+                    val old = state.snapshots[repoId] ?: return@update state
+                    if (old.currentReleaseTag != known || old.latestApk != baseline.latestApk ||
+                        old.releasePageEtag != baseline.releasePageEtag || old.apkSearchNextPage != searchPage ||
+                        state.repos.none { it.id == repoId && it.addedAt == t.addedAt }
+                    ) return@update state
+                    val usePage = known == null || onPage || withdrawn || newer
+                    val publication = if (usePage) apk?.let { ApkPublication(it.tagName, it.publishedAt) } else old.latestApk
+                    val movedBack = SnapshotDiff.releaseMovedBack(old.latestApk, publication)
+                    val activity = when {
+                        withdrawn -> old.activity.copy(unreadReleaseTags = old.activity.unreadReleaseTags - requireNotNull(known))
+                        !movedBack && known != null && publication != null && publication.tag != known ->
+                            old.activity.discoverReleases(listOf(publication.tag))
+                        else -> old.activity
+                    }
+                    val next = old.copy(
+                        latestApk = publication,
+                        latestReleaseTag = if (known == null || withdrawn || movedBack) publication?.tag else old.latestReleaseTag,
+                        apkSearchNextPage = when {
+                            usePage && apk != null -> page
+                            rows.size == RELEASES_PER_PAGE -> page + 1
+                            !usePage -> 2
+                            else -> null
+                        },
+                        activity = activity,
+                        releaseBaselineKnown = true, importedReleaseBaseline = false,
+                    )
+                    if (next == old) state else state.copy(snapshots = state.snapshots + (repoId to next))
+                }
+            }
+            return rows
+        }
         // 同一个第一页响应既给界面列表，也给后续条件请求提供 ETag。
         val result = source.releasesForSync(t.owner, t.repo, etag = null)
         if (result is SyncReleasesResult.Page) {

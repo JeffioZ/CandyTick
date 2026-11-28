@@ -9,8 +9,10 @@ import java.security.MessageDigest
 import kotlin.random.Random
 import kotlinx.serialization.json.Json
 import kotlinx.serialization.json.JsonArray
+import kotlinx.serialization.json.JsonNull
 import kotlinx.serialization.json.JsonObject
 import kotlinx.serialization.json.JsonPrimitive
+import kotlinx.serialization.json.booleanOrNull
 import kotlinx.serialization.json.contentOrNull
 import kotlinx.serialization.json.jsonObject
 import kotlinx.serialization.json.longOrNull
@@ -30,10 +32,11 @@ internal object TapTapProtocol {
     private const val SIGN_SECRET = "PeCkE6Fu0B10Vm9BKfPfANwCUAn5POcs"
     private const val NONCE_CHARS = "abcdefghijklmnopqrstuvwxyz0123456789"
     private val json = Json { ignoreUnknownKeys = true; isLenient = true }
+    private val md5Regex = Regex("[0-9a-f]{32}")
 
     fun buildXUa(uid: String): String =
         "V=1&PN=TapTap&VN=2.96.12-rel.100100&VN_CODE=296121001&LOC=CN&LANG=zh_CN" +
-            "&CH=organic-direct_index&UID=$uid&NT=1&SR=1080x2400&DEB=Android&DEM=CandyTick&OSV=16"
+            "&CH=organic-direct_index&UID=$uid&NT=1&SR=1080x2400&DEB=Android&DEM=CandyTick&OSV=${android.os.Build.VERSION.RELEASE.orEmpty()}"
 
     fun buildUrl(path: String, xUa: String): String =
         "$BASE_URL$path?X-UA=${URLEncoder.encode(xUa, "UTF-8")}"
@@ -68,9 +71,17 @@ internal object TapTapProtocol {
         body: String,
         installedByPkg: Map<String, LocalInstalledApp>,
     ): Map<String, StoreReleaseInfo> {
-        val root = runCatching { json.parseToJsonElement(body).jsonObject }.getOrNull() ?: return emptyMap()
-        val data = root["data"] as? JsonObject ?: return emptyMap()
-        val list = data["list"] as? JsonArray ?: return emptyMap()
+        val root = json.parseToJsonElement(body).jsonObject
+        val success = successFlag(root)
+        val data = root["data"]?.takeUnless { it == JsonNull }
+        if (success == true && data is JsonArray && data.isEmpty()) return emptyMap()
+        require(data == null || data is JsonObject) { "Invalid TapTap result" }
+        val list = data?.get("list")
+        if (list == null || list == JsonNull) {
+            require(success == true) { "Missing TapTap update list" }
+            return emptyMap()
+        }
+        require(list is JsonArray) { "Invalid TapTap update list" }
         val out = LinkedHashMap<String, StoreReleaseInfo>()
         for (item in list) {
             val obj = item as? JsonObject ?: continue
@@ -83,13 +94,14 @@ internal object TapTapProtocol {
             if (apkId <= 0L || versionCode <= installed.versionCode) continue
             val versionName = apk.str("version_name").ifBlank { versionCode.toString() }
             val size = apk.long("size")
-            val md5 = apk.str("md5").lowercase().takeIf { it.length == 32 }.orEmpty()
+            val md5 = apk.str("md5").lowercase().takeIf(md5Regex::matches).orEmpty()
             val changelog = (obj["whatsnew"] as? JsonObject)?.str("text").orEmpty()
             out[pkg] = StoreReleaseInfo(
                 storeId = StoreCatalog.ID_TAPTAP,
                 versionCode = versionCode,
                 versionName = versionName,
                 sizeBytes = size,
+                exactSizeBytes = size.takeIf { it > 0L },
                 changelog = changelog,
                 appId = apkId,
                 checksum = md5,
@@ -104,17 +116,26 @@ internal object TapTapProtocol {
         val md5: String,
     )
 
-    fun parseApkDetailResponse(body: String): ApkDownloadInfo? {
+    fun parseApkDetailResponse(body: String, expectedVersion: Long? = null): ApkDownloadInfo? {
         val root = runCatching { json.parseToJsonElement(body).jsonObject }.getOrNull() ?: return null
+        successFlag(root)
         val data = root["data"] as? JsonObject ?: return null
         val apk = data["apk"] as? JsonObject ?: return null
+        val version = apk.long("version_code")
+        if (expectedVersion != null && version > 0L && version != expectedVersion) return null
         val url = StoreHttp.upgradeToHttps(apk.str("download"))
         if (url.isBlank()) return null
         return ApkDownloadInfo(
             url = url,
             sizeBytes = apk.long("size"),
-            md5 = apk.str("md5").lowercase().takeIf { it.length == 32 }.orEmpty(),
+            md5 = apk.str("md5").lowercase().takeIf(md5Regex::matches).orEmpty(),
         )
+    }
+
+    private fun successFlag(root: JsonObject): Boolean? {
+        val flag = root["success"] ?: return null
+        require((flag as? JsonPrimitive)?.booleanOrNull == true) { "TapTap request failed" }
+        return true
     }
 
     private fun md5Hex(input: String): String =

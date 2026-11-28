@@ -107,6 +107,7 @@ class GitHubApi(private val tokenProvider: () -> String?) {
                     .build()
                 readAuthenticated(request(url, etag = null)) {
                     if (it.isEmptyRepo()) return@readAuthenticated emptyList()
+                    if (sha != null && it.isMissingRef()) throw SourceException(SourceError.BranchUnavailable)
                     checkHttp(it)
                     json.decodeFromString<List<GhCommit>>(it.body.string()).map { c ->
                         CommitRecord(
@@ -175,6 +176,19 @@ class GitHubApi(private val tokenProvider: () -> String?) {
             }
         }
 
+    suspend fun latestStableRelease(owner: String, repo: String): ReleaseRecord? =
+        withContext(Dispatchers.IO) {
+            try {
+                readAuthenticated(request(apiUrl("repos", owner, repo, "releases", "latest"), etag = null)) {
+                    if (it.code == 404) return@readAuthenticated null
+                    checkHttp(it)
+                    toReleaseRecord(json.decodeFromString<GhRelease>(it.body.string()))
+                }
+            } catch (e: Exception) {
+                rethrowMapped(e)
+            }
+        }
+
     /**
      * 后台同步 release 列表使用 ETag。304 无需传输正文，已认证请求还可节省主配额。
      */
@@ -216,6 +230,7 @@ class GitHubApi(private val tokenProvider: () -> String?) {
                     .apply { branch?.let { addQueryParameter("sha", it) } }
                     .build()
                 readAuthenticated(request(url, etag)) {
+                    if (branch != null && it.isMissingRef()) throw SourceException(SourceError.BranchUnavailable)
                     when (it.code) {
                         304 -> SyncCommitTipResult.NotModified
                         409 -> if (it.isEmptyRepo()) SyncCommitTipResult.Tip("", it.header("etag"))
@@ -549,6 +564,9 @@ class GitHubApi(private val tokenProvider: () -> String?) {
 
     private fun Response.isEmptyRepo(): Boolean =
         code == 409 && peekBody(1024).string().contains("Git Repository is empty", ignoreCase = true)
+
+    private fun Response.isMissingRef(): Boolean =
+        code == 422 && peekBody(4096).string().contains("No commit found for SHA", ignoreCase = true)
 
     private fun apiUrl(vararg segments: String): HttpUrl =
         BASE_URL.toHttpUrl().newBuilder().apply { segments.forEach(::addPathSegment) }.build()

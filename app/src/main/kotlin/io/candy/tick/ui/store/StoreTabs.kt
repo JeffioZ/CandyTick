@@ -1,7 +1,9 @@
 package io.candy.tick.ui.store
 
-import android.content.Context
-import android.util.LruCache
+import androidx.compose.foundation.border
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.setValue
 import androidx.compose.animation.core.Animatable
 import androidx.compose.foundation.background
 import androidx.compose.foundation.interaction.MutableInteractionSource
@@ -23,8 +25,6 @@ import androidx.compose.ui.draw.drawBehind
 import androidx.compose.ui.geometry.CornerRadius
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.geometry.Size
-import androidx.compose.ui.graphics.ImageBitmap
-import androidx.compose.ui.graphics.asImageBitmap
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.text.font.FontWeight
@@ -32,11 +32,8 @@ import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.LayoutDirection
 import androidx.compose.ui.unit.dp
-import androidx.core.graphics.drawable.toBitmap
 import io.candy.tick.ui.common.collectPressTint
 import io.candy.tick.ui.common.rememberMotionEnabled
-import kotlinx.coroutines.Dispatchers
-import kotlinx.coroutines.withContext
 import top.yukonga.miuix.kmp.basic.Text
 import top.yukonga.miuix.kmp.theme.MiuixTheme
 
@@ -89,11 +86,13 @@ internal fun StoreTabs(
                 val isSelected = tab == selected
                 val source = remember { MutableInteractionSource() }
                 val press = remember { Animatable(0f) }
-                LaunchedEffect(source) { collectPressTint(source, press) {} }
+                var focused by remember { mutableStateOf(false) }
+                LaunchedEffect(source) { collectPressTint(source, press) { focused = it } }
                 Box(
                     modifier = Modifier
                         .weight(1f)
                         .heightIn(min = 48.dp)
+                        .then(if (focused) Modifier.border(1.dp, scheme.primaryVariant, TabTrackShape) else Modifier)
                         .selectable(
                             selected = isSelected,
                             interactionSource = source,
@@ -112,7 +111,7 @@ internal fun StoreTabs(
                             fontWeight = if (isSelected) FontWeight.Medium else FontWeight.Normal,
                         ),
                         textAlign = TextAlign.Center,
-                        maxLines = 1,
+                        maxLines = 2,
                         overflow = TextOverflow.Ellipsis,
                         modifier = Modifier.graphicsLayer {
                             val amount = press.value
@@ -122,24 +121,6 @@ internal fun StoreTabs(
                     )
                 }
             }
-        }
-    }
-}
-
-/**
- * 内存级本机应用图标缓存：避免滚动、切页签或弹出浮层时反复通过 PackageManager 解码 Bitmap 导致掉帧。
- */
-internal object StoreIconCache {
-    private val cache = LruCache<String, ImageBitmap>(120)
-
-    fun peek(packageName: String): ImageBitmap? = cache.get(packageName)
-
-    suspend fun load(context: Context, packageName: String): ImageBitmap? {
-        cache.get(packageName)?.let { return it }
-        return withContext(Dispatchers.IO) {
-            runCatching {
-                context.packageManager.getApplicationIcon(packageName).toBitmap(96, 96).asImageBitmap()
-            }.getOrNull()?.also { bmp -> cache.put(packageName, bmp) }
         }
     }
 }

@@ -5,9 +5,11 @@ import io.candy.tick.data.download.HashAlgorithm
 import io.candy.tick.data.model.StoreReleaseInfo
 import io.candy.tick.data.store.LocalInstalledApp
 import io.candy.tick.data.store.StoreCatalog
+import io.candy.tick.data.store.StoreDevice
 import io.candy.tick.data.store.StoreDownloadPart
 import io.candy.tick.data.store.StoreDownloadSpec
 import io.candy.tick.data.store.StoreHttp
+import io.candy.tick.data.store.StoreResponseException
 import java.security.MessageDigest
 import java.util.Base64
 import javax.crypto.Mac
@@ -15,13 +17,13 @@ import javax.crypto.spec.SecretKeySpec
 import kotlin.random.Random
 import kotlinx.serialization.json.Json
 import kotlinx.serialization.json.JsonArray
+import kotlinx.serialization.json.JsonNull
 import kotlinx.serialization.json.JsonObject
 import kotlinx.serialization.json.JsonPrimitive
 import kotlinx.serialization.json.add
 import kotlinx.serialization.json.buildJsonArray
 import kotlinx.serialization.json.buildJsonObject
 import kotlinx.serialization.json.contentOrNull
-import kotlinx.serialization.json.intOrNull
 import kotlinx.serialization.json.jsonObject
 import kotlinx.serialization.json.longOrNull
 import kotlinx.serialization.json.put
@@ -133,19 +135,26 @@ internal object HonorProtocol {
         body: String,
         installedByPkg: Map<String, LocalInstalledApp>,
     ): Map<String, StoreReleaseInfo> {
-        val root = runCatching { json.parseToJsonElement(body).jsonObject }.getOrNull() ?: return emptyMap()
-        val data = root["data"] as? JsonObject ?: root
-        val list = (data["appLst"] as? JsonArray) ?: (data["apps"] as? JsonArray) ?: return emptyMap()
+        val root = json.parseToJsonElement(body).jsonObject
+        val errorCode = root["errorCode"]?.let { requireNotNull((it as? JsonPrimitive)?.longOrNull) { "Invalid Honor result code" } }
+        if (errorCode != null && errorCode != 0L) throw StoreResponseException(errorCode)
+        val data = root["data"] as? JsonObject
+        val list = root["appLst"] ?: data?.get("appLst") ?: root["apps"] ?: data?.get("apps")
+        if (list == null || list == JsonNull) {
+            require(errorCode == 0L) { "Missing Honor update list" }
+            return emptyMap()
+        }
+        require(list is JsonArray) { "Invalid Honor update list" }
         val out = LinkedHashMap<String, StoreReleaseInfo>()
         for (item in list) {
             val obj = item as? JsonObject ?: continue
             val pkg = obj.str("pName")
             val installed = installedByPkg[pkg] ?: continue
-            val versionCode = obj.long("ver").takeIf { it > 0L } ?: obj.long("versionCode")
+            val versionCode = obj.releaseVersionCode()
             if (versionCode <= installed.versionCode) continue
-            val versionName = obj.str("versionName").ifBlank { versionCode.toString() }
+            val versionName = obj.str("verName").ifBlank { obj.str("versionName") }.ifBlank { versionCode.toString() }
             val size = obj.long("fileSize").takeIf { it > 0L } ?: obj.long("size")
-            val sha256 = obj.str("fileIdentifier").lowercase().takeIf { sha256Regex.matches(it) }.orEmpty()
+            val sha256 = obj.baseApkHash().orEmpty()
             val changelog = obj.str("verUptDes").ifBlank { obj.str("newFeatures") }
             out[pkg] = StoreReleaseInfo(
                 storeId = StoreCatalog.ID_HONOR,
@@ -200,7 +209,7 @@ internal object HonorProtocol {
         for (el in list) {
             val raw = when (el) {
                 is JsonPrimitive -> el.contentOrNull.orEmpty()
-                is JsonObject -> el.str("uri").ifBlank { el.str("url") }
+                is JsonObject -> el.str("link").ifBlank { el.str("uri") }.ifBlank { el.str("url") }
                 else -> ""
             }
             val url = StoreHttp.upgradeToHttps(raw.trim())
@@ -209,7 +218,7 @@ internal object HonorProtocol {
         return null
     }
 
-    fun parseDetailCandidates(body: String, packageName: String): List<DetailApkCandidate> {
+    fun parseDetailCandidates(body: String, packageName: String, expectedVersion: Long? = null): List<DetailApkCandidate> {
         val root = runCatching { json.parseToJsonElement(body).jsonObject }.getOrNull() ?: return emptyList()
         val data = root["data"] as? JsonObject ?: root
         val apps = (data["apps"] as? JsonArray) ?: (data["appLst"] as? JsonArray) ?: return emptyList()
@@ -217,17 +226,24 @@ internal object HonorProtocol {
             .firstOrNull { it.str("pName").equals(packageName, ignoreCase = true) }
             ?: return emptyList()
 
-        val apks = (appObj["apks"] as? JsonArray)?.mapNotNull { it as? JsonObject }.orEmpty()
+        val version = appObj.releaseVersionCode()
+        if (expectedVersion != null && version > 0L && expectedVersion != version) return emptyList()
+        val apks = (appObj["apks"] as? JsonArray).orEmpty()
         if (apks.isNotEmpty()) {
-            val parsed = apks.mapNotNull { entry ->
-                val url = StoreHttp.upgradeToHttps(entry.str("downUrl").ifBlank { entry.str("url") })
-                val metaPath = entry.str("downloadUrlMetaPath")
-                if (url.isBlank() && metaPath.isBlank()) return@mapNotNull null
-                val bundleType = entry.int("bundle_type", entry.int("bundleType", 0))
-                val size = entry.long("fileSize").takeIf { it > 0L } ?: entry.long("size")
-                val sha = entry.str("fileIdentifier").lowercase().takeIf { sha256Regex.matches(it) }
+            val parsed = apks.mapIndexed { index, raw ->
+                val entry = raw as? JsonObject ?: return emptyList()
+                val type = entry.str("bundle_type").ifBlank { entry.str("bundleType") }
+                val isBase = type.equals("base", ignoreCase = true) || type.toIntOrNull() == 0 || (index == 0 && type.isEmpty())
+                val rawUrl = entry.str("downUrl").ifBlank { entry.str("url") }
+                val url = StoreHttp.upgradeToHttps(if (isBase && rawUrl.isBlank()) appObj.str("downUrl") else rawUrl)
+                val metaPath = entry.str("downloadUrlMetaPath").ifBlank { if (isBase) appObj.str("downloadUrlMetaPath") else "" }
+                if (url.isBlank() && metaPath.isBlank()) return emptyList()
+                val size = entry.long("fileSize").takeIf { it > 0L } ?: entry.long("size").takeIf { it > 0L }
+                    ?: if (apks.size == 1 && isBase) appObj.long("fileSize") else 0L
+                val partHash = entry.sha256("fileIdentifier")
+                val sha = if (isBase) appObj.sha256("apkIdentifier") ?: partHash ?: appObj.sha256("fileIdentifier") else partHash
                 DetailApkCandidate(
-                    isBase = bundleType == 0,
+                    isBase = isBase,
                     directUrl = url,
                     metaPath = metaPath,
                     sizeBytes = size,
@@ -241,7 +257,7 @@ internal object HonorProtocol {
         val metaPath = appObj.str("downloadUrlMetaPath")
         if (directUrl.isBlank() && metaPath.isBlank()) return emptyList()
         val size = appObj.long("fileSize").takeIf { it > 0L } ?: appObj.long("size")
-        val sha = appObj.str("fileIdentifier").lowercase().takeIf { sha256Regex.matches(it) }
+        val sha = appObj.baseApkHash()
         return listOf(
             DetailApkCandidate(
                 isBase = true,
@@ -254,9 +270,9 @@ internal object HonorProtocol {
     }
 
     fun parseDetailDownload(body: String, packageName: String): StoreDownloadSpec? {
-        val candidates = parseDetailCandidates(body, packageName).filter { it.directUrl.isNotBlank() }
-        if (candidates.isEmpty()) return null
-        val base = candidates.firstOrNull { it.isBase } ?: candidates.first()
+        val candidates = parseDetailCandidates(body, packageName)
+        if (candidates.isEmpty() || candidates.any { it.directUrl.isBlank() }) return null
+        val base = candidates.singleOrNull { it.isBase } ?: return null
         val splits = candidates.filter { it !== base }.mapIndexed { idx, c ->
             StoreDownloadPart(
                 name = "split_${idx + 1}.apk",
@@ -284,23 +300,23 @@ internal object HonorProtocol {
             put("activationFlag", -1)
             put("ageLimit", 3)
             put("androidId", sha256Hex("honor-android:$instanceId").take(16))
-            put("androidApiVersion", "35")
+            put("androidApiVersion", android.os.Build.VERSION.SDK_INT.toString())
             put("apkVer", APK_VER.toInt())
             put("apkVerName", APK_VER_NAME)
             put("carrier", "Unknown")
             put("chId", "HONOR_01")
             putJsonObject("compatibilityVar") {
-                put("cpuAbi", "arm64-v8a")
+                put("cpuAbi", StoreDevice.primaryAbi)
                 put("bintranslatorEnable", -1)
-                put("cpuAbilist", "arm64-v8a,armeabi-v7a,armeabi")
+                put("cpuAbilist", StoreDevice.abis.joinToString(","))
                 put("hasHCore", 1)
             }
             putJsonArray("compressScenes") { add(1) }
             put("connectionType", 2)
-            put("cpu", "arm64-v8a")
+            put("cpu", StoreDevice.primaryAbi)
             put("deliveryCountry", "cn")
             put("deviceMode", 2)
-            put("dpi", "480")
+            put("dpi", StoreDevice.densityDpi.toString())
             put("hman", "HONOR")
             put("htype", "PGS-AN00")
             put("isDark", false)
@@ -317,7 +333,7 @@ internal object HonorProtocol {
             put("miniGameInstall", 0)
             put("netType", 3)
             put("os", 0)
-            put("osVer", "15")
+            put("osVer", android.os.Build.VERSION.RELEASE.orEmpty())
             put("pName", CLIENT_PACKAGE)
             put("patchSdkVersion", 0)
             put("randomId", randomUuid)
@@ -342,12 +358,17 @@ internal object HonorProtocol {
 
     private fun ByteArray.toHexLower(): String = joinToString("") { "%02x".format(it) }
 
+    private fun JsonObject.sha256(key: String): String? = str(key).lowercase().takeIf(sha256Regex::matches)
+
+    private fun JsonObject.baseApkHash(): String? =
+        sha256("apkIdentifier") ?: sha256("fileIdentifier")
+
     private fun JsonObject.str(key: String): String =
         (this[key] as? JsonPrimitive)?.contentOrNull?.trim().orEmpty()
 
-    private fun JsonObject.int(key: String, default: Int = 0): Int =
-        (this[key] as? JsonPrimitive)?.let { it.intOrNull ?: it.contentOrNull?.toIntOrNull() } ?: default
-
     private fun JsonObject.long(key: String): Long =
         (this[key] as? JsonPrimitive)?.let { it.longOrNull ?: it.contentOrNull?.toLongOrNull() } ?: 0L
+
+    private fun JsonObject.releaseVersionCode(): Long =
+        long("verCode").takeIf { it > 0L } ?: long("ver").takeIf { it > 0L } ?: long("versionCode")
 }

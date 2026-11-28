@@ -192,6 +192,7 @@ internal fun LazyItemScope.HistoryFooter(
     onLoadMore: () -> Unit,
 ) {
     val commits = tab == DetailTab.COMMITS
+    if (commits && state.commitsFailed && state.banner == io.candy.tick.data.SourceError.BranchUnavailable) return
     val count = if (commits) state.commits.size else state.releases.size
     val end = if (commits) state.commitsEnd else state.releasesEnd
     val failed = if (commits) state.commitsFailed else state.releasesFailed

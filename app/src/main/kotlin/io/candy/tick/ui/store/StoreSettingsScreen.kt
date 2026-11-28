@@ -1,10 +1,9 @@
 package io.candy.tick.ui.store
 
-import android.content.Context
-import android.content.pm.PackageManager
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
-import androidx.core.content.ContextCompat
+import io.candy.tick.data.store.needsInstalledAppsPermission
+import io.candy.tick.data.store.PERM_GET_INSTALLED_APPS
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.animateContentSize
 import androidx.compose.animation.core.tween
@@ -31,7 +30,6 @@ import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.derivedStateOf
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
-import androidx.compose.runtime.produceState
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
@@ -39,17 +37,19 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.alpha
 import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.graphics.ImageBitmap
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import io.candy.tick.util.openAppSettings
 import io.candy.tick.CandyTickApp
 import io.candy.tick.R
+import io.candy.tick.data.model.AppState
 import io.candy.tick.data.model.FdroidMirror
 import io.candy.tick.data.model.MeteredDownloadPolicy
+import io.candy.tick.data.model.withStorePreferenceFor
 import io.candy.tick.data.store.StoreCatalog
 import io.candy.tick.data.store.StoreDescriptor
 import io.candy.tick.data.store.StoreQuerySpeed
@@ -99,9 +99,15 @@ fun StoreSettingsScreen(
     val scope = rememberCoroutineScope()
     val motionEnabled = rememberMotionEnabled()
 
+    var permissionDenied by androidx.compose.runtime.saveable.rememberSaveable { mutableStateOf(false) }
+    androidx.lifecycle.compose.LifecycleResumeEffect(prefs.enabledStores.isNotEmpty()) {
+        permissionDenied = prefs.enabledStores.isNotEmpty() && needsInstalledAppsPermission(context)
+        onPauseOrDispose { }
+    }
     val appListPermLauncher = rememberLauncherForActivityResult(
         ActivityResultContracts.RequestPermission(),
     ) { granted ->
+        permissionDenied = !granted
         if (granted) {
             scope.launch {
                 runCatching { installedCache.refresh(stateStore.state.value.settings.storePrefs.includeSystemApps) }
@@ -128,26 +134,42 @@ fun StoreSettingsScreen(
     val fdroidEnabled = StoreCatalog.ID_FDROID in enabledSet
     val orderedStores = StoreCatalog.all
 
+    fun updateCheckScope(transform: (AppState) -> AppState) {
+        scope.launch {
+            stateStore.update { old ->
+                val next = transform(old)
+                if (next == old) old else next.copy(storeState = next.storeState.copy(
+                    lastAttemptAt = null, lastCheckedAt = null, lastCheckComplete = null, lastFailedStoreIds = emptyList(),
+                ))
+            }
+        }
+    }
+
+    fun setIncludeSystemApps(enabled: Boolean) {
+        if (enabled) requestAppListPermissionIfNeeded()
+        updateCheckScope { st ->
+            st.copy(settings = st.settings.copy(storePrefs = st.settings.storePrefs.copy(includeSystemApps = enabled)))
+        }
+    }
+
     fun toggleStore(storeId: String, enabled: Boolean) {
         if (enabled) requestAppListPermissionIfNeeded()
-        scope.launch {
-            stateStore.update { st ->
-                val p = st.settings.storePrefs
-                val next = if (enabled) {
-                    val combined = (p.enabledStores + storeId).distinct()
-                    if (p.priorityCustomized) combined else StoreCatalog.sortByDefaultPriority(combined)
-                } else {
-                    p.enabledStores.filterNot { it == storeId }
-                }
-                val nextHealth = if (enabled) st.storeState.health - storeId else st.storeState.health
-                val nextCustomized = if (next.isEmpty()) false else p.priorityCustomized
-                st.copy(
-                    settings = st.settings.copy(
-                        storePrefs = p.copy(enabledStores = next, priorityCustomized = nextCustomized),
-                    ),
-                    storeState = st.storeState.copy(health = nextHealth),
-                )
+        updateCheckScope { st ->
+            val p = st.settings.storePrefs
+            val next = if (enabled) {
+                val combined = (p.enabledStores + storeId).distinct()
+                if (p.priorityCustomized) combined else StoreCatalog.sortByDefaultPriority(combined)
+            } else {
+                p.enabledStores.filterNot { it == storeId }
             }
+            val nextHealth = if (enabled) st.storeState.health - storeId else st.storeState.health
+            val nextCustomized = if (next.isEmpty()) false else p.priorityCustomized
+            st.copy(
+                settings = st.settings.copy(
+                    storePrefs = p.copy(enabledStores = next, priorityCustomized = nextCustomized),
+                ),
+                storeState = st.storeState.copy(health = nextHealth),
+            )
         }
     }
 
@@ -212,6 +234,13 @@ fun StoreSettingsScreen(
                     color = scheme.onBackgroundVariant,
                     modifier = Modifier.padding(start = 16.dp, end = 16.dp, bottom = 10.dp),
                 )
+                if (permissionDenied && enabledSet.isNotEmpty() && needsInstalledAppsPermission(context)) {
+                    BasicComponent(
+                        title = stringResource(R.string.store_permission_needed),
+                        summary = stringResource(R.string.store_permission_settings),
+                        onClick = { context.openAppSettings(android.content.Intent(android.provider.Settings.ACTION_APPLICATION_DETAILS_SETTINGS, android.net.Uri.fromParts("package", context.packageName, null))) },
+                    )
+                }
                 Card(modifier = Modifier.fillMaxWidth()) {
                     Column {
                         orderedStores.forEachIndexed { idx, desc ->
@@ -277,27 +306,9 @@ fun StoreSettingsScreen(
                             title = stringResource(R.string.store_settings_system_apps),
                             summary = stringResource(R.string.store_settings_system_apps_desc),
                             insideMargin = PaddingValues(horizontal = 16.dp, vertical = 12.dp),
-                            onClick = {
-                                val next = !prefs.includeSystemApps
-                                if (next) requestAppListPermissionIfNeeded()
-                                scope.launch {
-                                    stateStore.update { st ->
-                                        st.copy(settings = st.settings.copy(storePrefs = st.settings.storePrefs.copy(includeSystemApps = next)))
-                                    }
-                                }
-                            },
+                            onClick = { setIncludeSystemApps(!prefs.includeSystemApps) },
                             endActions = {
-                                Switch(
-                                    checked = prefs.includeSystemApps,
-                                    onCheckedChange = { checked ->
-                                        if (checked) requestAppListPermissionIfNeeded()
-                                        scope.launch {
-                                            stateStore.update { st ->
-                                                st.copy(settings = st.settings.copy(storePrefs = st.settings.storePrefs.copy(includeSystemApps = checked)))
-                                            }
-                                        }
-                                    },
-                                )
+                                Switch(checked = prefs.includeSystemApps, onCheckedChange = ::setIncludeSystemApps)
                             },
                         )
                         StoreRowDivider()
@@ -402,10 +413,8 @@ fun StoreSettingsScreen(
             selected = prefs.fdroidMirror == FdroidMirror.TUNA,
             onClick = {
                 showMirrorSheet = false
-                scope.launch {
-                    stateStore.update { st ->
-                        st.copy(settings = st.settings.copy(storePrefs = st.settings.storePrefs.copy(fdroidMirror = FdroidMirror.TUNA)))
-                    }
+                updateCheckScope { st ->
+                    st.copy(settings = st.settings.copy(storePrefs = st.settings.storePrefs.copy(fdroidMirror = FdroidMirror.TUNA)))
                 }
             },
         )
@@ -415,56 +424,28 @@ fun StoreSettingsScreen(
             selected = prefs.fdroidMirror == FdroidMirror.OFFICIAL,
             onClick = {
                 showMirrorSheet = false
-                scope.launch {
-                    stateStore.update { st ->
-                        st.copy(settings = st.settings.copy(storePrefs = st.settings.storePrefs.copy(fdroidMirror = FdroidMirror.OFFICIAL)))
-                    }
+                updateCheckScope { st ->
+                    st.copy(settings = st.settings.copy(storePrefs = st.settings.storePrefs.copy(fdroidMirror = FdroidMirror.OFFICIAL)))
                 }
             },
         )
         Spacer(Modifier.height(8.dp))
     }
 
-    // 清理已卸载的排除应用，并为仍在手机上的应用解析真实名称（避免列表只显示生硬包名）
+    LaunchedEffect(showExcludedSheet) {
+        if (showExcludedSheet) appContainer.storeUpdateChecker.reconcileTrackedPackages()
+    }
     var excludedLabels by remember { mutableStateOf<Map<String, String>>(emptyMap()) }
     LaunchedEffect(prefs.excludedPackages, showExcludedSheet) {
         if (prefs.excludedPackages.isEmpty()) {
             excludedLabels = emptyMap()
             return@LaunchedEffect
         }
-        if (!showExcludedSheet && excludedLabels.keys.containsAll(prefs.excludedPackages)) {
+        if (!showExcludedSheet) {
             return@LaunchedEffect
         }
-        val (labels, uninstalled) = withContext(Dispatchers.IO) {
-            val pm = context.packageManager
-            val resolved = LinkedHashMap<String, String>()
-            val gone = mutableSetOf<String>()
-            for (pkg in prefs.excludedPackages) {
-                try {
-                    val info = pm.getApplicationInfo(pkg, 0)
-                    resolved[pkg] = pm.getApplicationLabel(info).toString().takeIf { it.isNotBlank() } ?: pkg
-                } catch (_: PackageManager.NameNotFoundException) {
-                    gone += pkg
-                } catch (_: SecurityException) {
-                    resolved[pkg] = pkg
-                }
-            }
-            resolved to gone
-        }
-        excludedLabels = labels
-        if (uninstalled.isNotEmpty()) {
-            stateStore.update { st ->
-                val p = st.settings.storePrefs
-                st.copy(
-                    settings = st.settings.copy(
-                        storePrefs = p.copy(
-                            excludedPackages = p.excludedPackages - uninstalled,
-                            skippedVersions = p.skippedVersions - uninstalled,
-                            pinnedSources = p.pinnedSources - uninstalled,
-                        ),
-                    ),
-                )
-            }
+        excludedLabels = withContext(Dispatchers.IO) {
+            prefs.excludedPackages.associateWith { pkg -> io.candy.tick.util.labelOf(context, pkg) ?: pkg }
         }
     }
 
@@ -520,8 +501,7 @@ fun StoreSettingsScreen(
                             onRestore = {
                                 scope.launch {
                                     stateStore.update { st ->
-                                        val p = st.settings.storePrefs
-                                        st.copy(settings = st.settings.copy(storePrefs = p.copy(excludedPackages = p.excludedPackages - pkg)))
+                                        st.withStorePreferenceFor(pkg) { p -> p.copy(excludedPackages = p.excludedPackages - pkg) }
                                     }
                                 }
                             },
@@ -539,11 +519,8 @@ private fun ExcludedAppRow(
     displayName: String,
     onRestore: () -> Unit,
 ) {
-    val context = LocalContext.current
     val scheme = MiuixTheme.colorScheme
-    val icon by produceState<ImageBitmap?>(StoreIconCache.peek(packageName), packageName) {
-        if (value == null) value = StoreIconCache.load(context, packageName)
-    }
+    val icon = io.candy.tick.ui.common.rememberAppIcon(packageName)
     Row(
         verticalAlignment = Alignment.CenterVertically,
         horizontalArrangement = Arrangement.spacedBy(10.dp),
@@ -657,14 +634,4 @@ private fun StoreToggleRow(
             }
         },
     )
-}
-
-private const val PERM_GET_INSTALLED_APPS = "com.android.permission.GET_INSTALLED_APPS"
-
-private fun needsInstalledAppsPermission(context: Context): Boolean {
-    val supported = runCatching {
-        context.packageManager.getPermissionInfo(PERM_GET_INSTALLED_APPS, 0)
-    }.isSuccess
-    if (!supported) return false
-    return ContextCompat.checkSelfPermission(context, PERM_GET_INSTALLED_APPS) != PackageManager.PERMISSION_GRANTED
 }

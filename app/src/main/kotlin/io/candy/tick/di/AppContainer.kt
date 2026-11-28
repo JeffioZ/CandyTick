@@ -39,7 +39,7 @@ import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.flow.MutableStateFlow
 
 /** 手动 DI（design.md：页面少，框架是负资产） */
-class AppContainer(context: Context, isAppVisible: () -> Boolean) {
+class AppContainer(context: Context, internal val isAppVisible: () -> Boolean) {
 
     /** 安装结果与更新任务跨页面存活。 */
     internal val appScope = CoroutineScope(SupervisorJob() + Dispatchers.Default)
@@ -53,7 +53,7 @@ class AppContainer(context: Context, isAppVisible: () -> Boolean) {
         GitHubApi(tokenProvider = { appStateStore.state.value.settings.githubToken })
     }
 
-    val installManager: InstallManager by lazy { InstallManager(context, appScope) }
+    val installManager: InstallManager by lazy { InstallManager(context, appScope, isAppVisible) }
 
     val apkDownloader: ApkDownloader by lazy { ApkDownloader() }
 
@@ -69,7 +69,9 @@ class AppContainer(context: Context, isAppVisible: () -> Boolean) {
     }
 
     val syncScheduler: SyncScheduler by lazy { SyncScheduler(context) }
-    val cacheManager: CacheManager by lazy { CacheManager(context) }
+    val cacheManager: CacheManager by lazy {
+        CacheManager(context, protectedStorePackages = { existingStoreDownloads()?.busyPackages().orEmpty() })
+    }
     val translator: Translator by lazy { Translator() }
 
     init {
@@ -81,6 +83,7 @@ class AppContainer(context: Context, isAppVisible: () -> Boolean) {
             store = appStateStore,
             providers = mapOf(PROVIDER_GITHUB to GitHubProvider(githubApi)),
             filesDir = context.filesDir,
+            hasUsableToken = { githubApi.hasToken },
         )
     }
 
@@ -99,7 +102,7 @@ class AppContainer(context: Context, isAppVisible: () -> Boolean) {
     /** 已适配的应用商店数据源集合（单点注册） */
     val storeSources: Map<String, StoreSource> by lazy {
         mapOf(
-            StoreCatalog.ID_XIAOMI to XiaomiStore(),
+            StoreCatalog.ID_XIAOMI to XiaomiStore { appStateStore.state.value.storeState.updates },
             StoreCatalog.ID_VIVO to VivoStore(),
             StoreCatalog.ID_WANDOUJIA to WandoujiaStore(),
             StoreCatalog.ID_TENCENT to TencentStore(),
@@ -132,7 +135,7 @@ class AppContainer(context: Context, isAppVisible: () -> Boolean) {
         )
     }
 
-    val storeDownloadHost: StoreDownloadHost by lazy {
+    private val storeDownloads = lazy {
         StoreDownloadHost(
             scope = appScope,
             appContext = context,
@@ -140,7 +143,14 @@ class AppContainer(context: Context, isAppVisible: () -> Boolean) {
             downloader = apkDownloader,
             installManager = installManager,
             checker = storeUpdateChecker,
+            isAppVisible = isAppVisible,
             sources = storeSources,
         )
     }
+
+    val storeDownloadHost: StoreDownloadHost by storeDownloads
+
+    /** Lifecycle and cleanup callbacks only need the host when it has active or persisted work. */
+    fun existingStoreDownloads(): StoreDownloadHost? =
+        if (storeDownloads.isInitialized() || appStateStore.state.value.storeState.downloaded.isNotEmpty()) storeDownloadHost else null
 }

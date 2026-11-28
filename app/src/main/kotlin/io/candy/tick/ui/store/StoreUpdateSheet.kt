@@ -37,6 +37,10 @@ import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import io.candy.tick.R
 import io.candy.tick.data.model.StoreReleaseInfo
+import io.candy.tick.data.store.LocalInstalledApp
+import io.candy.tick.data.store.StoreDownloadFailure
+import io.candy.tick.data.store.StoreTaskState
+import io.candy.tick.data.download.SignatureVerdict
 import io.candy.tick.data.model.StoreSignatureRecord
 import io.candy.tick.data.store.StoreCatalog
 import io.candy.tick.ui.common.AppIconImage
@@ -173,28 +177,24 @@ internal fun StoreSheetLinkActions(
 internal fun StoreUpdateSheet(
     show: Boolean,
     item: StoreUpdateRowItem?,
-    icon: ImageBitmap?,
+    autoInstall: Boolean,
+    pinnedStoreId: String?,
     signatures: Map<String, StoreSignatureRecord>,
     shouldPromptMetered: (Long) -> Boolean,
     onDismiss: () -> Unit,
     onDismissFinished: () -> Unit = {},
-    onDownload: (StoreReleaseInfo) -> Unit,
-    onPinSource: (String) -> Unit,
+    onDownload: (LocalInstalledApp, StoreReleaseInfo, Boolean) -> Unit,
+    onInstallReady: (String, StoreTaskState.ReadyToInstall) -> Unit,
+    onPinSource: (String?) -> Unit,
     onSkipVersion: (Long) -> Unit,
     onUnskipVersion: () -> Unit,
     onExcludeApp: () -> Unit,
 ) {
     // 退场动画期间保留最后一次展示的应用与图标，防止下滑瞬间内容变空
     var cachedItem by remember { mutableStateOf(item) }
-    var cachedIcon by remember { mutableStateOf(icon) }
-    if (show && item != null) {
-        cachedItem = item
-        if (icon != null || cachedItem?.local?.packageName != item.local.packageName) {
-            cachedIcon = icon
-        }
-    }
+    if (show && item != null) cachedItem = item
     val current = if (show && item != null) item else cachedItem
-    val displayIcon = if (show && icon != null) icon else cachedIcon
+    val displayIcon = io.candy.tick.ui.common.rememberAppIcon(current?.local?.packageName)
 
     CandySheet(
         show = show && current != null,
@@ -205,16 +205,23 @@ internal fun StoreUpdateSheet(
         val candidates = remember(current.local.packageName, current.update?.candidates) {
             current.update?.candidates.orEmpty().sortedByDescending { it.versionCode }
         }
-        var selectedStoreId by remember(current.local.packageName, current.best?.storeId) {
-            mutableStateOf(current.best?.storeId ?: candidates.firstOrNull()?.storeId.orEmpty())
+        var selectedStoreId by remember(show, current.local.packageName, current.best?.storeId) {
+            val switchSource = (current.task as? StoreTaskState.Failed)?.reason == StoreDownloadFailure.SIGNATURE_MISMATCH
+            val initial = if (switchSource) current.best else current.displayedRelease ?: current.best
+            mutableStateOf(initial?.storeId ?: candidates.firstOrNull()?.storeId.orEmpty())
         }
-        var askMeteredConfirm by remember(current.local.packageName, selectedStoreId, show) { mutableStateOf(false) }
-
         val selected = candidates.firstOrNull { it.storeId == selectedStoreId } ?: current.best ?: return@CandySheet
+        val selectedIsSkipped = current.isVersionSkipped(selected.versionCode)
+        val ready = (current.task as? StoreTaskState.ReadyToInstall)?.takeIf { it.matches(selected) }
+        var askMeteredConfirm by remember(current.local.packageName, selected, ready, show) { mutableStateOf(false) }
         val context = LocalContext.current
         val scheme = MiuixTheme.colorScheme
         val sizeText = if (selected.sizeBytes > 0L) Formatter.formatShortFileSize(context, selected.sizeBytes) else ""
-        val selectedSig = signatures["${current.local.packageName}|${selected.storeId}"]?.verdict
+        fun signatureOf(candidate: StoreReleaseInfo) = io.candy.tick.data.store.StoreUpdateChecker.validSignatureVerdict(
+            signatures["${current.local.packageName}|${candidate.storeId}"],
+            current.local.signatureSha256, candidate,
+        )
+        val selectedSig = signatureOf(selected)
 
         Column(
             modifier = Modifier
@@ -333,10 +340,10 @@ internal fun StoreUpdateSheet(
                             val isSelected = cand.storeId == selected.storeId
                             val desc = StoreCatalog.descriptorOf(cand.storeId)
                             val storeName = desc?.let { stringResource(it.nameRes) } ?: cand.storeId
-                            val sigRecord = signatures["${current.local.packageName}|${cand.storeId}"]?.verdict
+                            val sigRecord = signatureOf(cand)
                             val compatText = when (sigRecord) {
-                                "MATCH" -> stringResource(R.string.store_sig_compatible)
-                                "DIFFERENT" -> stringResource(R.string.store_sig_different_short)
+                                SignatureVerdict.MATCH -> stringResource(R.string.store_sig_compatible)
+                                SignatureVerdict.DIFFERENT -> stringResource(R.string.store_sig_different_short)
                                 else -> stringResource(R.string.store_sig_verify_after_download)
                             }
                             val candSize = if (cand.sizeBytes > 0L) Formatter.formatShortFileSize(context, cand.sizeBytes) + " · " else ""
@@ -346,7 +353,6 @@ internal fun StoreUpdateSheet(
                                     .fillMaxWidth()
                                     .clickable(role = Role.RadioButton) {
                                         selectedStoreId = cand.storeId
-                                        onPinSource(cand.storeId)
                                     }
                                     .padding(horizontal = 14.dp, vertical = 11.dp),
                             ) {
@@ -363,7 +369,7 @@ internal fun StoreUpdateSheet(
                                     Text(
                                         text = candSize + compatText,
                                         style = MiuixTheme.textStyles.footnote1,
-                                        color = if (sigRecord == "DIFFERENT") scheme.error else scheme.onSurfaceContainerVariant,
+                                        color = if (sigRecord == SignatureVerdict.DIFFERENT) scheme.error else scheme.onSurfaceContainerVariant,
                                         maxLines = 1,
                                         overflow = TextOverflow.Ellipsis,
                                     )
@@ -382,8 +388,23 @@ internal fun StoreUpdateSheet(
                 }
             }
 
+            if (candidates.size > 1 || pinnedStoreId != null) {
+                val isPinned = selected.storeId == pinnedStoreId
+                io.candy.tick.ui.common.LinkText(
+                    text = stringResource(if (isPinned) R.string.store_use_automatic else R.string.store_pin_source),
+                    onClick = { onPinSource(if (isPinned) null else selected.storeId) },
+                )
+            }
+            val changedDownloadSize = (current.task as? StoreTaskState.Failed)?.let {
+                it.reason == StoreDownloadFailure.METERED_CONFIRMATION && it.storeId == selected.storeId && it.versionCode == selected.versionCode
+            } == true
+            val sizeForConsent = selected.exactSizeBytes?.takeIf { it > 0 && !changedDownloadSize }
+            val needsMeteredConsent = ready == null && shouldPromptMetered(sizeForConsent ?: 0L)
+            if (ready?.is32BitWarning == true) {
+                Text(text = stringResource(R.string.store_32bit_warning), style = MiuixTheme.textStyles.footnote1, color = scheme.error)
+            }
             if (askMeteredConfirm) {
-                val confirmText = if (sizeText.isNotBlank()) {
+                val confirmText = if (sizeForConsent != null && sizeText.isNotBlank()) {
                     stringResource(R.string.store_metered_confirm, sizeText)
                 } else {
                     stringResource(R.string.store_metered_confirm_unknown)
@@ -397,10 +418,13 @@ internal fun StoreUpdateSheet(
             }
 
             // 4. 主按钮 + 轻量化次级链接（与空态「导入订阅」同款 LinkText）
-            val isIncompatible = selectedSig == "DIFFERENT"
+            val isIncompatible = selectedSig == SignatureVerdict.DIFFERENT
             val btnLabel = when {
                 isIncompatible -> stringResource(R.string.store_sig_different_short)
+                ready != null -> stringResource(R.string.store_install_now)
                 askMeteredConfirm -> stringResource(R.string.store_metered_continue)
+                !autoInstall -> if (sizeText.isBlank()) stringResource(R.string.download_apk)
+                    else stringResource(R.string.store_download_size, sizeText)
                 sizeText.isNotBlank() -> stringResource(R.string.store_download_and_install_size, sizeText)
                 else -> stringResource(R.string.store_download_and_install)
             }
@@ -408,10 +432,13 @@ internal fun StoreUpdateSheet(
                 text = btnLabel,
                 enabled = !isIncompatible,
                 onClick = {
-                    if (!askMeteredConfirm && shouldPromptMetered(selected.sizeBytes)) {
+                    if (ready != null) {
+                        onInstallReady(current.local.packageName, ready)
+                        onDismiss()
+                    } else if (!askMeteredConfirm && needsMeteredConsent) {
                         askMeteredConfirm = true
                     } else {
-                        onDownload(selected)
+                        onDownload(current.local, selected, askMeteredConfirm)
                         onDismiss()
                     }
                 },
@@ -419,13 +446,13 @@ internal fun StoreUpdateSheet(
             )
 
             StoreSheetLinkActions(
-                leftText = if (current.isSkipped) {
+                leftText = if (selectedIsSkipped) {
                     stringResource(R.string.store_unskip_version)
                 } else {
                     stringResource(R.string.store_skip_version)
                 },
                 onLeftClick = {
-                    if (current.isSkipped) {
+                    if (selectedIsSkipped) {
                         onUnskipVersion()
                     } else {
                         onSkipVersion(selected.versionCode)

@@ -104,6 +104,7 @@ sealed interface SourceError {
     data object NetworkUnreachable : SourceError
     data object Timeout : SourceError
     data object NotFound : SourceError // 不存在或已私有
+    data object BranchUnavailable : SourceError
     data object TokenRejected : SourceError // 401 后匿名重试仍 404：Token 无效/无权，私有仓不再误报「不存在」
     data class RateLimited(val retryAt: Instant?) : SourceError // 403 + 恢复时间
     data class Http(val code: Int) : SourceError // 其余 HTTP 错误
@@ -125,6 +126,7 @@ val SourceError.errorCode: String
         SourceError.NetworkUnreachable -> "E-NET"
         SourceError.Timeout -> "E-TIME"
         SourceError.NotFound -> "HTTP 404"
+        SourceError.BranchUnavailable -> "E-BRANCH"
         SourceError.TokenRejected -> "HTTP 401"
         is SourceError.RateLimited -> "HTTP 403"
         is SourceError.Http -> "HTTP $code"

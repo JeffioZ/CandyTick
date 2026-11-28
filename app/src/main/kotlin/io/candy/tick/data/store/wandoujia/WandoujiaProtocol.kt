@@ -12,6 +12,7 @@ import java.util.zip.GZIPOutputStream
 import kotlin.random.Random
 import kotlinx.serialization.json.Json
 import kotlinx.serialization.json.JsonArray
+import kotlinx.serialization.json.JsonNull
 import kotlinx.serialization.json.JsonObject
 import kotlinx.serialization.json.JsonPrimitive
 import kotlinx.serialization.json.buildJsonArray
@@ -19,6 +20,7 @@ import kotlinx.serialization.json.buildJsonObject
 import kotlinx.serialization.json.contentOrNull
 import kotlinx.serialization.json.longOrNull
 import kotlinx.serialization.json.put
+import okhttp3.HttpUrl.Companion.toHttpUrlOrNull
 
 /**
  * 豌豆荚批量更新协议：单次 M90+GZIP 报文检查全部已装应用；详情合并接口解析下载地址。
@@ -34,6 +36,7 @@ internal object WandoujiaProtocol {
     private const val CALLER = "secret.wdj.client"
     private const val SALT = "LVJd97AbRtikeYRRhi3ocdwSD"
     private const val SUCCESS_CODE = 2000000L
+    private val md5Regex = Regex("[a-fA-F0-9]{32}")
     private val REQ_KEY = "d861a5214f1849a1".toByteArray()
     private val RESP_KEY = "c84b3226ce0673d4".toByteArray()
     private val htmlBreak = Regex("""<\\?/?br\s*/?>""", RegexOption.IGNORE_CASE)
@@ -93,9 +96,14 @@ internal object WandoujiaProtocol {
     }
 
     fun parseCheckResponse(rawJson: String, installed: Map<String, LocalInstalledApp>): Map<String, StoreReleaseInfo> {
-        val root = runCatching { Json.parseToJsonElement(rawJson) as? JsonObject }.getOrNull() ?: return emptyMap()
-        if (root.obj("state").num("code", -1L) != SUCCESS_CODE) return emptyMap()
-        val list = root.obj("data")?.get("content") as? JsonArray ?: return emptyMap()
+        val root = Json.parseToJsonElement(rawJson) as JsonObject
+        require(root.obj("state").num("code", -1L) == SUCCESS_CODE) { "Wandoujia check failed" }
+        val data = root["data"]
+        if (data == null || data == JsonNull) return emptyMap()
+        require(data is JsonObject) { "Invalid Wandoujia update data" }
+        val list = data["content"]
+        if (list == null || list == JsonNull) return emptyMap()
+        require(list is JsonArray) { "Invalid Wandoujia update list" }
         val out = mutableMapOf<String, StoreReleaseInfo>()
         for (el in list) {
             val item = el as? JsonObject ?: continue
@@ -107,7 +115,7 @@ internal object WandoujiaProtocol {
         return out
     }
 
-    fun parseDetailResponse(rawJson: String): StoreReleaseInfo? {
+    fun parseDetailResponse(rawJson: String, expectedPackage: String): StoreReleaseInfo? {
         val root = runCatching { Json.parseToJsonElement(rawJson) as? JsonObject }.getOrNull() ?: return null
         if (root.obj("state").num("code", -1L) != SUCCESS_CODE) return null
         val services = root["data"] as? JsonArray ?: return null
@@ -115,6 +123,7 @@ internal object WandoujiaProtocol {
             ?: return null
         if (detailSvc.obj("state").num("code", -1L) != SUCCESS_CODE) return null
         val appObj = detailSvc.obj("data")?.obj("app") ?: return null
+        if (appObj.str("packageName") != expectedPackage) return null
         return parseAppItem(appObj)
     }
 
@@ -180,12 +189,16 @@ internal object WandoujiaProtocol {
         val url = StoreHttp.upgradeToHttps(item.str("downloadUrl"))
         val appId = item.num("id")
         if (url.isBlank() && appId <= 0L) return null
-        val sizeBytes = item.num("totalSize").takeIf { it > 0L } ?: (item.num("size") * 1024L)
+        val downloadUrl = url.toHttpUrlOrNull()
+        val exactSize = downloadUrl?.queryParameter("size")?.toLongOrNull()?.takeIf { it > 0L }
+            ?: item.num("totalSize").takeIf { it > 0L }
         return StoreReleaseInfo(
             storeId = StoreCatalog.ID_WANDOUJIA,
             versionCode = code,
             versionName = item.str("versionName").ifBlank { code.toString() },
-            sizeBytes = sizeBytes,
+            sizeBytes = exactSize ?: (item.num("size") * 1024L),
+            exactSizeBytes = exactSize,
+            checksum = downloadUrl?.queryParameter("md5")?.takeIf(md5Regex::matches).orEmpty(),
             changelog = stripHtml(item.str("verDesc")),
             appId = appId,
             downloadUrl = url,

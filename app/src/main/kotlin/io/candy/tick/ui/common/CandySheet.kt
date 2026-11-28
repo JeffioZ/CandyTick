@@ -124,12 +124,8 @@ internal fun Modifier.topBarProgressiveBlur(
 }
 
 /**
- * 全 App 底部弹层唯一来源：miuix 0.9.5 [GlassBottomSheet]（挂载于根 Scaffold）+ 导航栏底部内边距。
- *
- * - API 33+：实时采样背后页面呈现 HyperOS 液态玻璃质感 + SheetMotion 动效；遮罩调轻
- *   （浅 20% / 深 32%）让深色模式也能清晰透出底层画面折射层次；
- * - API 29-32：backdrop 为 null，自动降级为 `surfaceContainer` 不透明表面与原 `windowDimming`；
- * - 导航栏内边距由内容区自补，避免末行与底部按钮伸到系统导航栏之下。
+ * 全应用的底部弹层挂载于根 Scaffold，使用 [GlassBottomSheet] 的默认背景遮罩。
+ * 支持玻璃效果时面板采样背后的页面，旧系统使用不透明面板。内容区预留导航栏空间。
  */
 @Composable
 internal fun CandySheet(
@@ -141,23 +137,14 @@ internal fun CandySheet(
     onDismissFinished: (() -> Unit)? = null,
     content: @Composable () -> Unit,
 ) {
-    val scheme = MiuixTheme.colorScheme
-    val dark = LocalDarkTheme.current
-    val backdrop = LocalAppBackdrop.current
-    val dimColor = if (backdrop != null) {
-        if (dark) Color(0x52000000) else Color(0x33000000)
-    } else {
-        scheme.windowDimming
-    }
     GlassBottomSheet(
         show = show,
-        backdrop = backdrop,
+        backdrop = LocalAppBackdrop.current,
         modifier = modifier,
         renderInRootScaffold = true,
         title = title,
         startAction = startAction,
-        containerColor = scheme.surfaceContainer,
-        dimColor = dimColor,
+        containerColor = MiuixTheme.colorScheme.surfaceContainer,
         allowDismiss = onDismissRequest != null,
         onDismissRequest = onDismissRequest ?: {},
         onDismissFinished = onDismissFinished,

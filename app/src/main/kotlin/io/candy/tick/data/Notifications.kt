@@ -17,6 +17,8 @@ import io.candy.tick.MainActivity
 import io.candy.tick.R
 import io.candy.tick.data.model.AppState
 import io.candy.tick.data.model.DownloadedApk
+import io.candy.tick.data.store.InstalledAppScan
+import io.candy.tick.data.store.StoreCatalog
 import io.candy.tick.util.VersionCompare
 import io.candy.tick.util.forAppLanguage
 import io.candy.tick.util.installedVersionName
@@ -101,7 +103,7 @@ object Notifications {
 
     @SuppressLint("MissingPermission")
     @Synchronized
-    fun notifyRepoNewVersion(context: Context, repoName: String, tag: String, repoId: Long) {
+    fun notifyRepoNewVersion(context: Context, repoName: String, tag: String, repoId: Long, silent: Boolean) {
         if (!canNotify(context)) return
         ensureChannels(context)
         val notification = NotificationCompat.Builder(context, CHANNEL_NEW_RELEASE)
@@ -112,6 +114,7 @@ object Notifications {
             .setContentIntent(openRepoRelease(context, repoId, tag))
             .setAutoCancel(true)
             .setGroup(GROUP_REPO_UPDATES) // 多仓库同轮发版折叠（≥2 条时摘要汇总）
+            .setSilent(silent)
             .build()
         runCatching {
             NotificationManagerCompat.from(context).notify(repoId.toString(), 0, notification)
@@ -177,6 +180,7 @@ object Notifications {
             .setAutoCancel(true)
             .setGroup(GROUP_REPO_UPDATES)
             .setGroupSummary(true)
+            .setGroupAlertBehavior(NotificationCompat.GROUP_ALERT_CHILDREN)
             .setNumber(count)
             .setOnlyAlertOnce(true)
             .build()
@@ -260,9 +264,42 @@ object Notifications {
         runCatching { NotificationManagerCompat.from(context).cancel(SELF_UPDATE_ID) }
     }
 
+    /** Only a newly discovered version that is still actionable can create a notification or alert. */
+    @Synchronized
+    fun reconcileStoreSummary(
+        context: Context, state: StateFlow<AppState>, installedScan: StateFlow<InstalledAppScan?>,
+        newlyDiscovered: Map<String, Long> = emptyMap(), silent: Boolean = true,
+    ) {
+        val manager = NotificationManagerCompat.from(context)
+        val posted = runCatching { manager.activeNotifications.firstOrNull { it.id == STORE_SUMMARY_ID && it.tag == null } }.getOrNull()
+        if (posted == null && newlyDiscovered.isEmpty()) return
+        val current = state.value
+        val prefs = current.settings.storePrefs
+        if (prefs.enabledStores.isEmpty() || !current.settings.notificationsEnabled || current.storeState.updates.isEmpty()) {
+            if (posted != null) manager.cancel(STORE_SUMMARY_ID)
+            return
+        }
+        val scan = installedScan.value ?: return
+        val byPackage = scan.apps.associateBy { it.packageName }
+        var count = 0
+        var hasNewVersion = false
+        for (update in current.storeState.updates.values) {
+            val local = byPackage[update.packageName]
+            if (local == null && scan.complete) continue
+            val best = StoreCatalog.actionableCandidate(update, prefs, current.storeState.signatures, local) ?: continue
+            count++
+            if (newlyDiscovered[update.packageName] == best.versionCode) hasNewVersion = true
+        }
+        if (count == 0) {
+            if (posted != null) manager.cancel(STORE_SUMMARY_ID)
+        } else if (hasNewVersion || posted != null && posted.notification.number != count) {
+            notifyStoreUpdatesSummary(context.forAppLanguage(current.settings.language), count, silent = silent || !hasNewVersion)
+        }
+    }
+
     /** 应用商店更新合并通知（一条汇总，点击直达「应用更新」页） */
     @SuppressLint("MissingPermission")
-    fun notifyStoreUpdatesSummary(context: Context, count: Int) {
+    private fun notifyStoreUpdatesSummary(context: Context, count: Int, silent: Boolean) {
         if (count <= 0 || !canNotify(context)) return
         ensureChannels(context)
         val intent = Intent(context, MainActivity::class.java)
@@ -276,6 +313,8 @@ object Notifications {
         )
         val notification = NotificationCompat.Builder(context, CHANNEL_NEW_RELEASE)
             .setSmallIcon(R.drawable.ic_notification)
+            .setNumber(count)
+            .setSilent(silent)
             .setContentTitle(context.getString(R.string.store_notif_title))
             .setContentText(context.resources.getQuantityString(R.plurals.store_notif_body, count, count))
             .setContentIntent(pending)

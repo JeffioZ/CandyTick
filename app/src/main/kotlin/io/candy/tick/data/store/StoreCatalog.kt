@@ -3,7 +3,20 @@ package io.candy.tick.data.store
 import androidx.annotation.StringRes
 import io.candy.tick.R
 import io.candy.tick.data.download.SignatureVerdict
+import io.candy.tick.data.model.StoreAppUpdate
+import io.candy.tick.data.model.StorePreferences
 import io.candy.tick.data.model.StoreReleaseInfo
+import io.candy.tick.data.model.StoreSignatureRecord
+
+private val apkChecksum = Regex("(?:[a-fA-F0-9]{32}|[a-fA-F0-9]{64})")
+
+internal fun String.isIndexStore(): Boolean = this == StoreCatalog.ID_FDROID || this == StoreCatalog.ID_IZZYONDROID
+
+internal fun StoreReleaseInfo.matchesArtifactChecksum(saved: String): Boolean {
+    if (!apkChecksum.matches(checksum)) return true
+    if (!apkChecksum.matches(saved)) return !storeId.isIndexStore()
+    return checksum.equals(saved, ignoreCase = true)
+}
 
 data class StoreDescriptor(
     val id: String,
@@ -50,6 +63,42 @@ object StoreCatalog {
     )
 
     fun descriptorOf(id: String): StoreDescriptor? = all.firstOrNull { it.id == id }
+
+    fun eligibleCandidates(
+        update: StoreAppUpdate,
+        prefs: StorePreferences,
+        local: LocalInstalledApp? = null,
+    ): List<StoreReleaseInfo> {
+        if (update.packageName in prefs.excludedPackages) return emptyList()
+        val isSystem = local?.isSystemApp ?: update.isSystemApp
+        if (isSystem == true && !prefs.includeSystemApps) return emptyList()
+        val version = local?.versionCode ?: update.installedVersionCode
+        val oem = StoreSystemAppPolicy.deviceOemStoreId()
+        val installed = local ?: LocalInstalledApp(
+            update.packageName, update.displayName, version, update.installedVersionName, isSystem == true,
+        )
+        return update.candidates.filter { candidate ->
+            candidate.storeId in prefs.enabledStores && candidate.versionCode > version &&
+                StoreSystemAppPolicy.isStoreEligibleForApp(installed, candidate.storeId, oem)
+        }
+    }
+
+    fun actionableCandidate(
+        update: StoreAppUpdate,
+        prefs: StorePreferences,
+        signatures: Map<String, StoreSignatureRecord>,
+        local: LocalInstalledApp? = null,
+        includeSkipped: Boolean = false,
+    ): StoreReleaseInfo? {
+        val candidates = eligibleCandidates(update, prefs, local)
+        val best = selectBestCandidate(candidates, prefs.enabledStores, prefs.pinnedSources[update.packageName]) { id ->
+            val candidate = candidates.first { it.storeId == id }
+            StoreUpdateChecker.validSignatureVerdict(
+                signatures["${update.packageName}|$id"], local?.signatureSha256 ?: update.installedCertSha256, candidate,
+            )
+        }
+        return best?.takeIf { includeSkipped || it.versionCode > (prefs.skippedVersions[update.packageName] ?: 0L) }
+    }
 
     /**
      * 按默认推荐权重整理已开启渠道：本机品牌商店排第 1，其余按目录固定顺序（主流厂商 → 综合社区 → 开源商店）。

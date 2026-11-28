@@ -31,6 +31,8 @@ enum class VerificationFailure {
     INVALID_ARCHIVE,
     PACKAGE_MISMATCH,
     VERSION_NOT_NEWER,
+    VERSION_MISMATCH,
+    TARGET_NOT_INSTALLED,
     SIGNATURE_MISMATCH,
 }
 
@@ -52,6 +54,7 @@ data class ArchiveSnapshot(
     val versionName: String?,
     val certSha256s: Set<String>,
     val nativeAbis: Set<String>,
+    val signingHistory: Set<String> = emptySet(),
 )
 
 /**
@@ -90,6 +93,8 @@ object ApkVerifier {
         expectedSize: Long = 0L,
         expectedHash: ExpectedHash? = null,
         requireSignatureMatch: Boolean = true,
+        expectedVersionCode: Long? = null,
+        requireInstalled: Boolean = false,
     ): VerificationResult {
         verifyFileIntegrity(file, expectedSize, expectedHash)?.let {
             return VerificationResult.Failed(it)
@@ -103,10 +108,15 @@ object ApkVerifier {
         val pkg = archiveInfo.packageName.takeIf { it.isNotBlank() }
             ?: return VerificationResult.Failed(VerificationFailure.INVALID_ARCHIVE)
         val archiveCerts = extractCertSha256s(archiveInfo.signingInfo)
-        val installedCerts = runCatching {
+        val installed = runCatching {
             @Suppress("DEPRECATION")
-            pm.getPackageInfo(pkg, PackageManager.GET_SIGNING_CERTIFICATES).signingInfo
-        }.getOrNull()?.let(::extractCertSha256s).orEmpty()
+            pm.getPackageInfo(pkg, PackageManager.GET_SIGNING_CERTIFICATES)
+        }.getOrNull()
+        if (requireInstalled && installed == null) return VerificationResult.Failed(VerificationFailure.TARGET_NOT_INSTALLED)
+        if (expectedVersionCode != null && archiveInfo.longVersionCode != expectedVersionCode) {
+            return VerificationResult.Failed(VerificationFailure.VERSION_MISMATCH)
+        }
+        val installedCerts = extractCertSha256s(installed?.signingInfo)
 
         val snapshot = ArchiveSnapshot(
             packageName = pkg,
@@ -114,11 +124,13 @@ object ApkVerifier {
             versionName = archiveInfo.versionName,
             certSha256s = archiveCerts,
             nativeAbis = extractApkAbis(file),
+            signingHistory = if (archiveInfo.signingInfo?.hasMultipleSigners() == false)
+                extractCertSha256s(archiveInfo.signingInfo, history = true) else emptySet(),
         )
         return evaluateMetadata(
             archive = snapshot,
             expectedPackage = expectedPackage,
-            installedVersionCode = installedVersionCode,
+            installedVersionCode = if (requireInstalled) installed?.longVersionCode else installedVersionCode,
             installedCertSha256s = installedCerts,
             deviceSupportedAbis = Build.SUPPORTED_ABIS.toList(),
             requireSignatureMatch = requireSignatureMatch,
@@ -139,7 +151,9 @@ object ApkVerifier {
         if (installedVersionCode != null && archive.versionCode <= installedVersionCode) {
             return VerificationResult.Failed(VerificationFailure.VERSION_NOT_NEWER)
         }
-        val sig = compareSignatures(installedCertSha256s, archive.certSha256s)
+        val sig = if (installedCertSha256s.size == 1 && archive.certSha256s.size == 1 &&
+            installedCertSha256s.single() in archive.signingHistory
+        ) SignatureVerdict.MATCH else compareSignatures(installedCertSha256s, archive.certSha256s)
         if (requireSignatureMatch && sig == SignatureVerdict.DIFFERENT) {
             return VerificationResult.Failed(VerificationFailure.SIGNATURE_MISMATCH)
         }
@@ -155,8 +169,10 @@ object ApkVerifier {
     fun compareSignatures(installed: Set<String>, candidate: Set<String>): SignatureVerdict {
         val local = installed.map { it.trim().lowercase() }.filter(sha256Hex::matches).toSet()
         val remote = candidate.map { it.trim().lowercase() }.filter(sha256Hex::matches).toSet()
-        if (local.isEmpty() || remote.isEmpty()) return SignatureVerdict.UNKNOWN
-        return if (remote.any { it in local }) SignatureVerdict.MATCH else SignatureVerdict.DIFFERENT
+        if (local.isEmpty() || remote.isEmpty() || local.size != installed.size || remote.size != candidate.size) {
+            return SignatureVerdict.UNKNOWN
+        }
+        return if (local == remote) SignatureVerdict.MATCH else SignatureVerdict.DIFFERENT
     }
 
     fun is32BitOnlyOn64Bit(apkAbis: Set<String>, deviceSupportedAbis: List<String>): Boolean {
@@ -197,13 +213,9 @@ object ApkVerifier {
         return digest.digest().toHexLower()
     }
 
-    private fun extractCertSha256s(signingInfo: SigningInfo?): Set<String> {
+    private fun extractCertSha256s(signingInfo: SigningInfo?, history: Boolean = false): Set<String> {
         if (signingInfo == null) return emptySet()
-        val signers = if (signingInfo.hasMultipleSigners()) {
-            signingInfo.apkContentsSigners
-        } else {
-            signingInfo.signingCertificateHistory
-        } ?: return emptySet()
+        val signers = (if (history) signingInfo.signingCertificateHistory else signingInfo.apkContentsSigners) ?: return emptySet()
         val digest = MessageDigest.getInstance("SHA-256")
         return signers.map { sig -> digest.digest(sig.toByteArray()).toHexLower() }.toSet()
     }

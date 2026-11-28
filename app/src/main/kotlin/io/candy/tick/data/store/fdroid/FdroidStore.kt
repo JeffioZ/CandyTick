@@ -7,10 +7,15 @@ import io.candy.tick.data.model.StoreReleaseInfo
 import io.candy.tick.data.store.LocalInstalledApp
 import io.candy.tick.data.store.StoreDownloadSpec
 import io.candy.tick.data.store.StoreHttp
+import io.candy.tick.data.store.StoreQueryResult
 import io.candy.tick.data.store.StoreQuerySpeed
 import io.candy.tick.data.store.StoreSource
 import java.io.File
+import java.nio.file.Files
+import java.nio.file.StandardCopyOption
 import java.util.concurrent.TimeUnit
+import kotlinx.coroutines.currentCoroutineContext
+import kotlinx.coroutines.ensureActive
 import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
 import okhttp3.Request
@@ -26,35 +31,46 @@ class FdroidStore(
 ) : StoreSource {
     override val speed: StoreQuerySpeed = StoreQuerySpeed.LOCAL_INDEX
 
+    private data class IndexRevision(val base: String, val etag: String, val length: Long, val modified: Long)
+    private data class ParsedIndex(
+        val revision: IndexRevision,
+        val installedBuilds: Map<String, Pair<Long, String>>,
+        val result: StoreQueryResult,
+    )
+
     private val syncMutex = Mutex()
+    private var lastScan: ParsedIndex? = null
     private val indexClient = StoreHttp.client.newBuilder()
         .readTimeout(45L, TimeUnit.SECONDS)
         .callTimeout(90L, TimeUnit.SECONDS)
         .build()
 
-    override suspend fun checkUpdates(apps: List<LocalInstalledApp>): Map<String, StoreReleaseInfo> {
-        if (apps.isEmpty()) return emptyMap()
+    override suspend fun checkUpdates(apps: List<LocalInstalledApp>): Map<String, StoreReleaseInfo> = checkBatch(apps).updates
+
+    override suspend fun checkBatch(apps: List<LocalInstalledApp>): StoreQueryResult {
+        if (apps.isEmpty()) return StoreQueryResult(emptyMap())
         val repoBase = FdroidProtocol.repoBaseUrl(id, mirrorProvider())
-        val indexFile = syncIndexFile(repoBase)
-        return indexFile.inputStream().use { input ->
-            FdroidProtocol.scanUpdates(input, id, repoBase, apps.associateBy { it.packageName })
-        }
+        val installed = apps.associateBy { it.packageName }
+        return syncMutex.withLock { readIndex(repoBase, installed) }
     }
 
     override suspend fun resolveDownload(
         app: LocalInstalledApp,
         release: StoreReleaseInfo,
     ): StoreDownloadSpec {
-        if (release.downloadUrl.isBlank()) throw SourceException(SourceError.NotFound)
+        val previousBase = FdroidMirror.entries.map { FdroidProtocol.repoBaseUrl(id, it) }
+            .firstOrNull { release.downloadUrl.startsWith("$it/") } ?: throw SourceException(SourceError.NotFound)
+        val currentBase = FdroidProtocol.repoBaseUrl(id, mirrorProvider())
         return StoreDownloadSpec(
-            url = release.downloadUrl,
+            url = currentBase + release.downloadUrl.removePrefix(previousBase),
             sizeBytes = release.sizeBytes,
-            expectedHash = FdroidProtocol.expectedSha256(release.checksum),
+            exactSizeBytes = release.exactSizeBytes,
+            expectedHash = FdroidProtocol.expectedSha256(release.checksum) ?: throw SourceException(SourceError.NotFound),
             headers = mapOf("User-Agent" to "CandyTick"),
         )
     }
 
-    private suspend fun syncIndexFile(repoBase: String): File = syncMutex.withLock {
+    private suspend fun readIndex(repoBase: String, apps: Map<String, LocalInstalledApp>): StoreQueryResult {
         val dir = File(cacheDir, "store-index/$id").apply { mkdirs() }
         val indexFile = File(dir, "index-v2.json")
         val etagFile = File(dir, "index-v2.etag")
@@ -64,36 +80,59 @@ class FdroidStore(
             runCatching { etagFile.readText().trim() }.getOrNull()?.takeIf { it.isNotBlank() }
         } else null
 
-        val req = Request.Builder()
-            .url(FdroidProtocol.indexUrl(repoBase))
-            .header("User-Agent", "CandyTick")
-            .apply { if (savedEtag != null) header("If-None-Match", savedEtag) }
-            .get()
-            .build()
-
-        val part = File.createTempFile("index-v2-", ".part", dir)
-        try {
-            StoreHttp.execute(req, indexClient) { response ->
-                if (response.code == 304 && indexFile.isFile) return@execute
-                if (!response.isSuccessful) throw SourceException(SourceError.Http(response.code))
-                response.body.byteStream().use { input ->
-                    part.outputStream().use { output -> input.copyTo(output, 64 * 1024) }
-                }
-                if (!part.renameTo(indexFile)) {
-                    part.copyTo(indexFile, overwrite = true)
-                    part.delete()
-                }
-                val newEtag = response.header("ETag")?.takeIf { it.isNotBlank() }
-                if (newEtag != null) {
-                    runCatching { etagFile.writeText(newEtag) }
-                } else {
-                    runCatching { etagFile.delete() }
-                }
-                runCatching { urlFile.writeText(repoBase) }
+        fun revision(etag: String) = IndexRevision(repoBase, etag, indexFile.length(), indexFile.lastModified())
+        fun remember(etag: String?, result: StoreQueryResult): StoreQueryResult {
+            lastScan = etag?.takeIf(String::isNotBlank)?.let { tag ->
+                ParsedIndex(revision(tag), apps.mapValues { (_, app) -> app.versionCode to app.signatureSha256 }, result)
             }
-        } finally {
-            if (part.exists()) part.delete()
+            return result
         }
-        indexFile
+
+        fun scan(file: File): StoreQueryResult {
+            val unconfirmed = mutableSetOf<String>()
+            val updates = file.inputStream().use { FdroidProtocol.scanUpdates(it, id, repoBase, apps, unconfirmed = unconfirmed) }
+            return StoreQueryResult(updates, unconfirmed, error = "InvalidIndexEntry".takeIf { unconfirmed.isNotEmpty() })
+        }
+        suspend fun fetch(etag: String?): StoreQueryResult? {
+            val request = Request.Builder().url(FdroidProtocol.indexUrl(repoBase)).header("User-Agent", "CandyTick")
+                .apply { if (etag != null) header("If-None-Match", etag) }.build()
+            val part = File.createTempFile("index-v2-", ".part", dir)
+            try {
+                val download = StoreHttp.execute(request, indexClient) { response ->
+                    if (response.code == 304 && etag != null) return@execute null
+                    if (!response.isSuccessful) throw SourceException(SourceError.Http(response.code))
+                    response.body.byteStream().use { input ->
+                        part.outputStream().use { output -> input.copyTo(output, 64 * 1024) }
+                    }
+                    response.header("ETag").orEmpty()
+                } ?: return null
+                val result = scan(part)
+                currentCoroutineContext().ensureActive()
+                // With no ETag after a crash the next request must fetch a full index.
+                if (etagFile.exists()) check(etagFile.delete())
+                Files.move(part.toPath(), indexFile.toPath(), StandardCopyOption.REPLACE_EXISTING, StandardCopyOption.ATOMIC_MOVE)
+                urlFile.writeText(repoBase)
+                if (download.isNotBlank()) etagFile.writeText(download)
+                return remember(download, result)
+            } finally {
+                part.delete()
+            }
+        }
+        fetch(savedEtag)?.let { return it }
+        val previous = lastScan
+        if (savedEtag != null && previous != null && previous.revision == revision(savedEtag) &&
+            apps.all { (pkg, app) -> previous.installedBuilds[pkg] == (app.versionCode to app.signatureSha256) }
+        ) {
+            val cached = previous.result
+            val unconfirmed = cached.unconfirmed.intersect(apps.keys)
+            return cached.copy(updates = cached.updates.filterKeys { it in apps }, unconfirmed = unconfirmed,
+                error = cached.error.takeIf { unconfirmed.isNotEmpty() })
+        }
+        return try {
+            remember(savedEtag, scan(indexFile))
+        } catch (_: Exception) {
+            // Old releases could cache a truncated 200 response and then keep receiving 304.
+            requireNotNull(fetch(null))
+        }
     }
 }

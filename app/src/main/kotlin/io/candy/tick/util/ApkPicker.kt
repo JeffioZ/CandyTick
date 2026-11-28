@@ -42,12 +42,14 @@ object ApkPicker {
         // 1) 精确匹配设备 ABI（顺序即优先级）
         for (abi in supportedAbis) {
             val pattern = abiPatterns[abi] ?: continue
-            val hit = candidates.firstOrNull { pattern.containsMatchIn(it.name) }
-            if (hit != null) return hit to true
+            val matches = candidates.filter { pattern.containsMatchIn(it.name) }
+            if (matches.isNotEmpty()) {
+                val selected = matches.singleOrNull()
+                return selected to (selected != null)
+            }
         }
         // 2) universal 兜底
-        val universal = candidates.firstOrNull { abiPatterns.getValue("universal").containsMatchIn(it.name) }
-        if (universal != null) return universal to true
-        return null to false // 列表手选
+        val universal = candidates.singleOrNull { abiPatterns.getValue("universal").containsMatchIn(it.name) }
+        return universal to (universal != null)
     }
 }

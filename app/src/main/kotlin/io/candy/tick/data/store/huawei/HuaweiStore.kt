@@ -12,7 +12,6 @@ import io.candy.tick.data.store.StoreHttp
 import io.candy.tick.data.store.StoreQuerySpeed
 import io.candy.tick.data.store.StoreSource
 import java.io.ByteArrayInputStream
-import java.io.IOException
 import java.util.UUID
 import java.util.concurrent.ConcurrentHashMap
 import java.util.zip.GZIPInputStream
@@ -28,12 +27,13 @@ import okhttp3.RequestBody.Companion.toRequestBody
 class HuaweiStore : StoreSource {
     override val id: String = StoreCatalog.ID_HUAWEI
     override val speed: StoreQuerySpeed = StoreQuerySpeed.FAST_BATCH
+    override val batchSize: Int = HuaweiProtocol.BATCH_SIZE
 
     private val deviceId: String = HuaweiProtocol.deriveDeviceId(UUID.randomUUID().toString())
     private val signMutex = Mutex()
     @Volatile
     private var cachedSign: String = ""
-    private val cachedUrls = ConcurrentHashMap<String, String>()
+    private val cachedUrls = ConcurrentHashMap<String, Pair<Long, String>>()
 
     override suspend fun checkUpdates(apps: List<LocalInstalledApp>): Map<String, StoreReleaseInfo> {
         if (apps.isEmpty()) return emptyMap()
@@ -42,7 +42,7 @@ class HuaweiStore : StoreSource {
         for (chunk in apps.chunked(HuaweiProtocol.BATCH_SIZE)) {
             val entries = queryDiffUpgrade(chunk, installedByPkg)
             for ((pkg, entry) in entries) {
-                if (entry.downloadUrl.isNotBlank()) cachedUrls[pkg] = entry.downloadUrl
+                if (entry.downloadUrl.isNotBlank()) cachedUrls[pkg] = entry.release.versionCode to entry.downloadUrl
                 result[pkg] = entry.release
             }
         }
@@ -57,14 +57,16 @@ class HuaweiStore : StoreSource {
         val fresh = StoreHttp.runCatchingCancellable {
             queryDiffUpgrade(listOf(app), mapOf(app.packageName to app))[app.packageName]
         }.getOrNull()
+        if (fresh != null && fresh.release.versionCode != release.versionCode) throw SourceException(SourceError.NotFound)
         val url = fresh?.downloadUrl?.takeIf { it.isNotBlank() }
-            ?: cachedUrls[app.packageName]?.takeIf { it.isNotBlank() }
+            ?: cachedUrls[app.packageName]?.takeIf { it.first == release.versionCode }?.second
             ?: throw SourceException(SourceError.NotFound)
         val sha256 = fresh?.release?.checksum?.ifBlank { release.checksum } ?: release.checksum
         val size = fresh?.release?.sizeBytes?.takeIf { it > 0L } ?: release.sizeBytes
         return StoreDownloadSpec(
             url = url,
             sizeBytes = size,
+            exactSizeBytes = (fresh?.release ?: release).exactSizeBytes,
             expectedHash = sha256.takeIf { it.isNotBlank() }?.let { ExpectedHash(HashAlgorithm.SHA256, it) },
         )
     }
@@ -108,11 +110,7 @@ class HuaweiStore : StoreSource {
             val raw = response.body.bytes()
             // 华为接口即使收到 Accept-Encoding: identity 仍可能直接返回 GZIP 压缩体，需按魔数自动解压
             val decoded = if (raw.size >= 2 && raw[0] == 0x1f.toByte() && raw[1] == 0x8b.toByte()) {
-                try {
-                    GZIPInputStream(ByteArrayInputStream(raw)).use { it.readBytes() }
-                } catch (e: IOException) {
-                    throw SourceException(SourceError.NetworkUnreachable, e)
-                }
+                GZIPInputStream(ByteArrayInputStream(raw)).use { it.readBytes() }
             } else {
                 raw
             }

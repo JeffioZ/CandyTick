@@ -79,6 +79,7 @@ import kotlinx.coroutines.flow.distinctUntilChanged
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.transformLatest
+import androidx.lifecycle.createSavedStateHandle
 import androidx.lifecycle.viewmodel.compose.viewModel
 import io.candy.tick.CandyTickApp
 import io.candy.tick.R
@@ -135,7 +136,9 @@ fun ListScreen(
     )
     val (storePrefs, storeState) = storeSlice
     val resources = LocalResources.current
-    val vm: ListViewModel = viewModel { ListViewModel(app.container.repoRepository, app.container.repoDownloadHost, app) }
+    val vm: ListViewModel = viewModel {
+        ListViewModel(app.container.repoRepository, app.container.repoDownloadHost, app, createSavedStateHandle())
+    }
     fun leaveHome(navigate: () -> Unit) {
         vm.titleSync.leave(vm.syncStatus.value)
         navigate()
@@ -287,6 +290,7 @@ fun ListScreen(
                     text = removedNamedMsg.format(event.repo.noteName ?: event.repo.repo),
                     actionLabel = undoLabel,
                     onAction = { vm.restore(event.repo, event.snapshot) },
+                    retainOnConfigurationChange = true,
                     // 滑删撤销是唯一救回手段：默认 4.5s 偏短，破坏性撤销放宽到 7s
                     durationMs = 7_000,
                 )
@@ -303,10 +307,11 @@ fun ListScreen(
     var notifPermAsked by androidx.compose.runtime.saveable.rememberSaveable {
         androidx.compose.runtime.mutableStateOf(false)
     }
-    LaunchedEffect(state.items.isEmpty()) {
-        if (state.items.isEmpty()) return@LaunchedEffect
+    val hasNotificationSources by vm.hasNotificationSources.collectAsStateWithLifecycle(initialValue = false)
+    LaunchedEffect(hasNotificationSources) {
+        if (!hasNotificationSources) return@LaunchedEffect
         if (!notifPermAsked && android.os.Build.VERSION.SDK_INT >= 33 &&
-            vm.shouldRequestNotificationPermission
+            !io.candy.tick.data.Notifications.canNotify(app)
         ) {
             notifPermAsked = true
             notifPermLauncher.launch(android.Manifest.permission.POST_NOTIFICATIONS)

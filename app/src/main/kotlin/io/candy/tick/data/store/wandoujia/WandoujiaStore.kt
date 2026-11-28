@@ -2,6 +2,8 @@ package io.candy.tick.data.store.wandoujia
 
 import io.candy.tick.data.SourceError
 import io.candy.tick.data.SourceException
+import io.candy.tick.data.download.ExpectedHash
+import io.candy.tick.data.download.HashAlgorithm
 import io.candy.tick.data.model.StoreReleaseInfo
 import io.candy.tick.data.store.LocalInstalledApp
 import io.candy.tick.data.store.StoreCatalog
@@ -35,12 +37,7 @@ class WandoujiaStore : StoreSource {
             .build()
         return StoreHttp.execute(request) { response ->
             if (!response.isSuccessful) throw SourceException(SourceError.Http(response.code))
-            val decoded = try {
-                WandoujiaProtocol.decodeM90Response(response.body.bytes()).decodeToString()
-            } catch (e: Exception) {
-                if (e is SourceException) throw e
-                throw SourceException(SourceError.NetworkUnreachable, e)
-            }
+            val decoded = WandoujiaProtocol.decodeM90Response(response.body.bytes()).decodeToString()
             WandoujiaProtocol.parseCheckResponse(decoded, apps.associateBy { it.packageName })
         }
     }
@@ -49,20 +46,20 @@ class WandoujiaStore : StoreSource {
         app: LocalInstalledApp,
         release: StoreReleaseInfo,
     ): StoreDownloadSpec {
-        val url = if (release.appId > 0L) {
-            fetchFreshDownload(release.appId)?.downloadUrl.orEmpty().ifBlank { release.downloadUrl }
-        } else {
-            release.downloadUrl
-        }
+        val fresh = if (release.appId > 0L) fetchFreshDownload(release.appId, app.packageName) else null
+        val selected = fresh?.takeIf { it.versionCode == release.versionCode && it.downloadUrl.isNotBlank() } ?: release
+        val url = selected.downloadUrl
         if (url.isBlank()) throw SourceException(SourceError.NotFound)
         return StoreDownloadSpec(
             url = url,
-            sizeBytes = release.sizeBytes,
+            sizeBytes = selected.sizeBytes,
+            exactSizeBytes = selected.exactSizeBytes,
+            expectedHash = selected.checksum.takeIf { it.isNotBlank() }?.let { ExpectedHash(HashAlgorithm.MD5, it) },
             headers = mapOf("User-Agent" to WandoujiaProtocol.DOWNLOAD_USER_AGENT),
         )
     }
 
-    private suspend fun fetchFreshDownload(appId: Long): StoreReleaseInfo? {
+    private suspend fun fetchFreshDownload(appId: Long, packageName: String): StoreReleaseInfo? {
         val envelope = WandoujiaProtocol.buildDetailCombineEnvelope(appId, identity, joinedAt, nextRequestId())
         val request = Request.Builder()
             .url(WandoujiaProtocol.API_BASE + WandoujiaProtocol.COMBINE_PATH)
@@ -71,7 +68,7 @@ class WandoujiaStore : StoreSource {
             .build()
         return StoreHttp.execute(request) { response ->
             if (!response.isSuccessful) throw SourceException(SourceError.Http(response.code))
-            WandoujiaProtocol.parseDetailResponse(response.body.string())
+            WandoujiaProtocol.parseDetailResponse(response.body.string(), packageName)
         }
     }
 

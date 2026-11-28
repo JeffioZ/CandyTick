@@ -48,6 +48,7 @@ internal fun InlineErrorRow(
     retryEnabled: Boolean = true,
     showRetryLabel: Boolean = false,
     announce: Boolean = true,
+    actionLabel: String? = null,
 ) {
     val scheme = MiuixTheme.colorScheme
     Row(
@@ -73,10 +74,10 @@ internal fun InlineErrorRow(
             style = MiuixTheme.textStyles.footnote1,
             color = scheme.onErrorContainer,
         )
-        if (onRetry != null && showRetryLabel) {
+        if (onRetry != null && (showRetryLabel || actionLabel != null)) {
             CompactTextAction(onClick = onRetry, enabled = retryEnabled, surface = scheme.errorContainer) {
                 Text(
-                    text = stringResource(R.string.retry),
+                    text = actionLabel ?: stringResource(R.string.retry),
                     style = MiuixTheme.textStyles.footnote1.copy(fontWeight = FontWeight.SemiBold),
                     color = scheme.onErrorContainer.copy(alpha = if (retryEnabled) 1f else 0.38f),
                 )

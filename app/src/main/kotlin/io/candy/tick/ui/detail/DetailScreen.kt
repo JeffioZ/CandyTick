@@ -151,8 +151,9 @@ fun DetailScreen(
     LaunchedEffect(releaseRequestId) {
         if (!browsing) vm.setTab(DetailViewModel.DetailTab.RELEASES)
     }
-    val tag = releaseTag?.takeIf { releaseRequestId != null }
-    val extraRelease = state.notificationRelease?.takeIf { it.tagName == tag }
+    var packageTag by rememberSaveable(repoId, releaseRequestId) { mutableStateOf<String?>(null) }
+    val tag = packageTag ?: releaseTag?.takeIf { releaseRequestId != null }
+    val extraRelease = state.requestedRelease?.takeIf { it.tagName == tag }
     val releaseTagNames = remember(state.releases, extraRelease) {
         (state.releases + listOfNotNull(extraRelease)).mapTo(HashSet()) { it.tagName }
     }
@@ -166,12 +167,12 @@ fun DetailScreen(
     val awaitingTag = !browsing && tag != null && releaseIndex < 0
     val pageAvailable = !state.releasesReloading &&
         (state.releases.isNotEmpty() || state.releasesEnd || state.releasesFailed)
-    var lookupError by remember(repoId, releaseRequestId) { mutableStateOf<SourceError?>(null) }
+    var lookupError by remember(repoId, releaseRequestId, tag) { mutableStateOf<SourceError?>(null) }
     var attempt by remember(repoId, releaseRequestId) { mutableIntStateOf(0) }
-    LaunchedEffect(releaseRequestId, awaitingTag, pageAvailable, attempt) {
+    LaunchedEffect(releaseRequestId, tag, awaitingTag, pageAvailable, attempt) {
         if (awaitingTag && pageAvailable) {
             lookupError = null
-            lookupError = vm.findNotificationRelease(tag)
+            lookupError = vm.findRelease(tag)
         }
     }
     val entryTransition = LocalNavAnimatedContentScope.current.transition
@@ -202,14 +203,17 @@ fun DetailScreen(
         }
     } else Modifier
     // The download notification can outlive the in-memory release page or the remote release itself.
-    val localTarget = state.repo?.downloadedApk?.takeIf { !commitsTab && it.version == tag && releaseIndex < 0 }
+    val localTarget = state.repo?.downloadedApk?.takeIf { packageTag == null && !commitsTab && it.version == tag && releaseIndex < 0 }
     val commitsPending = state.commitsLoading && state.commits.isEmpty() && !state.commitsEnd && !state.commitsFailed
     val releasesPending = state.releasesLoading && releases.isEmpty() && localTarget == null && !state.releasesEnd && !state.releasesFailed
     val firstPagePending = if (commitsTab) commitsPending else releasesPending
     val scrollBehavior = MiuixScrollBehavior(rememberTopAppBarState())
-    var showAppPicker by remember { mutableStateOf(false) }
-    var showBranchSheet by remember { mutableStateOf(false) }
-    var showRemoveDialog by remember { mutableStateOf(false) }
+    var showAppPicker by rememberSaveable(repoId) { mutableStateOf(false) }
+    var showBranchSheet by rememberSaveable(repoId) { mutableStateOf(false) }
+    var showRemoveDialog by remember(repoId) { mutableStateOf(false) }
+    var showMoreSheet by remember(repoId) { mutableStateOf(false) }
+    var showTranslationDisclosure by rememberSaveable(repoId) { mutableStateOf(false) }
+    LaunchedEffect(showBranchSheet) { if (showBranchSheet) vm.loadBranches() }
     val context = LocalContext.current
     val scope = androidx.compose.runtime.rememberCoroutineScope()
     // 列表状态提升：点标题回顶部需要驱动滚动动画（真实滚动让折叠顶栏自动展开）
@@ -217,7 +221,7 @@ fun DetailScreen(
     // 标题「已在顶部」判定：derivedStateOf 只在越过边界时重组标题
     val detailAtTop by remember { derivedStateOf { !detailListState.canScrollBackward && !detailListState.isScrollInProgress } }
     val lookupTag = tag?.takeIf { awaitingTag && pageAvailable && localTarget == null }
-    val obscured = showAppPicker || showBranchSheet || showRemoveDialog
+    val obscured = showAppPicker || showBranchSheet || showRemoveDialog || showMoreSheet || showTranslationDisclosure
     val accessibility = remember(context) { context.getSystemService(android.view.accessibility.AccessibilityManager::class.java) }
     val touchExploration by produceState(accessibility?.isTouchExplorationEnabled == true, accessibility) {
         if (accessibility == null) return@produceState
@@ -281,7 +285,8 @@ fun DetailScreen(
             vm.protectReadingRows(tab, emptySet())
         }
     }
-    LaunchedEffect(releaseRequestId, browsing, positioned, releaseIndex, localTarget, entrySettled, lifecycleOwner) {
+    val selectPackageMsg = stringResource(R.string.detail_select_asset_hint)
+    LaunchedEffect(releaseRequestId, tag, browsing, positioned, releaseIndex, localTarget, entrySettled, lifecycleOwner) {
         if (browsing || positioned || !entrySettled) return@LaunchedEffect
         lifecycleOwner.lifecycle.repeatOnLifecycle(Lifecycle.State.RESUMED) {
             if (releaseIndex < 0) {
@@ -297,11 +302,14 @@ fun DetailScreen(
                 }
                 snapshotFlow { key in detailListState.layoutInfo.visibleHistoryKeys(titleHeight) }.first { it }
                 positioned = true
+                if (packageTag == tag && releases[releaseIndex].apkAssets.isNotEmpty()) {
+                    io.candy.tick.ui.common.Feedback.show(selectPackageMsg)
+                }
             }
         }
     }
     val activity = state.snapshot?.activity
-    LaunchedEffect(lifecycleOwner, releaseRequestId, browsing, tab, entrySettled, obscured, tabMoving,
+    LaunchedEffect(lifecycleOwner, releaseRequestId, tag, browsing, tab, entrySettled, obscured, tabMoving,
         activity?.unreadReleaseTags, activity?.unreadCommitShas) {
         if (!entrySettled || obscured || tabMoving) return@LaunchedEffect
         lifecycleOwner.lifecycle.repeatOnLifecycle(Lifecycle.State.RESUMED) {
@@ -332,7 +340,7 @@ fun DetailScreen(
         state.repo?.let { io.candy.tick.util.installedVersionName(context, it) }
     }
 
-    LaunchedEffect(Unit) {
+    LaunchedEffect(vm, releaseRequestId) {
         vm.events.collect { event ->
             when (event) {
                 is DetailViewModel.Event.InstallResultEvent -> when (val r = event.result) {
@@ -358,6 +366,13 @@ fun DetailScreen(
                 is DetailViewModel.Event.AutoLinked -> io.candy.tick.ui.common.Feedback.show(autoLinkedFmt.format(event.displayName))
                 DetailViewModel.Event.DownloadMissing ->
                     io.candy.tick.ui.common.Feedback.show(missingDownloadMsg, isError = true, errorCode = "E-FILE")
+                is DetailViewModel.Event.ChoosePackage -> {
+                    browsing = false
+                    positioned = false
+                    savedTab = DetailViewModel.DetailTab.RELEASES
+                    packageTag = event.tag
+                    attempt++
+                }
             }
         }
     }
@@ -375,13 +390,13 @@ fun DetailScreen(
     var translating by remember { mutableStateOf(false) }
     var failedBodies by remember(repoId, targetLang) { mutableStateOf<Set<String>>(emptySet()) }
     var translations by remember(repoId, targetLang) { mutableStateOf<Map<String, String>>(emptyMap()) }
-    var showMoreSheet by remember { mutableStateOf(false) }
     val translateFailedMsg = stringResource(R.string.detail_translate_failed)
     val visibleItemKeys by remember(detailListState) {
         derivedStateOf { detailListState.layoutInfo.visibleItemsInfo.map { it.key }.toSet() }
     }
     LaunchedEffect(
         translateEnabled,
+        appState.settings.translationDisclosureAccepted,
         targetLang,
         commitsTab,
         repo?.id,
@@ -391,7 +406,7 @@ fun DetailScreen(
         expandedNotes,
         visibleItemKeys,
     ) {
-        if (!translateEnabled) {
+        if (!translateEnabled || !appState.settings.translationDisclosureAccepted) {
             translating = false
             failedBodies = emptySet()
             return@LaunchedEffect
@@ -595,7 +610,11 @@ fun DetailScreen(
                                 onClick = {
                                     haptic.performHapticFeedback(HapticFeedbackType.TextHandleMove)
                                     failedBodies = emptySet()
-                                    translateEnabled = !translateEnabled
+                                    if (translateEnabled || appState.settings.translationDisclosureAccepted) {
+                                        translateEnabled = !translateEnabled
+                                    } else {
+                                        showTranslationDisclosure = true
+                                    }
                                 },
                                 contentDescription = stringResource(
                                     if (translateEnabled) R.string.detail_show_original else R.string.detail_translate,
@@ -675,7 +694,7 @@ fun DetailScreen(
                                 state.linkSuggestion?.let { (pkg, label) -> vm.setLinkedApp(pkg, newLabel = label) }
                             },
                             onDownloadUpdate = vm::downloadUpdate,
-                            onInstallUpdate = { repo?.downloadedApk?.let(vm::installDownloaded) },
+                            onInstallUpdate = { repo?.downloadedApk?.let { vm.installDownloaded(it, fromHeader = true) } },
                             onCancelDownload = vm::cancelDownload,
                             translatedDescription = if (translateEnabled) {
                                 state.snapshot?.description?.trim()?.let { translations[it] }
@@ -703,7 +722,13 @@ fun DetailScreen(
                             lastBanner?.let { error ->
                                 // 共用失败横幅（errorContainer 底 + 重试钮，与首页同构）；
                                 // 用户可不刷新只关提示（dismissBanner 由此接线）
-                                ErrorBanner(
+                                if (error == SourceError.BranchUnavailable) {
+                                    io.candy.tick.ui.common.InlineErrorRow(
+                                        message = stringResource(R.string.branch_unavailable),
+                                        onRetry = { vm.setBranch(null) },
+                                        actionLabel = stringResource(R.string.branch_use_default),
+                                    )
+                                } else ErrorBanner(
                                     error = error,
                                     modifier = Modifier.padding(top = 10.dp),
                                     hasSavedDetails = state.snapshot != null,
@@ -729,6 +754,7 @@ fun DetailScreen(
                             savedTab = selected
                             vm.setTab(selected)
                             browsing = true
+                            packageTag = null
                         },
                         // 错误横幅在场时页签顶部留白归零：横幅内衬 6 + item 间距 10 = 16dp，
                         // 与横幅上方 10+6=16 对齐；随横幅 220ms 尺寸过渡同拍动画（与首页列表顶隙
@@ -781,7 +807,7 @@ fun DetailScreen(
                         state = state,
                         releases = releases,
                         localTarget = localTarget,
-                        notificationTag = if (!browsing || extraRelease != null) tag else null,
+                        notificationTag = if (packageTag == null && (!browsing || extraRelease != null)) tag else null,
                         contentModifier = historyRowModifier,
                         localVersion = localVersion,
                         htmlBase = htmlBase,
@@ -806,7 +832,7 @@ fun DetailScreen(
                             positioned = true
                             vm.retryDownload(release, asset)
                         },
-                        onInstallDownloaded = vm::installDownloaded,
+                        onInstallDownloaded = { vm.installDownloaded(it) },
                         onDeleteDownloaded = vm::deleteDownloaded,
                         onCancelDownload = vm::cancelDownload,
                         translatedTexts = activeTranslations,
@@ -837,6 +863,7 @@ fun DetailScreen(
         },
         onDismiss = { showBranchSheet = false },
         onLoadBranches = vm::loadNextBranchPage,
+        onVisibleBranches = vm::loadVisibleBranchDates,
     )
 
     // 更多操作浮层（收拢低频操作：切分支 / 打开网页 / 复制链接 / 移除仓库）
@@ -847,7 +874,6 @@ fun DetailScreen(
         onSelectBranch = {
             showMoreSheet = false
             showBranchSheet = true
-            vm.loadBranches()
         },
         onRemove = {
             showMoreSheet = false
@@ -857,9 +883,12 @@ fun DetailScreen(
     )
 
     // 移除确认（破坏性操作）：show 直通，退场有动效
-    RemoveRepoDialog(
+    DetailConfirmationSheet(
         show = showRemoveDialog && repo != null,
-        repoName = repo?.let { it.noteName ?: "${it.owner}/${it.repo}" } ?: "",
+        title = stringResource(R.string.remove_confirm_title),
+        message = stringResource(R.string.remove_confirm_body, repo?.let { it.noteName ?: "${it.owner}/${it.repo}" }.orEmpty()),
+        confirmText = stringResource(R.string.action_remove),
+        destructive = true,
         onConfirm = {
             // 破坏性确认时刻：轻触感（视觉红按钮之外的物理确认）
             haptic.performHapticFeedback(HapticFeedbackType.LongPress)
@@ -867,6 +896,18 @@ fun DetailScreen(
             vm.removeRepo(onRemoved)
         },
         onDismiss = { showRemoveDialog = false },
+    )
+    DetailConfirmationSheet(
+        show = showTranslationDisclosure,
+        title = stringResource(R.string.translation_disclosure_title),
+        message = stringResource(R.string.translation_disclosure_body),
+        confirmText = stringResource(R.string.translation_disclosure_accept),
+        onConfirm = {
+            vm.acceptTranslationDisclosure()
+            showTranslationDisclosure = false
+            translateEnabled = true
+        },
+        onDismiss = { showTranslationDisclosure = false },
     )
 }
 

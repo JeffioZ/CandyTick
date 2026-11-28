@@ -51,11 +51,7 @@ import top.yukonga.miuix.kmp.basic.Text
 import top.yukonga.miuix.kmp.theme.LocalContentColor
 import top.yukonga.miuix.kmp.theme.MiuixTheme
 
-/**
- * 统一按钮封装：Miuix Button 默认是次要样式（secondaryVariant 容器），
- * 主按钮必须显式 buttonColorsPrimary()（薄荷底 + onPrimary 字），文字色交组件自管。
- */
-
+/** 浅色主按钮用深薄荷底配白字；深色主题沿用亮薄荷底配深字。 */
 @Composable
 fun PrimaryButton(
     text: String,
@@ -69,16 +65,15 @@ fun PrimaryButton(
     val motion = rememberMotionEnabled()
     val interactive = enabled && busyText == null && shownBusyText == null
     val busy = busyText != null || shownBusyText != null
-    // 忙碌态保持主题色柔化而非硬跳浅灰禁用色，状态切换平滑过渡不突兀
+    val dark = LocalDarkTheme.current
+    val activeBg = if (dark) scheme.primary else scheme.primaryVariant
     val targetBg = when {
-        interactive -> scheme.primary
-        busy -> scheme.primary.copy(alpha = 0.80f)
+        dark && busy -> activeBg.copy(alpha = 0.80f)
+        interactive || busy -> activeBg
         else -> scheme.disabledPrimaryButton
     }
-    val targetTextColor = when {
-        interactive || busy -> scheme.onPrimary
-        else -> scheme.disabledOnPrimaryButton
-    }
+    val activeText = if (dark) scheme.onPrimary else scheme.onPrimaryVariant
+    val targetTextColor = if (interactive || busy) activeText else scheme.disabledOnPrimaryButton
     val bg by animateColorAsState(
         targetValue = targetBg,
         animationSpec = tween(if (motion) Motion.PHASE else 0),
@@ -90,7 +85,7 @@ fun PrimaryButton(
         label = "primaryBtnFg",
     )
     // 深色主按钮本身是亮薄荷底（深色字），按压应走黑色压暗而非全局白色提亮
-    val buttonIndication = if (LocalDarkTheme.current) {
+    val buttonIndication = if (dark) {
         remember { CandyIndication(color = Color.Black, maxAlpha = 0.14f) }
     } else {
         LocalIndication.current

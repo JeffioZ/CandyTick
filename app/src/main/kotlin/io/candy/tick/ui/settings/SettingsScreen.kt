@@ -84,6 +84,7 @@ fun SettingsScreen(
             githubApi = app.container.githubApi,
             selfUpdater = app.container.selfUpdater,
             cacheManager = app.container.cacheManager,
+            reconcileStoreDownloads = { app.container.storeDownloadHost.reconcileFiles() },
         )
     }
     val state by vm.state.collectAsStateWithLifecycle()

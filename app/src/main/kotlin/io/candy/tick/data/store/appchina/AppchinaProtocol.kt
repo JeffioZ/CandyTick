@@ -27,12 +27,14 @@ internal object AppchinaProtocol {
     fun detailUrl(packageName: String): String = "$WEB_BASE/app/$packageName"
 
     fun parseSearchMatch(rawJson: String, packageName: String): StoreReleaseInfo? {
-        val resp = runCatching { json.decodeFromString<SearchResp>(rawJson) }.getOrNull() ?: return null
-        val item = resp.list.firstOrNull { it.packageName.equals(packageName, ignoreCase = true) && !it.offShelf }
+        val resp = json.decodeFromString<SearchResp>(rawJson)
+        val item = resp.list.firstOrNull {
+            it.packageName.equals(packageName, ignoreCase = true) && !it.offShelf && !it.prePublish.equals("true", ignoreCase = true)
+        }
             ?: return null
         val apkUrl = StoreHttp.upgradeToHttps(item.apkUrl)
         val versionCode = pkgVerRegex.find(apkUrl)?.groupValues?.get(1)?.toLongOrNull() ?: 0L
-        if (versionCode <= 0L) return null
+        require(versionCode > 0L) { "Missing AppChina release version" }
         return StoreReleaseInfo(
             storeId = StoreCatalog.ID_APPCHINA,
             versionCode = versionCode,
@@ -46,7 +48,8 @@ internal object AppchinaProtocol {
         val url = downloadRegex.find(html)?.groupValues?.get(1)
             ?.replace("&amp;", "&")
             ?.let(StoreHttp::upgradeToHttps)
-            ?.takeIf { it.isNotBlank() } ?: fallback.downloadUrl
+            ?.takeIf { pkgVerRegex.find(it)?.groupValues?.get(1)?.toLongOrNull() == fallback.versionCode }
+            ?: fallback.downloadUrl
         val verName = versionMetaRegex.find(html)?.groupValues?.get(1)?.trim()?.takeIf { it.isNotBlank() }
             ?: fallback.versionName
         val log = changeLogRegex.find(html)?.groupValues?.get(1)?.replace(htmlTag, "")?.trim().orEmpty()
@@ -71,7 +74,7 @@ internal object AppchinaProtocol {
     }
 
     @Serializable
-    private data class SearchResp(val list: List<SearchItem> = emptyList())
+    private data class SearchResp(val list: List<SearchItem>)
 
     @Serializable
     private data class SearchItem(
@@ -79,5 +82,6 @@ internal object AppchinaProtocol {
         val size: String = "",
         val apkUrl: String = "",
         val offShelf: Boolean = false,
+        val prePublish: String = "false",
     )
 }

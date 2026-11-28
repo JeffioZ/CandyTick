@@ -7,6 +7,7 @@ import io.candy.tick.data.download.HashAlgorithm
 import io.candy.tick.data.model.StoreReleaseInfo
 import io.candy.tick.data.store.LocalInstalledApp
 import io.candy.tick.data.store.StoreCatalog
+import io.candy.tick.data.store.StoreDevice
 import io.candy.tick.data.store.StoreDownloadSpec
 import io.candy.tick.data.store.StoreHttp
 import io.candy.tick.data.store.StoreQuerySpeed
@@ -22,6 +23,7 @@ import okhttp3.RequestBody.Companion.toRequestBody
 class TapTapStore : StoreSource {
     override val id: String = StoreCatalog.ID_TAPTAP
     override val speed: StoreQuerySpeed = StoreQuerySpeed.FAST_BATCH
+    override val batchSize: Int = TapTapProtocol.BATCH_SIZE
 
     private val uid: String = UUID.randomUUID().toString()
     private val xUa: String = TapTapProtocol.buildXUa(uid)
@@ -61,9 +63,9 @@ class TapTapStore : StoreSource {
                 "end_point" to "d1",
                 "auto_download" to "0",
                 "sandbox" to "1",
-                "abi" to "arm64-v8a",
+                "abi" to StoreDevice.primaryAbi,
                 "id" to release.appId.toString(),
-                "screen_densities" to "xxhdpi",
+                "screen_densities" to deviceDensity(),
             ),
             xUa = xUa,
         )
@@ -74,14 +76,24 @@ class TapTapStore : StoreSource {
             .build()
         val info = StoreHttp.execute(request) { response ->
             if (!response.isSuccessful) throw SourceException(SourceError.Http(response.code))
-            TapTapProtocol.parseApkDetailResponse(response.body.string())
+            TapTapProtocol.parseApkDetailResponse(response.body.string(), release.versionCode)
         } ?: throw SourceException(SourceError.NotFound)
         val md5 = info.md5.ifBlank { release.checksum }
         return StoreDownloadSpec(
             url = info.url,
             sizeBytes = info.sizeBytes.takeIf { it > 0L } ?: release.sizeBytes,
+            exactSizeBytes = info.sizeBytes.takeIf { it > 0L },
             expectedHash = md5.takeIf { it.isNotBlank() }?.let { ExpectedHash(HashAlgorithm.MD5, it) },
         )
+    }
+
+    private fun deviceDensity(): String = when (StoreDevice.densityDpi) {
+        in 1..140 -> "ldpi"
+        in 141..200 -> "mdpi"
+        in 201..280 -> "hdpi"
+        in 281..400 -> "xhdpi"
+        in 401..560 -> "xxhdpi"
+        else -> "xxxhdpi"
     }
 
     companion object {

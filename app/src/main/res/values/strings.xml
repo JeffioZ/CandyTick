@@ -195,7 +195,7 @@
     <string name="branch_empty">This repository has no branches yet</string>
     <string name="branch_load_more">Load more branches</string>
     <string name="branch_search_next">Search the next page</string>
-    <string name="branch_removed_hint">Branch unavailable. Tap to switch to the default branch.</string>
+    <string name="branch_removed_hint">Branch not found. Tap to switch to the default branch.</string>
 
     <!-- 添加页 -->
     <string name="add_input_hint">Paste a link or search</string>
@@ -358,7 +358,7 @@
     <string name="token_hide">Hide token</string>
     <string name="download_update_action">Download update</string>
     <string name="settings_auto_install">Open installer after download</string>
-    <string name="settings_auto_install_summary">Packages and CandyTick updates</string>
+    <string name="settings_auto_install_summary">GitHub packages, CandyTick updates, and installed app updates</string>
     <string name="token_verified">Token verified</string>
     <string name="token_removed">Token removed</string>
     <string name="done">Done</string>
@@ -459,7 +459,7 @@
     <string name="store_settings_entry_summary">Check app markets for newer versions</string>
     <string name="store_settings_off">Off</string>
     <string name="store_settings_enabled_count">%1$d enabled</string>
-    <string name="store_settings_privacy_note">When enabled, your installed app list is sent to the selected channels to check for updates. The newest version is shown first and you can switch channels in the update sheet.</string>
+    <string name="store_settings_privacy_note">For F-Droid and IzzyOnDroid, CandyTick downloads the app catalog and compares versions on your phone. Other stores you enable receive the package names of the apps being checked. Some also need app versions and device information.</string>
     <string name="store_settings_stores_section">Update channels</string>
     <string name="store_settings_open_updates">View installed app updates</string>
     <string name="store_settings_open_updates_desc">Check now or browse installed and ignored apps</string>
@@ -469,10 +469,10 @@
     <string name="list_separator">, </string>
     <string name="store_settings_behavior_section">Check &amp; download</string>
     <string name="store_settings_system_apps">Check system apps</string>
-    <string name="store_settings_system_apps_desc">Include system components via your brand\'s store</string>
+    <string name="store_settings_system_apps_desc">AOSP components use your device brand’s store. Other preinstalled apps may also use enabled third-party stores.</string>
     <string name="store_priority_action">Priority</string>
     <string name="store_priority_title">Priority</string>
-    <string name="store_priority_desc">When multiple channels have the same latest version, higher channels are preferred. Drag the right handle to reorder.</string>
+    <string name="store_priority_desc">Drag the handle on the right to reorder stores. When stores offer the same version, the one higher on the list takes priority.</string>
     <string name="store_metered_title">Mobile data downloads</string>
     <string name="store_metered_always_allow">Always allow</string>
     <string name="store_metered_always_allow_desc">Download over mobile data without asking</string>
@@ -575,7 +575,7 @@
     <string name="store_metered_confirm_all">You are on mobile data (about %1$s total). Download all updates?</string>
     <string name="store_metered_continue">Download anyway</string>
     <string name="store_32bit_warning">This package is an older 32-bit build and may run less smoothly on your device. Tap Install if you still want it.</string>
-    <string name="store_err_signature_mismatch">The package from %1$s is from a different source than your installed app and cannot update directly. It has been deleted and won\'t be recommended from this store again.</string>
+    <string name="store_err_signature_mismatch">The package from %1$s has a different signature from the installed app and cannot update it. Try another source.</string>
     <string name="store_err_verify_hash">Download was incomplete or corrupted. Please try again.</string>
     <string name="store_err_verify_archive">The downloaded package is invalid or not newer than your current version.</string>
     <string name="store_err_install_failed">Installation failed. Please try again.</string>
@@ -586,4 +586,25 @@
         <item quantity="one">%1$d installed app has a new version</item>
         <item quantity="other">%1$d installed apps have new versions</item>
     </plurals>
+    <string name="translation_disclosure_title">Turn on online translation?</string>
+    <string name="translation_disclosure_body">When you translate a description, commit title, release title, or release notes from a public or private repository, CandyTick sends the text to Google Translate. If Google Translate is unavailable, CandyTick may use MyMemory instead.</string>
+    <string name="translation_disclosure_accept">Turn on translation</string>
+    <string name="repo_download_target_mismatch">This APK does not match the linked app. Choose the correct file in the release list.</string>
+    <string name="store_check_incomplete">Update check incomplete</string>
+    <string name="store_not_checked_yet">No update check yet</string>
+    <string name="store_check_retry_hint">Check your connection and make sure CandyTick can read your app list, then try again.</string>
+    <string name="store_no_eligible_source">No enabled store can check this app</string>
+    <string name="store_batch_started">Processing selected updates</string>
+    <string name="store_pin_source">Always use this source</string>
+    <string name="store_use_automatic">Use automatic source selection</string>
+    <string name="store_download_size">Download · %1$s</string>
+    <string name="store_confirm_final_size">Confirm mobile data use to continue this download.</string>
+    <string name="store_permission_needed">App list access needed</string>
+    <string name="store_permission_settings">Open system settings to grant access.</string>
+    <string name="branch_unavailable">Tracked branch not found</string>
+    <string name="branch_use_default">Switch to default branch</string>
+    <string name="store_failed_sources">Could not retrieve all update information from %1$s.</string>
+    <string name="store_sources_timed_out">The update check for %1$s timed out. Try again later.</string>
+    <string name="store_sources_unreachable">Could not reach %1$s. Check your connection and try again.</string>
+    <string name="store_sources_unreadable">Could not read the update information returned by %1$s.</string>
 </resources>

@@ -5,9 +5,11 @@ import io.candy.tick.data.download.HashAlgorithm
 import io.candy.tick.data.model.StoreReleaseInfo
 import io.candy.tick.data.store.StoreCatalog
 import io.candy.tick.data.store.StoreHttp
+import io.candy.tick.data.store.StoreResponseException
 import java.security.MessageDigest
 import java.util.Base64
 import kotlin.random.Random
+import kotlinx.serialization.SerializationException
 import kotlinx.serialization.json.Json
 import kotlinx.serialization.json.JsonObject
 import kotlinx.serialization.json.JsonPrimitive
@@ -57,21 +59,28 @@ internal object CoolapkProtocol {
     }
 
     fun parseDetail(rawJson: String, expectedPackage: String): StoreReleaseInfo? {
-        val root = runCatching { Json.parseToJsonElement(rawJson) as? JsonObject }.getOrNull() ?: return null
-        if (root.num("status", 0L) < 0L) return null
-        val data = root["data"] as? JsonObject ?: return null
+        val root = Json.parseToJsonElement(rawJson) as? JsonObject ?: throw SerializationException("Invalid Coolapk response")
+        val status = root.num("status")
+        if (status == -2L) return null
+        if (status < 0L) throw StoreResponseException(status)
+        val errorCode = root.num("error")
+        if (errorCode < 0L) throw StoreResponseException(errorCode)
+        val data = root["data"] as? JsonObject ?: throw SerializationException("Missing Coolapk app detail")
         val pkg = data.str("apkname").ifBlank { data.str("packageName") }
         val appId = data.num("id").takeIf { it > 0L } ?: data.num("entityId")
-        if (!pkg.equals(expectedPackage, ignoreCase = true) || appId <= 0L) return null
-        if ((data["is_download_app"] as? JsonPrimitive)?.longOrNull == 0L) return null
-        val code = data.num("apkversioncode")
-        if (code <= 0L) return null
+        if (!pkg.equals(expectedPackage, ignoreCase = true) || appId <= 0L) throw SerializationException("Invalid Coolapk app identity")
+        if (data.num("is_download_app", 1L) == 0L || data.num("status", 1L) <= 0L) return null
+        val code = (data["apkversioncode"] as? JsonPrimitive)?.longOrNull ?: throw SerializationException("Missing Coolapk version")
+        if (code == 0L) return null
+        if (code < 0L) throw SerializationException("Invalid Coolapk version")
         val md5 = data.str("apkmd5").takeIf(md5Regex::matches).orEmpty()
+        val size = data.num("apklength")
         return StoreReleaseInfo(
             storeId = StoreCatalog.ID_COOLAPK,
             versionCode = code,
-            versionName = data.str("apkversionname").ifBlank { code.toString() },
-            sizeBytes = data.num("apklength"),
+            versionName = data.str("apkversionname").ifBlank { data.str("version") }.ifBlank { code.toString() },
+            sizeBytes = size,
+            exactSizeBytes = size.takeIf { it > 0L },
             changelog = plainText(data.str("changelog")),
             appId = appId,
             checksum = md5,

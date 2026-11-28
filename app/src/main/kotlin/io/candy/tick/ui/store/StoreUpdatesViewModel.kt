@@ -8,18 +8,20 @@ import androidx.compose.runtime.Immutable
 import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.viewModelScope
 import io.candy.tick.data.AppStateStore
-import io.candy.tick.data.model.MeteredDownloadPolicy
 import io.candy.tick.data.model.StoreAppUpdate
 import io.candy.tick.data.model.StorePreferences
 import io.candy.tick.data.model.StoreReleaseInfo
 import io.candy.tick.data.model.StoreSignatureRecord
 import io.candy.tick.data.model.StoreState
+import io.candy.tick.data.model.withStorePreferenceFor
 import io.candy.tick.data.store.InstalledAppCache
+import io.candy.tick.data.store.InstalledAppScan
 import io.candy.tick.data.store.LocalInstalledApp
 import io.candy.tick.data.store.StoreCatalog
+import io.candy.tick.data.store.StoreCheckSummary
+import io.candy.tick.data.store.SingleStoreCheckResult
 import io.candy.tick.data.store.StoreCheckProgress
 import io.candy.tick.data.store.StoreDownloadHost
-import io.candy.tick.data.store.StoreSystemAppPolicy
 import io.candy.tick.data.store.StoreTaskState
 import io.candy.tick.data.store.StoreUpdateChecker
 import java.time.Instant
@@ -43,9 +45,28 @@ data class StoreUpdateRowItem(
     val local: LocalInstalledApp,
     val update: StoreAppUpdate?,
     val best: StoreReleaseInfo?,
-    val isSkipped: Boolean,
+    val skippedThrough: Long?,
     val task: StoreTaskState?,
-)
+) {
+    fun isVersionSkipped(versionCode: Long): Boolean = skippedThrough?.let { versionCode <= it } == true
+    val isSkipped: Boolean get() = best?.let { isVersionSkipped(it.versionCode) } == true
+
+    // A manually selected alternative stays installable in its own source sheet.
+    val recommendedTask: StoreTaskState?
+        get() = if (task is StoreTaskState.ReadyToInstall && (isSkipped || !task.matches(best))) null else task
+
+    val displayedRelease: StoreReleaseInfo?
+        get() {
+            val active = recommendedTask ?: return best
+            return update?.candidates?.firstOrNull { release ->
+                release.storeId == active.storeId && when (active) {
+                    is StoreTaskState.Failed -> release.versionCode == active.versionCode
+                    is StoreTaskState.ReadyToInstall -> active.matches(release)
+                    else -> release.versionName == active.versionName
+                }
+            }
+        }
+}
 
 @Immutable
 data class StoreUpdatesUiState(
@@ -56,7 +77,37 @@ data class StoreUpdatesUiState(
     val lastCheckedAt: Instant? = null,
     val refreshing: Boolean = false,
     val signatures: Map<String, StoreSignatureRecord> = emptyMap(),
+    val lastCheckComplete: Boolean? = null,
+    val failedStores: List<String> = emptyList(),
+    val failedStoreReason: String? = null,
+    val autoInstall: Boolean = true,
+    val pinnedSources: Map<String, String> = emptyMap(),
 )
+
+internal data class StoreBatchPlan(
+    val downloads: List<Pair<LocalInstalledApp, StoreReleaseInfo>>,
+    val ready: List<Pair<String, StoreTaskState.ReadyToInstall>>,
+) {
+    val count: Int get() = downloads.size + ready.size
+    val estimatedBytes: Long? get() = downloads.sumOf { it.second.exactSizeBytes?.takeIf { bytes -> bytes > 0L } ?: return null }
+}
+
+internal fun StoreUpdatesUiState.batchPlan(canInstall: Boolean): StoreBatchPlan {
+    val downloads = mutableListOf<Pair<LocalInstalledApp, StoreReleaseInfo>>()
+    val ready = mutableListOf<Pair<String, StoreTaskState.ReadyToInstall>>()
+    for (row in updatable) {
+        val release = row.best ?: continue
+        if (row.isSkipped) continue
+        when (val task = row.recommendedTask) {
+            null, is StoreTaskState.Failed -> downloads += row.local to release
+            is StoreTaskState.ReadyToInstall -> if (canInstall && autoInstall && task.signatureVerified && !task.is32BitWarning) {
+                ready += row.local.packageName to task
+            }
+            else -> Unit
+        }
+    }
+    return StoreBatchPlan(downloads, ready)
+}
 
 class StoreUpdatesViewModel(
     app: Application,
@@ -75,25 +126,34 @@ class StoreUpdatesViewModel(
     val checkProgress: StateFlow<StoreCheckProgress?> = checker.progress
 
     private val storeSlice = stateStore.state
-        .map { it.settings.storePrefs to it.storeState }
+        .map { Triple(it.settings.storePrefs, it.storeState, it.settings.autoInstallDownload) }
         .distinctUntilChanged()
+
+    val tasks = downloadHost.states
 
     val uiState: StateFlow<StoreUpdatesUiState> = combine(
         storeSlice,
-        installedCache.apps,
-        downloadHost.states,
+        installedCache.scan,
+        tasks.distinctUntilChanged { before, after ->
+            before.keys == after.keys && before.all { (pkg, old) ->
+                val current = after[pkg]
+                old == current || (old is StoreTaskState.Downloading && current is StoreTaskState.Downloading &&
+                    old.storeId == current.storeId && old.versionName == current.versionName)
+            }
+        },
         refreshingFlow,
     ) { slice, installed, tasks, refreshing ->
-        buildUiState(slice.first, slice.second, installed, tasks, refreshing)
+        buildUiState(slice.first, slice.second, installed, tasks, refreshing, slice.third)
     }.flowOn(Dispatchers.Default).stateIn(
         scope = viewModelScope,
         started = SharingStarted.WhileSubscribed(5_000),
         initialValue = buildUiState(
             prefs = stateStore.state.value.settings.storePrefs,
             storeState = stateStore.state.value.storeState,
-            installed = installedCache.apps.value,
+            installed = installedCache.scan.value,
             tasks = downloadHost.states.value,
             refreshing = false,
+            autoInstall = stateStore.state.value.settings.autoInstallDownload,
         ),
     )
 
@@ -101,15 +161,11 @@ class StoreUpdatesViewModel(
         viewModelScope.launch {
             val state = stateStore.state.value
             val prefs = state.settings.storePrefs
-            installedCache.ensureLoaded(prefs.includeSystemApps)
-            // 首次开启渠道后点进本页（从未检查过）时自动检查，兑现首页「点此检查更新」语义
-            if (prefs.enabledStores.isNotEmpty() && state.storeState.lastCheckedAt == null) {
-                refresh()
-            }
+            if (state.storeState.lastCheckComplete != null) installedCache.ensureLoaded(prefs.includeSystemApps)
         }
     }
 
-    fun onPullRefresh(onComplete: ((updatableCount: Int) -> Unit)? = null) {
+    fun onPullRefresh(onComplete: ((StoreCheckSummary) -> Unit)? = null) {
         refresh(onComplete)
         if (_pullRefreshing.compareAndSet(false, true)) {
             viewModelScope.launch {
@@ -119,22 +175,19 @@ class StoreUpdatesViewModel(
         }
     }
 
-    fun refresh(onComplete: ((updatableCount: Int) -> Unit)? = null) {
-        if (refreshingFlow.value) return
+    fun refresh(onComplete: ((StoreCheckSummary) -> Unit)? = null) {
+        if (!refreshingFlow.compareAndSet(expect = false, update = true)) return
         viewModelScope.launch {
             val startedAt = SystemClock.elapsedRealtime()
-            refreshingFlow.value = true
-            var updatableCount: Int? = null
+            var summary: StoreCheckSummary? = null
             try {
-                val includeSystem = stateStore.state.value.settings.storePrefs.includeSystemApps
-                installedCache.refresh(includeSystem)
-                updatableCount = checker.checkAll(force = true).updatableCount
+                summary = checker.checkAll(force = true, scanInstalled = installedCache::refresh)
             } finally {
                 // 批量商店常在 200~400ms 返回，补足最短停留时间避免「正在检查」状态一闪而过
                 val remaining = MIN_REFRESH_DISPLAY_MS - (SystemClock.elapsedRealtime() - startedAt)
                 if (remaining > 0L) delay(remaining)
                 refreshingFlow.value = false
-                updatableCount?.let { onComplete?.invoke(it) }
+                summary?.let { onComplete?.invoke(it) }
             }
         }
     }
@@ -142,160 +195,123 @@ class StoreUpdatesViewModel(
     private fun buildUiState(
         prefs: StorePreferences,
         storeState: StoreState,
-        installed: List<LocalInstalledApp>,
+        installed: InstalledAppScan?,
         tasks: Map<String, StoreTaskState>,
         refreshing: Boolean,
+        autoInstall: Boolean,
     ): StoreUpdatesUiState {
         val updates = storeState.updates
         val sigs = storeState.signatures
-        val enabledSet = prefs.enabledStores.toSet()
-        val deviceOemStore = StoreSystemAppPolicy.deviceOemStoreId()
-        val rows = installed.filter { it.packageName !in prefs.excludedPackages }.map { local ->
+        val rows = installed?.apps.orEmpty().filter { it.packageName !in prefs.excludedPackages && (prefs.includeSystemApps || !it.isSystemApp) }.map { local ->
             val rawUpd = updates[local.packageName]
-            val filteredCandidates = rawUpd?.candidates?.filter { cand ->
-                cand.storeId in enabledSet &&
-                    StoreSystemAppPolicy.isStoreEligibleForApp(local, cand.storeId, deviceOemStore)
-            }.orEmpty()
+            val filteredCandidates = rawUpd?.let { StoreCatalog.eligibleCandidates(it, prefs, local) }.orEmpty()
             val upd = if (rawUpd != null && filteredCandidates.isNotEmpty()) {
                 rawUpd.copy(candidates = filteredCandidates)
             } else null
             val best = upd?.let {
-                StoreCatalog.selectBestCandidate(
-                    candidates = it.candidates,
-                    enabledOrder = prefs.enabledStores,
-                    pinnedStoreId = prefs.pinnedSources[local.packageName],
-                    verdictOf = { sid ->
-                        StoreUpdateChecker.validSignatureVerdict(
-                            sigs[storeState.signatureKey(local.packageName, sid)],
-                            local.signatureSha256,
-                        )
-                    },
-                )
+                StoreCatalog.actionableCandidate(it, prefs, sigs, local, includeSkipped = true)
             }
-            val skippedCode = prefs.skippedVersions[local.packageName] ?: 0L
-            val isSkipped = best != null && best.versionCode <= skippedCode
             StoreUpdateRowItem(
                 local = local,
                 update = upd,
                 best = best,
-                isSkipped = isSkipped,
-                task = tasks[local.packageName],
+                skippedThrough = prefs.skippedVersions[local.packageName],
+                task = tasks[local.packageName]?.takeUnless { task ->
+                    task is StoreTaskState.Failed && filteredCandidates.none {
+                        it.storeId == task.storeId && it.versionCode == task.versionCode
+                    }
+                },
             )
         }
         return StoreUpdatesUiState(
             enabledStores = prefs.enabledStores,
             // 进行中或失败的任务保留在「可更新」页，避免签名不兼容自动过滤后卡片静默消失、用户看不到红字原因
-            updatable = rows.filter { (it.best != null && !it.isSkipped) || it.task != null },
+            updatable = rows.filter { (it.best != null && !it.isSkipped) || it.recommendedTask != null },
             allInstalled = rows,
             skipped = rows.filter { it.isSkipped },
             lastCheckedAt = storeState.lastCheckedAt,
-            refreshing = refreshing,
+            refreshing = refreshing || (installed == null && storeState.lastCheckComplete != null),
             signatures = sigs,
+            lastCheckComplete = if (storeState.lastCheckComplete == true && installed?.complete == false) false else storeState.lastCheckComplete,
+            failedStores = storeState.lastFailedStoreIds,
+            failedStoreReason = storeState.lastFailedStoreIds.map { storeState.health[it]?.lastError }.distinct().singleOrNull(),
+            autoInstall = autoInstall,
+            pinnedSources = prefs.pinnedSources,
         )
     }
 
-    fun startUpdate(local: LocalInstalledApp, release: StoreReleaseInfo) {
-        downloadHost.startUpdate(local, release)
+    fun startUpdate(local: LocalInstalledApp, release: StoreReleaseInfo, meteredConfirmed: Boolean) {
+        downloadHost.startUpdate(local, release, meteredConfirmed)
     }
 
-    fun checkSingleApp(local: LocalInstalledApp, onDone: (Boolean) -> Unit) {
+    fun checkSingleApp(local: LocalInstalledApp, onDone: (SingleStoreCheckResult) -> Unit) {
         viewModelScope.launch {
             val found = checker.checkSingleApp(local)
             onDone(found)
         }
     }
 
-    fun updateAll() {
-        val targets = uiState.value.updatable.mapNotNull { row ->
-            val rel = row.best ?: return@mapNotNull null
-            if (row.task is StoreTaskState.Downloading || row.task is StoreTaskState.Installing) null
-            else row.local to rel
+    internal fun updateAll(plan: StoreBatchPlan, meteredConfirmed: Boolean, canInstall: Boolean): Int {
+        // A confirmation applies only to the packages and versions shown when it opened.
+        val current = uiState.value.batchPlan(canInstall)
+        val downloads = current.downloads.filter { (app, release) ->
+            plan.downloads.any { (approvedApp, approvedRelease) ->
+                approvedApp.packageName == app.packageName && approvedRelease == release
+            }
         }
-        if (targets.isNotEmpty()) downloadHost.updateAll(targets)
+        val installs = current.ready.count { (pkg, expected) ->
+            (pkg to expected) in plan.ready && downloadHost.installReady(pkg, expected, requestPermission = false)
+        }
+        return installs + downloadHost.updateAll(downloads, meteredConfirmed)
     }
 
-    fun installReady(packageName: String) = downloadHost.installReady(packageName)
+    fun installReady(packageName: String, expected: StoreTaskState.ReadyToInstall) {
+        downloadHost.installReady(packageName, expected)
+    }
 
     fun cancelDownload(packageName: String) = downloadHost.cancel(packageName)
 
     fun clearFailure(packageName: String) = downloadHost.clearFailure(packageName)
 
-    fun skipVersion(packageName: String, versionCode: Long) {
-        viewModelScope.launch {
-            stateStore.update { st ->
-                val prefs = st.settings.storePrefs
-                st.copy(
-                    settings = st.settings.copy(
-                        storePrefs = prefs.copy(skippedVersions = prefs.skippedVersions + (packageName to versionCode)),
-                    ),
-                )
-            }
-        }
-    }
-
-    fun unskipVersion(packageName: String) {
-        viewModelScope.launch {
-            stateStore.update { st ->
-                val prefs = st.settings.storePrefs
-                st.copy(
-                    settings = st.settings.copy(
-                        storePrefs = prefs.copy(skippedVersions = prefs.skippedVersions - packageName),
-                    ),
-                )
-            }
+    fun setSkippedVersion(packageName: String, versionCode: Long?, expected: Long? = null) {
+        updatePreference(packageName) { prefs ->
+            val skipped = prefs.skippedVersions
+            if (expected != null && skipped[packageName] != expected) prefs
+            else prefs.copy(skippedVersions = if (versionCode == null) skipped - packageName else skipped + (packageName to versionCode))
         }
     }
 
     fun excludePackage(packageName: String) {
-        viewModelScope.launch {
-            stateStore.update { st ->
-                val prefs = st.settings.storePrefs
-                st.copy(
-                    settings = st.settings.copy(
-                        storePrefs = prefs.copy(excludedPackages = prefs.excludedPackages + packageName),
-                    ),
-                )
-            }
-        }
+        updatePreference(packageName) { it.copy(excludedPackages = it.excludedPackages + packageName) }
     }
 
     fun unexcludePackage(packageName: String) {
-        viewModelScope.launch {
-            stateStore.update { st ->
-                val prefs = st.settings.storePrefs
-                st.copy(
-                    settings = st.settings.copy(
-                        storePrefs = prefs.copy(excludedPackages = prefs.excludedPackages - packageName),
-                    ),
-                )
-            }
-        }
+        updatePreference(packageName) { it.copy(excludedPackages = it.excludedPackages - packageName) }
     }
 
     fun pinSource(packageName: String, storeId: String?) {
+        updatePreference(packageName) { prefs ->
+            val pins = if (storeId == null) prefs.pinnedSources - packageName else prefs.pinnedSources + (packageName to storeId)
+            prefs.copy(pinnedSources = pins)
+        }
+    }
+
+    private fun updatePreference(packageName: String, change: (StorePreferences) -> StorePreferences) {
         viewModelScope.launch {
             stateStore.update { st ->
-                val prefs = st.settings.storePrefs
-                val next = if (storeId == null) prefs.pinnedSources - packageName
-                else prefs.pinnedSources + (packageName to storeId)
-                st.copy(settings = st.settings.copy(storePrefs = prefs.copy(pinnedSources = next)))
+                st.withStorePreferenceFor(packageName, observed = true, transform = change)
             }
         }
     }
 
     fun isMeteredNetwork(): Boolean {
         val cm = getApplication<Application>().getSystemService(Context.CONNECTIVITY_SERVICE) as? ConnectivityManager
-        return runCatching { cm?.isActiveNetworkMetered == true }.getOrDefault(false)
+        return runCatching { cm?.isActiveNetworkMetered ?: true }.getOrDefault(true)
     }
 
     fun shouldPromptMetered(sizeBytes: Long): Boolean {
         if (!isMeteredNetwork()) return false
-        return when (val policy = stateStore.state.value.settings.storePrefs.meteredDownloadPolicy) {
-            MeteredDownloadPolicy.ALWAYS_ALLOW -> false
-            MeteredDownloadPolicy.ALWAYS_ASK -> true
-            MeteredDownloadPolicy.OVER_50MB,
-            MeteredDownloadPolicy.OVER_200MB -> sizeBytes >= policy.thresholdBytes
-        }
+        return stateStore.state.value.settings.storePrefs.meteredDownloadPolicy.requiresConfirmation(sizeBytes)
     }
 
     companion object {

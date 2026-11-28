@@ -1,15 +1,19 @@
 package io.candy.tick.data.store.vivo
 
 import android.os.Build
+import io.candy.tick.data.SourceError
+import io.candy.tick.data.SourceException
 import io.candy.tick.data.download.ExpectedHash
 import io.candy.tick.data.download.HashAlgorithm
 import io.candy.tick.data.model.StoreReleaseInfo
 import io.candy.tick.data.store.LocalInstalledApp
 import io.candy.tick.data.store.StoreCatalog
 import io.candy.tick.data.store.StoreHttp
+import io.candy.tick.data.store.matchesArtifactChecksum
 import java.net.URLEncoder
 import kotlinx.serialization.json.Json
 import kotlinx.serialization.json.JsonArray
+import kotlinx.serialization.json.JsonNull
 import kotlinx.serialization.json.JsonObject
 import kotlinx.serialization.json.JsonPrimitive
 import kotlinx.serialization.json.contentOrNull
@@ -20,8 +24,9 @@ import kotlinx.serialization.json.longOrNull
  */
 internal object VivoProtocol {
     const val UPDATE_URL = "https://update.appstore.vivo.com.cn/port/packages_update/"
+    const val DETAIL_URL = "https://main.appstore.vivo.com.cn/port/packageList/"
     const val MAX_BATCH = 100
-    private const val APP_VERSION = "61510"
+    const val APP_VERSION = "61510"
     private val md5Regex = Regex("^[a-fA-F0-9]{32}$")
 
     fun userAgent(): String =
@@ -63,17 +68,26 @@ internal object VivoProtocol {
     }
 
     fun parseUpdateResponse(rawJson: String, installed: Map<String, LocalInstalledApp>): Map<String, StoreReleaseInfo> {
-        val root = runCatching { Json.parseToJsonElement(rawJson) as? JsonObject }.getOrNull() ?: return emptyMap()
-        val list = root["value"] as? JsonArray ?: return emptyMap()
+        val root = Json.parseToJsonElement(rawJson) as JsonObject
+        val status = root["code"] ?: root["retcode"]
+        require(status == null || (status as? JsonPrimitive)?.longOrNull == 0L) { "vivo update request failed" }
+        val list = root["value"]
+        if (list == null || list == JsonNull) {
+            require(status != null) { "Missing vivo update list" }
+            return emptyMap()
+        }
+        require(list is JsonArray) { "Invalid vivo update list" }
         val out = mutableMapOf<String, StoreReleaseInfo>()
         for (el in list) {
             val item = el as? JsonObject ?: continue
             val pkg = item.str("package_name").trim()
             val local = installed[pkg] ?: continue
+            if (item.num("problemLevel") >= 1L) continue
             val code = item.num("version_code")
-            if (pkg.isBlank() || code <= local.versionCode) continue
+            if (code <= local.versionCode || code <= (out[pkg]?.versionCode ?: 0L)) continue
             val url = StoreHttp.upgradeToHttps(item.str("download_url"))
-            if (url.isBlank()) continue
+            val appId = item.num("id")
+            if (url.isBlank() && appId <= 0L) continue
             val md5 = item.str("md5").ifBlank { item.str("originalMd5") }.lowercase()
                 .takeIf(md5Regex::matches).orEmpty()
             out[pkg] = StoreReleaseInfo(
@@ -82,12 +96,32 @@ internal object VivoProtocol {
                 versionName = item.str("version_name").ifBlank { code.toString() },
                 sizeBytes = item.num("size") * 1024L,
                 changelog = item.str("update_des").trim(),
-                appId = item.num("id"),
+                appId = appId,
                 downloadUrl = url,
                 checksum = md5,
             )
         }
         return out
+    }
+
+    fun downloadDetail(body: String, packageName: String, release: StoreReleaseInfo): StoreReleaseInfo {
+        val root = Json.parseToJsonElement(body) as JsonObject
+        val code = (root["code"] ?: root["retcode"]) as? JsonPrimitive
+        if (code?.longOrNull != 0L) throw SourceException(SourceError.NotFound)
+        // The update endpoint can serve preinstalled apps that are absent from packageList.
+        val value = root["value"]
+        if (value == null || value == JsonNull) return release
+        val items = (value as JsonObject)["appInfoList"]
+        if (items == null || items == JsonNull) return release
+        val item = (items as JsonArray).filterIsInstance<JsonObject>().firstOrNull { it.num("id") == release.appId } ?: return release
+        val pkg = item.str("package_name")
+        val version = item.num("version_code")
+        if (item.num("problemLevel") >= 1L || (pkg.isNotBlank() && pkg != packageName) ||
+            (version > 0L && version != release.versionCode)) throw SourceException(SourceError.NotFound)
+        val url = StoreHttp.upgradeToHttps(item.str("download_url")).ifBlank { throw SourceException(SourceError.NotFound) }
+        val md5 = item.str("md5").lowercase().takeIf(md5Regex::matches) ?: release.checksum
+        if (!release.matchesArtifactChecksum(md5)) throw SourceException(SourceError.NotFound)
+        return release.copy(downloadUrl = url, checksum = md5)
     }
 
     fun expectedMd5(checksum: String): ExpectedHash? =

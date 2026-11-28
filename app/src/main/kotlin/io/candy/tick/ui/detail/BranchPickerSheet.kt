@@ -11,10 +11,13 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.snapshotFlow
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
+import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.vector.ImageVector
@@ -35,6 +38,8 @@ import io.candy.tick.ui.common.SheetScrollToTopTitle
 import io.candy.tick.ui.common.StatusPage
 import io.candy.tick.ui.common.relTimeString
 import io.candy.tick.ui.common.scrollToTop
+import kotlinx.coroutines.delay
+import kotlinx.coroutines.flow.collectLatest
 
 /**
  * 分支选择器随窗口限高，列表较长时提供筛选。
@@ -47,10 +52,11 @@ internal fun BranchPickerSheet(
     onSelect: (String?) -> Unit,
     onDismiss: () -> Unit,
     onLoadBranches: () -> Unit,
+    onVisibleBranches: suspend (List<String>) -> Unit,
 ) {
     val windowHeight = LocalWindowInfo.current.containerDpSize.height
     val maxSheetHeight = windowHeight * 0.6f
-    var query by remember { mutableStateOf("") }
+    var query by rememberSaveable { mutableStateOf("") }
     val branches = state.branches.orEmpty()
     val searchable = branches.size > PICKER_SEARCH_THRESHOLD
     // GitHub 式分支切换器：纯分支列表，当前查看的分支打勾——
@@ -67,6 +73,19 @@ internal fun BranchPickerSheet(
     }
     // show 直通（勿用 if 包裹组件）：关闭时组件仍在组合中，库的退场动画才能播放
     val listState = rememberLazyListState()
+    LaunchedEffect(show, listState, onVisibleBranches) {
+        if (!show) return@LaunchedEffect
+        snapshotFlow {
+            if (listState.isScrollInProgress) emptyList() else listState.layoutInfo.visibleItemsInfo.mapNotNull { item ->
+                (item.key as? String)?.takeIf { it.startsWith("branch:") }?.removePrefix("branch:")
+            }
+        }.collectLatest { visible ->
+            if (visible.isNotEmpty()) {
+                delay(160)
+                onVisibleBranches(visible)
+            }
+        }
+    }
     CandySheet(
         show = show,
         onDismissRequest = onDismiss,
@@ -110,7 +129,7 @@ internal fun BranchPickerSheet(
                         }
                     }
                 }
-                items(filtered, key = { it.name }) { b ->
+                items(filtered, key = { "branch:${it.name}" }) { b ->
                     // 点默认分支 = 存 null（保留「跟随默认」语义，上游改名自动跟）。
                     // 副标题 null 时传占位空格：行高恒为「有副标题」高度，日期到达只换文字
                     // 不变高度——标题零位移（animateContentSize 只动画容器尺寸，内部布局

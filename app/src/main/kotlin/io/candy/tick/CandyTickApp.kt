@@ -14,6 +14,7 @@ import kotlinx.coroutines.CoroutineStart
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.distinctUntilChanged
+import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.filter
 import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.launch
@@ -128,6 +129,25 @@ class CandyTickApp : Application() {
                 if (prefs.enabledStores.isNotEmpty()) {
                     runCatching { container.installedAppCache.refresh(prefs.includeSystemApps) }
                 }
+            }
+        }
+        container.appScope.launch(Dispatchers.IO) {
+            container.installManager.packageRemoved.collect { pkg ->
+                if (container.storeUpdateChecker.removePackage(pkg)) {
+                    container.existingStoreDownloads()?.onPackageUninstalled(pkg)
+                }
+                val prefs = container.appStateStore.state.value.settings.storePrefs
+                if (prefs.enabledStores.isNotEmpty()) container.installedAppCache.refresh(prefs.includeSystemApps)
+            }
+        }
+        container.appScope.launch(Dispatchers.IO) {
+            container.appStateStore.awaitLoaded()
+            combine(
+                container.appStateStore.state.map { Triple(it.settings.notificationsEnabled, it.settings.storePrefs, it.storeState) }
+                    .distinctUntilChanged(),
+                container.installedAppCache.scan,
+            ) { _, _ -> Unit }.collect {
+                Notifications.reconcileStoreSummary(this@CandyTickApp, container.appStateStore.state, container.installedAppCache.scan)
             }
         }
         // 「每次打开应用」同步：前后台切换计数，0→1 即回到前台（冷/热启动都覆盖）

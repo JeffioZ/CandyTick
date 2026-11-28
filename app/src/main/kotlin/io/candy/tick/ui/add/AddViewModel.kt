@@ -2,6 +2,7 @@ package io.candy.tick.ui.add
 
 import androidx.compose.runtime.Immutable
 import androidx.lifecycle.ViewModel
+import androidx.lifecycle.SavedStateHandle
 import androidx.lifecycle.viewModelScope
 import io.candy.tick.data.RepoInfo
 import io.candy.tick.data.RepoInfoResult
@@ -35,6 +36,7 @@ import kotlinx.coroutines.withContext
 class AddViewModel(
     private val repository: RepoRepository,
     context: android.content.Context,
+    private val savedState: SavedStateHandle,
 ) : ViewModel() {
 
     private val appContext = context.applicationContext
@@ -79,7 +81,11 @@ class AddViewModel(
     private val _events = Channel<Event>(Channel.BUFFERED)
     val events: Flow<Event> = _events.receiveAsFlow()
 
-    private val _state = MutableStateFlow(UiState())
+    private val draft = savedState.get<String>("input").orEmpty()
+    private val _state = MutableStateFlow(UiState(
+        input = draft,
+        parseError = UrlParser.looksLikeUrl(draft) && UrlParser.parse(draft) == null,
+    ))
     val state: StateFlow<UiState> = _state.asStateFlow()
 
     // 同一输入区只允许一个搜索、去抖或预览请求持有结果。
@@ -90,6 +96,12 @@ class AddViewModel(
     private var previewSavedLink: SavedLink? = null
 
     init {
+        val preview = savedState.get<String>("preview")?.let(UrlParser::parse)
+        if (preview != null) {
+            lookupJob = viewModelScope.launch { fetchPreview(preview.first, preview.second) }
+        } else if (savedState.get<Boolean>("submitted") == true) {
+            submit()
+        }
         viewModelScope.launch {
             repository.state.map { it.repos }.distinctUntilChanged().collect { repos ->
                 val current = state.value
@@ -131,6 +143,11 @@ class AddViewModel(
         linkJob?.cancel()
         linkEdited = false
         val parsed = UrlParser.parse(text)
+        savedState["input"] = text
+        savedState["submitted"] = false
+        savedState["preview"] = parsed?.let { (owner, repo) -> "$owner/$repo" }
+        savedState.remove<Long>("editedRepo")
+        savedState.remove<String>("editedPackage")
         _state.update {
             it.copy(
                 input = text, searchError = null, searched = false, searching = false,
@@ -154,6 +171,7 @@ class AddViewModel(
         if (current.adding || text.isBlank() || current.parseError) return
         val parsed = UrlParser.parse(text)
         if (parsed != null) {
+            savedState["preview"] = "${parsed.first}/${parsed.second}"
             if (current.preview == PreviewState.Idle || current.preview is PreviewState.Failed) {
                 lookupJob?.cancel()
                 lookupJob = viewModelScope.launch { fetchPreview(parsed.first, parsed.second) }
@@ -162,6 +180,7 @@ class AddViewModel(
         }
         lookupJob?.cancel()
         linkJob?.cancel()
+        savedState["submitted"] = true
         lookupJob = viewModelScope.launch {
             _state.update {
                 it.copy(searching = true, searchError = null, results = RepoSearchPage(), resultPackages = emptyMap(), preview = PreviewState.Idle)
@@ -182,13 +201,24 @@ class AddViewModel(
         addJob?.cancel()
         linkJob?.cancel()
         linkEdited = false
+        savedState.remove<String>("preview")
+        savedState.remove<Long>("editedRepo")
+        savedState.remove<String>("editedPackage")
         _state.update { it.copy(preview = PreviewState.Idle, duplicate = false, adding = false) }
+        if (savedState.get<Boolean>("submitted") == true && !_state.value.searched) submit()
+    }
+
+    fun retryPreview() {
+        val (owner, repo) = savedState.get<String>("preview")?.let(UrlParser::parse) ?: return
+        lookupJob?.cancel()
+        lookupJob = viewModelScope.launch { fetchPreview(owner, repo) }
     }
 
     fun pickResult(info: RepoInfo) {
         if (_state.value.preview != PreviewState.Idle) return
         lookupJob?.cancel()
         linkEdited = false
+        savedState["preview"] = "${info.owner}/${info.repo}"
         showPreview(info)
         lookupJob = viewModelScope.launch {
             try {
@@ -206,13 +236,11 @@ class AddViewModel(
 
     private fun showPreview(info: RepoInfo, saved: SavedLink? = repository.state.value.repos.savedLink(info.githubId)) {
         linkJob?.cancel()
-        // 新预览实例使旧的手动选择失效（那是针对上一个预览的）：必须复位，
-        // 否则 resolveLink 的 linkEdited 早退会让 matchingApp 永不复位、确认按钮永久置灰
-        linkEdited = false
+        linkEdited = savedState.get<Long>("editedRepo") == info.githubId
         previewSavedLink = saved
-        val linkedPkg = saved?.packageName
-        val name = linkedPkg?.let { rememberAppName(it, saved.label) }
-        val shouldMatch = linkedPkg == null && saved?.dismissed != true
+        val linkedPkg = if (linkEdited) savedState.get<String>("editedPackage") else saved?.packageName
+        val name = linkedPkg?.let { rememberAppName(it, if (linkEdited) null else saved?.label) }
+        val shouldMatch = !linkEdited && linkedPkg == null && saved?.dismissed != true
         _state.update {
             it.copy(
                 preview = PreviewState.Loaded(
@@ -253,7 +281,7 @@ class AddViewModel(
             }
         }
         val current = _state.value.preview as? PreviewState.Loaded ?: return
-        if (current.info.githubId != info.githubId || linkEdited) return
+        if (current.info.githubId != info.githubId || (linkEdited && (pkg == null || current.linkedPackage != pkg))) return
         val name = link?.let { (pkg, label) -> rememberAppName(pkg, label) }
         _state.update { it.copy(preview = current.copy(linkedPackage = link?.first, linkedLabel = name, matchingApp = false)) }
     }
@@ -268,6 +296,8 @@ class AddViewModel(
         if (current.info.githubId != repoId || _state.value.adding) return
         linkJob?.cancel()
         linkEdited = true
+        savedState["editedRepo"] = repoId
+        savedState["editedPackage"] = packageName
         val name = packageName?.let { rememberAppName(it, label) }
         _state.update { it.copy(preview = current.copy(linkedPackage = packageName, linkedLabel = name, matchingApp = false)) }
     }

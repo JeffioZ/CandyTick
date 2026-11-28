@@ -17,8 +17,8 @@ import kotlinx.coroutines.withContext
  */
 class InstalledAppCache(private val appContext: Context) {
 
-    private val _apps = MutableStateFlow<List<LocalInstalledApp>>(emptyList())
-    val apps: StateFlow<List<LocalInstalledApp>> = _apps.asStateFlow()
+    private val _scan = MutableStateFlow<InstalledAppScan?>(null)
+    val scan: StateFlow<InstalledAppScan?> = _scan.asStateFlow()
 
     private val mutex = Mutex()
     @Volatile
@@ -27,18 +27,24 @@ class InstalledAppCache(private val appContext: Context) {
     val isLoaded: Boolean get() = loadedForSystemFlag != null
 
     suspend fun ensureLoaded(includeSystemApps: Boolean) {
-        if (loadedForSystemFlag == includeSystemApps && _apps.value.isNotEmpty()) return
+        if (loadedForSystemFlag == includeSystemApps) return
         refresh(includeSystemApps)
     }
 
-    suspend fun refresh(includeSystemApps: Boolean): List<LocalInstalledApp> = mutex.withLock {
+    suspend fun refresh(includeSystemApps: Boolean): InstalledAppScan = mutex.withLock {
         val scanned = withContext(Dispatchers.IO) {
             InstalledAppScanner.scan(appContext, includeSystemApps = includeSystemApps)
         }
-        loadedForSystemFlag = includeSystemApps
-        if (scanned != _apps.value) {
-            _apps.value = scanned
-        }
+        loadedForSystemFlag = includeSystemApps.takeIf { scanned.complete }
+        _scan.value = scanned
         scanned
     }
+}
+
+internal const val PERM_GET_INSTALLED_APPS = "com.android.permission.GET_INSTALLED_APPS"
+
+internal fun needsInstalledAppsPermission(context: Context): Boolean {
+    val supported = runCatching { context.packageManager.getPermissionInfo(PERM_GET_INSTALLED_APPS, 0) }.isSuccess
+    return supported && androidx.core.content.ContextCompat.checkSelfPermission(context, PERM_GET_INSTALLED_APPS) !=
+        android.content.pm.PackageManager.PERMISSION_GRANTED
 }

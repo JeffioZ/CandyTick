@@ -7,6 +7,7 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.setValue
 import androidx.lifecycle.ViewModel
+import androidx.lifecycle.SavedStateHandle
 import androidx.lifecycle.viewModelScope
 import io.candy.tick.CandyTickApp
 import io.candy.tick.data.RepoRepository
@@ -65,6 +66,7 @@ class ListViewModel(
     private val repository: RepoRepository,
     private val downloadHost: RepoDownloadHost,
     private val context: Application,
+    private val savedState: SavedStateHandle,
 ) : ViewModel() {
 
     // @Immutable（含 List 字段的值对象承诺只读）：RepoListItem/CardExtras 稳定后，
@@ -120,7 +122,7 @@ class ListViewModel(
     private val _events = Channel<Event>(Channel.BUFFERED)
     val events: Flow<Event> = _events.receiveAsFlow()
 
-    private val query = MutableStateFlow("")
+    private val query = savedState.getStateFlow("query", "")
     private val refreshing = MutableStateFlow(false)
     internal val manualRefresh: StateFlow<Boolean> = refreshing
     private val banner = MutableStateFlow<SourceError?>(null)
@@ -278,7 +280,8 @@ class ListViewModel(
         val live = rows(stored.repos, stored.snapshots, emptyMap())
         val order = SortOrder.fromStorage(stored.settings.sortMode)
         return UiState(
-            items = sortedItems(OrderRows(live, live, order), "", emptyMap()),
+            items = sortedItems(OrderRows(live, live, order), query.value, emptyMap()),
+            query = query.value,
             sortOrder = order,
         )
     }
@@ -392,10 +395,9 @@ class ListViewModel(
     /** 展开卡数据拉取失败后的显式重试（此前恢复路径=收起再展开，不可发现） */
     fun retryCard(id: Long) = loadCard(id)
 
-    /** 通知开关开着但权限未授：首页上下文请求一次的依据 */
-    val shouldRequestNotificationPermission: Boolean
-        get() = repository.state.value.settings.notificationsEnabled &&
-            !io.candy.tick.data.Notifications.canNotify(context)
+    val hasNotificationSources = repository.state.map {
+        it.settings.notificationsEnabled && (it.repos.isNotEmpty() || it.settings.storePrefs.enabledStores.isNotEmpty())
+    }.distinctUntilChanged()
 
     internal val storedSortOrder: SortOrder get() = SortOrder.fromStorage(repository.state.value.settings.sortMode)
 
@@ -407,7 +409,7 @@ class ListViewModel(
     }
 
     fun setQuery(text: String) {
-        query.value = text
+        savedState["query"] = text
     }
 
     /** 从安装器返回（ON_RESUME）：递增 epoch 重算「有新版」标识与版本行 */

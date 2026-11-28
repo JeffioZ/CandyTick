@@ -5,6 +5,7 @@ package io.candy.tick.data.model
 import java.time.Instant
 import java.time.OffsetDateTime
 import kotlinx.serialization.KSerializer
+import kotlinx.serialization.SerialName
 import kotlinx.serialization.Serializable
 import kotlinx.serialization.UseSerializers
 import kotlinx.serialization.descriptors.PrimitiveKind
@@ -56,9 +57,24 @@ data class DownloadedApk(
     val version: String,
     val packageName: String? = null, // APK 包名（装后广播按此精确匹配清理；旧记录 null 兼容）
     val assetName: String? = null,
+    val store: StoreApkDetails? = null,
 ) {
     val displayAssetName: String get() = assetName ?: fileName
 }
+
+/** Only created after the base APK and every expected split have passed verification. */
+@Serializable
+data class StoreApkDetails(
+    val sourceId: String,
+    val versionCode: Long,
+    val splits: List<String> = emptyList(),
+    val localCertificate: String = "",
+    val warn32Bit: Boolean = false,
+    val sessionId: Int? = null,
+    val verifiedLengths: List<Long> = emptyList(),
+    val signatureVerified: Boolean = false,
+    val checksum: String = "",
+)
 
 /** 本机发现的活动按发布标签 / 提交 SHA 独立确认。浏览较早的版本不会清除随后到达的更新。 */
 @Serializable
@@ -132,8 +148,11 @@ data class RepoSnapshot(
     val lastSyncAt: Instant,
     val etag: String?,
     val latestReleaseTag: String? = null, // 后台已处理通知的发布游标，兼容旧快照。
-    // 旧 releasesEtag 对应的快照不含发布时间；换键后下一次请求会自动补齐正文。
+    // 旧 ETag 无法区分首页 APK 与深页 APK；升级后重读一次首页以确定是否需要复查历史版本。
+    @SerialName("apkHistoryPageEtag")
     val releasePageEtag: String? = null,
+    // After an APK-free first page, remember the next search page or the page containing the known APK.
+    val apkSearchNextPage: Int? = null,
     // 浏览分支的 tip 指纹（「有新提交」的精确信号源）：GitHub pushed_at 统计任意分支
     // 的推送——dev 推进会让它前进而浏览分支毫无动静（InstallerX-Revived 实例），
     // 直接用它判定会误亮且详情页无从查证。null = 基线缺失（首次/切分支/导入），只记录不亮灯
@@ -205,6 +224,7 @@ data class Settings(
     val language: String = "", // 应用内语言（空 = 跟随系统；"zh" / "en"）
     val sortMode: String = "LAST_PUSH", // 首页排序（持久化，重启保留）
     val storePrefs: StorePreferences = StorePreferences(),
+    val translationDisclosureAccepted: Boolean = false,
 ) {
     val canAutoDownloadUpdate: Boolean get() = selfUpdateCheck && selfUpdateAutoDownload
 }
@@ -218,6 +238,9 @@ data class AppState(
     val lastImportAt: Instant? = null, // 旧文件兼容：读取时转为各快照的独立基线。
     val downloadedSelfUpdate: DownloadedApk? = null,
     val storeState: StoreState = StoreState(),
+    val appliedRestoreId: String? = null,
+    // Written only in the device file to recognize its published Android backup copy.
+    val backupFileStamp: String? = null,
 )
 
 /** 维护状态按仓库最近一次推送距今天数及归档状态判定。 */

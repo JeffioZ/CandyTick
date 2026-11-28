@@ -116,7 +116,7 @@ class SelfUpdater(
         val previous = _state.value
         _state.value = State.Checking
         try {
-            val latest = githubApi.releases(APP_OWNER, APP_REPO, 1, perPage = 1).firstOrNull()
+            val latest = githubApi.latestStableRelease(APP_OWNER, APP_REPO)
             val installed = localVersionName()
             val comparison = if (latest != null && installed != null) VersionCompare.compare(latest.tagName, installed) else null
             if (latest == null || (comparison != null && comparison <= 0)) {
@@ -309,8 +309,7 @@ class SelfUpdater(
     suspend fun installAutomatically(downloaded: State.Downloaded): Boolean = withContext(Dispatchers.IO) {
         operations.withLock {
             if (!canAutoInstall(downloaded)) return@withLock false
-            installManager.installViaSession(downloaded.file, silentSelfUpdate = true)
-            true
+            installManager.submitSelfUpdate(downloaded.file)
         }
     }
 

@@ -62,7 +62,7 @@ class DetailViewModel(
         val commitsFailed: Boolean = false,
         val commitsPagingPaused: Boolean = false,
         val releases: List<ReleaseRecord> = emptyList(),
-        val notificationRelease: ReleaseRecord? = null,
+        val requestedRelease: ReleaseRecord? = null,
         val releasesLoading: Boolean = false,
         val releasesEnd: Boolean = false,
         val releasesFailed: Boolean = false,
@@ -91,6 +91,7 @@ class DetailViewModel(
         internal fun forNewBranch(): UiState = copy(
             commits = emptyList(), commitsEnd = false, commitsFailed = false, commitsPagingPaused = false,
             commitsLoading = false, commitsReloading = syncing,
+            banner = banner?.takeUnless { it == SourceError.BranchUnavailable },
         )
     }
 
@@ -98,6 +99,7 @@ class DetailViewModel(
         data class InstallResultEvent(val result: InstallManager.InstallResult) : Event
         data class AutoLinked(val displayName: String) : Event
         data object DownloadMissing : Event
+        data class ChoosePackage(val tag: String) : Event
     }
 
     /** 详情页浏览页签：提交 / 版本（一次只看一类，长列表不再互相挤压） */
@@ -124,6 +126,8 @@ class DetailViewModel(
     private val apkDir: File = File(context.filesDir, "apks/$repoId")
     private val commitCursor = HistoryCursor(COMMITS_PER_PAGE, CommitRecord::sha)
     private val releaseCursor = HistoryCursor(RELEASES_PER_PAGE, ReleaseRecord::tagName)
+    private val completedBranchDates = mutableSetOf<String>()
+    private var anonymousDateRequests = 0
     private var commitsGen = 0 // 提交列表代数：切分支/刷新时 +1，迟到的旧响应作废
     private var releasesGen = 0 // 版本列表代数：刷新时 +1，迟到的旧页响应作废
     // Main-thread requests update their cursors independently. During a pull, only their
@@ -260,6 +264,10 @@ class DetailViewModel(
         _state.update { it.copy(tab = newTab) }
     }
 
+    fun acceptTranslationDisclosure() {
+        viewModelScope.launch { repository.updateSettings { it.copy(translationDisclosureAccepted = true) } }
+    }
+
     fun protectReadingRows(tab: DetailTab, ids: Set<String>, headerInView: Boolean = false) {
         val current = _state.value
         val cursor = if (tab == DetailTab.COMMITS) commitCursor else releaseCursor
@@ -268,12 +276,12 @@ class DetailViewModel(
         cursor.headerInView = headerInView
     }
 
-    /** Lookup is scoped to the notification request in the screen. It never advances the history cursor. */
-    suspend fun findNotificationRelease(tag: String): SourceError? {
+    /** A notification or a package selection can target a release outside the loaded history. */
+    suspend fun findRelease(tag: String): SourceError? {
         return try {
             val release = repository.releaseByTag(repoId, tag)
             if (release?.tagName != tag) return SourceError.NotFound
-            _state.update { it.copy(notificationRelease = release) }
+            _state.update { it.copy(requestedRelease = release) }
             null
         } catch (e: io.candy.tick.data.SourceException) {
             e.error
@@ -314,18 +322,25 @@ class DetailViewModel(
                     nextBranchPage = if (result.hasNext) page + 1 else null,
                 )
             }
-            // 逐条到达逐条写入：副标题随网络返回错开出现；已配令牌时整页拉取
-            // （匿名 60/h 维持「首页前 20 + 优先分支」的原截断）
-            val fullPage = (appContext as CandyTickApp).container.githubApi.hasToken
-            repository.branchDates(repoId, result.names, firstPage = page == 1, fullPage = fullPage) { name, date ->
-                if (date != null) _state.update { state ->
-                    val branches = state.branches
-                    if (branches?.any { it.name == name } == true) {
-                        state.copy(branches = branches.map { row ->
-                            if (row.name == name) row.copy(tipDate = date) else row
-                        })
-                    } else state
-                }
+        }
+    }
+
+    /** Runs in the picker's scope; dismissing it also cancels the remaining HTTP calls. */
+    suspend fun loadVisibleBranchDates(visible: List<String>) {
+        val wanted = visible.filterNot { it in completedBranchDates }
+        if (wanted.isEmpty()) return
+        repository.branchDates(repoId, wanted, startRequest = {
+            val anonymous = !(appContext as CandyTickApp).container.githubApi.hasToken
+            if (anonymous && anonymousDateRequests >= 20) false else {
+                if (anonymous) anonymousDateRequests++
+                true
+            }
+        }) { name, date ->
+            completedBranchDates.add(name)
+            if (date != null) _state.update { state ->
+                state.copy(branches = state.branches?.map { row ->
+                    if (row.name == name) row.copy(tipDate = date) else row
+                })
             }
         }
     }
@@ -346,6 +361,7 @@ class DetailViewModel(
     /** The header and both first pages are independent. Start each once for this visit,
      * keeping previous results visible until their replacements arrive. */
     fun refresh(silent: Boolean = false) {
+        if (!silent && _state.value.requestedRelease != null) _state.update { it.copy(requestedRelease = null) }
         if ((pendingPull ?: _state.value).syncing) {
             // A user pull can take over the requests already started on entry.
             if (!silent && pendingPull == null) updateHistory {
@@ -380,6 +396,7 @@ class DetailViewModel(
         loadCommits()
         loadReleases()
         viewModelScope.launch {
+            val checkedBranch = repository.state.value.repos.firstOrNull { it.id == repoId }?.branch
             val error = try {
                 repository.refreshRepo(repoId)
             } catch (e: kotlinx.coroutines.CancellationException) {
@@ -387,10 +404,16 @@ class DetailViewModel(
             } catch (_: Exception) {
                 SourceError.NetworkUnreachable
             }
+            val currentBranch = repository.state.value.repos.firstOrNull { it.id == repoId }?.branch
             updateHistory {
+                val banner = when {
+                    error == SourceError.BranchUnavailable && checkedBranch != currentBranch -> it.banner
+                    error == null && it.banner == SourceError.BranchUnavailable -> it.banner
+                    else -> error
+                }
                 it.copy(
                     snapshotLoading = false,
-                    banner = error,
+                    banner = banner,
                     sourceGone = error?.isInaccessible == true,
                 ).withManualRefresh()
             }
@@ -410,10 +433,14 @@ class DetailViewModel(
             val branch = tracked?.branch ?: store.snapshots[repoId]?.defaultBranch
             val cache = if (page == 1 && tracked != null) DetailHistoryCache.pages(tracked) else null
             val request = cache?.let { ++it.commitRequest }
+            var unavailable = false
             val data = try {
                 repository.commits(repoId, page)
             } catch (e: kotlinx.coroutines.CancellationException) {
                 throw e
+            } catch (e: io.candy.tick.data.SourceException) {
+                unavailable = tracked?.branch != null && e.error == SourceError.BranchUnavailable
+                null
             } catch (_: Exception) {
                 null
             }
@@ -430,7 +457,11 @@ class DetailViewModel(
                     commitsPagingPaused = commitCursor.pagingPaused && !result.end,
                     commitsFailed = data == null, commitsEnd = result.end,
                     // 任一页加载成功即证明配额可用：滞留的限流横幅随之收起（不再等下一轮仓库刷新）
-                    banner = if (data != null && it.banner is SourceError.RateLimited) null else it.banner,
+                    banner = when {
+                        unavailable -> SourceError.BranchUnavailable
+                        data != null && (it.banner is SourceError.RateLimited || it.banner == SourceError.BranchUnavailable) -> null
+                        else -> it.banner
+                    },
                 ).withManualRefresh()
             }
         }
@@ -507,15 +538,22 @@ class DetailViewModel(
     fun downloadUpdate() {
         val s = _state.value
         val tag = s.snapshot?.currentReleaseTag ?: return
-        val release = s.releases.find { it.tagName == tag } ?: run {
-            setTab(DetailTab.RELEASES)
+        val release = s.releases.find { it.tagName == tag } ?: s.requestedRelease?.takeIf { it.tagName == tag } ?: run {
+            choosePackage(tag)
             return
         }
         val (autoPick, _) = io.candy.tick.util.ApkPicker.pick(
             release.apkAssets, android.os.Build.SUPPORTED_ABIS.toList(),
         )
         val asset = release.apkAssets.find { it.name == s.selectedAssets[release.tagName]?.name } ?: autoPick ?: run {
-            setTab(DetailTab.RELEASES) // 该 release 无 APK 资产
+            choosePackage(tag)
+            return
+        }
+        val failed = s.download as? RepoDownloadState.Failed
+        val wrongAsset = failed?.releaseKey == tag && failed.assetName == asset.name &&
+            failed.local == RepoDownloadState.LocalFailure.TARGET_MISMATCH
+        if (io.candy.tick.util.ApkPicker.packageExtension(asset.name) != "apk" || wrongAsset) {
+            choosePackage(tag)
             return
         }
         // fromHeader 必传：头部入口的进度只在头部显示（此前漏传 → 点下载无进度条，
@@ -523,8 +561,13 @@ class DetailViewModel(
         downloadAsset(release, asset, fromHeader = true)
     }
 
+    private fun choosePackage(tag: String) {
+        setTab(DetailTab.RELEASES)
+        viewModelScope.launch { _events.send(Event.ChoosePackage(tag)) }
+    }
+
     /** 下载保留复用：已下载过的文件直接安装 */
-    fun installDownloaded(record: DownloadedApk) {
+    fun installDownloaded(record: DownloadedApk, fromHeader: Boolean = false) {
         if (repository.state.value.repos.find { it.id == repoId }?.downloadedApk != record) return
         val file = File(apkDir, record.fileName)
         if (!file.isFile) {
@@ -534,7 +577,11 @@ class DetailViewModel(
             }
             return
         }
-        installManager.installApk(file, repoId, record.displayAssetName)
+        viewModelScope.launch {
+            if (!downloadHost.installRetained(repoId, record, fromHeader) && fromHeader) {
+                choosePackage(record.version)
+            }
+        }
     }
 
     /** Only remove the file the user saw, even if a newer transfer finishes during the tap. */

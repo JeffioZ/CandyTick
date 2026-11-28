@@ -29,6 +29,8 @@
     <application
         android:name=".CandyTickApp"
         android:allowBackup="true"
+        android:backupAgent=".data.StateBackupAgent"
+        android:fullBackupOnly="true"
         android:dataExtractionRules="@xml/data_extraction_rules"
         android:fullBackupContent="@xml/backup_rules"
         android:enableOnBackInvokedCallback="true"
@@ -83,6 +85,8 @@
                 <category android:name="android.intent.category.LAUNCHER" />
             </intent-filter>
         </activity-alias>
+        <receiver android:name=".data.StoreInstallReceiver" android:exported="false" />
+
         <!-- APK 共享给用户选择的安装器。 -->
         <provider
             android:name="androidx.core.content.FileProvider"

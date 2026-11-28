@@ -135,6 +135,18 @@ internal object OppoProtocol {
     fun isIncompletePackageUrl(url: String): Boolean =
         url.contains("incfs", ignoreCase = true) || url.substringBefore('?').endsWith(".dm", ignoreCase = true)
 
+    private val metadataPrefixes = listOf(
+        "$BASE_URL/download/v2/",
+        "https://api-store-gl.heytapmobile.com/download/v2/",
+        "https://api-store-gl.heytapmobile.com/download/overseas/v2/",
+    )
+    private val imageExtension = Regex("\\.(?:png|jpe?g|webp|gif)$", RegexOption.IGNORE_CASE)
+
+    fun isDownloadMetadataUrl(url: String): Boolean {
+        val https = StoreHttp.upgradeToHttps(url)
+        return metadataPrefixes.any { https.startsWith(it, ignoreCase = true) }
+    }
+
     data class UpdateEntry(
         val release: StoreReleaseInfo,
         val rawUrl: String,
@@ -145,7 +157,8 @@ internal object OppoProtocol {
         installedByPkg: Map<String, LocalInstalledApp>,
     ): Map<String, UpdateEntry> {
         val out = LinkedHashMap<String, UpdateEntry>()
-        fun walk(msg: ProtoMsg) {
+        fun walk(msg: ProtoMsg, depth: Int = 0) {
+            if (depth > 64) return
             val pkg = msg.string(7).trim()
             val verCode = msg.long(9)
             if (pkg.isNotBlank() && verCode > 0L) {
@@ -156,12 +169,18 @@ internal object OppoProtocol {
                     val md5 = msg.string(12).trim().lowercase().takeIf { it.length == 32 }.orEmpty()
                     val url = msg.string(22).trim()
                     if (url.isBlank() || isIncompletePackageUrl(url)) return
-                    val changelog = msg.string(102).trim()
+                    if (verCode <= (out[pkg]?.release?.versionCode ?: 0L)) return
+                    val plainApk = !isDownloadMetadataUrl(url) &&
+                        url.substringBefore('?').endsWith(".apk", ignoreCase = true)
+                    val changelog = msg.string(102).trim().takeUnless {
+                        StoreHttp.upgradeToHttps(it).isNotEmpty() && imageExtension.containsMatchIn(it.substringBefore('?'))
+                    }.orEmpty()
                     val release = StoreReleaseInfo(
                         storeId = StoreCatalog.ID_OPPO,
                         versionCode = verCode,
                         versionName = verName,
                         sizeBytes = size,
+                        exactSizeBytes = size.takeIf { plainApk && it > 0L },
                         changelog = changelog,
                         appId = msg.long(1),
                         checksum = md5,
@@ -172,30 +191,33 @@ internal object OppoProtocol {
             }
             for (field in msg.fields) {
                 if (field.wireType == 2 && field.raw != null && field.raw.size >= 4) {
-                    walk(parseProto(field.raw))
+                    walk(parseProto(field.raw), depth + 1)
                 }
             }
         }
-        walk(parseProto(bytes))
+        walk(parseProto(bytes, strict = true))
         return out
     }
 
-    fun parseDownloadFileWrap(bytes: ByteArray): StoreDownloadSpec? {
-        val root = parseProto(bytes)
-        val entries = root.all(3).mapNotNull { field ->
-            val file = field.raw?.let(::parseProto) ?: return@mapNotNull null
+    fun parseDownloadFileWrap(bytes: ByteArray, expectedVersion: Long? = null): StoreDownloadSpec? {
+        val root = parseProto(bytes, strict = true)
+        if (root.first(1)?.varint != 200L) return null
+        if (expectedVersion != null && root.long(2) > 0L && root.long(2) != expectedVersion) return null
+        val entries = root.all(3).map { field ->
+            val file = field.raw?.let { parseProto(it, strict = true) } ?: return null
             val cdnUrl = StoreHttp.upgradeToHttps(file.string(7).trim())
             val fallbackUrl = StoreHttp.upgradeToHttps(file.string(8).trim())
             val url = cdnUrl.ifBlank { fallbackUrl }
-            if (url.isBlank()) return@mapNotNull null
+            if (url.isBlank()) return null
             val splitName = file.string(2).trim()
             val md5 = file.string(5).trim().lowercase().takeIf { it.length == 32 }
             val size = file.long(10).takeIf { it > 0L } ?: file.long(9)
-            DownloadFileItem(splitName = splitName, url = url, size = size, md5 = md5)
+            val isBase = file.first(4)?.varint?.let { it == 0L }
+                ?: (splitName.isBlank() || splitName.equals("base", true) || splitName.equals("base.apk", true))
+            DownloadFileItem(isBase = isBase, splitName = splitName, url = url, size = size, md5 = md5)
         }
         if (entries.isEmpty()) return null
-        val base = entries.firstOrNull { it.splitName.isBlank() || it.splitName.equals("base", ignoreCase = true) }
-            ?: entries.first()
+        val base = entries.singleOrNull { it.isBase } ?: return null
         val splits = entries.filter { it !== base }.mapIndexed { idx, item ->
             val rawName = item.splitName.ifBlank { "split_${idx + 1}" }
             val fileName = if (rawName.endsWith(".apk", ignoreCase = true)) rawName else "$rawName.apk"
@@ -215,6 +237,7 @@ internal object OppoProtocol {
     }
 
     private data class DownloadFileItem(
+        val isBase: Boolean,
         val splitName: String,
         val url: String,
         val size: Long,
@@ -235,38 +258,42 @@ internal object OppoProtocol {
         fun string(number: Int): String = first(number)?.raw?.decodeToString().orEmpty()
     }
 
-    private fun parseProto(bytes: ByteArray): ProtoMsg {
+    private fun parseProto(bytes: ByteArray, strict: Boolean = false): ProtoMsg {
+        fun invalid(): ProtoMsg {
+            require(!strict) { "Invalid OPPO protobuf message" }
+            return ProtoMsg(emptyList())
+        }
         val fields = ArrayList<ProtoField>()
         var offset = 0
         while (offset < bytes.size) {
-            val (key, next1) = readVarint(bytes, offset) ?: break
+            val (key, next1) = readVarint(bytes, offset) ?: return invalid()
             offset = next1
             val number = (key ushr 3).toInt()
             val wireType = (key and 7L).toInt()
-            if (number <= 0) break
+            if (number <= 0) return invalid()
             when (wireType) {
                 0 -> {
-                    val (v, next2) = readVarint(bytes, offset) ?: break
+                    val (v, next2) = readVarint(bytes, offset) ?: return invalid()
                     offset = next2
                     fields += ProtoField(number, wireType, varint = v)
                 }
                 1 -> {
-                    if (offset + 8 > bytes.size) break
+                    if (offset + 8 > bytes.size) return invalid()
                     offset += 8
                 }
                 2 -> {
-                    val (len, next2) = readVarint(bytes, offset) ?: break
+                    val (len, next2) = readVarint(bytes, offset) ?: return invalid()
                     offset = next2
-                    if (len < 0L || len > bytes.size - offset) break
+                    if (len < 0L || len > bytes.size - offset) return invalid()
                     val end = offset + len.toInt()
                     fields += ProtoField(number, wireType, raw = bytes.copyOfRange(offset, end))
                     offset = end
                 }
                 5 -> {
-                    if (offset + 4 > bytes.size) break
+                    if (offset + 4 > bytes.size) return invalid()
                     offset += 4
                 }
-                else -> break
+                else -> return invalid()
             }
         }
         return ProtoMsg(fields)

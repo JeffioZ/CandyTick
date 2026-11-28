@@ -13,6 +13,9 @@ import io.candy.tick.data.download.DownloadKey
 import io.candy.tick.util.ApkPicker
 import io.candy.tick.util.openAppSettings
 import java.io.File
+import java.util.concurrent.ConcurrentHashMap
+import kotlinx.coroutines.CompletableDeferred
+import kotlinx.coroutines.withTimeoutOrNull
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
@@ -25,7 +28,7 @@ import kotlinx.coroutines.flow.SharedFlow
  * PackageInstaller 封装：仓库手动安装 + 自身更新共用。
  * 安装结果经广播回传，以 SharedFlow 暴露给 UI / Worker。
  */
-class InstallManager(private val context: Context, private val scope: CoroutineScope) {
+class InstallManager(private val context: Context, private val scope: CoroutineScope, private val isAppVisible: () -> Boolean = { true }) {
 
     sealed interface InstallResult {
         data object Success : InstallResult
@@ -41,6 +44,8 @@ class InstallManager(private val context: Context, private val scope: CoroutineS
 
     private data class Event(val key: DownloadKey, val result: InstallResult)
     private val results = MutableSharedFlow<Event>(extraBufferCapacity = 16)
+    private val storeSessions = ConcurrentHashMap<Int, CompletableDeferred<InstallResult>>()
+    private val pendingConfirmations = ConcurrentHashMap<Int, Intent>()
 
     fun resultsFor(key: DownloadKey): Flow<InstallResult> =
         results.mapNotNull { event -> event.result.takeIf { event.key == key } }
@@ -51,6 +56,8 @@ class InstallManager(private val context: Context, private val scope: CoroutineS
     /** 系统装包事件（PACKAGE_REPLACED/ADDED 的包名）：装后清理的唯一事实源 */
     private val _packageInstalled = kotlinx.coroutines.flow.MutableSharedFlow<String>(extraBufferCapacity = 8)
     val packageInstalled: kotlinx.coroutines.flow.SharedFlow<String> = _packageInstalled
+    private val _packageRemoved = MutableSharedFlow<String>(extraBufferCapacity = 16)
+    val packageRemoved: SharedFlow<String> = _packageRemoved
 
     init {
         // 动态注册无需权限：系统装完任何包都会播（含三方安装器走 ACTION_VIEW 的路径）——
@@ -58,6 +65,7 @@ class InstallManager(private val context: Context, private val scope: CoroutineS
         val filter = android.content.IntentFilter().apply {
             addAction(android.content.Intent.ACTION_PACKAGE_REPLACED)
             addAction(android.content.Intent.ACTION_PACKAGE_ADDED)
+            addAction(Intent.ACTION_PACKAGE_REMOVED)
             // package: scheme 广播不带 MIME type——addDataType 会全部漏收（经典坑）
             addDataScheme("package")
         }
@@ -65,7 +73,11 @@ class InstallManager(private val context: Context, private val scope: CoroutineS
             context,
             object : BroadcastReceiver() {
                 override fun onReceive(ctx: Context, intent: Intent) {
-                    intent.data?.schemeSpecificPart?.let { _packageInstalled.tryEmit(it) }
+                    val pkg = intent.data?.schemeSpecificPart ?: return
+                    if (intent.action == Intent.ACTION_PACKAGE_REMOVED) {
+                        if (Build.VERSION.SDK_INT >= 35 && intent.getBooleanExtra(Intent.EXTRA_ARCHIVAL, false)) return
+                        if (!intent.getBooleanExtra(Intent.EXTRA_REPLACING, false)) _packageRemoved.tryEmit(pkg)
+                    } else _packageInstalled.tryEmit(pkg)
                 }
             },
             filter,
@@ -75,42 +87,57 @@ class InstallManager(private val context: Context, private val scope: CoroutineS
 
     private val receiver = object : BroadcastReceiver() {
         override fun onReceive(ctx: Context, intent: Intent) {
-            val key = readDownloadKey(intent)
-            val status = intent.getIntExtra(PackageInstaller.EXTRA_STATUS, PackageInstaller.STATUS_FAILURE)
-            val result = when (status) {
-                PackageInstaller.STATUS_SUCCESS -> InstallResult.Success
-                PackageInstaller.STATUS_PENDING_USER_ACTION -> {
-                    if (intent.getBooleanExtra(EXTRA_SILENT_SELF, false)) {
-                        val sessionId = intent.getIntExtra(PackageInstaller.EXTRA_SESSION_ID, -1)
-                        if (sessionId >= 0) runCatching { ctx.packageManager.packageInstaller.abandonSession(sessionId) }
-                        results.tryEmit(Event(DownloadKey.SelfUpdate, InstallResult.Failed(null, false)))
-                        return
-                    }
-                    // API 33+ 用类型安全版，29-32 用 deprecated 版（不加会 NoSuchMethodError）
-                    val confirm = if (android.os.Build.VERSION.SDK_INT >= 33) {
-                        intent.getParcelableExtra(Intent.EXTRA_INTENT, Intent::class.java)
-                    } else {
-                        @Suppress("DEPRECATION")
-                        intent.getParcelableExtra(Intent.EXTRA_INTENT)
-                    }
-                    if (confirm != null && runCatching {
-                            ctx.startActivity(confirm.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK))
-                        }.isSuccess
-                    ) InstallResult.PendingUserAction else InstallResult.Failed(null, false)
-                }
-                PackageInstaller.STATUS_FAILURE_ABORTED -> InstallResult.Cancelled
-                else -> {
-                    val message = intent.getStringExtra(PackageInstaller.EXTRA_STATUS_MESSAGE)
-                    // INSTALL_FAILED_UPDATE_INCOMPATIBLE（签名不匹配：常见于 F-Droid 与 GitHub 渠道混装）
-                    InstallResult.Failed(
-                        message = message,
-                        signatureMismatch = message?.contains("UPDATE_INCOMPATIBLE") == true,
-                        statusCode = status,
-                    )
-                }
-            }
-            results.tryEmit(Event(key, result))
+            handleInstallResult(ctx, intent)
         }
+    }
+
+    internal fun handleInstallResult(ctx: Context, intent: Intent) {
+        val key = readDownloadKey(intent)
+        val sessionId = intent.getIntExtra(PackageInstaller.EXTRA_SESSION_ID, -1)
+        val status = intent.getIntExtra(PackageInstaller.EXTRA_STATUS, PackageInstaller.STATUS_FAILURE)
+        val result = when (status) {
+            PackageInstaller.STATUS_SUCCESS -> InstallResult.Success
+            PackageInstaller.STATUS_PENDING_USER_ACTION -> {
+                if (intent.getBooleanExtra(EXTRA_SILENT_SELF, false)) {
+                    if (sessionId >= 0) runCatching { ctx.packageManager.packageInstaller.abandonSession(sessionId) }
+                    results.tryEmit(Event(DownloadKey.SelfUpdate, InstallResult.Failed(null, false)))
+                    return
+                }
+                // API 33+ 用类型安全版，29-32 用 deprecated 版（不加会 NoSuchMethodError）
+                val confirm = if (android.os.Build.VERSION.SDK_INT >= 33) {
+                    intent.getParcelableExtra(Intent.EXTRA_INTENT, Intent::class.java)
+                } else {
+                    @Suppress("DEPRECATION")
+                    intent.getParcelableExtra(Intent.EXTRA_INTENT)
+                }
+                if (key is DownloadKey.Store && !isAppVisible()) {
+                    val abandoned = sessionId >= 0 && runCatching {
+                        ctx.packageManager.packageInstaller.abandonSession(sessionId)
+                    }.isSuccess
+                    if (!abandoned && confirm != null && sessionId >= 0) {
+                        pendingConfirmations[sessionId] = confirm
+                        InstallResult.PendingUserAction
+                    } else InstallResult.Cancelled
+                } else if (confirm != null && runCatching {
+                        ctx.startActivity(confirm.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK))
+                    }.isSuccess
+                ) InstallResult.PendingUserAction else InstallResult.Failed(null, false)
+            }
+            PackageInstaller.STATUS_FAILURE_ABORTED -> InstallResult.Cancelled
+            else -> {
+                val message = intent.getStringExtra(PackageInstaller.EXTRA_STATUS_MESSAGE)
+                // INSTALL_FAILED_UPDATE_INCOMPATIBLE（签名不匹配：常见于 F-Droid 与 GitHub 渠道混装）
+                InstallResult.Failed(
+                    message = message,
+                    signatureMismatch = message?.contains("UPDATE_INCOMPATIBLE") == true,
+                    statusCode = status,
+                )
+            }
+        }
+        if (key is DownloadKey.Store && sessionId >= 0 && result != InstallResult.PendingUserAction) {
+            pendingConfirmations.remove(sessionId)
+            storeSessions.computeIfAbsent(sessionId) { CompletableDeferred() }.complete(result)
+        } else results.tryEmit(Event(key, result))
     }
 
     init {
@@ -165,39 +192,80 @@ class InstallManager(private val context: Context, private val scope: CoroutineS
             }
         }
         if (isApk) {
-            scope.launch(Dispatchers.IO) { installViaSession(file, key) }
+            scope.launch(Dispatchers.IO) {
+                submitFiles(listOf(file), key, false, beforeCommit = { true }) { results.tryEmit(Event(key, it)) }
+            }
         } else {
             val reason = context.getString(io.candy.tick.R.string.bundle_installer_required)
             results.tryEmit(Event(key, InstallResult.Failed(reason, signatureMismatch = false)))
         }
     }
 
-    /** 系统安装会话（自身更新静默安装 / 商店直装 / Intent 通道回退；29+） */
-    fun installViaSession(file: File, repoId: Long? = null, silentSelfUpdate: Boolean = false) =
-        installViaSession(file, DownloadKey.fromRepoId(repoId), silentSelfUpdate)
+    /** Keeps the worker alive until PackageInstaller accepts (or rejects) the commit. */
+    suspend fun submitSelfUpdate(file: File): Boolean =
+        submitFiles(listOf(file), DownloadKey.SelfUpdate, true, beforeCommit = { true }) {
+            results.tryEmit(Event(DownloadKey.SelfUpdate, it))
+        } != null
 
-    fun installViaSession(file: File, key: DownloadKey, silentSelfUpdate: Boolean = false) =
-        installFilesViaSession(listOf(file), key, silentSelfUpdate)
+    suspend fun installStoreFiles(
+        files: List<File>, key: DownloadKey.Store, beforeCommit: suspend (Int) -> Boolean,
+    ): InstallResult {
+        var immediate: InstallResult = InstallResult.Failed(null, false)
+        val id = submitFiles(files, key, false, beforeCommit) { immediate = it } ?: return immediate
+        return awaitStoreSession(id, recovering = false)
+    }
 
-    /** 系统多文件安装会话（支持单 APK 与 Split APK 联合提交；29+） */
-    fun installFilesViaSession(files: List<File>, key: DownloadKey, silentSelfUpdate: Boolean = false) {
+    fun resumeStoreConfirmation() {
+        val pending = pendingConfirmations.entries.firstOrNull() ?: return
+        if (pendingConfirmations.remove(pending.key, pending.value)) {
+            runCatching { context.startActivity(pending.value.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)) }
+                .onFailure {
+                    pendingConfirmations[pending.key] = pending.value
+                }
+        }
+    }
+
+    suspend fun awaitStoreSession(id: Int, recovering: Boolean = true): InstallResult {
+        val waiter = storeSessions.computeIfAbsent(id) { CompletableDeferred() }
+        val installer = context.packageManager.packageInstaller
+        try {
+            while (true) {
+                if (waiter.isCompleted) return waiter.await()
+                val info = installer.getSessionInfo(id) ?: return InstallResult.Cancelled
+                // A process can die between persisting the session ID and submitting its commit.
+                if (recovering && !info.isCommitted) {
+                    runCatching { installer.abandonSession(id) }
+                    return InstallResult.Cancelled
+                }
+                withTimeoutOrNull(10_000L) { waiter.await() }?.let { return it }
+            }
+        } finally {
+            storeSessions.remove(id, waiter)
+            pendingConfirmations.remove(id)
+        }
+    }
+
+    private suspend fun submitFiles(
+        files: List<File>, key: DownloadKey, silentSelfUpdate: Boolean,
+        beforeCommit: suspend (Int) -> Boolean, onFailure: (InstallResult) -> Unit,
+    ): Int? {
         if (files.isEmpty()) {
-            results.tryEmit(Event(key, InstallResult.Failed(null, false)))
-            return
+            onFailure(InstallResult.Failed(null, false))
+            return null
         }
         if (!canRequestInstalls()) {
             // 未授权直接提交会 SecurityException：带去授权页 + 提示回来重试
             if (silentSelfUpdate) {
-                results.tryEmit(Event(DownloadKey.SelfUpdate, InstallResult.Failed(null, false)))
+                onFailure(InstallResult.Failed(null, false))
             } else {
-                val result = if (openInstallPermissionSettings()) {
+                val result = if (key is DownloadKey.Store || openInstallPermissionSettings()) {
                     InstallResult.NeedsInstallPermission
                 } else {
                     InstallResult.Failed(context.getString(R.string.system_settings_unavailable), false)
                 }
-                results.tryEmit(Event(key, result))
+                onFailure(result)
             }
-            return
+            return null
         }
         val installer = context.packageManager.packageInstaller
         var uncommittedId: Int? = null
@@ -222,16 +290,23 @@ class InstallManager(private val context: Context, private val scope: CoroutineS
                     }
                 }
                 val intent = Intent(ACTION_INSTALL_RESULT).setPackage(context.packageName)
+                if (key is DownloadKey.Store) intent.setClass(context, StoreInstallReceiver::class.java)
                 if (silentSelfUpdate) intent.putExtra(EXTRA_SILENT_SELF, true)
                 putDownloadKey(intent, key)
                 val flags = PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_MUTABLE
                 val sender = PendingIntent.getBroadcast(context, sessionId, intent, flags).intentSender
+                if (!beforeCommit(sessionId)) {
+                    onFailure(InstallResult.Cancelled)
+                    return null
+                }
                 session.commit(sender)
                 uncommittedId = null
+                return sessionId
             }
         } catch (e: Exception) {
             // 会话异常（磁盘满/安全异常等）此前裸抛到点击回调直接崩
-            results.tryEmit(Event(key, InstallResult.Failed(message = e.message, signatureMismatch = false)))
+            onFailure(InstallResult.Failed(message = e.message, signatureMismatch = false))
+            return null
         } finally {
             uncommittedId?.let { runCatching { installer.abandonSession(it) } }
         }
@@ -256,5 +331,13 @@ class InstallManager(private val context: Context, private val scope: CoroutineS
         private const val EXTRA_REPO_ID = "repo_id"
         private const val EXTRA_STORE_PKG = "store_package"
         const val ACTION_INSTALL_RESULT = "io.candy.tick.INSTALL_RESULT"
+    }
+}
+
+/** Explicit PackageInstaller callback, including when the process has been recreated. */
+class StoreInstallReceiver : BroadcastReceiver() {
+    override fun onReceive(context: Context, intent: Intent) {
+        val app = context.applicationContext as io.candy.tick.CandyTickApp
+        app.container.installManager.handleInstallResult(context, intent)
     }
 }

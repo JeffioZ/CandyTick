@@ -281,7 +281,16 @@ object ReleaseNotes {
         /** 展平 GitHub 折叠区。仅剥外层标签，里面的列表、链接及围栏代码仍由 Markdown 解析。 */
         private fun details(literal: String, indent: String) {
             var body = literal.trim()
-            if (!detailsBlock.containsMatchIn(body)) return
+            if (!detailsBlock.containsMatchIn(body)) {
+                // Keep readable block HTML without loading images or opening a browser.
+                val plain = android.text.Html.fromHtml(body, android.text.Html.FROM_HTML_MODE_COMPACT)
+                    .toString().replace("\uFFFC", "").trim()
+                if (plain.isNotEmpty()) {
+                    blank()
+                    text(plain)
+                }
+                return
+            }
             while (detailsStart.containsMatchIn(body)) body = body.replaceFirst(detailsStart, "")
             while (detailsEnd.containsMatchIn(body)) body = body.replace(detailsEnd, "")
             val summary = summaryTag.find(body)

@@ -50,6 +50,11 @@ class MainActivity : ComponentActivity() {
 
     private var pendingNavTarget by mutableStateOf<AppRoute?>(null)
 
+    override fun onResume() {
+        super.onResume()
+        (application as CandyTickApp).container.existingStoreDownloads()?.onResume()
+    }
+
     override fun onNewIntent(intent: Intent) {
         super.onNewIntent(intent)
         consumeNavIntent(intent)

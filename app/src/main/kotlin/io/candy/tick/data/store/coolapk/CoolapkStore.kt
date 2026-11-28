@@ -10,9 +10,6 @@ import io.candy.tick.data.store.StoreHttp
 import io.candy.tick.data.store.StoreQuerySpeed
 import io.candy.tick.data.store.StoreSource
 import kotlinx.coroutines.Dispatchers
-import kotlinx.coroutines.async
-import kotlinx.coroutines.awaitAll
-import kotlinx.coroutines.coroutineScope
 import kotlinx.coroutines.withContext
 import okhttp3.HttpUrl.Companion.toHttpUrl
 import okhttp3.Request
@@ -27,18 +24,11 @@ class CoolapkStore : StoreSource {
     private val deviceCode = CoolapkProtocol.randomDeviceCode()
     private val noRedirectClient = StoreHttp.client.newBuilder().followRedirects(false).followSslRedirects(false).build()
 
-    override suspend fun checkUpdates(apps: List<LocalInstalledApp>): Map<String, StoreReleaseInfo> = coroutineScope {
-        val out = mutableMapOf<String, StoreReleaseInfo>()
-        for (batch in apps.chunked(CONCURRENCY)) {
-            val items = batch.map { local ->
-                async {
-                    val info = StoreHttp.runCatchingCancellable { fetchDetail(local.packageName) }.getOrNull() ?: return@async null
-                    if (info.versionCode > local.versionCode) local.packageName to info else null
-                }
-            }.awaitAll().filterNotNull()
-            out.putAll(items)
+    override suspend fun checkUpdates(apps: List<LocalInstalledApp>): Map<String, StoreReleaseInfo> = buildMap {
+        for (local in apps) {
+            val release = fetchDetail(local.packageName) ?: continue
+            if (release.versionCode > local.versionCode) put(local.packageName, release)
         }
-        out
     }
 
     override suspend fun resolveDownload(
@@ -46,6 +36,7 @@ class CoolapkStore : StoreSource {
         release: StoreReleaseInfo,
     ): StoreDownloadSpec {
         val fresh = fetchDetail(app.packageName) ?: throw SourceException(SourceError.NotFound)
+        if (fresh.versionCode != release.versionCode) throw SourceException(SourceError.NotFound)
         val headers = withContext(Dispatchers.Default) { CoolapkProtocol.buildHeaders(deviceCode) }
         val url = "${CoolapkProtocol.API_BASE}/v6/apk/download".toHttpUrl().newBuilder()
             .addQueryParameter("pn", app.packageName)
@@ -61,6 +52,7 @@ class CoolapkStore : StoreSource {
         return StoreDownloadSpec(
             url = location,
             sizeBytes = fresh.sizeBytes,
+            exactSizeBytes = fresh.exactSizeBytes,
             expectedHash = CoolapkProtocol.expectedMd5(fresh.checksum),
             headers = mapOf("User-Agent" to CoolapkProtocol.USER_AGENT),
         )
@@ -77,9 +69,5 @@ class CoolapkStore : StoreSource {
             if (!resp.isSuccessful) throw SourceException(SourceError.Http(resp.code))
             CoolapkProtocol.parseDetail(resp.body.string(), packageName)
         }
-    }
-
-    companion object {
-        private const val CONCURRENCY = 4
     }
 }

@@ -3,13 +3,16 @@ package io.candy.tick.data.store.huawei
 import io.candy.tick.data.model.StoreReleaseInfo
 import io.candy.tick.data.store.LocalInstalledApp
 import io.candy.tick.data.store.StoreCatalog
+import io.candy.tick.data.store.StoreDevice
 import io.candy.tick.data.store.StoreHttp
+import io.candy.tick.data.store.StoreResponseException
 import java.io.ByteArrayOutputStream
 import java.net.URLEncoder
 import java.security.MessageDigest
 import java.util.zip.GZIPOutputStream
 import kotlinx.serialization.json.Json
 import kotlinx.serialization.json.JsonArray
+import kotlinx.serialization.json.JsonNull
 import kotlinx.serialization.json.JsonObject
 import kotlinx.serialization.json.JsonPrimitive
 import kotlinx.serialization.json.buildJsonArray
@@ -27,7 +30,7 @@ internal object HuaweiProtocol {
 
     const val GATEWAY_URL = "https://store-drcn.hispace.dbankcloud.com/hwmarket/api/clientApi"
     const val USER_AGENT = "Android/1.0"
-    const val BATCH_SIZE = 100
+    const val BATCH_SIZE = 50
 
     private val json = Json { ignoreUnknownKeys = true; isLenient = true }
     private val sha256Regex = Regex("^[a-f0-9]{64}$")
@@ -66,7 +69,7 @@ internal object HuaweiProtocol {
                                 put("oldVersion", app.versionName.ifBlank { app.versionCode.toString() })
                                 put("targetSdkVersion", app.targetSdkVersion)
                                 put("fSha2", "")
-                                put("appBits", 2)
+                                put("appBits", systemBits)
                                 put("pkgMode", 0)
                                 put("isPre", if (app.isSystemApp) 2 else 0)
                                 put("maple", 0)
@@ -125,20 +128,35 @@ internal object HuaweiProtocol {
         body: String,
         installedByPkg: Map<String, LocalInstalledApp>,
     ): Map<String, UpdateEntry> {
-        val root = runCatching { json.parseToJsonElement(body).jsonObject }.getOrNull() ?: return emptyMap()
+        val root = json.parseToJsonElement(body).jsonObject
+        val code = root["rtnCode"]?.let { requireNotNull((it as? JsonPrimitive)?.longOrNull) { "Invalid Huawei result code" } }
+        if (code != null && code != 0L) throw StoreResponseException(code)
+        val list = root["list"]
+        val nonRecommended = root["notRcmList"]
+        require((list == null || list is JsonArray || list == JsonNull) &&
+            (nonRecommended == null || nonRecommended is JsonArray || nonRecommended == JsonNull)) {
+            "Invalid Huawei update lists"
+        }
+        require(list is JsonArray || nonRecommended is JsonArray || (code == 0L &&
+            (list == JsonNull || nonRecommended == JsonNull || root["toUpdateAppInfoList"] is JsonArray ||
+                root["allGxxApps"] is JsonArray || root["sharedLibs"] is JsonArray ||
+                root["updatePolicyText"] is JsonPrimitive))) { "Missing Huawei update response" }
         val items = buildList {
             (root["list"] as? JsonArray)?.forEach { (it as? JsonObject)?.let(::add) }
             (root["notRcmList"] as? JsonArray)?.forEach { (it as? JsonObject)?.let(::add) }
         }
         val out = LinkedHashMap<String, UpdateEntry>()
         for (obj in items) {
-            val pkg = obj.str("package")
+            val pkg = obj.str("package").ifBlank { obj.str("packageName") }
             val installed = installedByPkg[pkg] ?: continue
             val versionCode = obj.long("versionCode")
             if (versionCode <= installed.versionCode) continue
-            val versionName = obj.str("version").ifBlank { obj.str("versionName") }.ifBlank { versionCode.toString() }
-            val size = obj.long("fullSize").takeIf { it > 0L } ?: obj.long("size")
-            val url = StoreHttp.upgradeToHttps(obj.str("fullDownUrl").ifBlank { obj.str("downurl") })
+            val versionName = obj.str("version").ifBlank { obj.str("appVersionName") }.ifBlank { obj.str("versionName") }.ifBlank { versionCode.toString() }
+            val fullUrl = obj.str("fullDownUrl")
+            val isDiff = obj.int("isDiff") != 0 || obj.long("diffSize") > 0L
+            if (obj.int("btnDisable") != 0 || obj.int("packingType") != 0 || obj.long("bundleSize") > 0L) continue
+            val size = obj.long("fullSize").takeIf { it > 0L } ?: if (isDiff) 0L else obj.long("size")
+            val url = StoreHttp.upgradeToHttps(fullUrl.ifBlank { if (isDiff) "" else obj.str("downurl") })
             if (url.isBlank()) continue
             val sha256 = obj.str("sha256").lowercase().takeIf { sha256Regex.matches(it) }.orEmpty()
             val signerSha256s = (obj["sSha2"] as? JsonArray)
@@ -151,11 +169,12 @@ internal object HuaweiProtocol {
                 versionCode = versionCode,
                 versionName = versionName,
                 sizeBytes = size,
+                exactSizeBytes = (if (fullUrl.isBlank()) size else obj.long("fullSize")).takeIf { it > 0L },
                 changelog = changelog,
                 checksum = sha256,
                 signerSha256s = signerSha256s,
             )
-            out[pkg] = UpdateEntry(release = release, downloadUrl = url)
+            out.putIfAbsent(pkg, UpdateEntry(release = release, downloadUrl = url))
         }
         return out
     }
@@ -184,7 +203,7 @@ internal object HuaweiProtocol {
         "phoneType" to "NOH-AN00",
         "firmwareVersion" to "12",
         "osBrand" to "emui",
-        "sysBits" to "2",
+        "sysBits" to systemBits.toString(),
         "accountZone" to "CN",
         "lastPhyZone" to "CN",
         "needServiceZone" to "0",
@@ -195,7 +214,11 @@ internal object HuaweiProtocol {
         "recommendSwitch" to "1",
         "adSwitch" to "0",
         "agCapability" to "1111",
-        "deviceSpecParams" to """{"abis":"arm64-v8a,armeabi-v7a,armeabi","dpi":"480","preferLan":"zh"}""",
+        "deviceSpecParams" to buildJsonObject {
+            put("abis", StoreDevice.abis.joinToString(","))
+            put("dpi", StoreDevice.densityDpi.toString())
+            put("preferLan", "zh")
+        }.toString(),
         "deviceId" to deviceId,
         "deviceIdType" to "9",
         "deviceIdRealType" to "4",
@@ -204,6 +227,8 @@ internal object HuaweiProtocol {
     ).apply {
         if (sign.isNotBlank()) put("sign", sign)
     }
+
+    private val systemBits: Int get() = if (android.os.Build.SUPPORTED_64_BIT_ABIS?.isEmpty() == true) 1 else 2
 
     private fun JsonObject.str(key: String): String =
         (this[key] as? JsonPrimitive)?.contentOrNull?.trim().orEmpty()

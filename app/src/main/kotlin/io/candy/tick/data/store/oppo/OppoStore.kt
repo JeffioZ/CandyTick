@@ -23,9 +23,10 @@ import okhttp3.RequestBody.Companion.toRequestBody
 class OppoStore : StoreSource {
     override val id: String = StoreCatalog.ID_OPPO
     override val speed: StoreQuerySpeed = StoreQuerySpeed.FAST_BATCH
+    override val batchSize: Int = OppoProtocol.BATCH_SIZE
 
     private val instanceId: String = UUID.randomUUID().toString()
-    private val cachedUrls = ConcurrentHashMap<String, String>()
+    private val cachedUrls = ConcurrentHashMap<String, Pair<Long, String>>()
 
     override suspend fun checkUpdates(apps: List<LocalInstalledApp>): Map<String, StoreReleaseInfo> {
         if (apps.isEmpty()) return emptyMap()
@@ -34,7 +35,7 @@ class OppoStore : StoreSource {
         for (chunk in apps.chunked(OppoProtocol.BATCH_SIZE)) {
             val entries = queryBatch(chunk, installedByPkg)
             for ((pkg, entry) in entries) {
-                if (entry.rawUrl.isNotBlank()) cachedUrls[pkg] = entry.rawUrl
+                if (entry.rawUrl.isNotBlank()) cachedUrls[pkg] = entry.release.versionCode to entry.rawUrl
                 result[pkg] = entry.release
             }
         }
@@ -48,15 +49,16 @@ class OppoStore : StoreSource {
         val fresh = StoreHttp.runCatchingCancellable {
             queryBatch(listOf(app), mapOf(app.packageName to app))[app.packageName]
         }.getOrNull()
+        if (fresh != null && fresh.release.versionCode != release.versionCode) throw SourceException(SourceError.NotFound)
         val rawUrl = fresh?.rawUrl?.takeIf { it.isNotBlank() }
-            ?: cachedUrls[app.packageName]?.takeIf { it.isNotBlank() }
+            ?: cachedUrls[app.packageName]?.takeIf { it.first == release.versionCode }?.second
             ?: throw SourceException(SourceError.NotFound)
 
         if (OppoProtocol.isIncompletePackageUrl(rawUrl)) {
             throw SourceException(SourceError.NotFound)
         }
 
-        if (rawUrl.contains("/download/v2/", ignoreCase = true)) {
+        if (OppoProtocol.isDownloadMetadataUrl(rawUrl)) {
             val v2Url = StoreHttp.upgradeToHttps(rawUrl)
             if (v2Url.isBlank()) throw SourceException(SourceError.NotFound)
             val headers = OppoProtocol.buildHeaders("GET", v2Url, instanceId)
@@ -64,7 +66,7 @@ class OppoStore : StoreSource {
             for ((k, v) in headers) builder.header(k, v)
             val spec = StoreHttp.execute(builder.build()) { response ->
                 if (!response.isSuccessful) throw SourceException(SourceError.Http(response.code))
-                OppoProtocol.parseDownloadFileWrap(response.body.bytes())
+                OppoProtocol.parseDownloadFileWrap(response.body.bytes(), release.versionCode)
             } ?: throw SourceException(SourceError.NotFound)
             if (OppoProtocol.isIncompletePackageUrl(spec.url) || spec.extraParts.any { OppoProtocol.isIncompletePackageUrl(it.url) }) {
                 throw SourceException(SourceError.NotFound)
@@ -73,6 +75,7 @@ class OppoStore : StoreSource {
                 .filterKeys { it in CDN_DOWNLOAD_HEADERS }
             return spec.copy(
                 sizeBytes = spec.sizeBytes.takeIf { it > 0L } ?: release.sizeBytes,
+                exactSizeBytes = spec.exactSizeBytes,
                 headers = dlHeaders,
             )
         }
@@ -86,6 +89,7 @@ class OppoStore : StoreSource {
         return StoreDownloadSpec(
             url = url,
             sizeBytes = size,
+            exactSizeBytes = (fresh?.release ?: release).exactSizeBytes,
             expectedHash = md5.takeIf { it.isNotBlank() }?.let { ExpectedHash(HashAlgorithm.MD5, it) },
             headers = dlHeaders,
         )

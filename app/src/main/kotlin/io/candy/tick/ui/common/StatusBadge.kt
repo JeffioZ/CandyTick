@@ -145,6 +145,7 @@ fun sourceErrorText(error: SourceError): String {
         } ?: stringResource(R.string.err_rate_limited_plain)
         is SourceError.Http -> return stringResource(R.string.err_http, error.code)
         SourceError.StorageFull -> stringResource(R.string.err_storage_full)
+        SourceError.BranchUnavailable -> stringResource(R.string.branch_unavailable)
     }
     return Feedback.withErrorCode(base, error.errorCode)
 }

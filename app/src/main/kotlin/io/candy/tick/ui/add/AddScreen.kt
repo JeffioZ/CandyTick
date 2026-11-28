@@ -60,6 +60,7 @@ import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.lifecycle.compose.LocalLifecycleOwner
 import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.repeatOnLifecycle
+import androidx.lifecycle.createSavedStateHandle
 import androidx.lifecycle.viewmodel.compose.viewModel
 import io.candy.tick.CandyTickApp
 import io.candy.tick.R
@@ -107,7 +108,7 @@ fun AddScreen(
     onAdded: (Long) -> Unit,
 ) {
     val app = LocalContext.current.applicationContext as CandyTickApp
-    val vm: AddViewModel = viewModel { AddViewModel(app.container.repoRepository, app) }
+    val vm: AddViewModel = viewModel { AddViewModel(app.container.repoRepository, app, createSavedStateHandle()) }
     val state by vm.state.collectAsStateWithLifecycle()
     var selectedIcon by remember(state.results) { mutableStateOf<ResultIcon?>(null) }
     val lifecycle = LocalLifecycleOwner.current.lifecycle
@@ -132,7 +133,6 @@ fun AddScreen(
     LaunchedEffect(showPreview) {
         if (showPreview) {
             initialFocusPending = false
-            keyboardController?.hide()
         } else if (initialFocusPending) {
             initialFocusPending = false
             kotlinx.coroutines.delay(100)
@@ -148,7 +148,7 @@ fun AddScreen(
         val current = vm.state.value
         if (current.preview != AddViewModel.PreviewState.Idle) {
             vm.dismissPreview()
-            if (current.results.repositories.isEmpty()) {
+            if (io.candy.tick.util.UrlParser.parse(current.input) != null) {
                 inputFocus.requestFocus()
                 keyboardController?.show()
             }
@@ -211,7 +211,10 @@ fun AddScreen(
                 // 单行：IME 确定显示「搜索」而非换行；长链接也不会被折行截断
                 singleLine = true,
                 keyboardOptions = KeyboardOptions(imeAction = ImeAction.Search),
-                keyboardActions = KeyboardActions(onSearch = { vm.submit() }),
+                keyboardActions = KeyboardActions(onSearch = {
+                    keyboardController?.hide()
+                    vm.submit()
+                }),
                 // 非空清空钮：粘贴长链接后想换目标，逐字删除太苦
                 trailingIcon = if (state.input.isNotEmpty()) {
                     { TextFieldActionButton(onClick = clearTextFieldAction(inputFocus) { vm.onInput("") }) }
@@ -239,6 +242,7 @@ fun AddScreen(
                     SearchContent(state, resultsScroll, iconRevision, onRetry = vm::submit) { info, icon ->
                         if (!resultsCovered) {
                             selectedIcon = icon
+                            keyboardController?.hide()
                             vm.pickResult(info)
                         }
                     }
@@ -296,7 +300,7 @@ fun AddScreen(
                                     actionLabel = stringResource(R.string.retry),
                                     onAction = {
                                         val current = vm.state.value
-                                        if (current.input == shown.input && current.preview == phase) vm.submit()
+                                        if (current.input == shown.input && current.preview == phase) vm.retryPreview()
                                     },
                                     modifier = Modifier.fillMaxWidth().padding(vertical = 24.dp),
                                 )

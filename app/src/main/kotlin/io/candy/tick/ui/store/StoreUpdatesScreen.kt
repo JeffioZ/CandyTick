@@ -35,13 +35,19 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.derivedStateOf
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
-import androidx.compose.runtime.produceState
+import io.candy.tick.ui.common.rememberAppIcon
+import io.candy.tick.ui.common.PickerSearchField
+import io.candy.tick.data.store.StoreCheckSummary
+import io.candy.tick.data.store.SingleStoreCheckResult
+import kotlinx.coroutines.flow.map
+import kotlinx.coroutines.flow.distinctUntilChanged
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.alpha
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.vector.ImageVector
@@ -50,6 +56,7 @@ import androidx.compose.ui.platform.LocalResources
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.res.vectorResource
 import androidx.compose.ui.semantics.Role
+import androidx.compose.ui.semantics.clearAndSetSemantics
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.IntOffset
@@ -106,10 +113,25 @@ fun StoreUpdatesScreen(
         )
     }
     val state by vm.uiState.collectAsStateWithLifecycle()
+    androidx.compose.runtime.LaunchedEffect(state.enabledStores, state.lastCheckComplete) {
+        if (state.enabledStores.isNotEmpty() && state.lastCheckComplete == null) vm.refresh()
+    }
     var activeTab by rememberSaveable { mutableStateOf(StoreFilterTab.UPDATABLE) }
     var sheetPackage by remember { mutableStateOf<String?>(null) }
     var installedActionPkg by remember { mutableStateOf<String?>(null) }
-    var updateAllMeteredBytes by remember { mutableStateOf<Long?>(null) }
+    var pendingBatch by remember { mutableStateOf<StoreBatchPlan?>(null) }
+    var query by rememberSaveable { mutableStateOf("") }
+    val installer = app.container.installManager
+    var canInstall by remember(installer) { mutableStateOf(installer.canRequestInstalls()) }
+    androidx.lifecycle.compose.LifecycleResumeEffect(installer) {
+        canInstall = installer.canRequestInstalls()
+        onPauseOrDispose { }
+    }
+    val batch = remember(state.updatable, state.autoInstall, canInstall) { state.batchPlan(canInstall) }
+    fun startBatch(plan: StoreBatchPlan, meteredConfirmed: Boolean) {
+        val started = vm.updateAll(plan, meteredConfirmed, installer.canRequestInstalls())
+        if (started > 0) Feedback.show(resources.getString(R.string.store_batch_started))
+    }
 
     val scheme = MiuixTheme.colorScheme
     val listState = rememberLazyListState()
@@ -123,7 +145,10 @@ fun StoreUpdatesScreen(
 
     val shownItems = when (activeTab) {
         StoreFilterTab.UPDATABLE -> state.updatable
-        StoreFilterTab.ALL_INSTALLED -> state.allInstalled
+        StoreFilterTab.ALL_INSTALLED -> remember(state.allInstalled, query) {
+            val term = query.trim()
+            state.allInstalled.filter { it.local.displayName.contains(term, true) || it.local.packageName.contains(term, true) }
+        }
         StoreFilterTab.SKIPPED -> state.skipped
     }
     // 与 DetailScreen 同款共享时钟：页签滑块与下方列表行同拍横向落位
@@ -193,8 +218,23 @@ fun StoreUpdatesScreen(
             }
         } else {
             val topPad = padding.calculateTopPadding()
-            val showCheckDone: (Int) -> Unit = { count ->
-                if (count == 0) {
+            val incompleteHint = if (state.failedStores.isEmpty()) stringResource(R.string.store_check_retry_hint) else {
+                val names = state.failedStores.mapNotNull { StoreCatalog.descriptorOf(it)?.nameRes }
+                    .joinToString(resources.getString(R.string.list_separator)) { resources.getString(it) }
+                val reason = state.failedStoreReason
+                when {
+                    reason == "E-TIME" -> stringResource(R.string.store_sources_timed_out, names)
+                    reason == "E-NET" -> stringResource(R.string.store_sources_unreachable, names)
+                    reason == "E-DATA" -> stringResource(R.string.store_sources_unreadable, names)
+                    reason?.startsWith("HTTP ") == true || reason?.startsWith("API ") == true ->
+                        Feedback.withErrorCode(stringResource(R.string.store_failed_sources, names), reason)
+                    else -> stringResource(R.string.store_failed_sources, names)
+                }
+            }
+            val showCheckDone: (StoreCheckSummary) -> Unit = { result ->
+                if (!result.complete) {
+                    Feedback.show(resources.getString(R.string.store_check_incomplete), isError = true)
+                } else if (result.updatableCount == 0) {
                     Feedback.show(resources.getString(R.string.store_check_done_up_to_date))
                 }
             }
@@ -238,6 +278,11 @@ fun StoreUpdatesScreen(
                         }
                     }
 
+                    if (activeTab == StoreFilterTab.ALL_INSTALLED && (state.allInstalled.isNotEmpty() || query.isNotEmpty())) {
+                        item(key = "installed_search") {
+                            PickerSearchField(query, stringResource(R.string.picker_search_app)) { query = it }
+                        }
+                    }
                     if (activeTab == StoreFilterTab.UPDATABLE && state.updatable.isNotEmpty()) {
                         item(key = "header_action") {
                             Row(
@@ -251,7 +296,7 @@ fun StoreUpdatesScreen(
                                     )
                                     .padding(horizontal = 4.dp, vertical = 2.dp),
                             ) {
-                                val checkedLabel = state.lastCheckedAt?.let {
+                                val checkedLabel = if (state.lastCheckComplete == false) incompleteHint else state.lastCheckedAt?.let {
                                     stringResource(R.string.store_last_checked, relTimeString(it))
                                 } ?: stringResource(R.string.store_pull_to_check)
                                 Text(
@@ -260,28 +305,22 @@ fun StoreUpdatesScreen(
                                     color = scheme.onBackgroundVariant,
                                     modifier = Modifier.weight(1f),
                                 )
-                                if (state.updatable.count { it.best != null } >= 2) {
-                                    Text(
-                                        text = stringResource(R.string.store_update_all),
-                                        style = MiuixTheme.textStyles.body2.copy(fontWeight = FontWeight.SemiBold),
-                                        color = scheme.primaryVariant,
-                                        modifier = Modifier
-                                            .clip(RoundedCornerShape(8.dp))
-                                            .clickable(role = Role.Button) {
-                                                val totalBytes = state.updatable.sumOf { row ->
-                                                    if (row.task is StoreTaskState.Downloading || row.task is StoreTaskState.Installing) 0L
-                                                    else (row.best?.sizeBytes ?: 0L)
-                                                }
-                                                if (vm.shouldPromptMetered(totalBytes)) {
-                                                    updateAllMeteredBytes = totalBytes
-                                                } else {
-                                                    vm.updateAll()
-                                                    Feedback.show(resources.getString(R.string.store_update_all_started))
-                                                }
-                                            }
-                                            .padding(horizontal = 8.dp, vertical = 6.dp),
-                                    )
+                                // Keep the same measured label when hidden, including at large font scales.
+                                val action = if (batch.count < 2) Modifier.clearAndSetSemantics { }.alpha(0f) else {
+                                    Modifier.clip(RoundedCornerShape(8.dp)).clickable(role = Role.Button) {
+                                        if (batch.downloads.isNotEmpty() && vm.shouldPromptMetered(batch.estimatedBytes ?: 0L)) {
+                                            pendingBatch = batch
+                                        } else {
+                                            startBatch(batch, meteredConfirmed = false)
+                                        }
+                                    }
                                 }
+                                Text(
+                                    text = stringResource(R.string.store_update_all),
+                                    style = MiuixTheme.textStyles.body2.copy(fontWeight = FontWeight.SemiBold),
+                                    color = scheme.primaryVariant,
+                                    modifier = action.padding(horizontal = 8.dp, vertical = 6.dp),
+                                )
                             }
                         }
                     }
@@ -308,6 +347,14 @@ fun StoreUpdatesScreen(
                                         subtitle = stringResource(R.string.store_checking_empty_desc),
                                         modifier = Modifier.fillParentMaxHeight(0.60f).fillMaxWidth(),
                                     )
+                                    tab == StoreFilterTab.UPDATABLE && state.lastCheckComplete != true -> StatusPage(
+                                        icon = ImageVector.vectorResource(R.drawable.ic_package),
+                                        title = stringResource(if (state.lastCheckComplete == false) R.string.store_check_incomplete else R.string.store_not_checked_yet),
+                                        subtitle = if (state.lastCheckComplete == false) incompleteHint else null,
+                                        actionLabel = stringResource(R.string.store_recheck_now),
+                                        onAction = { vm.refresh(showCheckDone) },
+                                        modifier = Modifier.fillParentMaxHeight(0.60f).fillMaxWidth(),
+                                    )
                                     tab == StoreFilterTab.UPDATABLE -> StatusPage(
                                         icon = ImageVector.vectorResource(R.drawable.ic_check_circle),
                                         title = stringResource(R.string.store_empty_updatable_title),
@@ -318,7 +365,7 @@ fun StoreUpdatesScreen(
                                     )
                                     tab == StoreFilterTab.ALL_INSTALLED -> StatusPage(
                                         icon = ImageVector.vectorResource(R.drawable.ic_package),
-                                        title = stringResource(R.string.store_empty_all),
+                                        title = stringResource(if (query.isBlank()) R.string.store_empty_all else R.string.picker_no_match),
                                         modifier = Modifier.fillParentMaxHeight(0.60f).fillMaxWidth(),
                                     )
                                     else -> StatusPage(
@@ -332,8 +379,14 @@ fun StoreUpdatesScreen(
                         }
                     } else {
                         items(shownItems, key = { "${activeTab.name}:${it.local.packageName}" }) { row ->
+                            val task = if (row.task is StoreTaskState.Downloading) {
+                                val progress = remember(row.local.packageName, vm) {
+                                    vm.tasks.map { it[row.local.packageName] }.distinctUntilChanged()
+                                }
+                                progress.collectAsStateWithLifecycle(initialValue = row.task).value
+                            } else row.task
                             StoreAppCard(
-                                row = row,
+                                row = if (task == row.task) row else row.copy(task = task),
                                 onCardClick = {
                                     if (row.best != null || row.update != null) {
                                         sheetPackage = row.local.packageName
@@ -341,10 +394,10 @@ fun StoreUpdatesScreen(
                                         installedActionPkg = row.local.packageName
                                     }
                                 },
-                                onInstallReady = { vm.installReady(row.local.packageName) },
+                                onInstallReady = { expected -> vm.installReady(row.local.packageName, expected) },
                                 onCancel = { vm.cancelDownload(row.local.packageName) },
                                 onDismissError = { vm.clearFailure(row.local.packageName) },
-                                onUnskip = { vm.unskipVersion(row.local.packageName) },
+                                onUnskip = { vm.setSkippedVersion(row.local.packageName, null) },
                                 modifier = tabContentModifier.animateItem(
                                     fadeInSpec = if (motionEnabled) tween(Motion.PHASE, easing = Motion.Decelerate) else null,
                                     fadeOutSpec = if (motionEnabled) tween(Motion.MICRO) else null,
@@ -359,31 +412,30 @@ fun StoreUpdatesScreen(
     }
 
     // 弹层始终保持在组合树中（show 直通 CandySheet），确保关闭时播放完整液态玻璃退场动画
-    val sheetIcon by produceState(sheetPackage?.let { StoreIconCache.peek(it) }, sheetPackage) {
-        val pkg = sheetPackage ?: return@produceState
-        if (value == null) value = StoreIconCache.load(context, pkg)
-    }
     StoreUpdateSheet(
         show = sheetItem != null,
         item = sheetItem,
-        icon = sheetIcon,
+        autoInstall = state.autoInstall,
+        pinnedStoreId = state.pinnedSources[sheetPackage],
         signatures = state.signatures,
         shouldPromptMetered = vm::shouldPromptMetered,
         onDismiss = { sheetPackage = null },
-        onDownload = { rel -> sheetItem?.let { vm.startUpdate(it.local, rel) } },
+        onDownload = vm::startUpdate,
+        onInstallReady = vm::installReady,
         onPinSource = { sid -> sheetItem?.let { vm.pinSource(it.local.packageName, sid) } },
         onSkipVersion = { code ->
-            val pkg = sheetItem?.local?.packageName ?: return@StoreUpdateSheet
-            vm.skipVersion(pkg, code)
+            val item = sheetItem ?: return@StoreUpdateSheet
+            val pkg = item.local.packageName
+            vm.setSkippedVersion(pkg, code)
             Feedback.show(
                 text = resources.getString(R.string.store_skipped_toast),
                 actionLabel = resources.getString(R.string.undo),
-                onAction = { vm.unskipVersion(pkg) },
+                onAction = { vm.setSkippedVersion(pkg, item.skippedThrough, expected = code) },
             )
         },
         onUnskipVersion = {
             val pkg = sheetItem?.local?.packageName ?: return@StoreUpdateSheet
-            vm.unskipVersion(pkg)
+            vm.setSkippedVersion(pkg, null)
         },
         onExcludeApp = {
             val pkg = sheetItem?.local?.packageName ?: return@StoreUpdateSheet
@@ -404,12 +456,15 @@ fun StoreUpdatesScreen(
             val local = installedActionItem?.local ?: return@InstalledAppActionSheet
             installedActionPkg = null
             Feedback.show(resources.getString(R.string.store_checking_single, local.displayName))
-            vm.checkSingleApp(local) { found ->
-                if (found) {
-                    Feedback.show(resources.getString(R.string.store_single_found, local.displayName))
-                    sheetPackage = local.packageName
-                } else {
-                    Feedback.show(resources.getString(R.string.store_single_up_to_date, local.displayName))
+            vm.checkSingleApp(local) { result ->
+                when (result) {
+                    SingleStoreCheckResult.FOUND -> {
+                        Feedback.show(resources.getString(R.string.store_single_found, local.displayName))
+                        sheetPackage = local.packageName
+                    }
+                    SingleStoreCheckResult.UP_TO_DATE -> Feedback.show(resources.getString(R.string.store_single_up_to_date, local.displayName))
+                    SingleStoreCheckResult.INCOMPLETE -> Feedback.show(resources.getString(R.string.store_check_incomplete), isError = true)
+                    SingleStoreCheckResult.NO_ELIGIBLE_STORE -> Feedback.show(resources.getString(R.string.store_no_eligible_source))
                 }
             }
         },
@@ -436,11 +491,11 @@ fun StoreUpdatesScreen(
     )
 
     CandySheet(
-        show = updateAllMeteredBytes != null,
+        show = pendingBatch != null,
         title = stringResource(R.string.store_metered_title),
-        onDismissRequest = { updateAllMeteredBytes = null },
+        onDismissRequest = { pendingBatch = null },
     ) {
-        val bytes = updateAllMeteredBytes ?: 0L
+        val bytes = pendingBatch?.estimatedBytes ?: 0L
         val msg = if (bytes > 0L) {
             stringResource(R.string.store_metered_confirm_all, Formatter.formatShortFileSize(context, bytes))
         } else {
@@ -462,15 +517,14 @@ fun StoreUpdatesScreen(
             PrimaryButton(
                 text = stringResource(R.string.store_metered_continue),
                 onClick = {
-                    updateAllMeteredBytes = null
-                    vm.updateAll()
-                    Feedback.show(resources.getString(R.string.store_update_all_started))
+                    pendingBatch?.let { startBatch(it, meteredConfirmed = true) }
+                    pendingBatch = null
                 },
                 modifier = Modifier.fillMaxWidth(),
             )
             SecondaryButton(
                 text = stringResource(R.string.cancel),
-                onClick = { updateAllMeteredBytes = null },
+                onClick = { pendingBatch = null },
                 modifier = Modifier.fillMaxWidth(),
             )
         }
@@ -492,10 +546,7 @@ private fun InstalledAppActionSheet(
     if (show && item != null) cachedItem = item
     val current = if (show && item != null) item else cachedItem
     val pkg = current?.local?.packageName
-    val icon by produceState(pkg?.let { StoreIconCache.peek(it) }, pkg) {
-        val target = pkg ?: return@produceState
-        if (value == null) value = StoreIconCache.load(context, target)
-    }
+    val icon = rememberAppIcon(pkg)
     CandySheet(show = show && current != null, onDismissRequest = onDismiss) {
         if (current == null) return@CandySheet
         Column(
@@ -601,7 +652,7 @@ private fun chipLabel(nameRes: Int, count: Int): String {
 private fun StoreAppCard(
     row: StoreUpdateRowItem,
     onCardClick: () -> Unit,
-    onInstallReady: () -> Unit,
+    onInstallReady: (StoreTaskState.ReadyToInstall) -> Unit,
     onCancel: () -> Unit,
     onDismissError: () -> Unit,
     onUnskip: () -> Unit,
@@ -610,9 +661,7 @@ private fun StoreAppCard(
     val context = LocalContext.current
     val scheme = MiuixTheme.colorScheme
     val pkg = row.local.packageName
-    val icon by produceState(StoreIconCache.peek(pkg), pkg) {
-        if (value == null) value = StoreIconCache.load(context, pkg)
-    }
+    val icon = rememberAppIcon(pkg)
     PressableCard(
         onClick = onCardClick,
         modifier = modifier.fillMaxWidth(),
@@ -632,21 +681,25 @@ private fun StoreAppCard(
                         maxLines = 1,
                         overflow = TextOverflow.Ellipsis,
                     )
-                    val best = row.best
-                    if (best != null) {
-                        val storeName = StoreCatalog.descriptorOf(best.storeId)?.let { stringResource(it.nameRes) } ?: best.storeId
+                    val task = row.recommendedTask
+                    val release = row.displayedRelease
+                    val sourceId = task?.storeId ?: release?.storeId
+                    val version = task?.versionName ?: release?.versionName
+                    if (sourceId != null && version != null) {
+                        val storeName = StoreCatalog.descriptorOf(sourceId)?.let { stringResource(it.nameRes) } ?: sourceId
                         val sourceCount = row.update?.candidates?.size ?: 1
-                        val sourceLabel = if (sourceCount > 1) {
+                        val sourceLabel = if (task == null && sourceCount > 1) {
                             stringResource(R.string.store_sources_multi, storeName, sourceCount)
                         } else storeName
                         Text(
-                            text = "${row.local.versionName} → ${best.versionName}",
+                            text = "${row.local.versionName} → $version",
                             style = MonoTokenStyle,
                             color = scheme.primaryVariant,
                             maxLines = 1,
                             overflow = TextOverflow.Ellipsis,
                         )
-                        val sizePart = if (best.sizeBytes > 0L) " · ${Formatter.formatShortFileSize(context, best.sizeBytes)}" else ""
+                        val bytes = (task as? StoreTaskState.Downloading)?.totalBytes?.takeIf { it > 0 } ?: release?.sizeBytes ?: 0L
+                        val sizePart = if (bytes > 0L) " · ${Formatter.formatShortFileSize(context, bytes)}" else ""
                         Text(
                             text = sourceLabel + sizePart,
                             style = MiuixTheme.textStyles.footnote1,
@@ -662,7 +715,7 @@ private fun StoreAppCard(
                         )
                     }
                 }
-                when (val task = row.task) {
+                when (val task = row.recommendedTask) {
                     is StoreTaskState.Downloading -> SecondaryButton(
                         text = stringResource(R.string.cancel),
                         onClick = onCancel,
@@ -679,7 +732,7 @@ private fun StoreAppCard(
                     )
                     is StoreTaskState.ReadyToInstall -> PrimaryButton(
                         text = stringResource(R.string.store_install_now),
-                        onClick = onInstallReady,
+                        onClick = { onInstallReady(task) },
                     )
                     is StoreTaskState.Failed -> {
                         val canSwitchSource = task.reason == StoreDownloadFailure.SIGNATURE_MISMATCH && row.best != null
@@ -710,7 +763,7 @@ private fun StoreAppCard(
                 }
             }
 
-            when (val task = row.task) {
+            when (val task = row.recommendedTask) {
                 is StoreTaskState.Downloading -> {
                     Spacer(Modifier.height(10.dp))
                     LinearProgressIndicator(progress = task.fraction, modifier = Modifier.fillMaxWidth())
@@ -739,7 +792,8 @@ private fun StoreAppCard(
                         StoreDownloadFailure.VERIFY_HASH -> stringResource(R.string.store_err_verify_hash)
                         StoreDownloadFailure.VERIFY_ARCHIVE -> stringResource(R.string.store_err_verify_archive)
                         StoreDownloadFailure.INSTALL_FAILED -> stringResource(R.string.store_err_install_failed)
-                        StoreDownloadFailure.NETWORK -> stringResource(R.string.store_err_download_failed)
+                        StoreDownloadFailure.METERED_CONFIRMATION -> stringResource(R.string.store_confirm_final_size)
+                        StoreDownloadFailure.NETWORK -> stringResource(if (task.error == io.candy.tick.data.SourceError.StorageFull) R.string.err_storage_full else R.string.store_err_download_failed)
                     }
                     Text(
                         text = msg,

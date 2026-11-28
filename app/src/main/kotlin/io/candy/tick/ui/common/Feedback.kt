@@ -83,8 +83,11 @@ object Feedback {
         val actionLabel: String? = null,
         val onAction: (() -> Unit)? = null,
         val durationMs: Long,
+        val retainOnConfigurationChange: Boolean,
     ) {
-        val createdAt = SystemClock.elapsedRealtime()
+        private val createdAt = SystemClock.elapsedRealtime()
+        var accessibleDurationMs: Long = durationMs
+        fun remainingMs(): Long = accessibleDurationMs - (SystemClock.elapsedRealtime() - createdAt)
     }
 
     private val _current = MutableStateFlow<Message?>(null)
@@ -101,14 +104,13 @@ object Feedback {
         onAction: (() -> Unit)? = null,
         durationMs: Long? = null,
         errorCode: String? = null,
+        retainOnConfigurationChange: Boolean = false,
     ) {
         val normalizedCode = errorCode?.trim()?.takeIf { it.isNotEmpty() && !text.contains("($it)") }
         // 被逐出的可操作消息（目前仅滑删撤销）若仍在有效期内，暂存待槽空出后重新上屏：
         // 单槽只显示最新，但「可撤销」承诺不因后续消息静默作废（自然到期才作废）
         val evicted = _current.value
-        if (evicted?.onAction != null &&
-            SystemClock.elapsedRealtime() - evicted.createdAt < evicted.durationMs
-        ) {
+        if (evicted?.onAction != null && evicted.remainingMs() > 0) {
             held = evicted
         }
         _current.value = Message(
@@ -117,6 +119,7 @@ object Feedback {
             errorCode = normalizedCode,
             actionLabel = actionLabel,
             onAction = onAction,
+            retainOnConfigurationChange = retainOnConfigurationChange,
             durationMs = durationMs ?: when {
                 actionLabel != null -> 4_500L
                 isError -> 3_200L
@@ -133,19 +136,20 @@ object Feedback {
 
     internal fun dismiss(message: Message): Boolean = _current.compareAndSet(message, null)
 
-    /** 宿主销毁（Activity 重建）即清空：current/held 里的 onAction 持有旧页闭包，
-     *  换代后重放等于在死上下文里执行（此前跨代残留，撤销动作打到已销毁的页面状态上）。
-     *  代价：旋转等重建瞬间正在展示的可撤销消息会一并丢弃（toast 生命周期本就秒级，接受） */
-    internal fun clear() {
-        held = null
-        _current.value = null
+    /** Only actions explicitly bound to a retained ViewModel can outlive their Activity. */
+    internal fun detach(changingConfiguration: Boolean) {
+        held = held?.takeIf { changingConfiguration && it.retainOnConfigurationChange && it.remainingMs() > 0 }
+        val message = _current.value
+        if (message != null && (!changingConfiguration || !message.retainOnConfigurationChange || message.remainingMs() <= 0)) {
+            dismiss(message)
+        }
     }
 
     /** 槽空出后取回仍在窗口内的暂存消息（过期即作废，返回 null） */
     internal fun retakeHeld(): Message? {
         val m = held ?: return null
         held = null
-        return m.takeIf { SystemClock.elapsedRealtime() - it.createdAt < it.durationMs }
+        return m.takeIf { it.remainingMs() > 0 }
     }
 
     internal fun resurface(message: Message) {
@@ -169,8 +173,9 @@ fun FeedbackHost() {
     // 末值捕获：退出动画期间继续渲染（内容塌空 = 瞬间消失的教训）
     var shown by remember { mutableStateOf<Feedback.Message?>(null) }
     var visible by remember { mutableStateOf(false) }
-    DisposableEffect(Unit) {
-        onDispose { Feedback.clear() }
+    val activity = androidx.activity.compose.LocalActivity.current
+    DisposableEffect(activity) {
+        onDispose { Feedback.detach(activity?.isChangingConfigurations == true) }
     }
     LaunchedEffect(msg, accessibility) {
         val m = msg
@@ -186,15 +191,20 @@ fun FeedbackHost() {
             return@LaunchedEffect
         }
         // 展示窗口自上屏起一次性计时（不随后台/遮挡暂停）；可撤销性另由 Message.createdAt 把关
-        val timeout = accessibility?.calculateRecommendedTimeoutMillis(
+        m.accessibleDurationMs = accessibility?.calculateRecommendedTimeoutMillis(
             originalTimeoutMillis = m.durationMs,
             containsIcons = true,
             containsText = true,
             containsControls = m.onAction != null,
         ) ?: m.durationMs
+        val remaining = if (m.onAction == null) m.accessibleDurationMs else m.remainingMs()
+        if (remaining <= 0) {
+            Feedback.dismiss(m)
+            return@LaunchedEffect
+        }
         shown = m
         visible = true
-        delay(timeout)
+        delay(remaining)
         Feedback.dismiss(m)
     }
 

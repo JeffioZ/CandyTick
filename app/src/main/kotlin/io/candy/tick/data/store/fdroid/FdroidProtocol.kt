@@ -5,11 +5,18 @@ import io.candy.tick.data.download.HashAlgorithm
 import io.candy.tick.data.model.FdroidMirror
 import io.candy.tick.data.model.StoreReleaseInfo
 import io.candy.tick.data.store.LocalInstalledApp
-import java.io.BufferedReader
 import java.io.InputStream
-import java.io.InputStreamReader
+import kotlinx.serialization.DeserializationStrategy
+import kotlinx.serialization.ExperimentalSerializationApi
+import kotlinx.serialization.descriptors.buildClassSerialDescriptor
+import kotlinx.serialization.descriptors.element
+import kotlinx.serialization.encoding.CompositeDecoder
+import kotlinx.serialization.encoding.Decoder
+import kotlinx.serialization.encoding.decodeStructure
+import kotlinx.serialization.json.decodeFromStream
 import kotlinx.serialization.json.Json
 import kotlinx.serialization.json.JsonArray
+import kotlinx.serialization.json.JsonElement
 import kotlinx.serialization.json.JsonObject
 import kotlinx.serialization.json.JsonPrimitive
 import kotlinx.serialization.json.contentOrNull
@@ -20,6 +27,7 @@ import kotlinx.serialization.json.longOrNull
  */
 internal object FdroidProtocol {
 
+    private val indexJson = Json { ignoreUnknownKeys = true; useAlternativeNames = false }
     private val sha256Regex = Regex("^[a-fA-F0-9]{64}$")
 
     private fun defaultSupportedAbis(): Set<String> =
@@ -36,23 +44,60 @@ internal object FdroidProtocol {
     /**
      * 流式读取 index-v2.json 的 `packages` 映射，仅对 [installedByPkg] 中存在的包解析最新版本。
      */
+    @OptIn(ExperimentalSerializationApi::class)
     fun scanUpdates(
         input: InputStream,
         storeId: String,
         repoBase: String,
         installedByPkg: Map<String, LocalInstalledApp>,
         supportedAbis: Set<String> = defaultSupportedAbis(),
+        sdkInt: Int = android.os.Build.VERSION.SDK_INT,
+        unconfirmed: MutableSet<String> = mutableSetOf(),
     ): Map<String, StoreReleaseInfo> {
-        if (installedByPkg.isEmpty()) return emptyMap()
-        val out = mutableMapOf<String, StoreReleaseInfo>()
-        BufferedReader(InputStreamReader(input, Charsets.UTF_8), 32 * 1024).use { reader ->
-            val scanner = TopLevelPackagesScanner(reader)
-            scanner.forEachPackage { pkg, rawSlice ->
-                val local = installedByPkg[pkg] ?: return@forEachPackage
-                parseBestVersion(rawSlice, storeId, repoBase, local.versionCode, supportedAbis)?.let { out[pkg] = it }
+        val packages = object : DeserializationStrategy<Map<String, StoreReleaseInfo>> {
+            override val descriptor = buildClassSerialDescriptor("InstalledIndexPackages") {
+                for (name in installedByPkg.keys) element<JsonElement>(name, isOptional = true)
+            }
+
+            override fun deserialize(decoder: Decoder): Map<String, StoreReleaseInfo> = buildMap {
+                decoder.decodeStructure(descriptor) {
+                    while (true) {
+                        val index = decodeElementIndex(descriptor)
+                        if (index == CompositeDecoder.DECODE_DONE) break
+                        val name = descriptor.getElementName(index)
+                        val entry = decodeSerializableElement(descriptor, index, JsonElement.serializer()) as? JsonObject
+                        if (entry?.get("versions") !is JsonObject) {
+                            unconfirmed += name
+                            continue
+                        }
+                        val local = installedByPkg.getValue(name)
+                        var invalidVersion = 0L
+                        val best = bestVersion(entry, storeId, repoBase, local.versionCode, supportedAbis, sdkInt, local.signatureSha256) { code ->
+                            invalidVersion = maxOf(invalidVersion, code)
+                        }
+                        if (invalidVersion > (best?.versionCode ?: 0L)) unconfirmed += name
+                        if (best != null) put(name, best)
+                    }
+                }
             }
         }
-        return out
+        val index = object : DeserializationStrategy<Map<String, StoreReleaseInfo>> {
+            override val descriptor = buildClassSerialDescriptor("StoreIndexV2") {
+                element("packages", packages.descriptor)
+            }
+
+            override fun deserialize(decoder: Decoder): Map<String, StoreReleaseInfo> = decoder.decodeStructure(descriptor) {
+                var result: Map<String, StoreReleaseInfo>? = null
+                while (true) {
+                    val field = decodeElementIndex(descriptor)
+                    if (field == CompositeDecoder.DECODE_DONE) break
+                    require(field == 0 && result == null) { "Invalid F-Droid packages field" }
+                    result = decodeSerializableElement(descriptor, field, packages)
+                }
+                requireNotNull(result) { "Missing F-Droid packages" }
+            }
+        }
+        return indexJson.decodeFromStream(index, input)
     }
 
     internal fun parseBestVersion(
@@ -61,23 +106,54 @@ internal object FdroidProtocol {
         repoBase: String,
         installedVersionCode: Long,
         supportedAbis: Set<String> = defaultSupportedAbis(),
+        sdkInt: Int = android.os.Build.VERSION.SDK_INT,
+    ): StoreReleaseInfo? = bestVersion(
+        Json.parseToJsonElement(packageJson) as JsonObject, storeId, repoBase, installedVersionCode, supportedAbis, sdkInt,
+    )
+
+    private fun bestVersion(
+        pkgObj: JsonObject,
+        storeId: String,
+        repoBase: String,
+        installedVersionCode: Long,
+        supportedAbis: Set<String>,
+        sdkInt: Int,
+        installedSigner: String = "",
+        onInvalidVersion: (Long) -> Unit = {},
     ): StoreReleaseInfo? {
-        val pkgObj = runCatching { Json.parseToJsonElement(packageJson) as? JsonObject }.getOrNull() ?: return null
-        val versions = pkgObj["versions"] as? JsonObject ?: return null
+        val versions = pkgObj["versions"] as? JsonObject ?: error("Missing F-Droid versions")
+        val localSigners = installedSigner.split('+').filter(String::isNotBlank)
         var best: StoreReleaseInfo? = null
         for ((_, vEl) in versions) {
             val vObj = vEl as? JsonObject ?: continue
             val manifest = vObj["manifest"] as? JsonObject ?: continue
-            val file = vObj["file"] as? JsonObject ?: continue
             val code = (manifest["versionCode"] as? JsonPrimitive)?.longOrNull ?: continue
             if (code <= installedVersionCode) continue
-            if (best != null && best.versionCode >= code) continue
+            if (best != null && best.versionCode > code) continue
+            val usesSdk = manifest["usesSdk"] as? JsonObject
+            if (sdkInt > 0 && usesSdk != null) {
+                val minSdk = (usesSdk["minSdkVersion"] as? JsonPrimitive)?.longOrNull
+                val maxSdk = (usesSdk["maxSdkVersion"] as? JsonPrimitive)?.longOrNull
+                if ((minSdk != null && sdkInt < minSdk) || (maxSdk != null && sdkInt > maxSdk)) continue
+            }
             val nativeCode = (manifest["nativecode"] as? JsonArray)
                 ?.mapNotNull { (it as? JsonPrimitive)?.contentOrNull?.trim()?.takeIf(String::isNotBlank) }
                 .orEmpty()
             if (nativeCode.isNotEmpty() && supportedAbis.isNotEmpty() && nativeCode.none { it in supportedAbis }) continue
-            val fileName = (file["name"] as? JsonPrimitive)?.contentOrNull?.takeIf { it.isNotBlank() } ?: continue
-            val sha256 = (file["sha256"] as? JsonPrimitive)?.contentOrNull.orEmpty()
+            val file = vObj["file"] as? JsonObject
+            val fileName = (file?.get("name") as? JsonPrimitive)?.contentOrNull.orEmpty()
+            val sha256 = (file?.get("sha256") as? JsonPrimitive)?.contentOrNull.orEmpty()
+            if (file == null || fileName.isBlank() || !sha256Regex.matches(sha256)) {
+                onInvalidVersion(code)
+                continue
+            }
+            val signers = ((manifest["signer"] as? JsonObject)?.get("sha256") as? JsonArray).orEmpty()
+                .map { (it as? JsonPrimitive)?.contentOrNull.orEmpty().trim().lowercase() }
+                .takeIf { list -> list.all(sha256Regex::matches) }.orEmpty().distinct().sorted()
+            // Reproducible builds may publish two differently signed APKs with the same versionCode.
+            if (best?.versionCode == code) {
+                if (localSigners.isEmpty() || signers != localSigners || best.signerSha256s == localSigners) continue
+            }
             val size = (file["size"] as? JsonPrimitive)?.longOrNull ?: 0L
             val verName = (manifest["versionName"] as? JsonPrimitive)?.contentOrNull?.ifBlank { code.toString() }
                 ?: code.toString()
@@ -87,9 +163,11 @@ internal object FdroidProtocol {
                 versionCode = code,
                 versionName = verName,
                 sizeBytes = size,
+                exactSizeBytes = size.takeIf { it > 0L },
                 changelog = whatsNew,
                 downloadUrl = repoBase.trimEnd('/') + "/" + fileName.trimStart('/'),
                 checksum = sha256,
+                signerSha256s = signers,
             )
         }
         return best
@@ -106,169 +184,5 @@ internal object FdroidProtocol {
             if (!text.isNullOrBlank()) return text
         }
         return obj.values.firstNotNullOfOrNull { (it as? JsonPrimitive)?.contentOrNull?.trim()?.takeIf(String::isNotBlank) }.orEmpty()
-    }
-
-    /** 极简词法扫描器：只定位顶层 `packages` 对象并逐包切片，内存峰值几十 KB。 */
-    private class TopLevelPackagesScanner(private val reader: BufferedReader) {
-        private var peeked: Int = -2
-
-        fun forEachPackage(action: (String, String) -> Unit) {
-            skipWs()
-            if (nextChar() != '{'.code) return
-            while (true) {
-                skipWs()
-                when (peekChar()) {
-                    '}'.code, -1 -> return
-                    ','.code -> { nextChar(); continue }
-                }
-                val key = readJsonString() ?: return
-                skipWs()
-                if (nextChar() != ':'.code) return
-                skipWs()
-                if (key == "packages") {
-                    if (nextChar() != '{'.code) return
-                    scanPackagesBody(action)
-                    return
-                } else {
-                    skipValue()
-                }
-            }
-        }
-
-        private fun scanPackagesBody(action: (String, String) -> Unit) {
-            val sb = StringBuilder(4096)
-            while (true) {
-                skipWs()
-                when (peekChar()) {
-                    '}'.code, -1 -> return
-                    ','.code -> { nextChar(); continue }
-                }
-                val pkg = readJsonString() ?: return
-                skipWs()
-                if (nextChar() != ':'.code) return
-                skipWs()
-                sb.setLength(0)
-                readRawValue(sb)
-                if (sb.isNotEmpty()) action(pkg, sb.toString())
-            }
-        }
-
-        private fun readRawValue(out: StringBuilder) {
-            when (peekChar()) {
-                '{'.code -> readDelimited(out, '{', '}')
-                '['.code -> readDelimited(out, '[', ']')
-                '"'.code -> readStringRaw(out)
-                else -> {
-                    while (true) {
-                        val c = peekChar()
-                        if (c == -1 || c == ','.code || c == '}'.code || c == ']'.code || c <= ' '.code) break
-                        out.append(nextChar().toChar())
-                    }
-                }
-            }
-        }
-
-        private fun skipValue() {
-            when (peekChar()) {
-                '{'.code -> skipDelimited('{', '}')
-                '['.code -> skipDelimited('[', ']')
-                '"'.code -> readJsonString()
-                else -> while (true) {
-                    val c = peekChar()
-                    if (c == -1 || c == ','.code || c == '}'.code || c == ']'.code || c <= ' '.code) break
-                    nextChar()
-                }
-            }
-        }
-
-        private fun readDelimited(out: StringBuilder, open: Char, close: Char) {
-            if (nextChar() != open.code) return
-            out.append(open)
-            var depth = 1
-            var inStr = false
-            while (depth > 0) {
-                val c = nextChar()
-                if (c == -1) return
-                val ch = c.toChar()
-                out.append(ch)
-                if (inStr && ch == '\\') {
-                    val esc = nextChar()
-                    if (esc == -1) return
-                    out.append(esc.toChar())
-                } else if (ch == '"') inStr = !inStr
-                else if (!inStr && ch == open) depth++
-                else if (!inStr && ch == close) depth--
-            }
-        }
-
-        private fun skipDelimited(open: Char, close: Char) {
-            if (nextChar() != open.code) return
-            var depth = 1
-            var inStr = false
-            while (depth > 0) {
-                val c = nextChar()
-                if (c == -1) return
-                val ch = c.toChar()
-                if (inStr && ch == '\\') {
-                    if (nextChar() == -1) return
-                } else if (ch == '"') inStr = !inStr
-                else if (!inStr && ch == open) depth++
-                else if (!inStr && ch == close) depth--
-            }
-        }
-
-        private fun readStringRaw(out: StringBuilder) {
-            if (nextChar() != '"'.code) return
-            out.append('"')
-            while (true) {
-                val c = nextChar()
-                if (c == -1) return
-                val ch = c.toChar()
-                out.append(ch)
-                if (ch == '\\') {
-                    val esc = nextChar()
-                    if (esc == -1) return
-                    out.append(esc.toChar())
-                } else if (ch == '"') return
-            }
-        }
-
-        private fun readJsonString(): String? {
-            if (nextChar() != '"'.code) return null
-            val sb = StringBuilder(64)
-            while (true) {
-                val c = nextChar()
-                if (c == -1) return null
-                val ch = c.toChar()
-                if (ch == '\\') {
-                    val esc = nextChar()
-                    if (esc == -1) return null
-                    sb.append(esc.toChar())
-                } else if (ch == '"') return sb.toString()
-                else sb.append(ch)
-            }
-        }
-
-        private fun skipWs() {
-            while (true) {
-                val c = peekChar()
-                if (c == -1 || c > ' '.code) break
-                nextChar()
-            }
-        }
-
-        private fun peekChar(): Int {
-            if (peeked == -2) peeked = reader.read()
-            return peeked
-        }
-
-        private fun nextChar(): Int {
-            if (peeked != -2) {
-                val c = peeked
-                peeked = -2
-                return c
-            }
-            return reader.read()
-        }
     }
 }

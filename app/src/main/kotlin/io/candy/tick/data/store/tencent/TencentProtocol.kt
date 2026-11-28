@@ -28,26 +28,32 @@ internal object TencentProtocol {
         buildJsonObject { put("packagename", packageName) }.toString()
 
     fun parseDetail(rawJson: String, packageName: String): StoreReleaseInfo? {
-        val root = runCatching { Json.parseToJsonElement(rawJson) as? JsonObject }.getOrNull() ?: return null
-        if (root.str("ret") != "0") return null
-        val record = root.obj("app_detail_records")?.obj(packageName) ?: return null
-        val info = record.obj("app_info") ?: return null
-        val apk = record.obj("apk_all_data") ?: return null
-        if (apk.str("package_name") != packageName) return null
+        val root = Json.parseToJsonElement(rawJson) as JsonObject
+        require(root.str("ret") == "0") { "Tencent detail query failed" }
+        val records = root.obj("app_detail_records") ?: error("Missing Tencent app records")
+        val record = records.obj(packageName) ?: return null
+        val info = record.obj("app_info") ?: error("Missing Tencent app detail")
+        require(info.str("package_name").let { it.isBlank() || it == packageName }) { "Wrong Tencent app info" }
         val online = (info["online_status"] as? JsonPrimitive)?.longOrNull
         if (online == 0L) return null
-        val url = StoreHttp.upgradeToHttps(apk.str("url"))
-        if (url.isBlank()) return null
+        val apk = record.obj("apk_all_data") ?: error("Missing Tencent APK detail")
+        val rawUrl = apk.str("url")
+        if (rawUrl.isBlank()) return null
+        require(apk.str("package_name") == packageName) { "Wrong Tencent app detail" }
+        val url = StoreHttp.upgradeToHttps(rawUrl)
+        require(url.isNotBlank()) { "Missing Tencent APK URL" }
         val versionCode = apk.num("version_code")
-        if (versionCode <= 0L) return null
+        require(versionCode > 0L) { "Missing Tencent version" }
         val checksum = apk.str("sha256").takeIf(sha256Regex::matches)
             ?: apk.str("apk_md5").takeIf(md5Regex::matches)
             ?: ""
+        val size = apk.num("size_byte")
         return StoreReleaseInfo(
             storeId = StoreCatalog.ID_TENCENT,
             versionCode = versionCode,
             versionName = apk.str("version_name").ifBlank { versionCode.toString() },
-            sizeBytes = apk.num("size_byte"),
+            sizeBytes = size,
+            exactSizeBytes = size.takeIf { it > 0L },
             changelog = apk.str("feature").trim(),
             appId = apk.num("app_id"),
             downloadUrl = url,

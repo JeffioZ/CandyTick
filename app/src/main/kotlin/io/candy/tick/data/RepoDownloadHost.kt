@@ -35,7 +35,7 @@ sealed interface RepoDownloadState {
     ) : RepoDownloadState
 
     /** 下载链路上本地环节的失败：界面按资源出文案，不透出异常原文 */
-    enum class LocalFailure { INCOMPLETE, SAVE_FAILED }
+    enum class LocalFailure { INCOMPLETE, SAVE_FAILED, TARGET_MISMATCH }
 
     data class Failed(
         override val releaseKey: String,
@@ -51,6 +51,7 @@ private class IncompleteDownload : IOException()
 
 /** .part 改名为正式文件失败（目录不可写等） */
 private class SaveFailed : IOException()
+private class WrongTarget : IOException()
 
 /**
  * 仓库 APK 下载宿主（App 级）：此前下载跑在 DetailViewModel.viewModelScope——离开详情页
@@ -137,8 +138,12 @@ class RepoDownloadHost(
                 val pkg = if (extension == "apk") {
                     appContext.packageManager.getPackageArchiveInfo(dest.absolutePath, 0)?.packageName
                 } else null
+                if (fromHeader && (pkg == null || pkg != subscription.linkedPackage ||
+                        repository.state.value.repos.find { it.id == repoId }?.linkedPackage != pkg)) {
+                    throw WrongTarget()
+                }
                 val record = DownloadedApk(dest.name, release.tagName, pkg, asset.name)
-                val old = repository.replaceDownloadedApk(subscription, record) { jobGens[repoId] == gen }
+                val old = repository.replaceDownloadedApk(subscription, record, requireLinkedPackage = fromHeader) { jobGens[repoId] == gen }
                 old?.let { File(dir, it.fileName).delete() }
                 if (jobGens[repoId] != gen) return@launch
                 val repo = repository.state.value.repos.find { it.id == repoId } ?: return@launch
@@ -155,7 +160,8 @@ class RepoDownloadHost(
                     if (!isAppVisible()) return@withContext true
                     val current = repository.state.value
                     if (current.settings.autoInstallDownload && jobGens[repoId] == gen &&
-                        current.repos.any { it.id == repoId && it.downloadedApk == record }
+                        current.repos.any { it.id == repoId && it.downloadedApk == record &&
+                            (!fromHeader || it.linkedPackage == pkg) }
                     ) {
                         installManager.installApk(dest, repoId, asset.name)
                     }
@@ -171,6 +177,7 @@ class RepoDownloadHost(
                 val local = when (e) {
                     is IncompleteDownload -> RepoDownloadState.LocalFailure.INCOMPLETE
                     is SaveFailed -> RepoDownloadState.LocalFailure.SAVE_FAILED
+                    is WrongTarget -> RepoDownloadState.LocalFailure.TARGET_MISMATCH
                     else -> null
                 }
                 _states.update { states ->
@@ -200,6 +207,17 @@ class RepoDownloadHost(
 
     fun cancel(repoId: Long) {
         if (_states.value[repoId] is RepoDownloadState.Active) clear(repoId)
+    }
+
+    suspend fun installRetained(repoId: Long, record: DownloadedApk, fromHeader: Boolean): Boolean {
+        val file = File(appContext.filesDir, "apks/$repoId/${record.fileName}")
+        val pkg = if (fromHeader) withContext(Dispatchers.IO) {
+            runCatching { appContext.packageManager.getPackageArchiveInfo(file.absolutePath, 0)?.packageName }.getOrNull()
+        } else null
+        val current = repository.state.value.repos.firstOrNull { it.id == repoId } ?: return false
+        if (current.downloadedApk != record || !file.isFile || fromHeader && (pkg == null || current.linkedPackage != pkg)) return false
+        installManager.installApk(file, repoId, record.displayAssetName)
+        return true
     }
 
     suspend fun deleteRecord(repoId: Long, record: DownloadedApk) {
