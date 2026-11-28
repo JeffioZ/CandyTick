@@ -174,12 +174,6 @@ fun ListScreen(
     val scope = androidx.compose.runtime.rememberCoroutineScope()
     val haptic = androidx.compose.ui.platform.LocalHapticFeedback.current
     val motionEnabled = rememberMotionEnabled()
-    // 列表顶隙随横幅在场 13↔7：与横幅出入场（220 表层档）同拍动画，内容不再跳变
-    val listTopGap by androidx.compose.animation.core.animateDpAsState(
-        targetValue = if (state.banner != null) 7.dp else 13.dp,
-        animationSpec = if (motionEnabled) tween(Motion.PANEL) else snap(),
-        label = "listTopGap",
-    )
     // A foreground sync can start after the sheet closes. Keep the just-shown ranking
     // through that update, until the user scrolls, refreshes or leaves this visit.
     // The sort's own requestScrollToItem(0) is not a user drag.
@@ -197,6 +191,7 @@ fun ListScreen(
     val rows = rememberHomeRows(
         vm, state, listState, lifecycleState == Lifecycle.State.RESUMED, motionEnabled, holdOrder = holdOrder,
         keepReadingOrder = keepReadingOrder,
+        headerCount = 1,
     )
     // A sort may bring distant keys into the lazy layout's tracking range. They are existing cards.
     val fadeMembership = motionEnabled && sortSheet == null && !holdOrder && !rows.revealingSort
@@ -454,17 +449,23 @@ fun ListScreen(
                                         glass = true,
                                     ) {
                                         // 激活态换返回箭头（= 退出搜索模式，与系统返回同语义）：
-                                        // 此前用 X 与输入框「清空」钮同形（skill: X=modal close 语义撞车）。
-                                        // 换脸与按压染色同拍（collectPressTint：松手保持 80ms → 150ms 淡出）：
-                                        // 保持期内什么都不变（按压读作完成），之后「暗圈退、旧脸退、新脸进」
-                                        // 三位一体落在同一 80→230ms 窗口——不会出现「还按着就换脸」。24dp 钉死无尺寸跳
+                                        // 即刻响应且轻缩放错峰切换（旧标 90ms 退场、新标错峰 40ms 淡入回弹），
+                                        // 与下方搜索框展开同拍且避免两枚图标原地重影
                                         AnimatedContent(
                                             targetState = showSearch,
                                             transitionSpec = {
                                                 if (motionEnabled) {
                                                     (
-                                                        fadeIn(tween(Motion.MICRO, delayMillis = Motion.PRESS)) togetherWith
-                                                            fadeOut(tween(Motion.MICRO, delayMillis = Motion.PRESS))
+                                                        fadeIn(tween(Motion.MICRO, delayMillis = 40)) +
+                                                            androidx.compose.animation.scaleIn(
+                                                                animationSpec = tween(Motion.PHASE, easing = Motion.Decelerate),
+                                                                initialScale = 0.78f,
+                                                            ) togetherWith
+                                                            fadeOut(tween(90)) +
+                                                            androidx.compose.animation.scaleOut(
+                                                                animationSpec = tween(110),
+                                                                targetScale = 0.78f,
+                                                            )
                                                         ).using(SizeTransform(clip = false))
                                                 } else {
                                                     fadeIn(snap()) togetherWith fadeOut(snap())
@@ -539,7 +540,7 @@ fun ListScreen(
             },
         ) { padding ->
             val topPad = padding.calculateTopPadding()
-            val hasTopInsetBlock = searchVisibility.currentState || searchVisibility.targetState || state.banner != null
+            val hasTopInsetBlock = searchVisibility.currentState || searchVisibility.targetState
             Box(
                 modifier = Modifier
                     .fillMaxSize()
@@ -599,33 +600,6 @@ fun ListScreen(
                             }
                         }
                     }
-                    // 横幅出入场：fade + 高度渐变（与详情页同款 220 表层档）——
-                    // 此前硬切 + 列表顶隙瞬变，出现/消失时下方内容跳变突兀
-                    AnimatedContent(
-                        targetState = state.banner,
-                        transitionSpec = {
-                            val duration = if (motionEnabled) Motion.PANEL else 0
-                            (
-                                fadeIn(tween(duration)) togetherWith
-                                    fadeOut(tween(duration))
-                                ).using(
-                                    SizeTransform { _, _ -> tween(duration) },
-                                )
-                        },
-                        label = "homeBanner",
-                    ) { error ->
-                        if (error != null) {
-                            ErrorBanner(
-                                error = error,
-                                hasSavedDetails = state.items.any { it.error != null && it.snapshot != null },
-                                onRetry = ::refresh,
-                                onDismiss = vm::clearBanner,
-                                // 上 7 + 内衬 6 = 13：与下方（内衬 6 + 列表顶隙 7）对称，
-                                // 列表顶隙由 banner 在场时 13→7 联动（见 LazyColumn contentPadding，同拍动画）
-                                modifier = Modifier.padding(start = 16.dp, end = 16.dp, top = 7.dp),
-                            )
-                        }
-                    }
                     // 内容切换（空态 ⇄ 列表）：直接切换——Crossfade 包裹与行动画/布局系统
                     // 交互后真机出现「首仓库卡片沉到屏底」（回归），润色不值得这个风险。
                     // 语义修复保留：判空只看 items（此前含 !refreshing，空列表下拉刷新会闪切）
@@ -673,14 +647,43 @@ fun ListScreen(
                             contentPadding = PaddingValues(
                                 start = 16.dp,
                                 end = 16.dp,
-                                // top 13 = 4 基线 + 9：补偿 PullToRefresh contentPadding——
-                                // 刷新指示器（环+文字）的上下隙对称（实测上 20/下 10.7 → 均衡）；
-                                // 横幅在场时 13→7（listTopGap 同拍动画）：横幅下衬 6 + 7 = 13，与横幅上方对称
-                                top = (if (hasTopInsetBlock) 0.dp else topPad) + listTopGap,
+                                // 5 + spacedBy(8) = 13：第 0 项为常驻横幅槽（隐藏时 0dp），
+                                // 无横幅时与首张卡片总顶隙保持 13dp，横幅出入场零瞬跳且随列表滚入顶栏渐进模糊
+                                top = (if (hasTopInsetBlock) 0.dp else topPad) + 5.dp,
                                 bottom = 32.dp,
                             ),
                             verticalArrangement = Arrangement.spacedBy(8.dp),
                         ) {
+                        item(key = "home_banner", contentType = "banner") {
+                            var lastBanner by remember { mutableStateOf(state.banner) }
+                            if (state.banner != null) lastBanner = state.banner
+                            androidx.compose.animation.AnimatedVisibility(
+                                visible = state.banner != null,
+                                enter = if (motionEnabled) {
+                                    androidx.compose.animation.expandVertically(
+                                        animationSpec = tween(Motion.PANEL, easing = Motion.Decelerate),
+                                        expandFrom = Alignment.Top,
+                                    ) + fadeIn(tween(Motion.PANEL))
+                                } else EnterTransition.None,
+                                exit = if (motionEnabled) {
+                                    androidx.compose.animation.shrinkVertically(
+                                        animationSpec = tween(Motion.PANEL, easing = Motion.Decelerate),
+                                        shrinkTowards = Alignment.Top,
+                                    ) + fadeOut(tween(Motion.MICRO))
+                                } else ExitTransition.None,
+                                label = "homeBanner",
+                            ) {
+                                lastBanner?.let { error ->
+                                    ErrorBanner(
+                                        error = error,
+                                        hasSavedDetails = state.items.any { it.error != null && it.snapshot != null },
+                                        onRetry = ::refresh,
+                                        onDismiss = vm::clearBanner,
+                                        modifier = Modifier.padding(top = 2.dp),
+                                    )
+                                }
+                            }
+                        }
                         items(rows.items, key = { it.repo.id }) { item ->
                             SwipeToDelete(
                                 onDelete = { vm.remove(item) },

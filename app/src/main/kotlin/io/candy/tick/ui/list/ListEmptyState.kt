@@ -61,10 +61,12 @@ internal fun EmptyState(onAdd: () -> Unit, onImport: () -> Unit, modifier: Modif
             onClick = onAdd,
         )
         // 弱化的次级入口（CTA 之下、同色系次级文字）：主行动仍是「添加第一个仓库」
-        Spacer(Modifier.height(12.dp))
+        // LinkText 自带 48dp 热区（文字上方约 11dp），配 4dp 间隔后与主按钮净距约 15dp
+        Spacer(Modifier.height(4.dp))
         io.candy.tick.ui.common.LinkText(
             text = stringResource(R.string.empty_import),
             onClick = onImport,
+            alignment = Alignment.Center,
         )
         Spacer(Modifier.weight(1.22f))
     }

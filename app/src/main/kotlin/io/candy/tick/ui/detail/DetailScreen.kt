@@ -192,15 +192,15 @@ fun DetailScreen(
     val tabMoving by remember(tabPosition, targetPosition) {
         derivedStateOf { tabPosition.value != targetPosition }
     }
+    val tabReloading = if (commitsTab) state.commitsReloading else state.releasesReloading
+    val tabEmpty = if (commitsTab) state.commits.isEmpty() else releases.isEmpty()
     // The selected plate and all incoming rows follow one clock. A fetch, scroll or page entry
-    // doesn't trigger it, and idle rows need no offset layer.
-    val tabContentModifier = if (motion && tabMoving) {
+    // doesn't trigger it, idle rows need no offset layer, and centered empty/error states stay still.
+    val tabContentModifier = if (motion && tabMoving && !tabEmpty) {
         Modifier.offset {
             IntOffset((12.dp.toPx() * (targetPosition - tabPosition.value)).roundToInt(), 0)
         }
     } else Modifier
-    val tabReloading = if (commitsTab) state.commitsReloading else state.releasesReloading
-    val tabEmpty = if (commitsTab) state.commits.isEmpty() else releases.isEmpty()
     // The download notification can outlive the in-memory release page or the remote release itself.
     val localTarget = state.repo?.downloadedApk?.takeIf { !commitsTab && it.version == tag && releaseIndex < 0 }
     val commitsPending = state.commitsLoading && state.commits.isEmpty() && !state.commitsEnd && !state.commitsFailed
@@ -681,18 +681,26 @@ fun DetailScreen(
                                 state.snapshot?.description?.trim()?.let { translations[it] }
                             } else null,
                         )
-                        // 错误横幅出现/消失过渡（220 表层档，与首页同款统一）：刷新失败/恢复不再硬跳
-                        AnimatedContent(
-                            targetState = state.banner,
-                            transitionSpec = {
-                                val duration = if (motion) Motion.PANEL else 0
-                                (fadeIn(tween(duration)) togetherWith fadeOut(tween(duration))).using(
-                                    androidx.compose.animation.SizeTransform { _, _ -> tween(duration) },
-                                )
-                            },
+                        // 错误横幅出现/消失过渡：垂直展开/收起 + 淡入淡出，lastBanner 留帧避免退场硬跳
+                        var lastBanner by remember { mutableStateOf(state.banner) }
+                        if (state.banner != null) lastBanner = state.banner
+                        androidx.compose.animation.AnimatedVisibility(
+                            visible = state.banner != null,
+                            enter = if (motion) {
+                                androidx.compose.animation.expandVertically(
+                                    animationSpec = tween(Motion.PANEL, easing = Motion.Decelerate),
+                                    expandFrom = Alignment.Top,
+                                ) + fadeIn(tween(Motion.PANEL))
+                            } else androidx.compose.animation.EnterTransition.None,
+                            exit = if (motion) {
+                                androidx.compose.animation.shrinkVertically(
+                                    animationSpec = tween(Motion.PANEL, easing = Motion.Decelerate),
+                                    shrinkTowards = Alignment.Top,
+                                ) + fadeOut(tween(Motion.MICRO))
+                            } else androidx.compose.animation.ExitTransition.None,
                             label = "detailRefreshError",
-                        ) { error ->
-                            if (error != null) {
+                        ) {
+                            lastBanner?.let { error ->
                                 // 共用失败横幅（errorContainer 底 + 重试钮，与首页同构）；
                                 // 用户可不刷新只关提示（dismissBanner 由此接线）
                                 ErrorBanner(
@@ -918,7 +926,7 @@ private fun DetailMoreActionsSheet(
                             onClick = onSelectBranch,
                         )
                         if (webUrl != null) {
-                            DetailSheetDivider(scheme.dividerLine)
+                            DetailSheetDivider(io.candy.tick.ui.common.sheetDividerColor())
                         }
                     }
                     if (webUrl != null) {
@@ -933,7 +941,7 @@ private fun DetailMoreActionsSheet(
                                 links.openUri(webUrl)
                             },
                         )
-                        DetailSheetDivider(scheme.dividerLine)
+                        DetailSheetDivider(io.candy.tick.ui.common.sheetDividerColor())
                         DetailSheetActionRow(
                             icon = R.drawable.ic_link,
                             title = copyLabel,
@@ -1002,7 +1010,8 @@ private fun DetailSheetActionRow(
         startAction = {
             Box(
                 modifier = Modifier
-                    .padding(end = 12.dp)
+                    // end=4dp 配合 BasicComponent 默认 8dp 凑齐 12dp 图文间距，与 DetailSheetDivider(start=60dp) 对齐
+                    .padding(end = 4.dp)
                     .size(34.dp)
                     .clip(badgeShape)
                     .background(badgeBg),

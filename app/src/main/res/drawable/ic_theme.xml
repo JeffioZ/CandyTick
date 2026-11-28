@@ -1,12 +1,9 @@
 <?xml version="1.0" encoding="utf-8"?>
-<!-- Lucide "contrast" (ISC License), path 官方原版（circle 已转 path）：24 网格 / stroke 2 圆端。
-     光学完美对称（此前 palette 内容右偏 2 单位，设置芯片内视觉不居中）；半圆填充表「明暗主题」 -->
+<!-- Phosphor Icons Regular "circle-half" (MIT License) -->
 <vector xmlns:android="http://schemas.android.com/apk/res/android"
     android:width="24dp"
     android:height="24dp"
-    android:viewportWidth="24"
-    android:viewportHeight="24">
-    <path android:pathData="M12 22a10 10 0 1 1 0-20a10 10 0 1 1 0 20z" android:strokeColor="#FF000000" android:strokeWidth="2" android:strokeLineCap="round" android:strokeLineJoin="round" android:fillColor="#00000000"/>
-    <path android:pathData="M12 18a6 6 0 0 0 0-12v12z" android:strokeColor="#FF000000" android:strokeWidth="2" android:strokeLineCap="round" android:strokeLineJoin="round" android:fillColor="#FF000000"/>
-
+    android:viewportWidth="256"
+    android:viewportHeight="256">
+    <path android:fillColor="#FF000000" android:pathData="M128,24A104,104,0,1,0,232,128,104.11,104.11,0,0,0,128,24Zm8,16.37a86.4,86.4,0,0,1,16,3V212.67a86.4,86.4,0,0,1-16,3Zm32,9.26a87.81,87.81,0,0,1,16,10.54V195.83a87.81,87.81,0,0,1-16,10.54ZM40,128a88.11,88.11,0,0,1,80-87.63V215.63A88.11,88.11,0,0,1,40,128Zm160,50.54V77.46a87.82,87.82,0,0,1,0,101.08Z" />
 </vector>

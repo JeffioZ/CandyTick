@@ -111,6 +111,33 @@ private suspend fun waitForMinimumDisplay(shownAt: Long) {
 }
 
 /**
+ * 主动触发的加载/重试最短驻留兜底：点击瞬间即刻显露（0ms 延迟），若请求在极短时间内结束
+ * （例如断网/限流 15ms 返回失败）则至少稳稳展示 [minDwellMs]，避免 loading 一闪而过像没点中。
+ * 系统关闭动画时直接透传不额外停留。
+ */
+@Composable
+internal fun rememberMinDwellBusy(busy: Boolean, minDwellMs: Long = 380L): Boolean {
+    val motionEnabled = rememberMotionEnabled()
+    var shown by remember { mutableStateOf(busy) }
+    var shownAt by remember { mutableLongStateOf(if (busy) SystemClock.uptimeMillis() else 0L) }
+    LaunchedEffect(busy, motionEnabled) {
+        if (busy) {
+            if (!shown) {
+                shown = true
+                shownAt = SystemClock.uptimeMillis()
+            }
+        } else if (shown) {
+            if (motionEnabled && minDwellMs > 0L) {
+                val remaining = minDwellMs - (SystemClock.uptimeMillis() - shownAt)
+                if (remaining > 0L) delay(remaining)
+            }
+            shown = false
+        }
+    }
+    return busy || shown
+}
+
+/**
  * 首页标题右侧的三点与完成／失败符。
  * 固定宽度占位槽（宽度由调用方的 modifier 给）——槽常在，标题再长 dots 也不会被挤出/挤进 actions 区；
  * 300ms 延迟防闪（短抖动不点亮），结束后停一拍再收。
@@ -139,13 +166,14 @@ fun SyncDots(
             val completed = result?.takeIf { it.run === revealedRun }
             phase = completed ?: SyncStatus.Idle
             if (completed != null) {
-                // This timer belongs to the title icon. Feedback can still be waiting for a pull to settle.
-                delay(if (completed.changed > 0 || completed.failed > 0) 4_000L else 2_000L)
+                // Toast 已接棒播报更新/失败结果，标题图标统一停留 2s 即可利落退场
+                delay(2_000L)
                 phase = SyncStatus.Idle
             }
         }
     }
 
+    val motionEnabled = rememberMotionEnabled()
     val label = when (val status = phase) {
         SyncStatus.Idle -> null
         is SyncStatus.Running -> stringResource(R.string.notif_syncing_repos)
@@ -161,7 +189,7 @@ fun SyncDots(
         Crossfade(
             targetState = phase,
             modifier = Modifier.size(18.dp).statusSemantics(label, busy = phase is SyncStatus.Running),
-            animationSpec = tween(Motion.MICRO),
+            animationSpec = tween(if (motionEnabled) Motion.MICRO else 0),
             label = "syncStatus",
         ) { status ->
             Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {

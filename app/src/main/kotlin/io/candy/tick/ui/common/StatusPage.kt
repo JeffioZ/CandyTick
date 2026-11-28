@@ -2,6 +2,7 @@ package io.candy.tick.ui.common
 
 import androidx.annotation.PluralsRes
 import androidx.compose.foundation.background
+import androidx.compose.foundation.border
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.BoxWithConstraints
@@ -53,7 +54,7 @@ internal fun InlineErrorRow(
         // 圆角与内衬同卡内按压块（10dp 圆角、8dp 内衬）：图标落在所在卡片的文字线上
         modifier = Modifier.fillMaxWidth()
             .background(scheme.errorContainer, RoundedCornerShape(10.dp))
-            .padding(start = 8.dp, end = if (onRetry == null) 8.dp else 4.dp),
+            .padding(start = 10.dp, end = if (onRetry == null) 10.dp else 4.dp),
         horizontalArrangement = Arrangement.spacedBy(8.dp),
         verticalAlignment = Alignment.CenterVertically,
     ) {
@@ -207,7 +208,7 @@ fun FooterText(@PluralsRes countLabel: Int, count: Int, modifier: Modifier = Mod
     }
 }
 
-private val BannerButtonInset = 7.dp
+private val BannerButtonInset = 6.dp
 
 /** 首页和详情共用的刷新提示。已知恢复时间优先于缓存说明。 */
 @Composable
@@ -229,24 +230,53 @@ fun ErrorBanner(
     }
     val panel = lerp(scheme.surfaceContainer, scheme.errorContainer, 0.5f)
     val buttonColor = lerp(panel, scheme.onErrorContainer, 0.09f)
+    val bannerShape = RoundedCornerShape(16.dp)
     BoxWithConstraints(
         modifier.fillMaxWidth().padding(vertical = 6.dp)
-            .background(panel, RoundedCornerShape(16.dp))
+            .background(panel, bannerShape)
+            .border(0.5.dp, scheme.onErrorContainer.copy(alpha = 0.14f), bannerShape)
             .padding(start = 16.dp, end = 16.dp - BannerButtonInset, top = 8.dp, bottom = 8.dp),
     ) {
-        // 两枚按钮各保留 48dp，大字体或窄窗时让正文独占一行。
+        // 左徽章（32+12=44dp）+ 两枚按钮（96dp）+ 间隔（8dp）= 148dp；大字体或窄窗时操作钮换行靠右。
         val minTextWidth = 156.dp * LocalDensity.current.fontScale.coerceAtLeast(1f)
-        if (maxWidth - 104.dp < minTextWidth) {
+        if (maxWidth - 148.dp < minTextWidth) {
             Column(Modifier.fillMaxWidth()) {
-                ErrorBannerMessage(title, hint, Modifier.padding(end = BannerButtonInset))
+                Row(
+                    modifier = Modifier.fillMaxWidth().padding(end = BannerButtonInset),
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.spacedBy(12.dp),
+                ) {
+                    ErrorBannerBadge(buttonColor)
+                    ErrorBannerMessage(title, hint, Modifier.weight(1f))
+                }
                 ErrorBannerActions(onRetry, onDismiss, buttonColor, Modifier.align(Alignment.End))
             }
         } else {
             Row(verticalAlignment = Alignment.CenterVertically) {
+                ErrorBannerBadge(buttonColor)
+                Spacer(Modifier.width(12.dp))
                 ErrorBannerMessage(title, hint, Modifier.weight(1f).padding(end = 8.dp))
                 ErrorBannerActions(onRetry, onDismiss, buttonColor)
             }
         }
+    }
+}
+
+@Composable
+private fun ErrorBannerBadge(color: Color) {
+    Box(
+        modifier = Modifier
+            .size(32.dp)
+            .clip(RoundedCornerShape(9.dp))
+            .background(color),
+        contentAlignment = Alignment.Center,
+    ) {
+        Icon(
+            imageVector = ImageVector.vectorResource(R.drawable.ic_info),
+            contentDescription = null,
+            tint = MiuixTheme.colorScheme.onErrorContainer,
+            modifier = Modifier.size(18.dp),
+        )
     }
 }
 
@@ -286,7 +316,7 @@ private fun ErrorBannerButton(icon: Int, label: Int, color: Color, onClick: () -
         Icon(
             imageVector = ImageVector.vectorResource(icon),
             contentDescription = null,
-            tint = MiuixTheme.colorScheme.onErrorContainer.copy(alpha = if (enabled) 1f else 0.38f),
+            tint = MiuixTheme.colorScheme.onErrorContainer,
             modifier = Modifier.size(20.dp),
         )
     }

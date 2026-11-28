@@ -388,6 +388,25 @@ class RepoRepository(
         }
     }
 
+    /**
+     * 导入后按额度安全预热尚未同步的仓库（不打爆匿名 60 次/小时限额）：
+     * - 已配 Token 或待同步数 <= 12：全部预热；
+     * - 匿名且 > 12 个：仅预热前 10 个（留足安全余量），其余保持待同步占位等待下拉或进详情补齐。
+     */
+    suspend fun warmupUnsyncedAfterImport() {
+        val snapshot = store.state.value
+        val unsynced = snapshot.repos.filter { it.id !in snapshot.snapshots }
+        if (unsynced.isEmpty()) return
+        val hasToken = !snapshot.settings.githubToken.isNullOrBlank()
+        val targets = if (hasToken || unsynced.size <= 12) unsynced else unsynced.take(10)
+        targets.forEachSyncRepo { tracked ->
+            val err = refreshRepo(tracked.id)
+            if (err == null) {
+                syncLatestReleaseTag(tracked.id, forNotification = false)
+            }
+        }
+    }
+
     /** 并发刷新全部订阅；返回 id → 首个错误（全成功为空 Map） */
     suspend fun refreshAll(refreshingCardIds: Set<Long> = emptySet()): Map<Long, SourceError> {
         val errors = ConcurrentHashMap<Long, SourceError>()

@@ -44,7 +44,14 @@ internal fun SheetChoiceRow(
             .then(modifier),
         title = title,
         summary = summary,
-        startAction = startAction,
+        startAction = startAction?.let { action ->
+            {
+                // end=4dp 配合 BasicComponent 默认 8dp 凑齐 12dp 图文间距（与设置页/详情更多浮层统一）
+                androidx.compose.foundation.layout.Box(Modifier.padding(end = 4.dp)) {
+                    action()
+                }
+            }
+        },
         endActions = endActions,
         onClick = onClick,
         insideMargin = PaddingValues(horizontal = 8.dp, vertical = if (summary == null) 12.dp else 8.dp),

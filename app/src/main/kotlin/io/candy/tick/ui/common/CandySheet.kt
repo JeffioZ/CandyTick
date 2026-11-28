@@ -53,6 +53,22 @@ internal fun sheetInteractiveBaseColor(): Color =
     if (LocalAppBackdrop.current != null) Color.Transparent else MiuixTheme.colorScheme.surfaceContainer
 
 /**
+ * 浮层内部分隔线与细描边色：
+ * - API 33+ 液态玻璃浮层内：浅色 `dividerLine` (#E4E8E6) 叠在半透灰底 (`Black 4.5%`) 上对比度近 1:1，
+ *   改用半透明黑/白细线确保清晰又克制；
+ * - API 29-32 不透明降级态：沿用 `scheme.dividerLine`。
+ */
+@Composable
+internal fun sheetDividerColor(): Color {
+    val dark = LocalDarkTheme.current
+    return if (LocalAppBackdrop.current != null) {
+        if (dark) Color.White.copy(alpha = 0.12f) else Color.Black.copy(alpha = 0.10f)
+    } else {
+        MiuixTheme.colorScheme.dividerLine
+    }
+}
+
+/**
  * 顶栏背后渐进模糊层（API 33+）：对齐 miuix GlassTopAppBarDefaults 32dp 半径；
  * 仅在列表离开顶部（[active] = true）时平滑渐入，静止在顶部零离屏采样开销；
  * API 29-32（[backdrop] 为 null）自动降级为不透明页面底色，防止列表滚到透明顶栏下与标题文字重叠；
@@ -72,24 +88,32 @@ internal fun Modifier.topBarProgressiveBlur(
         animationSpec = if (motionEnabled) tween(Motion.PANEL) else snap(),
         label = "topBarBlurStrength",
     )
-    if (strength <= 0.001f) return this
     val topAlpha = 0.84f * strength
     val midAlpha = (if (dark) 0.44f else 0.42f) * strength
+    // drawBackdrop 常驻修饰符链（不在首次滚动时动态挂载），避免首次下滑触发布局重排掉帧
     return this
         .drawBackdrop(
             backdrop = backdrop,
             shape = { RectangleShape },
             effects = {
-                val r = 32.dp.toPx() * strength
-                progressiveBlur(r, r, ProgressiveBlur.Top)
+                if (strength > 0.001f) {
+                    val r = 32.dp.toPx() * strength
+                    progressiveBlur(r, r, ProgressiveBlur.Top)
+                }
             },
         )
-        .background(
-            Brush.verticalGradient(
-                0f to bg.copy(alpha = topAlpha),
-                0.65f to bg.copy(alpha = midAlpha),
-                1f to Color.Transparent,
-            ),
+        .then(
+            if (strength > 0.001f) {
+                Modifier.background(
+                    Brush.verticalGradient(
+                        0f to bg.copy(alpha = topAlpha),
+                        0.65f to bg.copy(alpha = midAlpha),
+                        1f to Color.Transparent,
+                    ),
+                )
+            } else {
+                Modifier
+            },
         )
 }
 

@@ -81,7 +81,7 @@ internal fun SortSheet(
                 .heightIn(max = LocalWindowInfo.current.containerDpSize.height * 0.7f)
                 .verticalScroll(scroll)
                 .padding(horizontal = 12.dp)
-                .padding(top = 8.dp, bottom = 18.dp),
+                .padding(top = 4.dp, bottom = 18.dp),
             verticalArrangement = Arrangement.spacedBy(2.dp),
         ) {
             sortOptions.forEach { (mode, title) ->

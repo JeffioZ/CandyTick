@@ -52,8 +52,8 @@ val LightErrorContainer = Color(0xFFF8D4D4)
 val LightOnErrorContainer = Color(0xFFB91C1C)
 val LightDisabledPrimary = Mint200
 val LightDisabledOnPrimary = LightTextTertiary
-val LightDisabledButton = Color(0xFFE4E9E6) // 中性微绿灰禁用底（页面/卡片/玻璃浮层上均有清晰轮廓，不误导为可点）
-val LightDisabledOnButton = Color(0xFF929B97) // 对禁用底 ≈2.30:1：一眼可辨禁用且文字可读
+val LightDisabledButton = Color(0xFFECEFED) // 柔和淡灰禁用底（弱于正常次要底 #E4E8E6，页面/卡片/玻璃浮层均有轻轮廓）
+val LightDisabledOnButton = Color(0xFF9AA39F) // 对禁用底 ≈2.25:1：一眼可辨禁用且文字可读
 val LightDisabledSecondary = LightDisabledButton
 val LightWindowDimming = Color(0x4D000000)
 val LightSliderKeyPoint = Color(0x4D16A075)
@@ -84,9 +84,7 @@ val DarkDisabledSurfaceText = Color(0xFF4A524E)
 val DarkSecondary = DarkOutline
 val DarkSecondaryVariant = DarkDivider
 val DarkSecondaryContainer = Color(0xFF1C211F)
-val DarkFieldActionContainer = Color(0xFF49574F)
-val DarkFieldActionOutline = Color(0xFF666F6A)
-// 深色尾部按钮带可见底块，图标提亮到正文色的 80%
+// 深色输入框尾部图标提亮到正文色的 80%
 val DarkFieldActionTint = DarkOnSurfaceSecondary
 val DarkTertiaryContainer = Color(0xFF0C3D2E)
 val DarkError = Color(0xFFF87171)
@@ -95,8 +93,8 @@ val DarkErrorContainer = Color(0xFF35201F)
 val DarkOnErrorContainer = Color(0xFFF87171)
 val DarkDisabledPrimary = Color(0xFF1E4034)
 val DarkDisabledOnPrimary = DarkTextTertiary
-val DarkDisabledButton = Color(0xFF242927) // 中性深灰禁用底，去绿色饱和度
-val DarkDisabledOnButton = Color(0xFF636C68) // 对禁用底 ≈2.65:1：与浅色感知灰显对称
+val DarkDisabledButton = Color(0xFF1D2220) // 更沉的中性深灰禁用底（弱于正常次要底 #2A302D）
+val DarkDisabledOnButton = Color(0xFF5C6561) // 对禁用底 ≈2.55:1：与浅色感知灰显对称
 val DarkDisabledSecondary = DarkDisabledButton
 val DarkWindowDimming = Color(0x99000000)
 val DarkSliderKeyPoint = Color(0x4D5BD6A4)
@@ -117,18 +115,14 @@ val StatusLowDark = StatusColors(Color(0xFFFB923C), Color(0xFF32231A), Color(0xF
 val StatusAbandonedDark = StatusColors(Color(0xFFF87171), Color(0xFF35201F), Color(0xFFF87171))
 val StatusArchivedDark = StatusColors(Color(0xFFB0B0B0), Color(0xFF232825), Color(0xFFA7B3AD))
 
-// 设置行图标底色。浅色与深色共用，白色线条的对比度均达到 3.3:1。
+// 设置行图标底色（7 组语义色，去除近重复色相）。浅色与深色共用，白色线条的对比度均达到 3.3:1。
 val ChipBlue = Color(0xFF598AEA)
 val ChipTeal = Color(0xFF309D8D)
-val ChipSky = Color(0xFF5590D0)
-val ChipAmber = Color(0xFFB6843D)
 val ChipPink = Color(0xFFD16E8B)
 val ChipGreen = Color(0xFF539C71)
 val ChipViolet = Color(0xFF8D7FDE)
 val ChipSlate = Color(0xFF768FB0)
 val ChipOrange = Color(0xFFCB7642)
-val ChipSand = Color(0xFFA7884C)
-val ChipPeriwinkle = Color(0xFF708AD6)
 
 // 仓库字母头像：按 owner/repo 选 8 组现代清透色相，渐变两端对白字均 ≥ 4.5:1（WCAG AA）。
 val AvatarPalette = listOf(

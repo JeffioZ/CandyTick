@@ -51,14 +51,10 @@ import io.candy.tick.ui.common.rememberExternalUriHandler
 import io.candy.tick.ui.common.Feedback
 import io.candy.tick.ui.common.rememberMotionEnabled
 import io.candy.tick.ui.common.scrollToTop
-import io.candy.tick.ui.theme.ChipAmber
 import io.candy.tick.ui.theme.ChipBlue
 import io.candy.tick.ui.theme.ChipOrange
 import io.candy.tick.ui.theme.ChipGreen
-import io.candy.tick.ui.theme.ChipPeriwinkle
 import io.candy.tick.ui.theme.ChipPink
-import io.candy.tick.ui.theme.ChipSand
-import io.candy.tick.ui.theme.ChipSky
 import io.candy.tick.ui.theme.ChipSlate
 import io.candy.tick.ui.theme.ChipTeal
 import io.candy.tick.ui.theme.ChipViolet
@@ -97,7 +93,10 @@ fun SettingsScreen(onBack: () -> Unit, autoOpenImport: Boolean = false) {
     val context = LocalContext.current
     val resources = LocalResources.current
     val scope = androidx.compose.runtime.rememberCoroutineScope()
-    val listState = rememberLazyListState()
+    // 空态「导入已有订阅」直达时首帧直接落在数据分组，省掉入场转场中途的跳滚重排
+    val listState = rememberLazyListState(
+        initialFirstVisibleItemIndex = if (autoOpenImport) DATA_GROUP_INDEX else 0,
+    )
     val motionEnabled = rememberMotionEnabled()
     val clipboard = remember(context) { context.getSystemService(ClipboardManager::class.java) }
     var showFrequencySheet by remember { mutableStateOf(false) }
@@ -137,13 +136,14 @@ fun SettingsScreen(onBack: () -> Unit, autoOpenImport: Boolean = false) {
     var showCacheCleanup by remember { mutableStateOf(false) }
     // 仅用户手动点击「检查更新」时行尾显示「正在检查…」；后台静默检查不打扰版本号显示
     var manualChecking by remember { mutableStateOf(false) }
-    // 空态「导入已有订阅」直达：先定位到数据分组（弹窗关闭时导入/导出行已在屏上），
-    // 再自动拉起导入浮层。一次性消费（rememberSaveable）：旋转/返回重进不重复拉起；
-    // scrollToItem 挂起等待首次布局，无需 totalItemsCount 门禁
+    // 空态「导入已有订阅」直达：等页面滑入转场落稳（entrySettled）再拉起玻璃浮层，
+    // 避免导航动画、首帧布局与液态玻璃初始化撞在同一帧导致掉帧；系统关动画时首帧即 settled
+    val entryTransition = androidx.navigation3.ui.LocalNavAnimatedContentScope.current.transition
+    val entrySettled = entryTransition.currentState == androidx.compose.animation.EnterExitState.Visible &&
+        entryTransition.targetState == androidx.compose.animation.EnterExitState.Visible
     var importAutoOpened by rememberSaveable { mutableStateOf(false) }
-    LaunchedEffect(autoOpenImport) {
-        if (!autoOpenImport || importAutoOpened) return@LaunchedEffect
-        listState.scrollToItem(DATA_GROUP_INDEX)
+    LaunchedEffect(autoOpenImport, entrySettled) {
+        if (!autoOpenImport || importAutoOpened || !entrySettled) return@LaunchedEffect
         showImportDialog = true
         // 消费标记最后落：先置位时若此刻进程被杀/组合销毁，恢复后标记已 true 而浮层未开——直达静默失效
         importAutoOpened = true
@@ -156,6 +156,12 @@ fun SettingsScreen(onBack: () -> Unit, autoOpenImport: Boolean = false) {
             else -> resources.getQuantityString(R.plurals.import_result, added, added)
         }
         Feedback.show(msg, isError = added < 0, errorCode = if (added < 0) "E-IMPORT" else null)
+        if (added > 0) {
+            // 挂在 appScope：用户导入完立刻返回首页也能继续按额度安全预热新导入仓库
+            app.container.appScope.launch(Dispatchers.IO) {
+                runCatching { app.container.repoRepository.warmupUnsyncedAfterImport() }
+            }
+        }
     }
     val importLauncher = rememberLauncherForActivityResult(ActivityResultContracts.OpenDocument()) { uri ->
         if (uri != null) scope.launch {
@@ -303,7 +309,7 @@ fun SettingsScreen(onBack: () -> Unit, autoOpenImport: Boolean = false) {
                     title = stringResource(R.string.settings_theme_mode),
                     value = themeModeLabel(state.settings.themeMode),
                     icon = ImageVector.vectorResource(R.drawable.ic_theme),
-                    iconTint = ChipPeriwinkle,
+                    iconTint = ChipViolet,
                     onClick = { showThemeSheet = true },
                 )
                 RowDivider()
@@ -333,7 +339,7 @@ fun SettingsScreen(onBack: () -> Unit, autoOpenImport: Boolean = false) {
                     summary = stringResource(R.string.settings_sync_wifi_only_summary),
                     checked = state.settings.wifiOnly,
                     icon = ImageVector.vectorResource(R.drawable.ic_wifi),
-                    iconTint = ChipSky,
+                    iconTint = ChipBlue,
                     onChange = vm::setWifiOnly,
                 )
 
@@ -413,7 +419,7 @@ fun SettingsScreen(onBack: () -> Unit, autoOpenImport: Boolean = false) {
                         stringResource(R.string.settings_self_update_download_requires_check),
                     onChange = vm::setSelfUpdateDownload,
                     icon = ImageVector.vectorResource(R.drawable.ic_download),
-                    iconTint = ChipSky,
+                    iconTint = ChipBlue,
                 )
                 RowDivider()
                 SwitchRow(
@@ -428,7 +434,7 @@ fun SettingsScreen(onBack: () -> Unit, autoOpenImport: Boolean = false) {
                 // 安装权限 = 安装功能的先决条件：与自动安装成对呈现
                 SettingRow(
                     icon = ImageVector.vectorResource(R.drawable.ic_unlock),
-                    iconTint = ChipGreen,
+                    iconTint = ChipSlate,
                     title = stringResource(R.string.settings_perm_install_unknown),
                     summary = stringResource(R.string.settings_perm_install_summary),
                     value = permText(installPermGranted),
@@ -446,7 +452,7 @@ fun SettingsScreen(onBack: () -> Unit, autoOpenImport: Boolean = false) {
             SettingsGroup(title = stringResource(R.string.settings_backup_group)) {
                 SettingRow(
                     icon = ImageVector.vectorResource(R.drawable.ic_share),
-                    iconTint = ChipAmber,
+                    iconTint = ChipBlue,
                     title = stringResource(R.string.settings_export),
                     summary = stringResource(R.string.settings_export_summary),
                     onClick = { showExportDialog = true },
@@ -454,7 +460,7 @@ fun SettingsScreen(onBack: () -> Unit, autoOpenImport: Boolean = false) {
                 RowDivider()
                 SettingRow(
                     icon = ImageVector.vectorResource(R.drawable.ic_import),
-                    iconTint = ChipSand,
+                    iconTint = ChipGreen,
                     title = stringResource(R.string.settings_import),
                     summary = stringResource(R.string.settings_import_summary),
                     onClick = { showImportDialog = true },
@@ -526,7 +532,7 @@ fun SettingsScreen(onBack: () -> Unit, autoOpenImport: Boolean = false) {
                 RowDivider()
                 SettingRow(
                     icon = ImageVector.vectorResource(R.drawable.ic_external_link),
-                    iconTint = ChipPeriwinkle,
+                    iconTint = ChipBlue,
                     title = stringResource(R.string.settings_github_repo),
                     value = "JeffioZ/CandyTick",
                     onClick = { links.openUri(REPO_URL) },
@@ -546,7 +552,7 @@ fun SettingsScreen(onBack: () -> Unit, autoOpenImport: Boolean = false) {
                     iconTint = ChipOrange,
                     title = stringResource(R.string.settings_crash_log),
                     summary = stringResource(R.string.settings_crash_log_summary),
-                    // 存在性标记 Lucide 带圈勾（与全 App 结果符单源；此前是 Unicode 文字"✓"）
+                    // 存在性标记 Phosphor 带圈勾（与全 App 结果符单源；此前是 Unicode 文字"✓"）
                     trailing = if (crashLogPresent) {
                         {
                             top.yukonga.miuix.kmp.basic.Icon(

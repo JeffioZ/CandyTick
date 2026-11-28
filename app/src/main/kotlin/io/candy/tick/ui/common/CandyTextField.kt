@@ -60,17 +60,27 @@ fun CandyTextField(
     val state = rememberTextFieldState(initialText = value)
     val latestValue by rememberUpdatedState(value)
     val latestOnValueChange by rememberUpdatedState(onValueChange)
+    // 记录本地刚发出的文本回声队列：外部 StateFlow 晚 1 帧回流旧值时跳过覆盖，防止快打/拼音连续上屏吞字或跳光标
+    val pendingEchoes = remember { ArrayDeque<String>() }
     val inputTransformation = remember(maxLength) {
         maxLength?.let { InputTransformation.maxLengthReject(it) }
     }
     LaunchedEffect(value) {
-        if (state.text.toString() != value) {
+        val idx = pendingEchoes.indexOf(value)
+        if (idx >= 0) {
+            repeat(idx + 1) { pendingEchoes.removeFirst() }
+        } else if (state.text.toString() != value) {
+            pendingEchoes.clear()
             state.setTextAndPlaceCursorAtEnd(value)
         }
     }
     LaunchedEffect(state) {
         snapshotFlow { state.text.toString() }.collect { current ->
-            if (current != latestValue) latestOnValueChange(current)
+            if (current != latestValue) {
+                if (pendingEchoes.size >= 16) pendingEchoes.removeFirst()
+                pendingEchoes.addLast(current)
+                latestOnValueChange(current)
+            }
         }
     }
     val actionHandler = remember(keyboardActions) {

@@ -76,17 +76,18 @@ internal fun RowDivider() {
     Box(
         modifier = Modifier
             .fillMaxWidth()
-            .padding(start = RowSideInset + IconChipSize + 8.dp, end = RowSideInset)
+            .padding(start = RowSideInset + IconChipSize + 12.dp, end = RowSideInset)
             .height(1.dp)
             .background(MiuixTheme.colorScheme.dividerLine),
     )
 }
 
-/** 图标芯片（LibChecker 风格：实色圆角方块 + 白 glyph） */
+/** 图标芯片（LibChecker 风格：实色圆角方块 + 白 glyph；end=4dp 配合 BasicComponent 默认 8dp 凑齐 12dp 图文间距） */
 @Composable
 private fun IconChip(icon: ImageVector, tint: Color) {
     Box(
         modifier = Modifier
+            .padding(end = 4.dp)
             .size(IconChipSize)
             .clip(RoundedCornerShape(9.dp))
             .background(tint),

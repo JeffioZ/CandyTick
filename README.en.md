@@ -76,7 +76,7 @@ In Windows PowerShell, run `.\gradlew.bat assembleDebug`. The APK is written to 
 
 ## 🤝 Credits
 
-CandyTick uses [Miuix](https://github.com/compose-miuix-ui/miuix) components and [Lucide](https://lucide.dev) icons. [Obtainium](https://github.com/ImranR98/Obtainium) inspired how CandyTick compares versions and selects packages.
+CandyTick uses [Miuix](https://github.com/compose-miuix-ui/miuix) components and [Phosphor](https://phosphoricons.com) icons. [Obtainium](https://github.com/ImranR98/Obtainium) inspired how CandyTick compares versions and selects packages.
 
 ## 📄 License
 

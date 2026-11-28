@@ -8,8 +8,8 @@ import org.junit.Test
 class PaletteContrastTest {
     @Test fun whiteSettingsIconsStayReadableOnColoredChips() {
         val backgrounds = listOf(
-            ChipBlue, ChipTeal, ChipSky, ChipAmber, ChipPink, ChipGreen,
-            ChipViolet, ChipSlate, ChipOrange, ChipSand, ChipPeriwinkle,
+            ChipBlue, ChipTeal, ChipPink, ChipGreen,
+            ChipViolet, ChipSlate, ChipOrange,
         )
         for (background in backgrounds) assertContrast(Color.White, background, 3f)
     }

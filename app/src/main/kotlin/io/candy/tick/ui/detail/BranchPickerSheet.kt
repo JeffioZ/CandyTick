@@ -130,8 +130,9 @@ internal fun BranchPickerSheet(
                     }
                 }
                 if (state.nextBranchPage != null) item(key = 2) {
+                    val showingLoading = io.candy.tick.ui.common.rememberMinDwellBusy(state.branchesLoading)
                     when {
-                        state.branchesLoading -> Box(
+                        showingLoading -> Box(
                             modifier = Modifier.fillMaxWidth().heightIn(min = 48.dp),
                             contentAlignment = Alignment.Center,
                         ) { LoadingDots(dotSize = 5.dp) }

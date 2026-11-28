@@ -48,6 +48,7 @@ fun LinkText(
     showIcon: Boolean = false,
     spaceAfter: Dp = 0.dp,
     alignInk: Boolean = false,
+    alignment: Alignment = Alignment.CenterStart,
 ) {
     // Count the parent's trailing gap once. The visible surface stays centred between
     // its neighbours even when a large font makes the tap target taller than 48dp.
@@ -57,13 +58,15 @@ fun LinkText(
         // offset(x) 按「起始侧」镜像，RTL 下同样是朝文字流起点外扩
         modifier = if (alignInk) modifier.offset(x = -TextActionInset) else modifier,
         hitAreaPadding = PaddingValues(top = inset, bottom = inset - spaceAfter),
+        alignment = alignment,
+        spacing = 4.dp,
     ) {
         if (showIcon) {
             Icon(
                 imageVector = ImageVector.vectorResource(R.drawable.ic_external_link),
                 contentDescription = null,
                 tint = MiuixTheme.colorScheme.primaryVariant,
-                modifier = Modifier.size(13.dp),
+                modifier = Modifier.size(14.dp),
             )
         }
         Text(
@@ -86,10 +89,11 @@ internal fun CompactTextAction(
     modifier: Modifier = Modifier,
     hitAreaPadding: PaddingValues = PaddingValues(0.dp),
     enabled: Boolean = true,
-    surface: Color = MiuixTheme.colorScheme.surfaceContainer,
+    surface: Color = Color.Transparent,
     // 行内文字链用默认 Start（墨迹贴文本流）；行尾独立动作传 Center——48dp 触摸区内
     // 芯片居中后墨迹两侧对称，与邻居/卡片边缘的视觉间距相等（DownloadProgress 取消钮）
     alignment: Alignment = Alignment.CenterStart,
+    spacing: Dp = 6.dp,
     content: @Composable RowScope.() -> Unit,
 ) {
     val (source, tint) = rememberRowPressTint(surface)
@@ -105,7 +109,7 @@ internal fun CompactTextAction(
                 .background(tint, RoundedCornerShape(8.dp))
                 .padding(horizontal = TextActionInset, vertical = 5.dp),
             verticalAlignment = Alignment.CenterVertically,
-            horizontalArrangement = Arrangement.spacedBy(6.dp),
+            horizontalArrangement = Arrangement.spacedBy(spacing),
             content = content,
         )
     }

@@ -79,9 +79,8 @@ internal fun SheetScrollToTopTitle(
     text: String,
     canScroll: Boolean,
     scrollToTop: suspend (Boolean) -> Unit,
-    // 40dp：有搜索框的选择器传此值——标题→搜索框的间距需要收紧（真机反馈）；
-    // 其他浮层保持默认 48dp 触控规范
-    minHeight: Dp = 48.dp,
+    // 统一 40dp：使所有带可滚标题的浮层（排序 / 关联应用 / 切换分支）与普通 title 浮层上下留白一致
+    minHeight: Dp = 40.dp,
 ) {
     val scope = rememberCoroutineScope()
     val animated = rememberMotionEnabled()

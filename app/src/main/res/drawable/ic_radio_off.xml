@@ -1,9 +1,9 @@
 <?xml version="1.0" encoding="utf-8"?>
-<!-- Lucide "circle" (ISC License), path 官方原版（circle 元素已转 path） -->
+<!-- Phosphor Icons Regular "circle" (MIT License) -->
 <vector xmlns:android="http://schemas.android.com/apk/res/android"
     android:width="24dp"
     android:height="24dp"
-    android:viewportWidth="24"
-    android:viewportHeight="24">
-    <path android:pathData="M22.0,12.0 a10.0,10.0 0 1 1 -20.0,0 a10.0,10.0 0 1 1 20.0,0 Z" android:strokeColor="#FF000000" android:strokeWidth="2" android:strokeLineCap="round" android:strokeLineJoin="round" android:fillColor="#00000000"/>
+    android:viewportWidth="256"
+    android:viewportHeight="256">
+    <path android:fillColor="#FF000000" android:pathData="M128,24A104,104,0,1,0,232,128,104.11,104.11,0,0,0,128,24Zm0,192a88,88,0,1,1,88-88A88.1,88.1,0,0,1,128,216Z" />
 </vector>

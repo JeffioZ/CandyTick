@@ -1,11 +1,9 @@
 <?xml version="1.0" encoding="utf-8"?>
-<!-- Lucide "info" (ISC License), path 官方原版：24 网格 / stroke 2 圆端，与 miuix 组件内嵌图标同参数 -->
+<!-- Phosphor Icons Regular "info" outer ring + optically centered "i" (MIT License) -->
 <vector xmlns:android="http://schemas.android.com/apk/res/android"
     android:width="24dp"
     android:height="24dp"
-    android:viewportWidth="24"
-    android:viewportHeight="24">
-    <path android:pathData="M12 16v-4m0-4h.01" android:strokeColor="#FF000000" android:strokeWidth="2" android:strokeLineCap="round" android:strokeLineJoin="round" android:fillColor="#00000000"/>
-    <path android:pathData="M22.0,12.0 a10.0,10.0 0 1 1 -20.0,0 a10.0,10.0 0 1 1 20.0,0 Z" android:strokeColor="#FF000000" android:strokeWidth="2" android:strokeLineCap="round" android:strokeLineJoin="round" android:fillColor="#00000000"/>
-
+    android:viewportWidth="256"
+    android:viewportHeight="256">
+    <path android:fillColor="#FF000000" android:pathData="M128,24A104,104,0,1,0,232,128,104.11,104.11,0,0,0,128,24Zm0,192a88,88,0,1,1,88-88A88.1,88.1,0,0,1,128,216ZM116,84a12,12,0,1,1,12,12A12,12,0,0,1,116,84ZM128,116a8,8,0,0,1,8,8v52a8,8,0,0,1,-16,0V124A8,8,0,0,1,128,116Z" />
 </vector>

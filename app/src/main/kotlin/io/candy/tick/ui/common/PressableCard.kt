@@ -125,8 +125,9 @@ fun rememberRowPressTint(
     val source = remember { MutableInteractionSource() }
     val amount = remember { Animatable(0f) }
     var focused by remember { mutableStateOf(false) }
-    LaunchedEffect(source) {
-        collectPressTint(source, amount) { focused = it }
+    val motionEnabled = rememberMotionEnabled()
+    LaunchedEffect(source, motionEnabled) {
+        collectPressTint(source, amount, animated = motionEnabled) { focused = it }
     }
     val scheme = MiuixTheme.colorScheme
     val maxAlpha = pressTint(LocalDarkTheme.current)
@@ -143,6 +144,7 @@ internal fun pressTint(dark: Boolean): Float = if (dark) PRESS_TINT_DARK else PR
 internal suspend fun collectPressTint(
     source: InteractionSource,
     amount: Animatable<Float, AnimationVector1D>,
+    animated: Boolean = true,
     onFocusChange: (Boolean) -> Unit,
 ) {
     val activeFocus = mutableSetOf<FocusInteraction.Focus>()
@@ -155,10 +157,14 @@ internal suspend fun collectPressTint(
         when (interaction) {
             is PressInteraction.Press -> amount.snapTo(1f)
             is PressInteraction.Release -> {
-                amount.snapTo(1f)
-                withFrameNanos { }
-                delay(Motion.PRESS.toLong())
-                amount.animateTo(0f, tween(Motion.MICRO))
+                if (!animated) {
+                    amount.snapTo(0f)
+                } else {
+                    amount.snapTo(1f)
+                    withFrameNanos { }
+                    delay(Motion.PRESS.toLong())
+                    amount.animateTo(0f, tween(Motion.MICRO))
+                }
             }
             is PressInteraction.Cancel -> amount.snapTo(0f)
         }

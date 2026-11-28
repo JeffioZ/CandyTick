@@ -76,7 +76,7 @@ bash gradlew assembleDebug
 
 ## 🤝 致谢
 
-CandyTick 的界面使用 [Miuix](https://github.com/compose-miuix-ui/miuix) 和 [Lucide 图标](https://lucide.dev)。版本比较和安装包选择参考了 [Obtainium](https://github.com/ImranR98/Obtainium)。
+CandyTick 的界面使用 [Miuix](https://github.com/compose-miuix-ui/miuix) 和 [Phosphor 图标](https://phosphoricons.com)。版本比较和安装包选择参考了 [Obtainium](https://github.com/ImranR98/Obtainium)。
 
 ## 📄 许可证
 

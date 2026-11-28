@@ -9,6 +9,7 @@ import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
 import androidx.compose.animation.togetherWith
 import androidx.compose.foundation.BorderStroke
+import androidx.compose.foundation.LocalIndication
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
@@ -20,12 +21,13 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.focus.FocusRequester
-import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.compositeOver
 import androidx.compose.ui.graphics.graphicsLayer
@@ -39,8 +41,6 @@ import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import io.candy.tick.R
-import io.candy.tick.ui.theme.DarkFieldActionContainer
-import io.candy.tick.ui.theme.DarkFieldActionOutline
 import io.candy.tick.ui.theme.DarkFieldActionTint
 import io.candy.tick.ui.theme.LightFieldActionTint
 import io.candy.tick.ui.theme.LocalDarkTheme
@@ -89,32 +89,40 @@ fun PrimaryButton(
         animationSpec = tween(if (motion) Motion.PHASE else 0),
         label = "primaryBtnFg",
     )
-    Button(
-        onClick = onClick,
-        modifier = modifier,
-        enabled = interactive,
-        colors = ButtonDefaults.buttonColors(
-            color = bg,
-            disabledColor = bg,
-            contentColor = contentColor,
-            disabledContentColor = contentColor,
-        ),
-    ) {
-        AnimatedContent(
-            targetState = shownBusyText,
-            transitionSpec = {
-                val spec = tween<Float>(if (motion) Motion.MICRO else 0)
-                fadeIn(spec) togetherWith fadeOut(spec)
-            },
-            label = "primaryBtnContent",
-        ) { currentBusy ->
-            if (currentBusy != null) {
-                Row(horizontalArrangement = Arrangement.spacedBy(8.dp), verticalAlignment = Alignment.CenterVertically) {
-                    LoadingDots(color = LocalContentColor.current, contentDescription = null)
-                    Text(text = currentBusy, style = MiuixTheme.textStyles.button)
+    // 深色主按钮本身是亮薄荷底（深色字），按压应走黑色压暗而非全局白色提亮
+    val buttonIndication = if (LocalDarkTheme.current) {
+        remember { CandyIndication(color = Color.Black, maxAlpha = 0.14f) }
+    } else {
+        LocalIndication.current
+    }
+    CompositionLocalProvider(LocalIndication provides buttonIndication) {
+        Button(
+            onClick = onClick,
+            modifier = modifier,
+            enabled = interactive,
+            colors = ButtonDefaults.buttonColors(
+                color = bg,
+                disabledColor = bg,
+                contentColor = contentColor,
+                disabledContentColor = contentColor,
+            ),
+        ) {
+            AnimatedContent(
+                targetState = shownBusyText,
+                transitionSpec = {
+                    val spec = tween<Float>(if (motion) Motion.MICRO else 0)
+                    fadeIn(spec) togetherWith fadeOut(spec)
+                },
+                label = "primaryBtnContent",
+            ) { currentBusy ->
+                if (currentBusy != null) {
+                    Row(horizontalArrangement = Arrangement.spacedBy(8.dp), verticalAlignment = Alignment.CenterVertically) {
+                        LoadingDots(color = LocalContentColor.current, contentDescription = null)
+                        Text(text = currentBusy, style = MiuixTheme.textStyles.button)
+                    }
+                } else {
+                    Text(text = text, style = MiuixTheme.textStyles.button)
                 }
-            } else {
-                Text(text = text, style = MiuixTheme.textStyles.button)
             }
         }
     }
@@ -127,10 +135,17 @@ fun SecondaryButton(
     modifier: Modifier = Modifier,
     enabled: Boolean = true,
 ) {
+    val scheme = MiuixTheme.colorScheme
     Button(
         onClick = onClick,
         modifier = modifier,
         enabled = enabled,
+        colors = ButtonDefaults.buttonColors(
+            color = scheme.secondary,
+            disabledColor = scheme.disabledSecondary,
+            contentColor = scheme.onSecondary,
+            disabledContentColor = scheme.disabledOnSecondary,
+        ),
     ) {
         Text(text = text, style = MiuixTheme.textStyles.button)
     }
@@ -144,12 +159,19 @@ fun DangerButton(
     modifier: Modifier = Modifier,
 ) {
     val scheme = MiuixTheme.colorScheme
-    Button(
-        onClick = onClick,
-        modifier = modifier,
-        colors = ButtonDefaults.buttonColors(color = scheme.error, contentColor = scheme.onError),
-    ) {
-        Text(text = text, style = MiuixTheme.textStyles.button)
+    val buttonIndication = if (LocalDarkTheme.current) {
+        remember { CandyIndication(color = Color.Black, maxAlpha = 0.14f) }
+    } else {
+        LocalIndication.current
+    }
+    CompositionLocalProvider(LocalIndication provides buttonIndication) {
+        Button(
+            onClick = onClick,
+            modifier = modifier,
+            colors = ButtonDefaults.buttonColors(color = scheme.error, contentColor = scheme.onError),
+        ) {
+            Text(text = text, style = MiuixTheme.textStyles.button)
+        }
     }
 }
 
@@ -168,7 +190,7 @@ fun PressIconButton(
     onClick: () -> Unit,
     contentDescription: String?,
     modifier: Modifier = Modifier,
-    tintInset: Dp = 4.dp,
+    tintInset: Dp = Dp.Unspecified,
     containerColor: Color = MiuixTheme.colorScheme.surfaceContainer,
     border: BorderStroke? = null,
     glass: Boolean = false,
@@ -178,6 +200,7 @@ fun PressIconButton(
     content: @Composable () -> Unit,
 ) {
     val dark = LocalDarkTheme.current
+    val resolvedInset = if (tintInset != Dp.Unspecified) tintInset else if (glass) 3.dp else 4.dp
     val glassEnabled = glass && LocalAppBackdrop.current != null
     val resolvedSurface = when {
         !glass -> containerColor
@@ -191,19 +214,9 @@ fun PressIconButton(
     val resolvedBorder = when {
         border != null -> border
         !glass -> null
-        glassEnabled -> BorderStroke(
-            width = 0.75.dp,
-            brush = Brush.verticalGradient(
-                if (dark) {
-                    listOf(Color.White.copy(alpha = 0.22f), Color.White.copy(alpha = 0.06f))
-                } else {
-                    listOf(Color.White.copy(alpha = 0.88f), Color.Black.copy(alpha = 0.08f))
-                },
-            ),
-        )
         else -> BorderStroke(
             width = 0.5.dp,
-            color = if (dark) Color.White.copy(alpha = 0.09f) else Color.Black.copy(alpha = 0.06f),
+            color = if (dark) Color.White.copy(alpha = 0.12f) else Color.Black.copy(alpha = 0.07f),
         )
     }
     val (pressSrc, pressColor) = rememberRowPressTint(surface = resolvedSurface)
@@ -227,7 +240,7 @@ fun PressIconButton(
             .semantics { contentDescription?.let { this.contentDescription = it } }
             .then(if (enabled) Modifier else Modifier.graphicsLayer { alpha = 0.38f })
             // padding 在 clickable 之后：染色圆缩进、热区不缩
-            .padding(tintInset)
+            .padding(resolvedInset)
             .clip(CircleShape)
             .background(pressColor, CircleShape)
             .then(if (resolvedBorder == null) Modifier else Modifier.border(resolvedBorder, CircleShape)),
@@ -248,22 +261,20 @@ internal fun clearTextFieldAction(focus: FocusRequester, onClear: () -> Unit): (
     }
 }
 
-/** 输入框尾部的圆钮。36dp 可见圆与输入框边缘之间留出 8dp。 */
+/** 输入框尾部图标按钮。48dp 热区 + end=4dp 使 24dp 图标到右缘 16dp，与 TextField 左侧 16dp 及上下留白对称。 */
 @Composable
 internal fun TextFieldActionButton(
     onClick: () -> Unit,
     @DrawableRes icon: Int = R.drawable.ic_close,
     @StringRes actionLabel: Int = R.string.clear_input,
 ) {
-    val colors = MiuixTheme.colorScheme
     val dark = LocalDarkTheme.current
     PressIconButton(
         onClick = onClick,
         contentDescription = stringResource(actionLabel),
         tintInset = 6.dp,
-        modifier = Modifier.padding(end = 2.dp),
-        containerColor = if (dark) DarkFieldActionContainer else colors.surfaceContainer,
-        border = if (dark) BorderStroke(1.dp, DarkFieldActionOutline) else null,
+        modifier = Modifier.padding(end = 4.dp),
+        containerColor = Color.Transparent,
     ) {
         // 图标交叉淡入（令牌显隐等条件换图）：瞬切会与按压色块的 ~100ms 保持期打架
         androidx.compose.animation.Crossfade(

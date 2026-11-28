@@ -16,6 +16,7 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.runtime.Composable
@@ -41,7 +42,7 @@ import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.compose.LocalLifecycleOwner
 import androidx.lifecycle.repeatOnLifecycle
 import io.candy.tick.R
-import io.candy.tick.ui.common.InlineErrorRow
+import io.candy.tick.ui.common.CompactTextAction
 import io.candy.tick.ui.common.InaccessibleBadge
 import io.candy.tick.ui.common.RepoIdentityHeader
 import io.candy.tick.ui.common.StatusBadge
@@ -122,6 +123,12 @@ internal fun RepoCard(
                 }
 
                 val expandPress = remember { MutableInteractionSource() }
+                // 从错误态点「重试」时由展开区就地承接加载态（避免无论有无缓存都跳去顶行双转圈）
+                var retryingFromError by remember(expanded) { mutableStateOf(false) }
+                // 顶行「正在刷新」最短停留兜底：健康态有缓存刷新时快速失败也不会一闪而过
+                val showingUserRefresh = io.candy.tick.ui.common.rememberMinDwellBusy(
+                    extras?.load == ListViewModel.CardLoad.USER_REFRESH && !retryingFromError,
+                )
                 Row(
                     modifier = Modifier
                         .fillMaxWidth()
@@ -162,9 +169,9 @@ internal fun RepoCard(
                                 .background(scheme.primaryVariant, CircleShape),
                         )
                         Spacer(Modifier.width(unreadDot * (5f / 6f)))
-                        // 用户展开或重试时才替换时间。批量刷新由页面提示，卡片保留已知时间。
-                        // 时间文字与「正在刷新」之间走相变过渡（与下载按钮四态同一套，180ms），不再硬切
-                        val refreshingLabel = expanded && !pageRefreshing && extras?.load == ListViewModel.CardLoad.USER_REFRESH
+                        // 用户展开或重试时才替换时间（无缓存时失败重试由展开区就地切 LoadingDots，避免上下双转圈）。
+                        val refreshingLabel = expanded && !pageRefreshing &&
+                            extras?.commits != null && showingUserRefresh
                         androidx.compose.animation.AnimatedContent(
                             targetState = refreshingLabel,
                             transitionSpec = { downloadActionTransition(duration = if (motionEnabled) Motion.PHASE else 0) },
@@ -195,7 +202,9 @@ internal fun RepoCard(
                                     else -> null
                                 }
                                 val label = when {
-                                    timeLabel == null -> unread
+                                    timeLabel == null -> unread ?: if (item.snapshot == null) {
+                                        stringResource(R.string.card_unsynced)
+                                    } else null
                                     otherUnread != null -> stringResource(R.string.card_activity_with_unread, timeLabel, stringResource(otherUnread))
                                     else -> timeLabel
                                 }
@@ -296,8 +305,20 @@ internal fun RepoCard(
                     ) {
                         // 卡中卡信息面板：展开内容有容器底，与折叠态主信息分层
                         ExpandedDetails(
-                            item, extras, releaseTag, onRetryExtras, readViewport.takeIf { expanded },
-                            onReleaseSeen, onCommitSeen,
+                            item = item,
+                            extras = extras,
+                            releaseTag = releaseTag,
+                            onRetry = onRetryExtras?.let { retry ->
+                                {
+                                    retryingFromError = true
+                                    retry()
+                                }
+                            },
+                            readViewport = readViewport.takeIf { expanded },
+                            onReleaseSeen = onReleaseSeen,
+                            onCommitSeen = onCommitSeen,
+                            retryingFromError = retryingFromError,
+                            onRetrySettled = { retryingFromError = false },
                         )
                         // 展开面板底部与卡片顶部各留 8dp。
                         Spacer(Modifier.height(8.dp))
@@ -316,9 +337,37 @@ private fun ExpandedDetails(
     readViewport: CardReadViewport?,
     onReleaseSeen: (String, Set<String>) -> Unit,
     onCommitSeen: (String, Set<String>) -> Unit,
+    retryingFromError: Boolean,
+    onRetrySettled: () -> Unit,
 ) {
     val scheme = MiuixTheme.colorScheme
     val activity = item.snapshot?.activity
+    val rawInitialLoad = extras == null || extras.load == ListViewModel.CardLoad.INITIAL
+    val showingInitialLoading = io.candy.tick.ui.common.rememberMinDwellBusy(rawInitialLoad)
+    val rawRetryLoad = retryingFromError &&
+        (extras?.load == ListViewModel.CardLoad.INITIAL || extras?.load == ListViewModel.CardLoad.USER_REFRESH)
+    var sawRetryActive by remember(retryingFromError) { mutableStateOf(false) }
+    if (rawRetryLoad) sawRetryActive = true
+    val showingRetryLoading = io.candy.tick.ui.common.rememberMinDwellBusy(rawRetryLoad)
+    androidx.compose.runtime.LaunchedEffect(retryingFromError, sawRetryActive, extras?.load, extras?.failed, showingRetryLoading) {
+        if (!retryingFromError) return@LaunchedEffect
+        if (!sawRetryActive) {
+            // 等待 StateFlow 下发 INITIAL/USER_REFRESH；若请求被忽略未触发则 150ms 兜底复位
+            kotlinx.coroutines.delay(150L)
+            onRetrySettled()
+            return@LaunchedEffect
+        }
+        val idle = extras != null && extras.load == ListViewModel.CardLoad.IDLE
+        if (idle && (!extras.failed || !showingRetryLoading)) {
+            onRetrySettled()
+        }
+    }
+    val showRetryRow = retryingFromError && (!sawRetryActive || rawRetryLoad || showingRetryLoading)
+    val showErrorRow = !showRetryRow && extras != null && extras.failed && !(extras.commits == null && showingInitialLoading)
+    val showInitialLoading = !showRetryRow && !showErrorRow && (extras == null || (extras.commits == null && showingInitialLoading))
+    // 错误行与重试行自带 32dp 触控/居中高度，收紧面板纵衬到 4dp（视觉上下约 12dp），
+    // 避免与常规 16dp 文本行的 10dp 纵衬叠加出过大空白
+    val verticalPad = if (showErrorRow || showRetryRow) 4.dp else 10.dp
     Column(
         modifier = Modifier
             .fillMaxWidth()
@@ -330,65 +379,105 @@ private fun ExpandedDetails(
             // 内衬 8dp 与上方展开行同值：面板里的文字和「最近提交…」落在同一条文字线上
             .clip(RoundedCornerShape(10.dp))
             .background(scheme.secondaryVariant)
-            .padding(horizontal = 8.dp, vertical = 10.dp),
+            .padding(horizontal = 8.dp, vertical = verticalPad),
         verticalArrangement = Arrangement.spacedBy(6.dp),
     ) {
         when {
-            extras == null || extras.load == ListViewModel.CardLoad.INITIAL -> androidx.compose.foundation.layout.Box(
+            showRetryRow -> Row(
+                modifier = Modifier.fillMaxWidth().heightIn(min = 32.dp),
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.spacedBy(8.dp),
+            ) {
+                io.candy.tick.ui.common.LoadingDots(dotSize = 5.dp)
+                Text(
+                    text = stringResource(R.string.card_refreshing),
+                    style = MiuixTheme.textStyles.footnote1,
+                    color = scheme.onBackgroundVariant,
+                )
+            }
+            showErrorRow -> Row(
+                // 首页展开区出错时仅展示干净的单行错误 + 重试（不与旧缓存提交/版本混排；完整缓存由详情页保留）
+                modifier = Modifier.fillMaxWidth(),
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.spacedBy(8.dp),
+            ) {
+                Icon(
+                    imageVector = ImageVector.vectorResource(R.drawable.ic_info),
+                    contentDescription = null,
+                    tint = scheme.onErrorContainer,
+                    modifier = Modifier.size(16.dp),
+                )
+                Text(
+                    text = stringResource(R.string.card_details_failed),
+                    style = MiuixTheme.textStyles.footnote1,
+                    color = scheme.onErrorContainer,
+                    modifier = Modifier.weight(1f),
+                )
+                if (onRetry != null) {
+                    CompactTextAction(
+                        onClick = onRetry,
+                        surface = scheme.secondaryVariant,
+                        alignment = Alignment.Center,
+                    ) {
+                        Text(
+                            text = stringResource(R.string.retry),
+                            style = MiuixTheme.textStyles.footnote1.copy(
+                                fontWeight = androidx.compose.ui.text.font.FontWeight.SemiBold,
+                            ),
+                            color = scheme.onErrorContainer,
+                        )
+                    }
+                }
+            }
+            showInitialLoading -> androidx.compose.foundation.layout.Box(
                 modifier = Modifier.height(16.dp), // 与替换后的提交行等高，加载→内容不跳
                 contentAlignment = Alignment.CenterStart,
             ) {
                 io.candy.tick.ui.common.LoadingDots(dotSize = 5.dp)
             }
-            extras.failed -> InlineErrorRow(
-                message = stringResource(R.string.card_details_failed),
-                onRetry = onRetry,
-                // 卡内错误条不做 liveRegion 播报：会被 clickable merge，相对时间每分钟刷新时整卡重读
-                announce = false,
-            )
-        }
-        if (extras?.load != ListViewModel.CardLoad.INITIAL) {
-            extras?.commits?.take(3)?.forEachIndexed { index, commit ->
-                // 只有与当前快照一致的首行代表积压。预览落后或首行不在屏内时，仍逐行确认。
-                val head = index == 0 && commit.sha == item.snapshot?.lastCommitSha
-                val batch = if (head) activity?.unreadCommitShas.orEmpty() else emptySet()
-                key(item.repo.addedAt, item.repo.branch, item.repo.branch ?: item.snapshot?.defaultBranch, commit.sha, head) {
-                    val observe = activity != null && (commit.sha in activity.unreadCommitShas ||
-                        batch.isNotEmpty() || (index == 0 && commit.sha !in activity.recentlyViewedCommits))
-                    Row(
-                        modifier = Modifier.whenRowSeen(readViewport.takeIf { observe }, batch) { onCommitSeen(commit.sha, it) },
-                        verticalAlignment = Alignment.CenterVertically,
-                    ) {
-                        Text(
-                            text = commit.sha.take(7),
-                            style = MonoTokenStyle,
-                            color = scheme.primaryVariant,
-                        )
-                        Spacer(Modifier.width(8.dp))
-                        Text(
-                            text = commit.message.lineSequence().firstOrNull().orEmpty(),
-                            style = MiuixTheme.textStyles.footnote1,
-                            color = scheme.onBackgroundVariant,
-                            maxLines = 1,
+            else -> {
+                extras?.commits?.take(3)?.forEachIndexed { index, commit ->
+                    // 只有与当前快照一致的首行代表积压。预览落后或首行不在屏内时，仍逐行确认。
+                    val head = index == 0 && commit.sha == item.snapshot?.lastCommitSha
+                    val batch = if (head) activity?.unreadCommitShas.orEmpty() else emptySet()
+                    key(item.repo.addedAt, item.repo.branch, item.repo.branch ?: item.snapshot?.defaultBranch, commit.sha, head) {
+                        val observe = activity != null && (commit.sha in activity.unreadCommitShas ||
+                            batch.isNotEmpty() || (index == 0 && commit.sha !in activity.recentlyViewedCommits))
+                        Row(
+                            modifier = Modifier.whenRowSeen(readViewport.takeIf { observe }, batch) { onCommitSeen(commit.sha, it) },
+                            verticalAlignment = Alignment.CenterVertically,
+                        ) {
+                            Text(
+                                text = commit.sha.take(7),
+                                style = MonoTokenStyle,
+                                color = scheme.primaryVariant,
+                            )
+                            Spacer(Modifier.width(8.dp))
+                            Text(
+                                text = commit.message.lineSequence().firstOrNull().orEmpty(),
+                                style = MiuixTheme.textStyles.footnote1,
+                                color = scheme.onBackgroundVariant,
+                                maxLines = 1,
+                            )
+                        }
+                    }
+                }
+
+                // 版本行：最新 release vs 本机版本（与详情页头部共用组件，口径一致）
+                if (releaseTag != null) {
+                    val head = releaseTag == item.snapshot?.currentReleaseTag
+                    val batch = if (head) activity?.unreadReleaseTags.orEmpty() else emptySet()
+                    key(item.repo.addedAt, releaseTag, head) {
+                        val observe = activity != null && (batch.isNotEmpty() || releaseTag in activity.unreadReleaseTags ||
+                            releaseTag !in activity.recentlyViewedReleases)
+                        VersionStatusLine(
+                            remoteTag = releaseTag,
+                            installed = item.installedVersion,
+                            comparison = item.comparisonFor(releaseTag),
+                            modifier = Modifier.whenRowSeen(readViewport.takeIf { observe }, batch) { onReleaseSeen(releaseTag, it) },
                         )
                     }
                 }
-            }
-        }
-
-        // 版本行：最新 release vs 本机版本（与详情页头部共用组件，口径一致）
-        if (releaseTag != null) {
-            val head = releaseTag == item.snapshot?.currentReleaseTag
-            val batch = if (head) activity?.unreadReleaseTags.orEmpty() else emptySet()
-            key(item.repo.addedAt, releaseTag, head) {
-                val observe = activity != null && (batch.isNotEmpty() || releaseTag in activity.unreadReleaseTags ||
-                    releaseTag !in activity.recentlyViewedReleases)
-                VersionStatusLine(
-                    remoteTag = releaseTag,
-                    installed = item.installedVersion,
-                    comparison = item.comparisonFor(releaseTag),
-                    modifier = Modifier.whenRowSeen(readViewport.takeIf { observe }, batch) { onReleaseSeen(releaseTag, it) },
-                )
             }
         }
     }

@@ -11,6 +11,8 @@ import androidx.compose.animation.animateContentSize
 import androidx.compose.animation.core.tween
 import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
+import androidx.compose.animation.scaleIn
+import androidx.compose.animation.scaleOut
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
@@ -112,7 +114,11 @@ object Feedback {
             errorCode = normalizedCode,
             actionLabel = actionLabel,
             onAction = onAction,
-            durationMs = durationMs ?: if (actionLabel != null) 4_500L else 2_200L,
+            durationMs = durationMs ?: when {
+                actionLabel != null -> 4_500L
+                isError -> 3_200L
+                else -> 2_400L
+            },
         )
     }
 
@@ -202,10 +208,15 @@ fun FeedbackHost() {
     ) {
         AnimatedVisibility(
             visible = visible,
-            // 原位淡入淡出（不再自上滑入）：胶囊出现在最终位置——可交互目标不移动，
-            // 快速反应点撤销不会点在「落点前」；关闭系统动画的用户直接显隐
-            enter = if (motionEnabled) fadeIn(tween(Motion.PANEL)) else EnterTransition.None,
-            exit = if (motionEnabled) fadeOut(tween(Motion.PANEL)) else ExitTransition.None,
+            // 原位淡入淡出 + 克制微缩放（不做位移：可交互目标不移动，点撤销不落空；关闭系统动画直接显隐）
+            enter = if (motionEnabled) {
+                fadeIn(tween(Motion.PANEL)) +
+                    scaleIn(tween(Motion.PANEL, easing = Motion.Decelerate), initialScale = 0.94f)
+            } else EnterTransition.None,
+            exit = if (motionEnabled) {
+                fadeOut(tween(Motion.PANEL)) +
+                    scaleOut(tween(Motion.PANEL), targetScale = 0.96f)
+            } else ExitTransition.None,
         ) {
             shown?.let { m ->
                 val backdrop = LocalAppBackdrop.current
@@ -280,7 +291,7 @@ fun FeedbackHost() {
                         .padding(start = 16.dp, end = if (m.actionLabel == null) 16.dp else feedbackActionInset),
                     verticalAlignment = Alignment.CenterVertically,
                 ) {
-                    // 状态符 Lucide 带圈版（circle-check/circle-x，不套圆底徽章防圈套圈）
+                    // 状态符 Phosphor 带圈版（check-circle/x-circle，不套圆底徽章防圈套圈）
                     top.yukonga.miuix.kmp.basic.Icon(
                         imageVector = ImageVector.vectorResource(
                             if (m.isError) io.candy.tick.R.drawable.ic_close_circle else io.candy.tick.R.drawable.ic_check_circle,

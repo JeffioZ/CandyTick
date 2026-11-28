@@ -18,8 +18,11 @@ import androidx.compose.ui.unit.dp
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.StateFlow
 
-/** 刷新头最短驻留：防「重试→秒败→一闪而过」的闪烁感。与 SyncDots 的防闪延迟共用同一档时长 */
-private val MIN_REFRESHING_SHOWN_MS = Motion.PROGRESS.toLong()
+/**
+ * 刷新头最短驻留：程序化触发（如错误横幅点「重试」）时，Miuix 刷新头从 0dp 展开约需 220ms，
+ * 600ms = ~220ms 展开 + ~380ms 稳定旋转（与 rememberMinDwellBusy 体感一致），防秒败一闪而过。
+ */
+private const val MIN_REFRESHING_SHOWN_MS = 600L
 
 /**
  * 首页和详情共用四态刷新头。Miuix 的 contentPadding 只移动刷新头的绘制位置；
@@ -44,9 +47,11 @@ internal fun <T> CandyPullToRefresh(
     LaunchedEffect(requestState, refreshing) {
         requestState.collect {
             if (refreshing(it)) {
-                // 每轮刷新都重记起点：保底窗口内起的新一轮也有自己的 300ms
-                busySince = android.os.SystemClock.elapsedRealtime()
-                headerRefreshing = true
+                // 仅在空闲→刷新起点记时：避免详情页刷新中途多次发射 State 反复延后收起
+                if (!headerRefreshing) {
+                    busySince = android.os.SystemClock.elapsedRealtime()
+                    headerRefreshing = true
+                }
             } else if (headerRefreshing) {
                 val elapsed = android.os.SystemClock.elapsedRealtime() - busySince
                 if (elapsed < MIN_REFRESHING_SHOWN_MS) delay(MIN_REFRESHING_SHOWN_MS - elapsed)

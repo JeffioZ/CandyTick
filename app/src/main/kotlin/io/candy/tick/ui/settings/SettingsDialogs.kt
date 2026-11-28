@@ -452,13 +452,17 @@ internal fun TokenDialog(
     onDismiss: () -> Unit,
 ) {
     val scheme = MiuixTheme.colorScheme
-    // 弹窗打开即聚焦输入（唯一目的就是贴 Token）并免费刷新一次当前额度；show=false 不请求
+    val keyboard = androidx.compose.ui.platform.LocalSoftwareKeyboardController.current
+    val focusManager = androidx.compose.ui.platform.LocalFocusManager.current
+    // 打开弹窗免费刷新一次当前额度；仅未配 Token 或当前 Token 被拒时自动聚焦输入，查额度不弹键盘糊脸
     val tokenFocus = remember { androidx.compose.ui.focus.FocusRequester() }
     androidx.compose.runtime.LaunchedEffect(show) {
         if (show) {
             onRefreshRateLimit()
-            kotlinx.coroutines.delay(150)
-            runCatching { tokenFocus.requestFocus() }
+            if (state.settings.githubToken.isNullOrBlank() || state.tokenRejected) {
+                kotlinx.coroutines.delay(150)
+                runCatching { tokenFocus.requestFocus() }
+            }
         }
     }
     // show 直通（勿用 if 包裹）：退场动画依赖组件持续组合；底部浮层与选项浮层动效统一
@@ -523,10 +527,13 @@ internal fun TokenDialog(
             }
             val tokenStatus: Pair<Boolean, Int>? = when {
                 state.tokenTest == SettingsViewModel.TokenTest.VALID -> true to R.string.token_verified
+                state.tokenTest == SettingsViewModel.TokenTest.REMOVED -> true to R.string.token_removed
                 tokenError != null -> false to tokenError
                 else -> null
             }
-            // 满宽主按钮（退出=放弃由 scrim/下拉/返回键承担，不再设取消按钮）
+            // 满宽主按钮：验证或移除成功后原地切「完成」一键关闭，重新编辑输入框自动复位
+            val tokenSettled = state.tokenTest == SettingsViewModel.TokenTest.VALID ||
+                state.tokenTest == SettingsViewModel.TokenTest.REMOVED
             val removingToken = state.tokenInput.isBlank() && !state.settings.githubToken.isNullOrBlank()
             Column {
                 androidx.compose.animation.AnimatedVisibility(
@@ -566,9 +573,23 @@ internal fun TokenDialog(
                     }
                 }
                 PrimaryButton(
-                    text = stringResource(if (removingToken) R.string.remove_token else R.string.settings_token_test),
-                    onClick = onSaveAndTest,
-                    enabled = state.tokenInput.isNotBlank() || removingToken,
+                    text = stringResource(
+                        when {
+                            tokenSettled -> R.string.done
+                            removingToken -> R.string.remove_token
+                            else -> R.string.settings_token_test
+                        },
+                    ),
+                    onClick = {
+                        if (tokenSettled) {
+                            onDismiss()
+                        } else {
+                            focusManager.clearFocus()
+                            keyboard?.hide()
+                            onSaveAndTest()
+                        }
+                    },
+                    enabled = tokenSettled || state.tokenInput.isNotBlank() || removingToken,
                     busyText = if (state.tokenTest == SettingsViewModel.TokenTest.TESTING) {
                         stringResource(R.string.settings_token_verifying)
                     } else null,
@@ -612,7 +633,8 @@ private fun TokenRateLimitCard(
             .fillMaxWidth()
             .clip(shape)
             .background(cardBg)
-            .padding(start = 14.dp, end = 6.dp, top = 4.dp, bottom = 12.dp),
+            // 右侧 0dp 配合 44dp 刷新热区，使 16dp 图标右缘正好落在 14dp 线（与下方进度条右端及左缘对齐）
+            .padding(start = 14.dp, end = 0.dp, top = 4.dp, bottom = 12.dp),
         verticalArrangement = Arrangement.spacedBy(4.dp),
     ) {
         Row(
@@ -650,7 +672,7 @@ private fun TokenRateLimitCard(
             }
             Row(
                 verticalAlignment = Alignment.CenterVertically,
-                horizontalArrangement = Arrangement.spacedBy(2.dp),
+                horizontalArrangement = Arrangement.spacedBy(0.dp),
             ) {
                 rateLimit?.resetAt?.let { reset ->
                     if (reset.isAfter(java.time.Instant.now())) {
@@ -661,10 +683,11 @@ private fun TokenRateLimitCard(
                         )
                     }
                 }
+                val spinning = io.candy.tick.ui.common.rememberMinDwellBusy(loading)
                 val (refreshPress, refreshBg) = io.candy.tick.ui.common.rememberRowPressTint(
-                    surface = scheme.surfaceContainerHigh,
+                    surface = androidx.compose.ui.graphics.Color.Transparent,
                 )
-                val spinAngle = if (loading && motionEnabled) {
+                val spinAngle = if (spinning && motionEnabled) {
                     val infinite = androidx.compose.animation.core.rememberInfiniteTransition(label = "quotaRefreshSpin")
                     infinite.animateFloat(
                         initialValue = 0f,
@@ -678,12 +701,12 @@ private fun TokenRateLimitCard(
                         label = "quotaRefreshAngle",
                     ).value
                 } else 0f
-                // 外层 48dp 触控热区包住 32dp 视觉圆钮，兼顾单手易点与卡片紧凑度
+                // 44×48dp 触控热区包住 32dp 按压圆与 16dp 图标：图标右缘精准落在 14dp 线，与下方进度条右端对齐
                 Box(
                     modifier = Modifier
-                        .size(48.dp)
+                        .size(width = 44.dp, height = 48.dp)
                         .clickable(
-                            enabled = !loading,
+                            enabled = !spinning,
                             interactionSource = refreshPress,
                             indication = null,
                             role = Role.Button,
@@ -711,10 +734,10 @@ private fun TokenRateLimitCard(
             }
         }
 
-        // 仅在「无数据 ↔ 有数据」之间做相变，点刷新时不重建进度条，消除闪烁；右补 8dp 与外层 6dp 凑齐左右 14dp 对称
+        // 仅在「无数据 ↔ 有数据」之间做相变，点刷新时不重建进度条，消除闪烁；右侧 14dp 与左侧对称
         AnimatedContent(
             targetState = rateLimit != null,
-            modifier = Modifier.padding(end = 8.dp),
+            modifier = Modifier.padding(end = 14.dp),
             transitionSpec = {
                 val spec = tween<Float>(if (motionEnabled) Motion.PHASE else 0)
                 (fadeIn(spec) togetherWith fadeOut(spec)).using(SizeTransform(clip = false))
@@ -801,7 +824,7 @@ internal fun AppIconPickerSheet(
                     .height(IntrinsicSize.Max)
                     .selectableGroup()
                     .padding(horizontal = 20.dp)
-                    .padding(top = 8.dp, bottom = 20.dp),
+                    .padding(top = 0.dp, bottom = 14.dp),
                 horizontalArrangement = Arrangement.spacedBy(12.dp),
             ) {
                 VisualPickerOption(
@@ -847,7 +870,7 @@ internal fun ThemeModePickerSheet(
                     .height(IntrinsicSize.Max)
                     .selectableGroup()
                     .padding(horizontal = 20.dp)
-                    .padding(top = 8.dp, bottom = 20.dp),
+                    .padding(top = 0.dp, bottom = 14.dp),
                 horizontalArrangement = Arrangement.spacedBy(12.dp),
             ) {
                 VisualPickerOption(
@@ -893,7 +916,7 @@ internal fun SyncFrequencyPickerSheet(
                     .height(IntrinsicSize.Max)
                     .selectableGroup()
                     .padding(horizontal = 16.dp)
-                    .padding(top = 8.dp, bottom = 20.dp),
+                    .padding(top = 0.dp, bottom = 14.dp),
                 horizontalArrangement = Arrangement.spacedBy(8.dp),
             ) {
                 listOf(
@@ -940,7 +963,7 @@ private fun SyncFrequencyThumbnail(
                 .size(52.dp)
                 .clip(thumbShape)
                 .background(tileBg)
-                .border(0.5.dp, scheme.outline.copy(alpha = 0.45f), thumbShape)
+                .border(0.5.dp, io.candy.tick.ui.common.sheetDividerColor(), thumbShape)
                 .clearAndSetSemantics {},
             contentAlignment = Alignment.Center,
         ) {
@@ -989,7 +1012,7 @@ internal fun LanguagePickerSheet(
                     .height(IntrinsicSize.Max)
                     .selectableGroup()
                     .padding(horizontal = 20.dp)
-                    .padding(top = 8.dp, bottom = 20.dp),
+                    .padding(top = 0.dp, bottom = 14.dp),
                 horizontalArrangement = Arrangement.spacedBy(12.dp),
             ) {
                 VisualPickerOption(
@@ -1036,7 +1059,7 @@ private fun LanguageThumbnail(language: String, selected: Boolean) {
                 .size(56.dp)
                 .clip(thumbShape)
                 .background(tileBg)
-                .border(0.5.dp, scheme.outline.copy(alpha = 0.45f), thumbShape)
+                .border(0.5.dp, io.candy.tick.ui.common.sheetDividerColor(), thumbShape)
                 .clearAndSetSemantics {},
             contentAlignment = Alignment.Center,
         ) {
@@ -1103,7 +1126,7 @@ private fun VisualPickerOption(
                 role = Role.RadioButton,
                 onClick = onClick,
             )
-            .padding(vertical = 8.dp, horizontal = 4.dp),
+            .padding(vertical = 6.dp, horizontal = 4.dp),
         horizontalAlignment = Alignment.CenterHorizontally,
         verticalArrangement = Arrangement.spacedBy(10.dp),
     ) {
@@ -1133,14 +1156,13 @@ private fun VisualPickerOption(
 /** 迷你深浅界面 56dp 缩略预览（100% 取自 Color.kt 真实双色板，柔和薄荷双卡 + 跟随系统垂直正中双拼） */
 @Composable
 private fun ThemeModeThumbnail(mode: io.candy.tick.data.model.ThemeMode) {
-    val scheme = MiuixTheme.colorScheme
     val thumbShape = RoundedCornerShape(14.dp)
 
     androidx.compose.foundation.Canvas(
         modifier = Modifier
             .size(56.dp)
             .clip(thumbShape)
-            .border(0.5.dp, scheme.outline.copy(alpha = 0.45f), thumbShape),
+            .border(0.5.dp, io.candy.tick.ui.common.sheetDividerColor(), thumbShape),
     ) {
         fun drawMiniUi(dark: Boolean) {
             val bg = if (dark) io.candy.tick.ui.theme.DarkBackground else io.candy.tick.ui.theme.LightBackground
@@ -1254,14 +1276,13 @@ private fun ThemeModeThumbnail(mode: io.candy.tick.data.model.ThemeMode) {
 /** 按桌面自适应图标真实几何比例绘制 56dp 缩略图（同步 B2 · 1.10x，跟随系统垂直正中对称双拼） */
 @Composable
 private fun AppIconThumbnail(mode: io.candy.tick.data.model.AppIconMode) {
-    val scheme = MiuixTheme.colorScheme
     val iconShape = RoundedCornerShape(14.dp)
 
     androidx.compose.foundation.Canvas(
         modifier = Modifier
             .size(56.dp)
             .clip(iconShape)
-            .border(0.5.dp, scheme.outline.copy(alpha = 0.45f), iconShape),
+            .border(0.5.dp, io.candy.tick.ui.common.sheetDividerColor(), iconShape),
     ) {
         fun drawEcho(dark: Boolean) {
             val bgBrush = androidx.compose.ui.graphics.Brush.radialGradient(

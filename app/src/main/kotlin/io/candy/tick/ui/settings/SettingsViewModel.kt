@@ -32,7 +32,7 @@ class SettingsViewModel(
     private val cacheManager: CacheManager,
 ) : ViewModel() {
 
-    enum class TokenTest { TESTING, VALID, INVALID, NETWORK, SAVE_FAILED }
+    enum class TokenTest { TESTING, VALID, REMOVED, INVALID, NETWORK, SAVE_FAILED }
 
     data class UiState(
         val settings: Settings = Settings(),
@@ -159,7 +159,7 @@ class SettingsViewModel(
                 }
                 // 保存成功后才清被拒标记：失败时保留提示，避免「坏 Token 仍在用且不再提示被拒」
                 githubApi.clearTokenRejected()
-                tokenTest.value = null
+                tokenTest.value = TokenTest.REMOVED
                 refreshRateLimit()
                 return@launch
             }

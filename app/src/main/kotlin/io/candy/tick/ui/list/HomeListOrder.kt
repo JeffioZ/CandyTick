@@ -146,6 +146,7 @@ internal fun rememberHomeRows(
     motionEnabled: Boolean,
     holdOrder: Boolean,
     keepReadingOrder: Boolean,
+    headerCount: Int = 0,
 ): HomeRows {
     val ranked = remember(state.items, state.sortOrder, state.query) {
         HomeListOrder(
@@ -213,7 +214,7 @@ internal fun rememberHomeRows(
         val pin = if (order.query.isEmpty() && order.pinned != previous.pinned) {
             val changed = (order.pinned - previous.pinned) + (previous.pinned - order.pinned)
             changed.singleOrNull()?.takeIf { it in previous.ids && it in order.ids }?.let { id ->
-                planHomePinPlacement(previous.ids, order.ids, id, layout, atTop)
+                planHomePinPlacement(previous.ids, order.ids, id, layout, atTop, headerCount = headerCount)
             }
         } else null
         val membershipChanged = previous.ids.size != order.ids.size || previous.ids.toSet() != order.ids.toSet()
