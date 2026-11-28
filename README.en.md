@@ -37,15 +37,44 @@ Sort five ways — recent pushes, available updates, activity, and more — each
 
 ## ✨ At a Glance
 
-| | Capability | Details |
-| --- | --- | --- |
-| 📬 | **Subscribe** | Paste a link, type a repository name, or search by keyword — no GitHub account needed. |
-| 📜 | **Browse activity** | Read commits by branch and Markdown release notes; `#123` links straight to the issue. |
-| 📲 | **Update apps** | Matches each repository to its installed app, compares versions, and recommends the right APK for your device; includes built-in self-updates too. |
-| 🔔 | **Notifications** | Background sync notifies you when new packages land, with an option to pause auto-sync on mobile data. |
-| 📌 | **Organize** | Pin favorites, search by name, sort five ways, and undo accidental deletions. |
-| 💾 | **Backup** | Save subscriptions to a local JSON file, copy to clipboard, or share; importing automatically skips duplicates. |
-| 🎨 | **Appearance** | Light, dark, or system theme, three switchable launcher icons, and English / Chinese support. |
+<table>
+  <thead>
+    <tr>
+      <th width="175" align="left">Capability</th>
+      <th align="left">Details</th>
+    </tr>
+  </thead>
+  <tbody>
+    <tr>
+      <td>📬&nbsp;<b>Subscribe</b></td>
+      <td>Paste a link, type a repository name, or search by keyword — no GitHub account needed.</td>
+    </tr>
+    <tr>
+      <td>📜&nbsp;<b>Browse activity</b></td>
+      <td>Read commits by branch and Markdown release notes; <code>#123</code> links straight to the issue.</td>
+    </tr>
+    <tr>
+      <td>📲&nbsp;<b>Update apps</b></td>
+      <td>Matches each repository to its installed app, compares versions, and recommends the right APK for your device; includes built-in self-updates too.</td>
+    </tr>
+    <tr>
+      <td>🔔&nbsp;<b>Notifications</b></td>
+      <td>Background sync notifies you when new packages land, with an option to pause auto-sync on mobile data.</td>
+    </tr>
+    <tr>
+      <td>📌&nbsp;<b>Organize</b></td>
+      <td>Pin favorites, search by name, sort five ways, and undo accidental deletions.</td>
+    </tr>
+    <tr>
+      <td>💾&nbsp;<b>Backup</b></td>
+      <td>Save subscriptions to a local JSON file, copy to clipboard, or share; importing automatically skips duplicates.</td>
+    </tr>
+    <tr>
+      <td>🎨&nbsp;<b>Appearance</b></td>
+      <td>Light, dark, or system theme, three switchable launcher icons, and English / Chinese support.</td>
+    </tr>
+  </tbody>
+</table>
 
 **Small by design:** ~2 MB APK, no account, no cloud service — all data stays on your device. Anonymous requests are limited to 60 per hour; adding a [GitHub token](https://docs.github.com/en/rest/using-the-rest-api/rate-limits-for-the-rest-api) in Settings raises it to 5,000.
 
@@ -59,10 +88,8 @@ Want updates for a specific app? Add its GitHub repository — CandyTick links a
 
 ## 📚 More
 
-| | Read this |
-| --- | --- |
-| 📝 | [Changelog](CHANGELOG.md) — every change per version, with an English summary |
-| 🔨 | [Build from source](#build-from-source) — JDK 21 + Android SDK, one command to build a debug APK |
+- 📝 [Changelog](CHANGELOG.md) — every change per version, with an English summary
+- 🔨 [Build from source](#build-from-source) — JDK 21 + Android SDK, one command to build a debug APK
 
 ## 🔨 Build from source
 
