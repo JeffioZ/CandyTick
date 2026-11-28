@@ -586,8 +586,8 @@ fun SettingsScreen(onBack: () -> Unit, autoOpenImport: Boolean = false) {
         show = showThemeSheet,
         selected = state.settings.themeMode,
         onSelect = { mode ->
-            vm.setThemeMode(mode)
             showThemeSheet = false
+            if (mode != state.settings.themeMode) vm.setThemeMode(mode)
         },
         onDismiss = { showThemeSheet = false },
     )
@@ -609,8 +609,8 @@ fun SettingsScreen(onBack: () -> Unit, autoOpenImport: Boolean = false) {
         show = showLanguageSheet,
         selected = state.settings.language,
         onSelect = { lang ->
-            vm.setLanguage(lang)
             showLanguageSheet = false
+            if (lang != state.settings.language) vm.setLanguage(lang)
         },
         onDismiss = { showLanguageSheet = false },
     )

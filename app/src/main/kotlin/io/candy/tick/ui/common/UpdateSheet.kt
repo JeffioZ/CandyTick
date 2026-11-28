@@ -31,9 +31,9 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import io.candy.tick.R
 import io.candy.tick.data.SelfUpdater
-import io.candy.tick.ui.theme.LocalDarkTheme
 import io.candy.tick.ui.theme.MonoTokenStyle
 import io.candy.tick.util.CountFormat
+import io.candy.tick.util.ReleaseNotes
 import io.candy.tick.util.VersionCompare
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import kotlinx.coroutines.launch
@@ -136,10 +136,10 @@ fun UpdateSheet(selfUpdater: SelfUpdater) {
         BoxWithConstraints(
             modifier = Modifier
                 .padding(horizontal = 16.dp)
-                .padding(top = 8.dp),
+                .padding(top = 4.dp),
         ) {
             // Keep the action ahead of the notes when a full notes pane would crowd it out.
-            val notesHeight = 260.dp
+            val notesHeight = 240.dp
             val shortBody = maxHeight < notesHeight + 170.dp * LocalDensity.current.fontScale
             val motionEnabled = rememberMotionEnabled()
 
@@ -157,16 +157,30 @@ fun UpdateSheet(selfUpdater: SelfUpdater) {
             val notesBlock: @Composable () -> Unit = {
                 if (contentTag != null && activeNotes != null) {
                     val slug = "${SelfUpdater.APP_OWNER}/${SelfUpdater.APP_REPO}"
-                    ReleaseNotesBody(
-                        markdown = activeNotes,
-                        repoSlug = slug,
-                        repoUrl = "https://github.com/$slug",
-                        tag = contentTag,
-                        maxHeight = if (shortBody) null else notesHeight,
-                        spaceAfter = 0.dp,
-                        showSource = false,
-                        scrollState = scroll,
-                    )
+                    val hasPreviewLink = ReleaseNotes.isPreview(activeNotes)
+                    androidx.compose.foundation.layout.Box(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .clip(RoundedCornerShape(14.dp))
+                            .background(sheetCardColor())
+                            .padding(
+                                start = 14.dp,
+                                end = 14.dp,
+                                top = 12.dp,
+                                bottom = if (hasPreviewLink) 4.dp else 12.dp,
+                            ),
+                    ) {
+                        ReleaseNotesBody(
+                            markdown = activeNotes,
+                            repoSlug = slug,
+                            repoUrl = "https://github.com/$slug",
+                            tag = contentTag,
+                            maxHeight = if (shortBody) null else notesHeight,
+                            spaceAfter = 0.dp,
+                            showSource = false,
+                            scrollState = scroll,
+                        )
+                    }
                 }
             }
 

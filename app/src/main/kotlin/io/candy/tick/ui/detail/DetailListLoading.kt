@@ -2,7 +2,12 @@ package io.candy.tick.ui.detail
 
 import androidx.compose.animation.AnimatedContent
 import androidx.compose.animation.SizeTransform
+import androidx.compose.animation.core.EaseInOutSine
+import androidx.compose.animation.core.RepeatMode
+import androidx.compose.animation.core.animateFloat
 import androidx.compose.animation.core.animateFloatAsState
+import androidx.compose.animation.core.infiniteRepeatable
+import androidx.compose.animation.core.rememberInfiniteTransition
 import androidx.compose.animation.core.tween
 import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
@@ -22,10 +27,8 @@ import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.State
 import androidx.compose.runtime.derivedStateOf
 import androidx.compose.runtime.getValue
-import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.produceState
 import androidx.compose.runtime.remember
-import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.alpha
@@ -125,8 +128,23 @@ private fun Modifier.historyLoadingSemantics(index: Int): Modifier {
 
 @Composable
 private fun HistorySkeletonLines(tab: DetailTab, index: Int, modifier: Modifier) {
-    val color = MiuixTheme.colorScheme.dividerLine
+    val baseColor = MiuixTheme.colorScheme.onSurface
+    val maxAlpha = if (io.candy.tick.ui.theme.LocalDarkTheme.current) 0.11f else 0.08f
+    val motionEnabled = rememberMotionEnabled()
+    val pulseState = if (motionEnabled) {
+        rememberInfiniteTransition(label = "skeletonPulse").animateFloat(
+            initialValue = 0.45f,
+            targetValue = 1f,
+            animationSpec = infiniteRepeatable(
+                animation = tween(1200, easing = EaseInOutSine),
+                repeatMode = RepeatMode.Reverse,
+            ),
+            label = "skeletonAlpha",
+        )
+    } else null
     Canvas(modifier.padding(horizontal = 16.dp)) {
+        // 在 draw 阶段读动画值，零重组开销；系统关闭动画时静态显示
+        val color = baseColor.copy(alpha = maxAlpha * (pulseState?.value ?: 0.85f))
         val gap = 8.dp.toPx()
         val meta = 8.dp.toPx()
         val title = if (tab == DetailTab.COMMITS) 12.dp.toPx() else 14.dp.toPx()
@@ -218,7 +236,7 @@ internal fun LazyItemScope.HistoryFooter(
             when (visiblePhase) {
                 HistoryFooterState.Idle -> Unit
                 HistoryFooterState.Paging -> Box(
-                    Modifier.fillMaxWidth().padding(vertical = 8.dp),
+                    Modifier.fillMaxWidth().heightIn(min = 40.dp),
                     contentAlignment = Alignment.Center,
                 ) { LoadingDots(dotSize = 5.dp) }
                 HistoryFooterState.Retrying -> Box(Modifier.heightIn(min = 48.dp), contentAlignment = Alignment.Center) {

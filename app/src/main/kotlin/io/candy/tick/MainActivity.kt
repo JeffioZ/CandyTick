@@ -121,13 +121,13 @@ class MainActivity : ComponentActivity() {
             val baseConfiguration = LocalConfiguration.current
             val localizedContext = androidx.compose.runtime.remember(settings.language, baseConfiguration) {
                 val localizedRes = activity.forAppLanguage(settings.language).resources
+                LocaleList.setDefault(localizedRes.configuration.locales)
                 object : ContextWrapper(activity) {
                     override fun getResources(): Resources = localizedRes
                 }
             }
             val locales = localizedContext.resources.configuration.locales
             LaunchedEffect(locales) {
-                LocaleList.setDefault(locales)
                 withContext(Dispatchers.IO) { Notifications.ensureChannels(localizedContext) }
             }
             androidx.compose.runtime.CompositionLocalProvider(
