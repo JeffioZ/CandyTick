@@ -14,6 +14,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.res.stringResource
+import androidx.compose.ui.res.vectorResource
 import androidx.compose.ui.unit.dp
 import io.candy.tick.R
 import io.candy.tick.data.SourceError
@@ -72,7 +73,7 @@ fun StatusBadge(status: RepoStatus, modifier: Modifier = Modifier) {
     )
 }
 
-/** 单仓库失效：黄色叹号角标（旧数据保留，详情页看具体错误） */
+/** 单仓库失效：橙底信息图标角标（与低活跃圆点直观区分，旧数据保留，详情页看具体错误） */
 @Composable
 fun InaccessibleBadge(modifier: Modifier = Modifier) {
     val dark = LocalDarkTheme.current
@@ -83,6 +84,7 @@ fun InaccessibleBadge(modifier: Modifier = Modifier) {
         text = stringResource(R.string.repo_inaccessible),
         textColor = colors.badgeText,
         modifier = modifier,
+        iconRes = R.drawable.ic_info,
     )
 }
 
@@ -93,6 +95,7 @@ private fun BadgeContainer(
     text: String,
     textColor: Color,
     modifier: Modifier = Modifier,
+    @androidx.annotation.DrawableRes iconRes: Int? = null,
 ) {
     Row(
         modifier = modifier
@@ -103,17 +106,28 @@ private fun BadgeContainer(
             .padding(horizontal = 8.dp, vertical = 3.dp),
         verticalAlignment = Alignment.CenterVertically,
     ) {
-        Box(
-            modifier = Modifier
-                .size(6.dp)
-                .clip(CircleShape)
-                .background(dot),
-        )
+        if (iconRes != null) {
+            top.yukonga.miuix.kmp.basic.Icon(
+                imageVector = androidx.compose.ui.graphics.vector.ImageVector.vectorResource(iconRes),
+                contentDescription = null,
+                tint = textColor,
+                modifier = Modifier.size(11.dp),
+            )
+        } else {
+            Box(
+                modifier = Modifier
+                    .size(6.dp)
+                    .clip(CircleShape)
+                    .background(dot),
+            )
+        }
         Spacer(Modifier.width(5.dp))
         Text(
             text = text,
             color = textColor,
             style = MiuixTheme.textStyles.footnote2,
+            maxLines = 1,
+            softWrap = false,
         )
     }
 }

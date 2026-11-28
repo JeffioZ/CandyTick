@@ -639,7 +639,6 @@ fun DetailScreen(
             refreshing = { it.refreshing },
             onRefresh = {
                 pullFrame = vm.state.value
-                haptic.performHapticFeedback(HapticFeedbackType.LongPress) // 松手触发确认：与首页同款
                 vm.refresh()
             },
             pullToRefreshState = pullState,

@@ -4,15 +4,18 @@ import top.yukonga.miuix.kmp.blur.blur
 import top.yukonga.miuix.kmp.blur.drawBackdrop
 
 import android.os.SystemClock
+import androidx.compose.animation.AnimatedContent
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.EnterTransition
 import androidx.compose.animation.ExitTransition
-import androidx.compose.animation.animateContentSize
+import androidx.compose.animation.SizeTransform
+import androidx.compose.animation.core.snap
 import androidx.compose.animation.core.tween
 import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
 import androidx.compose.animation.scaleIn
 import androidx.compose.animation.scaleOut
+import androidx.compose.animation.togetherWith
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
@@ -220,7 +223,6 @@ fun FeedbackHost() {
         ) {
             shown?.let { m ->
                 val backdrop = LocalAppBackdrop.current
-                val accentTint = if (m.isError) scheme.onErrorContainer else scheme.primaryVariant
                 val textTint = scheme.onSurfaceContainer
                 val toastBg = if (dark) scheme.surfaceContainerHigh else scheme.surfaceContainer
                 val shadowTint = Color.Black.copy(alpha = if (dark) 0.28f else 0.10f)
@@ -265,11 +267,11 @@ fun FeedbackHost() {
                         .background(toastBg)
                         .then(borderModifier)
                 }
-                Row(
+                Box(
                     modifier = Modifier
                         // 仅限平板/横屏最大宽度，竖屏手机保留自然左右 16dp 留白避免人为折行
                         .widthIn(max = 420.dp)
-                        // dropShadow 置于 animateContentSize 之前：外阴影不被裁剪，且跟随动画尺寸同步缩放
+                        // dropShadow 置于 surfaceModifier 之前：外阴影不被裁剪，且跟随 AnimatedContent 尺寸同步缩放
                         .dropShadow(
                             shape = feedbackShape,
                             shadow = Shadow(
@@ -278,83 +280,106 @@ fun FeedbackHost() {
                                 offset = DpOffset(0.dp, 4.dp),
                             ),
                         )
-                        .then(
-                            if (motionEnabled) {
-                                Modifier.animateContentSize(tween(Motion.MICRO, easing = Motion.Decelerate))
-                            } else {
-                                Modifier
-                            },
-                        )
                         .then(surfaceModifier)
                         // 读屏直播（Polite）：同步结果/安装结果此前 TalkBack 完全无感知
-                        .semantics { liveRegion = LiveRegionMode.Polite }
-                        .padding(start = 16.dp, end = if (m.actionLabel == null) 16.dp else feedbackActionInset),
-                    verticalAlignment = Alignment.CenterVertically,
+                        .semantics { liveRegion = LiveRegionMode.Polite },
                 ) {
-                    // 状态符 Phosphor 带圈版（check-circle/x-circle，不套圆底徽章防圈套圈）
-                    top.yukonga.miuix.kmp.basic.Icon(
-                        imageVector = ImageVector.vectorResource(
-                            if (m.isError) io.candy.tick.R.drawable.ic_close_circle else io.candy.tick.R.drawable.ic_check_circle,
-                        ),
-                        contentDescription = null,
-                        tint = accentTint,
-                        modifier = Modifier.size(18.dp),
-                    )
-                    Spacer(Modifier.width(8.dp))
-                    val displayContent = remember(m.text, m.errorCode, scheme.onSurfaceContainerVariant) {
-                        buildAnnotatedString {
-                            append(m.text)
-                            m.errorCode?.let { code ->
-                                append("  ")
-                                withStyle(
-                                    SpanStyle(
-                                        fontSize = 11.sp,
-                                        fontFamily = FontFamily.Monospace,
-                                        color = scheme.onSurfaceContainerVariant,
-                                    ),
-                                ) {
-                                    append(code)
+                    // 中心对齐形变 + 错峰淡入淡出：宽胶囊切窄胶囊时从两侧对称收缩，不再先跳左再缩空壳
+                    AnimatedContent(
+                        targetState = m,
+                        contentAlignment = Alignment.Center,
+                        transitionSpec = {
+                            if (motionEnabled) {
+                                (
+                                    fadeIn(tween(Motion.MICRO, delayMillis = 40)) togetherWith
+                                        fadeOut(tween(90))
+                                    ).using(
+                                        SizeTransform(clip = false) { _, _ ->
+                                            tween(Motion.PANEL, easing = Motion.Decelerate)
+                                        },
+                                    )
+                            } else {
+                                (EnterTransition.None togetherWith ExitTransition.None).using(
+                                    SizeTransform(clip = false) { _, _ -> snap() },
+                                )
+                            }
+                        },
+                        label = "feedbackContent",
+                    ) { current ->
+                        val currentAccent = if (current.isError) scheme.onErrorContainer else scheme.primaryVariant
+                        Row(
+                            modifier = Modifier.padding(
+                                start = 16.dp,
+                                end = if (current.actionLabel == null) 16.dp else feedbackActionInset,
+                            ),
+                            verticalAlignment = Alignment.CenterVertically,
+                        ) {
+                            // 状态符 Phosphor 带圈版（check-circle/x-circle，不套圆底徽章防圈套圈）
+                            top.yukonga.miuix.kmp.basic.Icon(
+                                imageVector = ImageVector.vectorResource(
+                                    if (current.isError) io.candy.tick.R.drawable.ic_close_circle else io.candy.tick.R.drawable.ic_check_circle,
+                                ),
+                                contentDescription = null,
+                                tint = currentAccent,
+                                modifier = Modifier.size(18.dp),
+                            )
+                            Spacer(Modifier.width(8.dp))
+                            val displayContent = remember(current.text, current.errorCode, scheme.onSurfaceContainerVariant) {
+                                buildAnnotatedString {
+                                    append(current.text)
+                                    current.errorCode?.let { code ->
+                                        append("  ")
+                                        withStyle(
+                                            SpanStyle(
+                                                fontSize = 11.sp,
+                                                fontFamily = FontFamily.Monospace,
+                                                color = scheme.onSurfaceContainerVariant,
+                                            ),
+                                        ) {
+                                            append(code)
+                                        }
+                                    }
                                 }
                             }
-                        }
-                    }
-                    Text(
-                        text = displayContent,
-                        modifier = Modifier.weight(1f, fill = false).padding(vertical = 10.dp),
-                        // LineBreak.Heading：短文案保持单行；必须换行时均分两行宽度，消除孤儿尾词与右侧大空白
-                        style = MiuixTheme.textStyles.footnote1.copy(
-                            lineHeight = 19.sp,
-                            lineBreak = LineBreak.Heading,
-                        ),
-                        color = textTint,
-                    )
-                    m.actionLabel?.let { label ->
-                        Spacer(Modifier.width(4.dp))
-                        // 取消/操作钮带状态色 12% 叠底（玻璃态直接半透融入，降级态叠在 toastBg 上）
-                        val chipColor = if (backdrop != null) {
-                            accentTint.copy(alpha = 0.12f)
-                        } else {
-                            accentTint.copy(alpha = 0.12f).compositeOver(toastBg)
-                        }
-                        val (press, pressColor) = rememberRowPressTint(surface = chipColor)
-                        Box(
-                            modifier = Modifier
-                                .clickable(interactionSource = press, indication = null, role = Role.Button) {
-                                    if (Feedback.dismiss(m)) m.onAction?.invoke()
-                                }
-                                .sizeIn(minWidth = 48.dp, minHeight = 48.dp)
-                                .padding(vertical = feedbackActionInset)
-                                .clip(feedbackActionShape)
-                                .background(pressColor, feedbackActionShape)
-                                .padding(horizontal = 8.dp),
-                            contentAlignment = Alignment.Center,
-                        ) {
                             Text(
-                                text = label,
-                                style = MiuixTheme.textStyles.footnote1,
-                                color = accentTint,
-                                fontWeight = androidx.compose.ui.text.font.FontWeight.Medium,
+                                text = displayContent,
+                                modifier = Modifier.weight(1f, fill = false).padding(vertical = 10.dp),
+                                // LineBreak.Heading：短文案保持单行；必须换行时均分两行宽度，消除孤儿尾词与右侧大空白
+                                style = MiuixTheme.textStyles.footnote1.copy(
+                                    lineHeight = 19.sp,
+                                    lineBreak = LineBreak.Heading,
+                                ),
+                                color = textTint,
                             )
+                            current.actionLabel?.let { label ->
+                                Spacer(Modifier.width(4.dp))
+                                // 取消/操作钮带状态色 12% 叠底（玻璃态直接半透融入，降级态叠在 toastBg 上）
+                                val chipColor = if (backdrop != null) {
+                                    currentAccent.copy(alpha = 0.12f)
+                                } else {
+                                    currentAccent.copy(alpha = 0.12f).compositeOver(toastBg)
+                                }
+                                val (press, pressColor) = rememberRowPressTint(surface = chipColor)
+                                Box(
+                                    modifier = Modifier
+                                        .clickable(interactionSource = press, indication = null, role = Role.Button) {
+                                            if (Feedback.dismiss(current)) current.onAction?.invoke()
+                                        }
+                                        .sizeIn(minWidth = 48.dp, minHeight = 48.dp)
+                                        .padding(vertical = feedbackActionInset)
+                                        .clip(feedbackActionShape)
+                                        .background(pressColor, feedbackActionShape)
+                                        .padding(horizontal = 8.dp),
+                                    contentAlignment = Alignment.Center,
+                                ) {
+                                    Text(
+                                        text = label,
+                                        style = MiuixTheme.textStyles.footnote1,
+                                        color = currentAccent,
+                                        fontWeight = androidx.compose.ui.text.font.FontWeight.Medium,
+                                    )
+                                }
+                            }
                         }
                     }
                 }

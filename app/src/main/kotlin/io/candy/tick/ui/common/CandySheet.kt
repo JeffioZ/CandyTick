@@ -68,8 +68,23 @@ internal fun sheetDividerColor(): Color {
     }
 }
 
+/** 对齐 Miuix 0.9.5 GlassTopAppBarKt.TopBarProgressiveGradient 官方衰减曲线（pow(x, 0.25)） */
+private val TopBarProgressiveGradient = ProgressiveBlur.Top.copy(curve = 0.25f)
+
+/** 对齐 Miuix 0.9.5 TopAppBarBandBrush 的 16 段 Perlin smootherstep 渐变遮罩，首尾一二阶导数归零消除马赫带 */
+private fun topBarSmootherstepBrush(bg: Color, strength: Float): Brush {
+    val stops = Array(17) { i ->
+        val t = i / 16f
+        val smooth = t * t * t * (t * (6f * t - 15f) + 10f)
+        t to bg.copy(alpha = 0.9f * (1f - smooth) * strength)
+    }
+    return Brush.verticalGradient(colorStops = stops)
+}
+
 /**
- * 顶栏背后渐进模糊层（API 33+）：对齐 miuix GlassTopAppBarDefaults 32dp 半径；
+ * 顶栏背后渐进模糊层（API 33+）：完全对齐 miuix 0.9.5 GlassTopAppBar 官方参数
+ * （[top.yukonga.miuix.kmp.glass.GlassTopAppBarDefaults.ProgressiveBlurRadius] 32dp +
+ * `ProgressiveBlur.Top.copy(curve = 0.25f)` + 16 段 Perlin smootherstep 遮罩）；
  * 仅在列表离开顶部（[active] = true）时平滑渐入，静止在顶部零离屏采样开销；
  * API 29-32（[backdrop] 为 null）自动降级为不透明页面底色，防止列表滚到透明顶栏下与标题文字重叠；
  * 只走 miuix-blur 引擎，不触发 glassPanel 着色器。
@@ -81,15 +96,12 @@ internal fun Modifier.topBarProgressiveBlur(
 ): Modifier {
     val bg = MiuixTheme.colorScheme.background
     if (backdrop == null) return this.background(bg)
-    val dark = LocalDarkTheme.current
     val motionEnabled = rememberMotionEnabled()
     val strength by animateFloatAsState(
         targetValue = if (active) 1f else 0f,
         animationSpec = if (motionEnabled) tween(Motion.PANEL) else snap(),
         label = "topBarBlurStrength",
     )
-    val topAlpha = 0.84f * strength
-    val midAlpha = (if (dark) 0.44f else 0.42f) * strength
     // drawBackdrop 常驻修饰符链（不在首次滚动时动态挂载），避免首次下滑触发布局重排掉帧
     return this
         .drawBackdrop(
@@ -97,20 +109,14 @@ internal fun Modifier.topBarProgressiveBlur(
             shape = { RectangleShape },
             effects = {
                 if (strength > 0.001f) {
-                    val r = 32.dp.toPx() * strength
-                    progressiveBlur(r, r, ProgressiveBlur.Top)
+                    val r = top.yukonga.miuix.kmp.glass.GlassTopAppBarDefaults.ProgressiveBlurRadius.toPx() * strength
+                    progressiveBlur(r, r, TopBarProgressiveGradient)
                 }
             },
         )
         .then(
             if (strength > 0.001f) {
-                Modifier.background(
-                    Brush.verticalGradient(
-                        0f to bg.copy(alpha = topAlpha),
-                        0.65f to bg.copy(alpha = midAlpha),
-                        1f to Color.Transparent,
-                    ),
-                )
+                Modifier.background(topBarSmootherstepBrush(bg, strength))
             } else {
                 Modifier
             },

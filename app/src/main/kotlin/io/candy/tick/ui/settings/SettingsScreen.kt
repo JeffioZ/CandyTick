@@ -705,6 +705,7 @@ fun SettingsScreen(onBack: () -> Unit, autoOpenImport: Boolean = false) {
         },
     )
 
+    val haptic = androidx.compose.ui.platform.LocalHapticFeedback.current
     // 崩溃日志浮层（本地文件 / 剪贴板 / 分享 + 底部清空）
     CrashLogActionDialog(
         show = showCrashLogDialog,
@@ -759,6 +760,7 @@ fun SettingsScreen(onBack: () -> Unit, autoOpenImport: Boolean = false) {
             }
         },
         onClear = {
+            haptic.performHapticFeedback(androidx.compose.ui.hapticfeedback.HapticFeedbackType.LongPress)
             showCrashLogDialog = false
             scope.launch {
                 val cleared = vm.clearCrashLog()
@@ -774,7 +776,10 @@ fun SettingsScreen(onBack: () -> Unit, autoOpenImport: Boolean = false) {
     CacheCleanupSheet(
         show = showCacheCleanup,
         state = cacheState,
-        onClean = { vm.cleanCache() },
+        onClean = {
+            haptic.performHapticFeedback(androidx.compose.ui.hapticfeedback.HapticFeedbackType.LongPress)
+            vm.cleanCache()
+        },
         onDismiss = { showCacheCleanup = false },
     )
 }

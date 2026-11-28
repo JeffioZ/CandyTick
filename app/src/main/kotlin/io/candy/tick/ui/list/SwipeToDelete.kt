@@ -56,6 +56,7 @@ fun SwipeToDelete(
     content: @Composable (Modifier) -> Unit,
 ) {
     var offsetX by remember { mutableFloatStateOf(0f) }
+    var overThreshold by remember { mutableStateOf(false) }
     // 删除消散进度：1=常态；删除时动画到 0（卡片缩回 + 粒子迸散），LibChecker 式 hero 特效
     val dissolve = remember { Animatable(1f) }
     val scheme = MiuixTheme.colorScheme
@@ -82,7 +83,6 @@ fun SwipeToDelete(
                 var ignoreGesture = false
                 var dragClaimed = false
                 var dragTotal = 0f
-                var hapticFired = false
 
                 fun settle(deleting: Boolean = false, commit: (() -> Unit)? = null) {
                     if (ignoreGesture || committing || offsetX == 0f) return
@@ -123,7 +123,7 @@ fun SwipeToDelete(
                         if (!ignoreGesture) returnJob?.cancel()
                         dragClaimed = false
                         dragTotal = 0f
-                        hapticFired = false
+                        overThreshold = false
                     },
                     onHorizontalDrag = { change, physicalDelta ->
                         if (ignoreGesture) return@detectHorizontalDragGestures
@@ -136,12 +136,14 @@ fun SwipeToDelete(
                         change.consume()
                         val limit = size.width * 1.2f
                         offsetX = (offsetX + delta).coerceIn(-limit, limit)
-                        if (!hapticFired && abs(offsetX) > size.width * 0.42f) {
-                            hapticFired = true
+                        val crossed = abs(offsetX) > size.width * 0.42f
+                        if (crossed && !overThreshold) {
                             haptic.performHapticFeedback(HapticFeedbackType.LongPress)
                         }
+                        overThreshold = crossed
                     },
                     onDragEnd = {
+                        overThreshold = false
                         val threshold = size.width * 0.42f
                         when {
                             dragClaimed && offsetX > threshold -> settle(deleting = true, commit = currentOnDelete)
@@ -149,10 +151,14 @@ fun SwipeToDelete(
                             else -> settle()
                         }
                     },
-                    onDragCancel = { settle() },
+                    onDragCancel = {
+                        overThreshold = false
+                        settle()
+                    },
                 )
             }
         } finally {
+            overThreshold = false
             offsetX = 0f
         }
     }
@@ -161,6 +167,11 @@ fun SwipeToDelete(
         val revealedSide by remember { derivedStateOf { offsetX.roundToInt().compareTo(0) } }
         if (revealedSide != 0) {
             val movingRight = revealedSide > 0
+            val iconScale by androidx.compose.animation.core.animateFloatAsState(
+                targetValue = if (overThreshold) 1.18f else 1f,
+                animationSpec = tween(if (motionEnabled) Motion.MICRO else 0, easing = Motion.Decelerate),
+                label = "swipeIconScale",
+            )
             Box(
                 modifier = Modifier
                     .matchParentSize()
@@ -185,6 +196,10 @@ fun SwipeToDelete(
                     modifier = Modifier
                         .padding(start = if (movingRight) 24.dp else 0.dp, end = if (movingRight) 0.dp else 24.dp)
                         .size(22.dp)
+                        .graphicsLayer {
+                            scaleX = iconScale
+                            scaleY = iconScale
+                        }
                         .rotate(if (!movingRight && pinned) 45f else 0f),
                 )
             }

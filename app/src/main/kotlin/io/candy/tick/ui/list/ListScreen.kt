@@ -629,10 +629,7 @@ fun ListScreen(
                         io.candy.tick.ui.common.CandyPullToRefresh(
                             requestState = vm.manualRefresh,
                             refreshing = { it },
-                            onRefresh = {
-                                haptic.performHapticFeedback(HapticFeedbackType.LongPress)
-                                refresh()
-                            },
+                            onRefresh = ::refresh,
                             pullToRefreshState = pullState,
                             topAppBarScrollBehavior = scrollBehavior,
                             topOffset = if (hasTopInsetBlock) 0.dp else topPad,
