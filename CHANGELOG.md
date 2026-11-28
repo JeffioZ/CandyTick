@@ -10,7 +10,8 @@
 在相应版本的中文条目后附英文摘要。发版工作流会提取整个版本章节作为 GitHub Release 正文。
 -->
 
-[未发布]: https://github.com/JeffioZ/CandyTick/compare/v0.7.2...main
+[未发布]: https://github.com/JeffioZ/CandyTick/compare/v0.8.0...main
+[0.8.0]: https://github.com/JeffioZ/CandyTick/releases/tag/v0.8.0
 [0.7.2]: https://github.com/JeffioZ/CandyTick/releases/tag/v0.7.2
 [0.7.1]: https://github.com/JeffioZ/CandyTick/releases/tag/v0.7.1
 [0.7.0]: https://github.com/JeffioZ/CandyTick/releases/tag/v0.7.0
@@ -26,6 +27,40 @@
 [0.2.1]: https://github.com/JeffioZ/CandyTick/releases/tag/v0.2.1
 [0.2.0]: https://github.com/JeffioZ/CandyTick/releases/tag/v0.2.0
 [0.1.0]: https://github.com/JeffioZ/CandyTick/releases/tag/v0.1.0
+
+## [0.8.0]
+
+### 新增
+
+- 升级 Miuix 0.9.5-rc02，在 Android 13 及以上设备全面启用液态玻璃底部浮层与顶栏渐进模糊（对齐官方 `32dp` 半径、`curve = 0.25f` 衰减曲线与 16 段 Perlin smootherstep 遮罩，低版本平滑降级）。
+- 全量图标迁移至 Phosphor Regular 图标体系，统一线条比例、视觉居中与顶栏玻璃按钮外观。
+- 导入订阅完成后自动按配额安全预热尚未同步的仓库，未同步卡片支持清晰占位提示。
+
+### 优化
+
+- 统一崩溃日志、导入导出与清理缓存浮层交互，设置页清理缓存行直接显示占用体积，图标色块收束为 7 组清晰语义色。
+- 全面打磨加载与动效质感：主动加载与重试（卡片展开区、额度刷新、分支加载、详情分页重试）统一最短驻留防闪烁，下拉刷新保底 `600ms` 且去除重复震动，首页顶栏同步完成图标缩短至 `2s` 干脆收起。
+- 顶部 Toast 升级为 `24dp` 玻璃胶囊与中心对称形变，宽切窄不再先跳左再缩空壳；「撤销」等交互胶囊放宽内边距并补轻触感确认。
+- 首页与详情页错误横幅统一平滑展开/收起，首页横幅随列表滚动进入顶栏渐进模糊，卡片展开区出错以紧凑单行呈现并原地承接重试。
+- GitHub 令牌弹窗支持点击操作即收键盘、验证或移除成功后主按钮原地切换为「完成」一键关闭，已有有效令牌查看额度时不再自动弹出键盘。
+- 首页卡片左右滑删除/置顶越过阈值时增加图标轻弹放大与可重复越线震动；首页搜索按钮改即刻轻缩放切换；状态角标补充单行防折行，失效角标改用信息图标与低活跃直观区分。
+- 浅色模式玻璃浮层分隔线、缩略图细描边、浮层图文间距（`12dp`）、输入框尾部图标边距（`16dp` 对称）与 `LinkText` 外链视觉全面对齐。
+
+### 修复
+
+- 修复首页空态直达导入时首帧跳滚与玻璃浮层撞帧卡顿，以及输入法快打/拼音连续上屏偶发吞字跳光标的问题。
+- 修复详情页下拉刷新中途滑到底部偶发不再自动翻页的边界竞态，以及空态/错误态切换页签时居中提示页左右抖动的问题。
+
+### English summary
+
+- Upgraded to Miuix 0.9.5-rc02 with Liquid Glass bottom sheets and progressive top-bar blur on Android 13+ (matching official 32dp radius, `curve = 0.25f`, and 16-stop Perlin smootherstep masking, with clean fallback on Android 10–12).
+- Migrated all app icons to Phosphor Regular for consistent stroke weight and optical alignment, and refined top-bar glass buttons and Settings 7-hue semantic icon chips.
+- Added quota-safe background warmup for newly imported repositories and a clear unsynced placeholder on cards.
+- Unified minimum dwell guards across card retries, quota/branch/pagination retries, and pull-to-refresh (600ms) while removing duplicate pull-to-refresh haptics and shortening the title sync indicator to 2s.
+- Upgraded Toast capsules with centered symmetric morphing, smoother spacing, and light haptic feedback on interactive actions (Undo).
+- Smoothed Home and Detail error banner transitions, moved the Home banner into the scrollable list for seamless top-bar blur, simplified expanded card error/retry states, and added a one-tap "Done" flow (with auto keyboard dismiss) to the GitHub token sheet.
+- Added threshold icon spring & repeatable haptics on swipe-to-delete/pin, crisp scale-morphing on the Home search toggle, single-line guards and an info icon on the Inaccessible badge, and unified light-mode glass dividers and spacing.
+- Fixed import shortcut entry stutter, IME rapid-typing echo overwrites, Detail pagination stall after pull-to-refresh, and empty-state tab switch jitter.
 
 ## [0.7.2]
 
