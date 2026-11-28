@@ -199,6 +199,7 @@ fun FeedbackHost() {
     }
 
     val motionEnabled = rememberMotionEnabled()
+    val haptic = androidx.compose.ui.platform.LocalHapticFeedback.current
 
     // 顶部居中、顶栏之下：状态栏 + 标准顶栏高（64dp）+ 间距，避开标题/动作区；
     // 不与拇指区/手势条/键盘争地盘。动效为原位淡入淡出——可交互目标不移动（见 AnimatedVisibility 注释）
@@ -352,7 +353,7 @@ fun FeedbackHost() {
                                 color = textTint,
                             )
                             current.actionLabel?.let { label ->
-                                Spacer(Modifier.width(4.dp))
+                                Spacer(Modifier.width(8.dp))
                                 // 取消/操作钮带状态色 12% 叠底（玻璃态直接半透融入，降级态叠在 toastBg 上）
                                 val chipColor = if (backdrop != null) {
                                     currentAccent.copy(alpha = 0.12f)
@@ -363,13 +364,16 @@ fun FeedbackHost() {
                                 Box(
                                     modifier = Modifier
                                         .clickable(interactionSource = press, indication = null, role = Role.Button) {
-                                            if (Feedback.dismiss(current)) current.onAction?.invoke()
+                                            if (Feedback.dismiss(current)) {
+                                                haptic.performHapticFeedback(androidx.compose.ui.hapticfeedback.HapticFeedbackType.TextHandleMove)
+                                                current.onAction?.invoke()
+                                            }
                                         }
                                         .sizeIn(minWidth = 48.dp, minHeight = 48.dp)
                                         .padding(vertical = feedbackActionInset)
                                         .clip(feedbackActionShape)
                                         .background(pressColor, feedbackActionShape)
-                                        .padding(horizontal = 8.dp),
+                                        .padding(horizontal = 12.dp),
                                     contentAlignment = Alignment.Center,
                                 ) {
                                     Text(

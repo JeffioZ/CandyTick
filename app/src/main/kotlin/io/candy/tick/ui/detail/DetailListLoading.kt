@@ -180,7 +180,7 @@ internal fun LazyItemScope.HistoryFooter(
     val loading = if (commits) state.commitsLoading else state.releasesLoading
     val reloading = if (commits) state.commitsReloading else state.releasesReloading
     val paused = if (commits) state.commitsPagingPaused else state.releasesPagingPaused
-    if (!reloading && !loading && !failed && !end && !paused && count > 0) {
+    if (!reloading && !loading && !failed && !end && !paused && !state.manualRefresh && count > 0) {
         LaunchedEffect(count) { onLoadMore() }
     }
     val phase = when {
@@ -192,22 +192,12 @@ internal fun LazyItemScope.HistoryFooter(
         !reloading && loading && showPagingIndicator -> HistoryFooterState.Paging
         else -> HistoryFooterState.Idle
     }
-    // 防闪烁闩锁：Retrying 相位最短驻留 300ms——快速失败时 loading 一闪而过（Motion.PROGRESS 档）
-    var shownPhase by remember { mutableStateOf(phase) }
-    var retryShownAt by remember { mutableStateOf(0L) }
-    LaunchedEffect(phase) {
-        when {
-            phase == HistoryFooterState.Retrying -> {
-                retryShownAt = android.os.SystemClock.elapsedRealtime()
-                shownPhase = phase
-            }
-            shownPhase == HistoryFooterState.Retrying -> {
-                val remaining = Motion.PROGRESS - (android.os.SystemClock.elapsedRealtime() - retryShownAt)
-                if (remaining > 0) delay(remaining)
-                shownPhase = phase
-            }
-            else -> shownPhase = phase
-        }
+    // 统一防闪烁兜底：快速失败时 Retrying 至少稳住 380ms（尊重关闭动画），成功则零延迟直出
+    val dwellingRetry = io.candy.tick.ui.common.rememberMinDwellBusy(phase == HistoryFooterState.Retrying)
+    val shownPhase = if (phase == HistoryFooterState.Failed && dwellingRetry) {
+        HistoryFooterState.Retrying
+    } else {
+        phase
     }
     val duration = if (rememberMotionEnabled()) Motion.PHASE else 0
     val emptySpace = Modifier.fillParentMaxHeight(0.45f)
