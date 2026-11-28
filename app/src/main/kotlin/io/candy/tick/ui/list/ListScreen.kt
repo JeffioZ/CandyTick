@@ -77,6 +77,7 @@ import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.distinctUntilChanged
 import kotlinx.coroutines.flow.first
+import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.transformLatest
 import androidx.lifecycle.viewmodel.compose.viewModel
 import io.candy.tick.CandyTickApp
@@ -122,8 +123,17 @@ fun ListScreen(
     onOpenDetail: (Long) -> Unit,
     onOpenSettings: () -> Unit,
     onOpenImport: () -> Unit,
+    onOpenStoreUpdates: () -> Unit = {},
 ) {
     val app = LocalContext.current.applicationContext as CandyTickApp
+    val storeSlice by remember(app) {
+        app.container.appStateStore.state
+            .map { it.settings.storePrefs to it.storeState }
+            .distinctUntilChanged()
+    }.collectAsStateWithLifecycle(
+        initialValue = app.container.appStateStore.state.value.let { it.settings.storePrefs to it.storeState },
+    )
+    val (storePrefs, storeState) = storeSlice
     val resources = LocalResources.current
     val vm: ListViewModel = viewModel { ListViewModel(app.container.repoRepository, app.container.repoDownloadHost, app) }
     fun leaveHome(navigate: () -> Unit) {
@@ -618,11 +628,33 @@ fun ListScreen(
                                     modifier = viewport,
                                 )
                             } else {
-                                EmptyState(
-                                    onAdd = { leaveHome(onAdd) },
-                                    onImport = { leaveHome(onOpenImport) },
-                                    modifier = viewport,
-                                )
+                                val viewportHeight = maxHeight
+                                val topGap = (if (hasTopInsetBlock) 0.dp else topPad) + 8.dp
+                                val cardReserve = if (storePrefs.enabledStores.isNotEmpty()) topGap + 84.dp else 0.dp
+                                Column(modifier = viewport) {
+                                    io.candy.tick.ui.store.HomeStoreCard(
+                                        prefs = storePrefs,
+                                        storeState = storeState,
+                                        onClick = { leaveHome(onOpenStoreUpdates) },
+                                        modifier = Modifier.padding(
+                                            start = 16.dp,
+                                            end = 16.dp,
+                                            top = topGap,
+                                        ),
+                                    )
+                                    Box(
+                                        modifier = Modifier
+                                            .fillMaxWidth()
+                                            .heightIn(min = (viewportHeight - cardReserve).coerceAtLeast(0.dp)),
+                                        contentAlignment = Alignment.Center,
+                                    ) {
+                                        EmptyState(
+                                            onAdd = { leaveHome(onAdd) },
+                                            onImport = { leaveHome(onOpenImport) },
+                                            modifier = Modifier.fillMaxWidth(),
+                                        )
+                                    }
+                                }
                             }
                         }
                     } else {
@@ -654,31 +686,41 @@ fun ListScreen(
                         item(key = "home_banner", contentType = "banner") {
                             var lastBanner by remember { mutableStateOf(state.banner) }
                             if (state.banner != null) lastBanner = state.banner
-                            androidx.compose.animation.AnimatedVisibility(
-                                visible = state.banner != null,
-                                enter = if (motionEnabled) {
-                                    androidx.compose.animation.expandVertically(
-                                        animationSpec = tween(Motion.PANEL, easing = Motion.Decelerate),
-                                        expandFrom = Alignment.Top,
-                                    ) + fadeIn(tween(Motion.PANEL))
-                                } else EnterTransition.None,
-                                exit = if (motionEnabled) {
-                                    androidx.compose.animation.shrinkVertically(
-                                        animationSpec = tween(Motion.PANEL, easing = Motion.Decelerate),
-                                        shrinkTowards = Alignment.Top,
-                                    ) + fadeOut(tween(Motion.MICRO))
-                                } else ExitTransition.None,
-                                label = "homeBanner",
-                            ) {
-                                lastBanner?.let { error ->
-                                    ErrorBanner(
-                                        error = error,
-                                        hasSavedDetails = state.items.any { it.error != null && it.snapshot != null },
-                                        onRetry = ::refresh,
-                                        onDismiss = vm::clearBanner,
-                                        modifier = Modifier.padding(top = 2.dp),
-                                    )
+                            Column(modifier = Modifier.fillMaxWidth()) {
+                                androidx.compose.animation.AnimatedVisibility(
+                                    visible = state.banner != null,
+                                    enter = if (motionEnabled) {
+                                        androidx.compose.animation.expandVertically(
+                                            animationSpec = tween(Motion.PANEL, easing = Motion.Decelerate),
+                                            expandFrom = Alignment.Top,
+                                        ) + fadeIn(tween(Motion.PANEL))
+                                    } else EnterTransition.None,
+                                    exit = if (motionEnabled) {
+                                        androidx.compose.animation.shrinkVertically(
+                                            animationSpec = tween(Motion.PANEL, easing = Motion.Decelerate),
+                                            shrinkTowards = Alignment.Top,
+                                        ) + fadeOut(tween(Motion.MICRO))
+                                    } else ExitTransition.None,
+                                    label = "homeBanner",
+                                ) {
+                                    lastBanner?.let { error ->
+                                        ErrorBanner(
+                                            error = error,
+                                            hasSavedDetails = state.items.any { it.error != null && it.snapshot != null },
+                                            onRetry = ::refresh,
+                                            onDismiss = vm::clearBanner,
+                                            // 5(contentPadding) + 3 = 8dp，与下方 spacedBy(8dp) 严格等距
+                                            modifier = Modifier.padding(top = 3.dp),
+                                        )
+                                    }
                                 }
+                                io.candy.tick.ui.store.HomeStoreCard(
+                                    prefs = storePrefs,
+                                    storeState = storeState,
+                                    onClick = { leaveHome(onOpenStoreUpdates) },
+                                    // 单独显示时 5+3=8dp；位于错误横幅下方时 8dp，上下与卡片间距完全一致
+                                    modifier = Modifier.padding(top = if (state.banner != null) 8.dp else 3.dp),
+                                )
                             }
                         }
                         items(rows.items, key = { it.repo.id }) { item ->

@@ -14,6 +14,7 @@ kotlinxCoroutines = "1.11.0"
 kotlinxSerialization = "1.13.0"
 miuix = "0.9.5-rc02"
 commonmark = "0.33.0"
+jbcrypt = "0.4"
 junit = "4.13.2"
 
 [libraries]
@@ -44,6 +45,7 @@ commonmark = { group = "org.commonmark", name = "commonmark", version.ref = "com
 commonmark-gfm-tables = { group = "org.commonmark", name = "commonmark-ext-gfm-tables", version.ref = "commonmark" }
 commonmark-gfm-strikethrough = { group = "org.commonmark", name = "commonmark-ext-gfm-strikethrough", version.ref = "commonmark" }
 commonmark-autolink = { group = "org.commonmark", name = "commonmark-ext-autolink", version.ref = "commonmark" }
+jbcrypt = { module = "org.mindrot:jbcrypt", version.ref = "jbcrypt" }
 junit = { module = "junit:junit", version.ref = "junit" }
 
 [plugins]

@@ -28,12 +28,13 @@ class CacheManager(private val context: Context) {
     private val apksRoot: File get() = File(context.filesDir, "apks")
     private val updatesDir: File get() = File(context.filesDir, "updates")
     private val sharesDir: File get() = File(context.cacheDir, "shares")
+    private val storeIndexDir: File get() = File(context.cacheDir, "store-index")
     private val crashLogFile: File
         get() = File(context.getExternalFilesDir(null) ?: context.filesDir, "crash.log")
 
     /** Use the files counted in this scan. Downloads published later belong to the next scan. */
     internal fun scan() = CacheInfo(
-        files = sequenceOf(apksRoot, updatesDir, sharesDir).flatMap { it.walkTopDown() }
+        files = sequenceOf(apksRoot, updatesDir, sharesDir, storeIndexDir).flatMap { it.walkTopDown() }
             .filter { it.isFile && !it.isDownloadPart() }.map(::ScannedFile).toList(),
     )
 
@@ -61,6 +62,16 @@ class CacheManager(private val context: Context) {
                 (android.os.SystemClock.elapsedRealtime() - android.os.Process.getStartElapsedRealtime())
             val retained = restored.repos.associate { it.id to it.downloadedApk?.fileName }
             apksRoot.listFiles()?.forEach { dir ->
+                if (dir.name == "store" && dir.isDirectory) {
+                    // 商店下载态仅驻留内存，上个进程遗留的 APK/.part 全部回收
+                    dir.listFiles()?.forEach { pkgDir ->
+                        pkgDir.listFiles()?.forEach { file ->
+                            if (file.isFile && file.lastModified() < startedAt) file.delete()
+                        }
+                        pkgDir.delete()
+                    }
+                    return@forEach
+                }
                 val id = dir.name.toLongOrNull() ?: return@forEach
                 val keep = retained[id]
                 dir.listFiles()?.forEach { file ->

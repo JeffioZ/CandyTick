@@ -9,6 +9,7 @@ import android.content.pm.PackageInstaller
 import android.os.Build
 import androidx.core.content.ContextCompat
 import io.candy.tick.R
+import io.candy.tick.data.download.DownloadKey
 import io.candy.tick.util.ApkPicker
 import io.candy.tick.util.openAppSettings
 import java.io.File
@@ -38,11 +39,14 @@ class InstallManager(private val context: Context, private val scope: CoroutineS
         ) : InstallResult
     }
 
-    private data class Event(val repoId: Long?, val result: InstallResult)
+    private data class Event(val key: DownloadKey, val result: InstallResult)
     private val results = MutableSharedFlow<Event>(extraBufferCapacity = 16)
 
+    fun resultsFor(key: DownloadKey): Flow<InstallResult> =
+        results.mapNotNull { event -> event.result.takeIf { event.key == key } }
+
     fun resultsFor(repoId: Long?): Flow<InstallResult> =
-        results.mapNotNull { event -> event.result.takeIf { event.repoId == repoId } }
+        resultsFor(DownloadKey.fromRepoId(repoId))
 
     /** 系统装包事件（PACKAGE_REPLACED/ADDED 的包名）：装后清理的唯一事实源 */
     private val _packageInstalled = kotlinx.coroutines.flow.MutableSharedFlow<String>(extraBufferCapacity = 8)
@@ -71,7 +75,7 @@ class InstallManager(private val context: Context, private val scope: CoroutineS
 
     private val receiver = object : BroadcastReceiver() {
         override fun onReceive(ctx: Context, intent: Intent) {
-            val repoId = if (intent.hasExtra(EXTRA_REPO_ID)) intent.getLongExtra(EXTRA_REPO_ID, 0) else null
+            val key = readDownloadKey(intent)
             val status = intent.getIntExtra(PackageInstaller.EXTRA_STATUS, PackageInstaller.STATUS_FAILURE)
             val result = when (status) {
                 PackageInstaller.STATUS_SUCCESS -> InstallResult.Success
@@ -79,7 +83,7 @@ class InstallManager(private val context: Context, private val scope: CoroutineS
                     if (intent.getBooleanExtra(EXTRA_SILENT_SELF, false)) {
                         val sessionId = intent.getIntExtra(PackageInstaller.EXTRA_SESSION_ID, -1)
                         if (sessionId >= 0) runCatching { ctx.packageManager.packageInstaller.abandonSession(sessionId) }
-                        results.tryEmit(Event(null, InstallResult.Failed(null, false)))
+                        results.tryEmit(Event(DownloadKey.SelfUpdate, InstallResult.Failed(null, false)))
                         return
                     }
                     // API 33+ 用类型安全版，29-32 用 deprecated 版（不加会 NoSuchMethodError）
@@ -105,7 +109,7 @@ class InstallManager(private val context: Context, private val scope: CoroutineS
                     )
                 }
             }
-            results.tryEmit(Event(repoId, result))
+            results.tryEmit(Event(key, result))
         }
     }
 
@@ -136,7 +140,10 @@ class InstallManager(private val context: Context, private val scope: CoroutineS
      * 用户锁定的第三方安装器（InstallerX / Shizuku 系）因此可以接管；
      * 标准 APK 可回退系统安装会话；分包归档需交给支持该格式的应用。
      */
-    fun installApk(file: File, repoId: Long? = null, displayName: String = file.name) {
+    fun installApk(file: File, repoId: Long? = null, displayName: String = file.name) =
+        installApk(file, DownloadKey.fromRepoId(repoId), displayName)
+
+    fun installApk(file: File, key: DownloadKey, displayName: String = file.name) {
         // Older downloads may have a generated .apk filename even for a split archive.
         val extension = ApkPicker.packageExtension(displayName) ?: file.extension.lowercase()
         val isApk = extension == "apk"
@@ -153,31 +160,42 @@ class InstallManager(private val context: Context, private val scope: CoroutineS
         if (view != null) {
             runCatching { context.startActivity(view) }.onSuccess {
                 // 安装流程已交外部接管（第三方或系统安装器 UI），结果不再回调本应用
-                results.tryEmit(Event(repoId, InstallResult.PendingUserAction))
+                results.tryEmit(Event(key, InstallResult.PendingUserAction))
                 return
             }
         }
         if (isApk) {
-            scope.launch(Dispatchers.IO) { installViaSession(file, repoId) }
+            scope.launch(Dispatchers.IO) { installViaSession(file, key) }
         } else {
             val reason = context.getString(io.candy.tick.R.string.bundle_installer_required)
-            results.tryEmit(Event(repoId, InstallResult.Failed(reason, signatureMismatch = false)))
+            results.tryEmit(Event(key, InstallResult.Failed(reason, signatureMismatch = false)))
         }
     }
 
-    /** 系统安装会话（自身更新静默安装 / Intent 通道的回退；29+） */
-    fun installViaSession(file: File, repoId: Long? = null, silentSelfUpdate: Boolean = false) {
+    /** 系统安装会话（自身更新静默安装 / 商店直装 / Intent 通道回退；29+） */
+    fun installViaSession(file: File, repoId: Long? = null, silentSelfUpdate: Boolean = false) =
+        installViaSession(file, DownloadKey.fromRepoId(repoId), silentSelfUpdate)
+
+    fun installViaSession(file: File, key: DownloadKey, silentSelfUpdate: Boolean = false) =
+        installFilesViaSession(listOf(file), key, silentSelfUpdate)
+
+    /** 系统多文件安装会话（支持单 APK 与 Split APK 联合提交；29+） */
+    fun installFilesViaSession(files: List<File>, key: DownloadKey, silentSelfUpdate: Boolean = false) {
+        if (files.isEmpty()) {
+            results.tryEmit(Event(key, InstallResult.Failed(null, false)))
+            return
+        }
         if (!canRequestInstalls()) {
             // 未授权直接提交会 SecurityException：带去授权页 + 提示回来重试
             if (silentSelfUpdate) {
-                results.tryEmit(Event(null, InstallResult.Failed(null, false)))
+                results.tryEmit(Event(DownloadKey.SelfUpdate, InstallResult.Failed(null, false)))
             } else {
                 val result = if (openInstallPermissionSettings()) {
                     InstallResult.NeedsInstallPermission
                 } else {
                     InstallResult.Failed(context.getString(R.string.system_settings_unavailable), false)
                 }
-                results.tryEmit(Event(repoId, result))
+                results.tryEmit(Event(key, result))
             }
             return
         }
@@ -188,17 +206,24 @@ class InstallManager(private val context: Context, private val scope: CoroutineS
             if (silentSelfUpdate && Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
                 params.setAppPackageName(context.packageName)
                 params.setRequireUserAction(PackageInstaller.SessionParams.USER_ACTION_NOT_REQUIRED)
+            } else if (key is DownloadKey.Store && Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
+                // 声明目标包名后，若上次也是由 CandyTick 安装，Android 12+ 可免弹窗静默更新
+                params.setAppPackageName(key.packageName)
+                params.setRequireUserAction(PackageInstaller.SessionParams.USER_ACTION_NOT_REQUIRED)
             }
             val sessionId = installer.createSession(params)
             uncommittedId = sessionId
             installer.openSession(sessionId).use { session ->
-                session.openWrite("candytick-apk", 0, file.length()).use { output ->
-                    file.inputStream().use { input -> input.copyTo(output) }
-                    session.fsync(output)
+                files.forEachIndexed { index, file ->
+                    val entryName = if (index == 0) "candytick-base.apk" else "candytick-split-$index.apk"
+                    session.openWrite(entryName, 0, file.length()).use { output ->
+                        file.inputStream().use { input -> input.copyTo(output) }
+                        session.fsync(output)
+                    }
                 }
                 val intent = Intent(ACTION_INSTALL_RESULT).setPackage(context.packageName)
                 if (silentSelfUpdate) intent.putExtra(EXTRA_SILENT_SELF, true)
-                if (repoId != null) intent.putExtra(EXTRA_REPO_ID, repoId)
+                putDownloadKey(intent, key)
                 val flags = PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_MUTABLE
                 val sender = PendingIntent.getBroadcast(context, sessionId, intent, flags).intentSender
                 session.commit(sender)
@@ -206,15 +231,30 @@ class InstallManager(private val context: Context, private val scope: CoroutineS
             }
         } catch (e: Exception) {
             // 会话异常（磁盘满/安全异常等）此前裸抛到点击回调直接崩
-            results.tryEmit(Event(repoId, InstallResult.Failed(message = e.message, signatureMismatch = false)))
+            results.tryEmit(Event(key, InstallResult.Failed(message = e.message, signatureMismatch = false)))
         } finally {
             uncommittedId?.let { runCatching { installer.abandonSession(it) } }
         }
     }
 
+    private fun putDownloadKey(intent: Intent, key: DownloadKey) {
+        when (key) {
+            DownloadKey.SelfUpdate -> Unit
+            is DownloadKey.Repo -> intent.putExtra(EXTRA_REPO_ID, key.id)
+            is DownloadKey.Store -> intent.putExtra(EXTRA_STORE_PKG, key.packageName)
+        }
+    }
+
+    private fun readDownloadKey(intent: Intent): DownloadKey = when {
+        intent.hasExtra(EXTRA_STORE_PKG) -> DownloadKey.Store(intent.getStringExtra(EXTRA_STORE_PKG).orEmpty())
+        intent.hasExtra(EXTRA_REPO_ID) -> DownloadKey.Repo(intent.getLongExtra(EXTRA_REPO_ID, 0))
+        else -> DownloadKey.SelfUpdate
+    }
+
     companion object {
         private const val EXTRA_SILENT_SELF = "silent_self_update"
         private const val EXTRA_REPO_ID = "repo_id"
+        private const val EXTRA_STORE_PKG = "store_package"
         const val ACTION_INSTALL_RESULT = "io.candy.tick.INSTALL_RESULT"
     }
 }

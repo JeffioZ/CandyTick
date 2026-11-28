@@ -660,7 +660,8 @@ fun DetailScreen(
                     // 头卡组（头卡 + 错误横幅）：banner 隐藏时 0 高度收在组内——
                     // 若作独立 item，spacedBy 会在其前后各记一次，tab 上方凭空多 10dp
                     androidx.compose.foundation.layout.Column(
-                        modifier = Modifier.padding(top = 17.dp),
+                        // 顶栏自带视觉底隙：6dp 与下方 HistoryItemSpacing(10dp) 视觉对称
+                        modifier = Modifier.padding(top = 6.dp),
                     ) {
                         HeaderCard(
                             state = state,

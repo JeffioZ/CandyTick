@@ -9,6 +9,12 @@
     <uses-permission android:name="android.permission.REQUEST_INSTALL_PACKAGES" />
     <uses-permission android:name="android.permission.UPDATE_PACKAGES_WITHOUT_USER_ACTION" />
     <uses-permission android:name="android.permission.POST_NOTIFICATIONS" />
+    <!-- 开启「检查系统应用」时扫描无桌面图标的后台系统组件（如智能服务、日志组件等） -->
+    <uses-permission
+        android:name="android.permission.QUERY_ALL_PACKAGES"
+        tools:ignore="QueryAllPackagesPermission" />
+    <!-- 国产 ROM（HyperOS/ColorOS/OriginOS 等）统一的「读取应用列表」运行时权限，原生 Android 自动忽略 -->
+    <uses-permission android:name="com.android.permission.GET_INSTALLED_APPS" />
 
     <!-- 包可见性（Android 11+）：声明「可启动应用」意图即可见全部 launcher 应用——
          AppMatcher 关联 / AppPickerSheet 选择器 / 关联包名查询都落在这一集合内。

@@ -138,7 +138,12 @@ internal fun TopBarActionRow(minimum: Dp, content: @Composable RowScope.() -> Un
 
 /** A centered, tappable title in Miuix's inset-aware small app bar. */
 @Composable
-internal fun CenteredScrollToTopBar(title: String, onBack: () -> Unit, onTitleClick: () -> Unit) {
+internal fun CenteredScrollToTopBar(
+    title: String,
+    onBack: () -> Unit,
+    onTitleClick: () -> Unit,
+    endAction: (@Composable () -> Unit)? = null,
+) {
     val backInset = TopAppBarDefaults.NavigationIconPadding
     SmallTopAppBar(
         title = "",
@@ -164,6 +169,11 @@ internal fun CenteredScrollToTopBar(title: String, onBack: () -> Unit, onTitleCl
                         contentDescription = null,
                         tint = MiuixTheme.colorScheme.onBackground,
                     )
+                }
+                if (endAction != null) {
+                    Box(modifier = Modifier.align(Alignment.CenterEnd).padding(end = backInset)) {
+                        endAction()
+                    }
                 }
             }
         },

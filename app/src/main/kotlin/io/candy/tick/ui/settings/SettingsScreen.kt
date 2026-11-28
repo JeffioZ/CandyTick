@@ -72,7 +72,11 @@ private const val LICENSE_URL = "https://github.com/JeffioZ/CandyTick/blob/main/
 private const val DATA_GROUP_INDEX = 3
 
 @Composable
-fun SettingsScreen(onBack: () -> Unit, autoOpenImport: Boolean = false) {
+fun SettingsScreen(
+    onBack: () -> Unit,
+    autoOpenImport: Boolean = false,
+    onOpenStoreSettings: () -> Unit = {},
+) {
     val app = LocalContext.current.applicationContext as CandyTickApp
     val vm: SettingsViewModel = viewModel {
         SettingsViewModel(
@@ -326,6 +330,19 @@ fun SettingsScreen(onBack: () -> Unit, autoOpenImport: Boolean = false) {
             // ── 同步与通知（通知 = 同步的结果输出）──
             item(key = "sync") {
             SettingsGroup(title = stringResource(R.string.settings_sync_and_notify)) {
+                SettingRow(
+                    title = stringResource(R.string.store_settings_title),
+                    summary = stringResource(R.string.store_settings_entry_summary),
+                    value = if (state.settings.storePrefs.enabledStores.isEmpty()) {
+                        stringResource(R.string.store_settings_off)
+                    } else {
+                        stringResource(R.string.store_settings_enabled_count, state.settings.storePrefs.enabledStores.size)
+                    },
+                    icon = ImageVector.vectorResource(R.drawable.ic_app_icon),
+                    iconTint = ChipTeal,
+                    onClick = onOpenStoreSettings,
+                )
+                RowDivider()
                 SettingRow(
                     title = stringResource(R.string.settings_sync_frequency),
                     value = frequencyLabel(state.settings.syncFrequency),

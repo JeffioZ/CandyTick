@@ -305,6 +305,13 @@ class ListViewModel(
     /** 下拉刷新：单仓库失败只做角标，全部失败才出横幅（旧数据保留） */
     fun refresh() {
         if (!refreshing.compareAndSet(false, true)) return
+        val appContainer = (context.applicationContext as CandyTickApp).container
+        if (appContainer.appStateStore.state.value.settings.storePrefs.enabledStores.isNotEmpty()) {
+            // 首页下拉同步顺手在后台检查一次本机应用更新（遵循 30 分钟节流，不阻塞仓库刷新）
+            viewModelScope.launch(Dispatchers.IO) {
+                runCatching { appContainer.storeUpdateChecker.checkAll(force = false) }
+            }
+        }
         viewModelScope.launch {
             try {
                 val activeSync = workerSync.value as? SyncStatus.Running ?: syncStatus.value as? SyncStatus.Running

@@ -34,6 +34,7 @@ object Notifications {
 
     private const val GROUP_REPO_UPDATES = "repo_updates" // 多仓库同轮发版折叠为一组
     private const val SUMMARY_ID = 1001 // 组摘要固定 id：每轮覆盖更新
+    private const val STORE_SUMMARY_ID = 1002 // 应用商店更新汇总通知固定 id
     private const val SELF_UPDATE_ID = 4242 // 自更新就绪通知固定 id
 
     fun ensureChannels(context: Context) {
@@ -81,6 +82,7 @@ object Notifications {
     const val EXTRA_NAV_REPO = "nav_repo_id" // 仓库新版本 → 该仓库详情页
     const val EXTRA_NAV_RELEASE_TAG = "nav_release_tag"
     const val EXTRA_NAV_SETTINGS = "nav_settings" // 自更新就绪 → 设置页
+    const val EXTRA_NAV_STORE_UPDATES = "nav_store_updates" // 商店应用更新汇总 → 应用更新页
     const val ACTION_NAV_HOME = "io.candy.tick.NOTIFY_REPO_SUMMARY"
 
     private fun openRepoRelease(context: Context, repoId: Long, tag: String): PendingIntent {
@@ -224,6 +226,7 @@ object Notifications {
         var remaining = 0
         var summaryCount: Int? = null
         for (entry in active) {
+            if (entry.tag == null && entry.id == STORE_SUMMARY_ID) continue
             if (entry.tag == null && entry.id == SUMMARY_ID) {
                 summaryCount = entry.notification.number
                 continue
@@ -255,5 +258,31 @@ object Notifications {
     /** 自更新装完撤「下载完成」通知（SelfUpdater 检测到本机已是新版时调用） */
     fun cancelSelfUpdateReady(context: Context) {
         runCatching { NotificationManagerCompat.from(context).cancel(SELF_UPDATE_ID) }
+    }
+
+    /** 应用商店更新合并通知（一条汇总，点击直达「应用更新」页） */
+    @SuppressLint("MissingPermission")
+    fun notifyStoreUpdatesSummary(context: Context, count: Int) {
+        if (count <= 0 || !canNotify(context)) return
+        ensureChannels(context)
+        val intent = Intent(context, MainActivity::class.java)
+            .setAction("io.candy.tick.NOTIFY_STORE_UPDATES")
+            .putExtra(EXTRA_NAV_STORE_UPDATES, true)
+        val pending = PendingIntent.getActivity(
+            context,
+            STORE_SUMMARY_ID,
+            intent,
+            PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE,
+        )
+        val notification = NotificationCompat.Builder(context, CHANNEL_NEW_RELEASE)
+            .setSmallIcon(R.drawable.ic_notification)
+            .setContentTitle(context.getString(R.string.store_notif_title))
+            .setContentText(context.resources.getQuantityString(R.plurals.store_notif_body, count, count))
+            .setContentIntent(pending)
+            .setAutoCancel(true)
+            .build()
+        runCatching {
+            NotificationManagerCompat.from(context).notify(STORE_SUMMARY_ID, notification)
+        }
     }
 }

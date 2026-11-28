@@ -169,6 +169,47 @@ class SyncWorker(context: Context, params: WorkerParameters) : CoroutineWorker(c
             rateLimitRetryAt = rateLimitErrors.mapNotNull { it.retryAt }.maxOrNull(),
         )
 
+        // 3.5) 应用商店更新检查（30 分钟节流，异常完全隔离，不影响仓库同步结果）
+        runCatching {
+            // 同步清理已卸载应用在「不检查名单 / 已忽略 / 固定渠道」中的残留记录
+            val prefs = container.appStateStore.state.value.settings.storePrefs
+            val trackedStorePkgs = prefs.excludedPackages + prefs.skippedVersions.keys + prefs.pinnedSources.keys
+            if (trackedStorePkgs.isNotEmpty()) {
+                val uninstalled = trackedStorePkgs.filter { pkg ->
+                    try {
+                        applicationContext.packageManager.getPackageInfo(pkg, 0)
+                        false
+                    } catch (_: android.content.pm.PackageManager.NameNotFoundException) {
+                        true
+                    } catch (_: SecurityException) {
+                        false
+                    }
+                }.toSet()
+                if (uninstalled.isNotEmpty()) {
+                    container.appStateStore.update { st ->
+                        val p = st.settings.storePrefs
+                        st.copy(
+                            settings = st.settings.copy(
+                                storePrefs = p.copy(
+                                    excludedPackages = p.excludedPackages - uninstalled,
+                                    skippedVersions = p.skippedVersions - uninstalled,
+                                    pinnedSources = p.pinnedSources - uninstalled,
+                                ),
+                            ),
+                        )
+                    }
+                }
+            }
+            val storeSummary = container.storeUpdateChecker.checkAll(force = false)
+            val currentSettings = container.appStateStore.state.value.settings
+            if (storeSummary.newlyDiscovered.isNotEmpty() && currentSettings.notificationsEnabled) {
+                Notifications.notifyStoreUpdatesSummary(
+                    applicationContext.forAppLanguage(currentSettings.language),
+                    storeSummary.updatableCount.coerceAtLeast(storeSummary.newlyDiscovered.size),
+                )
+            }
+        }.onFailure { if (it is CancellationException) throw it }
+
         // 4) 自身更新（检查默认开；自动下载按设置入队）
         val updateSettings = container.appStateStore.state.value.settings
         if (updateSettings.selfUpdateCheck) {

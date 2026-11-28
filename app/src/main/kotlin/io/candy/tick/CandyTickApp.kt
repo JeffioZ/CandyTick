@@ -110,6 +110,26 @@ class CandyTickApp : Application() {
                     }
                 }
         }
+        // 预热本机已装应用快照：开启任一渠道或切换「检查系统应用」时后台扫描，进更新页首帧即就绪
+        container.appScope.launch(Dispatchers.IO) {
+            container.appStateStore.awaitLoaded()
+            container.appStateStore.state
+                .map { it.settings.storePrefs.enabledStores.isNotEmpty() to it.settings.storePrefs.includeSystemApps }
+                .distinctUntilChanged()
+                .collect { (enabled, includeSystem) ->
+                    if (enabled) {
+                        runCatching { container.installedAppCache.refresh(includeSystem) }
+                    }
+                }
+        }
+        container.appScope.launch(Dispatchers.IO) {
+            container.installManager.packageInstalled.collect {
+                val prefs = container.appStateStore.state.value.settings.storePrefs
+                if (prefs.enabledStores.isNotEmpty()) {
+                    runCatching { container.installedAppCache.refresh(prefs.includeSystemApps) }
+                }
+            }
+        }
         // 「每次打开应用」同步：前后台切换计数，0→1 即回到前台（冷/热启动都覆盖）
         container.appScope.launch(Dispatchers.IO) {
             container.appStateStore.awaitLoaded()
@@ -135,8 +155,14 @@ class CandyTickApp : Application() {
                             runCatching {
                                 container.appStateStore.awaitLoaded()
                                 if (visible.value) return@launch
+                                val storeEnabled = container.appStateStore.state.value.settings.storePrefs.enabledStores.isNotEmpty()
                                 val hasActiveDownload = container.repoDownloadHost.states.value.values
                                     .any { it is RepoDownloadState.Active } ||
+                                    (storeEnabled && container.storeDownloadHost.states.value.values.any {
+                                        it is io.candy.tick.data.store.StoreTaskState.Downloading ||
+                                            it is io.candy.tick.data.store.StoreTaskState.Verifying ||
+                                            it is io.candy.tick.data.store.StoreTaskState.Installing
+                                    }) ||
                                     container.selfUpdater.state.value is SelfUpdater.State.Downloading
                                 if (hasActiveDownload) return@launch
                                 val desired = container.appStateStore.state.value.settings.appIconMode

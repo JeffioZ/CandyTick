@@ -34,6 +34,7 @@ import io.candy.tick.ui.nav.AppRoute
 import io.candy.tick.ui.nav.RouteDetail
 import io.candy.tick.ui.nav.RouteHome
 import io.candy.tick.ui.nav.RouteSettings
+import io.candy.tick.ui.nav.RouteStoreUpdates
 import io.candy.tick.ui.theme.CandyTickTheme
 import io.candy.tick.util.forAppLanguage
 import kotlinx.coroutines.Dispatchers
@@ -62,6 +63,7 @@ class MainActivity : ComponentActivity() {
                 releaseTag = intent.getStringExtra(Notifications.EXTRA_NAV_RELEASE_TAG)?.takeIf { it.isNotBlank() },
                 releaseRequestId = UUID.randomUUID().toString(),
             )
+            intent.getBooleanExtra(Notifications.EXTRA_NAV_STORE_UPDATES, false) -> RouteStoreUpdates
             intent.getBooleanExtra(Notifications.EXTRA_NAV_SETTINGS, false) -> RouteSettings()
             intent.action == Notifications.ACTION_NAV_HOME -> RouteHome
             else -> return

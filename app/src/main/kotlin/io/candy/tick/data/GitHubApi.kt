@@ -1,5 +1,6 @@
 package io.candy.tick.data
 
+import io.candy.tick.data.download.ApkDownloader
 import io.candy.tick.data.model.ApkAsset
 import io.candy.tick.data.model.CommitRecord
 import io.candy.tick.data.model.ReleaseRecord
@@ -281,11 +282,8 @@ class GitHubApi(private val tokenProvider: () -> String?) {
     suspend fun download(asset: ApkAsset, dest: File, onProgress: (Float) -> Unit = {}): File =
         withContext(Dispatchers.IO) {
             try {
-                dest.parentFile?.mkdirs()
-                // 磁盘预检：写一半 ENOSPC 体验最差；repo 与自更新下载共用此口，一处拦住两处
-                if (asset.size > 0 && (dest.parentFile?.usableSpace ?: Long.MAX_VALUE) < asset.size + DISK_HEADROOM_BYTES) {
-                    throw SourceException(SourceError.StorageFull)
-                }
+                // 磁盘预检：写一半 ENOSPC 体验最差；repo / 自更新 / 商店下载共用此口
+                ApkDownloader.checkDiskSpace(dest, asset.size)
                 val endpoint = asset.url.toHttpUrl()
                 val request = Request.Builder().url(endpoint).apply {
                     if (endpoint.isHttps && endpoint.host == "api.github.com" && endpoint.port == 443) {
@@ -299,29 +297,13 @@ class GitHubApi(private val tokenProvider: () -> String?) {
                     val body = response.body
                     val total = body.contentLength().takeIf { it > 0 } ?: asset.size
                     body.byteStream().use { input ->
-                        dest.outputStream().use { output ->
-                            val buffer = ByteArray(64 * 1024)
-                            var read = 0L
-                            var lastPercent = -1
-                            while (true) {
-                                val n = input.read(buffer)
-                                if (n < 0) break
-                                // 协作取消：阻塞读不响应协程 cancel，循环里显式检查——
-                                // 否则被取消的旧任务会继续写盘（与新会话双写同文件）
-                                downloadContext.ensureActive()
-                                output.write(buffer, 0, n)
-                                read += n
-                                if (read > MAX_DOWNLOAD_BYTES) throw IOException("Download exceeds size limit")
-                                if (total > 0) {
-                                    val progress = (read.toDouble() / total).toFloat().coerceIn(0f, 1f)
-                                    val percent = (progress * 100).toInt()
-                                    if (percent != lastPercent) {
-                                        lastPercent = percent
-                                        onProgress(progress)
-                                    }
-                                }
-                            }
-                        }
+                        ApkDownloader.streamToFile(
+                            input = input,
+                            dest = dest,
+                            expectedTotal = total,
+                            context = downloadContext,
+                            onProgress = { progress -> progress.fraction?.let(onProgress) },
+                        )
                     }
                 }
                 dest
@@ -595,11 +577,6 @@ class GitHubApi(private val tokenProvider: () -> String?) {
     private companion object {
         const val BASE_URL = "https://api.github.com"
         const val TIMEOUT_S = 15L
-
-        // 下载写盘守卫：已知大小而剩余空间不够（含 64MiB 余量）就不开下载；
-        // Content-Length 未知/说谎时按 2GiB 上限止损，不无限写盘
-        const val DISK_HEADROOM_BYTES = 64L * 1024 * 1024
-        const val MAX_DOWNLOAD_BYTES = 2L * 1024 * 1024 * 1024
     }
 }
 

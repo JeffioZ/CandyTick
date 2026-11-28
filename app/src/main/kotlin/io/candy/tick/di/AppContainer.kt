@@ -13,6 +13,24 @@ import io.candy.tick.data.CacheManager
 import io.candy.tick.data.SelfUpdater
 import io.candy.tick.data.SyncStatus
 import io.candy.tick.data.Translator
+import io.candy.tick.data.download.ApkDownloader
+import io.candy.tick.data.store.InstalledAppCache
+import io.candy.tick.data.store.StoreCatalog
+import io.candy.tick.data.store.StoreDownloadHost
+import io.candy.tick.data.store.StoreSource
+import io.candy.tick.data.store.StoreUpdateChecker
+import io.candy.tick.data.store.appchina.AppchinaStore
+import io.candy.tick.data.store.coolapk.CoolapkStore
+import io.candy.tick.data.store.fdroid.FdroidStore
+import io.candy.tick.data.store.honor.HonorStore
+import io.candy.tick.data.store.huawei.HuaweiStore
+import io.candy.tick.data.store.oppo.OppoStore
+import io.candy.tick.data.store.samsung.SamsungStore
+import io.candy.tick.data.store.taptap.TapTapStore
+import io.candy.tick.data.store.tencent.TencentStore
+import io.candy.tick.data.store.vivo.VivoStore
+import io.candy.tick.data.store.wandoujia.WandoujiaStore
+import io.candy.tick.data.store.xiaomi.XiaomiStore
 import io.candy.tick.util.forAppLanguage
 import io.candy.tick.worker.SyncScheduler
 import kotlinx.coroutines.CoroutineScope
@@ -36,6 +54,8 @@ class AppContainer(context: Context, isAppVisible: () -> Boolean) {
     }
 
     val installManager: InstallManager by lazy { InstallManager(context, appScope) }
+
+    val apkDownloader: ApkDownloader by lazy { ApkDownloader() }
 
     val selfUpdater: SelfUpdater by lazy {
         SelfUpdater(
@@ -73,6 +93,54 @@ class AppContainer(context: Context, isAppVisible: () -> Boolean) {
             installManager = installManager,
             appContext = context,
             isAppVisible = isAppVisible,
+        )
+    }
+
+    /** 已适配的应用商店数据源集合（单点注册） */
+    val storeSources: Map<String, StoreSource> by lazy {
+        mapOf(
+            StoreCatalog.ID_XIAOMI to XiaomiStore(),
+            StoreCatalog.ID_VIVO to VivoStore(),
+            StoreCatalog.ID_WANDOUJIA to WandoujiaStore(),
+            StoreCatalog.ID_TENCENT to TencentStore(),
+            StoreCatalog.ID_COOLAPK to CoolapkStore(),
+            StoreCatalog.ID_APPCHINA to AppchinaStore(),
+            StoreCatalog.ID_FDROID to FdroidStore(
+                id = StoreCatalog.ID_FDROID,
+                cacheDir = context.cacheDir,
+                mirrorProvider = { appStateStore.state.value.settings.storePrefs.fdroidMirror },
+            ),
+            StoreCatalog.ID_IZZYONDROID to FdroidStore(
+                id = StoreCatalog.ID_IZZYONDROID,
+                cacheDir = context.cacheDir,
+            ),
+            StoreCatalog.ID_OPPO to OppoStore(),
+            StoreCatalog.ID_HUAWEI to HuaweiStore(),
+            StoreCatalog.ID_HONOR to HonorStore(),
+            StoreCatalog.ID_SAMSUNG to SamsungStore(),
+            StoreCatalog.ID_TAPTAP to TapTapStore(),
+        )
+    }
+
+    val installedAppCache: InstalledAppCache by lazy { InstalledAppCache(context) }
+
+    val storeUpdateChecker: StoreUpdateChecker by lazy {
+        StoreUpdateChecker(
+            context = context,
+            stateStore = appStateStore,
+            sources = storeSources,
+        )
+    }
+
+    val storeDownloadHost: StoreDownloadHost by lazy {
+        StoreDownloadHost(
+            scope = appScope,
+            appContext = context,
+            stateStore = appStateStore,
+            downloader = apkDownloader,
+            installManager = installManager,
+            checker = storeUpdateChecker,
+            sources = storeSources,
         )
     }
 }

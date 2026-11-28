@@ -24,6 +24,8 @@ import io.candy.tick.ui.add.AddScreen
 import io.candy.tick.ui.detail.DetailScreen
 import io.candy.tick.ui.list.ListScreen
 import io.candy.tick.ui.settings.SettingsScreen
+import io.candy.tick.ui.store.StoreSettingsScreen
+import io.candy.tick.ui.store.StoreUpdatesScreen
 import kotlinx.serialization.Serializable
 
 @Serializable
@@ -44,6 +46,12 @@ data class RouteDetail(
     val releaseTag: String? = null,
     val releaseRequestId: String? = null,
 ) : AppRoute
+
+@Serializable
+data object RouteStoreUpdates : AppRoute
+
+@Serializable
+data object RouteStoreSettings : AppRoute
 
 @Composable
 fun AppNavHost(
@@ -90,6 +98,14 @@ fun AppNavHost(
     fun goBackFrom(key: NavKey) {
         if (backStack.size > 1 && backStack.last() == key) backStack.removeLastOrNull()
     }
+    fun openOrPopTo(target: AppRoute) {
+        val existing = backStack.indexOfLast { it == target }
+        if (existing >= 0) {
+            while (backStack.lastIndex > existing) backStack.removeLastOrNull()
+        } else {
+            backStack.add(target)
+        }
+    }
     // 大屏/折叠屏适配（单点规则，全部页面共用）：背景全宽 + 内容列限宽 640dp 居中——
     // 手机（<600dp）与现状零差异；折叠展开/平板的行长落回可读区间（65-75 字符）。
     // 顶栏随内容列对齐；转场位移以列宽为基准。新页面自动获得该形态，无需逐页适配
@@ -134,6 +150,7 @@ fun AppNavHost(
                                 onOpenDetail = { openFromHome(RouteDetail(it)) },
                                 onOpenSettings = { openFromHome(RouteSettings()) },
                                 onOpenImport = { openFromHome(RouteSettings(focusImport = true)) },
+                                onOpenStoreUpdates = { openFromHome(RouteStoreUpdates) },
                             )
                             RouteAdd -> AddScreen(
                                 onClose = { goBackFrom(k) },
@@ -147,6 +164,15 @@ fun AppNavHost(
                             is RouteSettings -> SettingsScreen(
                                 onBack = { goBackFrom(k) },
                                 autoOpenImport = k.focusImport,
+                                onOpenStoreSettings = { openOrPopTo(RouteStoreSettings) },
+                            )
+                            RouteStoreUpdates -> StoreUpdatesScreen(
+                                onBack = { goBackFrom(k) },
+                                onOpenStoreSettings = { openOrPopTo(RouteStoreSettings) },
+                            )
+                            RouteStoreSettings -> StoreSettingsScreen(
+                                onBack = { goBackFrom(k) },
+                                onOpenStoreUpdates = { openOrPopTo(RouteStoreUpdates) },
                             )
                             is RouteDetail -> DetailScreen(
                                 repoId = k.repoId,
